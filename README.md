@@ -1,8 +1,8 @@
 # Solid App Router
 
-Small config driven router inspired by Ember Router. While less dynamic than the common React Router approach which I would recommend for most SPAs, this approach is good for file system based routing. For things like you'd find in isomorphic metaframeworks.
+Small, config-driven router inspired by Ember Router. While less dynamic than the common React Router approach which I would recommend for most SPAs, this approach is good for file system based routing. For things like you'd find in isomorphic metaframeworks.
 
-So far this is just the basic isomorphic shell. Lot's more to do.
+So far this is just the basic isomorphic shell. Lots more to do.
 
 ```jsx
 import { render } from "solid-js/dom";
