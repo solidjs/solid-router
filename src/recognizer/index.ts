@@ -75,9 +75,9 @@ enum SegmentFlags {
   Dynamic = SegmentType.Dynamic,
   Star = SegmentType.Star,
   Epsilon = SegmentType.Epsilon,
-  Named = Dynamic | Star,
-  Decoded = Dynamic,
-  Counted = Static | Dynamic | Star
+  Named = SegmentType.Dynamic | SegmentType.Star,
+  Decoded = SegmentType.Dynamic,
+  Counted = SegmentType.Static | SegmentType.Dynamic | SegmentType.Star
 }
 
 type Counted = SegmentType.Static | SegmentType.Dynamic | SegmentType.Star;
