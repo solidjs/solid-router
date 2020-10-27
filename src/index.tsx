@@ -1,17 +1,29 @@
 import { createContext, useContext, Component, createSignal, createMemo, lazy } from "solid-js";
 import { Dynamic } from "solid-js/dom";
-import { RecognizeResults, RouteRecognizer, Route as RouteDef } from "./recognizer";
+import {
+  RecognizeResults,
+  RouteRecognizer,
+  Route as RouteDef,
+  QueryParams,
+  Params
+} from "./recognizer";
 export { parseQueryString, generateQueryString } from "./recognizer";
 
 interface RouteDefinition {
   path: string;
   component: string;
+  data?: (props: { params: Params; query: QueryParams }) => Record<string, unknown>;
   children?: RouteDefinition[];
+}
+
+interface RouteHandler {
+  component: Component<any>;
+  data?: (props: { params: Params; query: QueryParams }) => Record<string, unknown>;
 }
 
 interface Router {
   location: string;
-  current: RecognizeResults<Component<any>> | undefined;
+  current: RecognizeResults<RouteHandler> | undefined;
   push: (p: string) => void;
 }
 
@@ -24,17 +36,34 @@ export function useRouter() {
   return useContext(RouterContext);
 }
 
+interface RouteResolution {
+  component?: Component<any>;
+  params?: Params;
+  query?: QueryParams;
+  data?: Record<string, unknown>;
+}
 export function Route<T>(props: T) {
   const { router, level } = useRouter(),
-    resolved = createMemo(
-      () => {
+    resolved = createMemo<RouteResolution>(
+      prev => {
         const resolved = router.current;
-        return (
-          (resolved && resolved[level]) || {
-            handler: undefined,
-            params: undefined
-          }
-        );
+        let result: RouteResolution = {
+          component: undefined,
+          data: undefined,
+          params: undefined,
+          query: undefined
+        };
+        if (resolved && resolved[level]) {
+          result.component = resolved[level].handler.component;
+          result.params = resolved[level].params;
+          result.query = resolved.queryParams;
+          if (!prev && resolved[level].handler.data)
+            result.data = resolved[level].handler.data!({
+              params: result.params,
+              query: result.query
+            });
+        }
+        return result;
       },
       undefined,
       true
@@ -48,9 +77,10 @@ export function Route<T>(props: T) {
       }}
     >
       <Dynamic
-        component={resolved().handler}
+        component={resolved().component}
         params={resolved().params}
-        query={router.current && router.current.queryParams}
+        query={resolved().query}
+        {...(resolved().data || {})}
         {...props}
       />
     </RouterContext.Provider>
@@ -85,7 +115,7 @@ export const Router: Component<{ routes: RouteDefinition[] }> = props => {
 };
 
 function createRouter(routes: RouteDefinition[], initialURL?: string): Router {
-  const recognizer = new RouteRecognizer<Component<any>>();
+  const recognizer = new RouteRecognizer<RouteHandler>();
   processRoutes(recognizer, routes);
 
   const [location, setLocation] = createSignal(
@@ -109,14 +139,17 @@ function createRouter(routes: RouteDefinition[], initialURL?: string): Router {
 }
 
 function processRoutes(
-  router: RouteRecognizer<Component<any>>,
+  router: RouteRecognizer<RouteHandler>,
   routes: RouteDefinition[],
-  parentRoutes: RouteDef<Component<any>>[] = []
+  parentRoutes: RouteDef<RouteHandler>[] = []
 ) {
   routes.forEach(r => {
-    const mapped: RouteDef<Component<any>> = {
+    const mapped: RouteDef<RouteHandler> = {
       path: r.path,
-      handler: lazy(() => import(r.component))
+      handler: {
+        component: lazy(() => import(r.component)),
+        data: r.data
+      }
     };
     if (!r.children) return router.add([...parentRoutes, mapped]);
     processRoutes(router, r.children, [...parentRoutes, mapped]);
