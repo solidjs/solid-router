@@ -29,7 +29,12 @@ export function Route<T>(props: T) {
     resolved = createMemo(
       () => {
         const resolved = router.current;
-        return (resolved && resolved[level]) || { handler: undefined, params: undefined };
+        return (
+          (resolved && resolved[level]) || {
+            handler: undefined,
+            params: undefined
+          }
+        );
       },
       undefined,
       true
@@ -42,7 +47,12 @@ export function Route<T>(props: T) {
         router
       }}
     >
-      <Dynamic component={resolved().handler} params={resolved().params} {...props} />
+      <Dynamic
+        component={resolved().handler}
+        params={resolved().params}
+        query={router.current && router.current.queryParams}
+        {...props}
+      />
     </RouterContext.Provider>
   );
 }
@@ -78,7 +88,9 @@ function createRouter(routes: RouteDefinition[], initialURL?: string): Router {
   const recognizer = new RouteRecognizer<Component<any>>();
   processRoutes(recognizer, routes);
 
-  const [location, setLocation] = createSignal(initialURL ? initialURL : window.location.pathname);
+  const [location, setLocation] = createSignal(
+    initialURL ? initialURL : window.location.pathname + window.location.search
+  );
   const current = createMemo(() => recognizer.recognize(location()));
   globalThis.window && (window.onpopstate = () => setLocation(window.location.pathname));
 
