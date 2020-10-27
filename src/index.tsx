@@ -41,6 +41,7 @@ interface RouteResolution {
   params?: Params;
   query?: QueryParams;
   data?: Record<string, unknown>;
+  handler?: RecognizeResults<RouteHandler>;
 }
 export function Route<T>(props: T) {
   const { router, level } = useRouter(),
@@ -51,13 +52,14 @@ export function Route<T>(props: T) {
           component: undefined,
           data: undefined,
           params: undefined,
-          query: undefined
+          query: undefined,
+          handler: resolved
         };
         if (resolved && resolved[level]) {
           result.component = resolved[level].handler.component;
           result.params = resolved[level].params;
           result.query = resolved.queryParams;
-          if (!prev && resolved[level].handler.data)
+          if ((!prev || prev.handler !== resolved) && resolved[level].handler.data)
             result.data = resolved[level].handler.data!({
               params: result.params,
               query: result.query
