@@ -25,6 +25,7 @@ interface Router {
   location: string;
   current: RecognizeResults<RouteHandler> | undefined;
   push: (p: string) => void;
+  root: string;
 }
 
 const RouterContext = createContext<{
@@ -96,7 +97,7 @@ export const Link: Component<JSX.AnchorHTMLAttributes<HTMLAnchorElement>> = prop
       {...props}
       onClick={e => {
         e.preventDefault();
-        router.push(props.href || "");
+        router.push(router.root + props.href || "");
       }}
     />
   );
@@ -131,6 +132,7 @@ function createRouter(routes: RouteDefinition[], initialURL?: string, root: stri
   globalThis.window && (window.onpopstate = () => setLocation(window.location.pathname));
 
   return {
+    root,
     get location() {
       return location();
     },
