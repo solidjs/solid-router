@@ -152,7 +152,7 @@ function processRoutes(
 ) {
   routes.forEach(r => {
     const mapped: RouteDef<RouteHandler> = {
-      path: r.path,
+      path: root + r.path,
       handler: {
         component: lazy(() => import(root + r.component)),
         data: r.data
