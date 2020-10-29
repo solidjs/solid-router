@@ -102,8 +102,12 @@ export const Link: Component<JSX.AnchorHTMLAttributes<HTMLAnchorElement>> = prop
   );
 };
 
-export const Router: Component<{ routes: RouteDefinition[] }> = props => {
-  const router = createRouter(props.routes);
+export const Router: Component<{
+  routes: RouteDefinition[];
+  initialURL?: string;
+  root?: string;
+}> = props => {
+  const router = createRouter(props.routes, props.initialURL, props.root);
   return (
     <RouterContext.Provider
       value={{
@@ -116,9 +120,9 @@ export const Router: Component<{ routes: RouteDefinition[] }> = props => {
   );
 };
 
-function createRouter(routes: RouteDefinition[], initialURL?: string): Router {
+function createRouter(routes: RouteDefinition[], initialURL?: string, root: string = ""): Router {
   const recognizer = new RouteRecognizer<RouteHandler>();
-  processRoutes(recognizer, routes);
+  processRoutes(recognizer, routes, root);
 
   const [location, setLocation] = createSignal(
     initialURL ? initialURL : window.location.pathname + window.location.search
@@ -143,17 +147,18 @@ function createRouter(routes: RouteDefinition[], initialURL?: string): Router {
 function processRoutes(
   router: RouteRecognizer<RouteHandler>,
   routes: RouteDefinition[],
+  root: string,
   parentRoutes: RouteDef<RouteHandler>[] = []
 ) {
   routes.forEach(r => {
     const mapped: RouteDef<RouteHandler> = {
       path: r.path,
       handler: {
-        component: lazy(() => import(r.component)),
+        component: lazy(() => import(root + r.component)),
         data: r.data
       }
     };
     if (!r.children) return router.add([...parentRoutes, mapped]);
-    processRoutes(router, r.children, [...parentRoutes, mapped]);
+    processRoutes(router, r.children, root, [...parentRoutes, mapped]);
   });
 }
