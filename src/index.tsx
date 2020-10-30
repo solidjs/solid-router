@@ -11,7 +11,7 @@ export { parseQueryString, generateQueryString } from "./recognizer";
 
 interface RouteDefinition {
   path: string;
-  component: string;
+  component: string | (() => Component<any>);
   data?: (props: { params: Params; query: QueryParams }) => Record<string, unknown>;
   children?: RouteDefinition[];
 }
@@ -156,7 +156,8 @@ function processRoutes(
     const mapped: RouteDef<RouteHandler> = {
       path: root + r.path,
       handler: {
-        component: lazy(() => import(root + r.component)),
+        component:
+          typeof r.component === "string" ? lazy(() => import(root + r.component)) : r.component(),
         data: r.data
       }
     };
