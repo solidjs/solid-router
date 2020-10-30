@@ -11,7 +11,7 @@ export { parseQueryString, generateQueryString } from "./recognizer";
 
 interface RouteDefinition {
   path: string;
-  component: string | (() => Component<any>);
+  component: string | Component<any>;
   data?: (props: { params: Params; query: QueryParams }) => Record<string, unknown>;
   children?: RouteDefinition[];
 }
@@ -26,6 +26,7 @@ interface Router {
   current: RecognizeResults<RouteHandler> | undefined;
   push: (p: string) => void;
   root: string;
+  addRoutes: (r: RouteDefinition[]) => void;
 }
 
 const RouterContext = createContext<{
@@ -126,10 +127,10 @@ function createRouter(routes: RouteDefinition[], initialURL?: string, root: stri
   processRoutes(recognizer, routes, root);
 
   const [location, setLocation] = createSignal(
-    initialURL ? initialURL : window.location.pathname + window.location.search
+    initialURL ? initialURL : window.location.pathname.replace(root, "") + window.location.search
   );
-  const current = createMemo(() => recognizer.recognize(location()));
-  globalThis.window && (window.onpopstate = () => setLocation(window.location.pathname));
+  const current = createMemo(() => recognizer.recognize(root + location()));
+  globalThis.window && (window.onpopstate = () => setLocation(window.location.pathname.replace(root, "")));
 
   return {
     root,
@@ -140,8 +141,11 @@ function createRouter(routes: RouteDefinition[], initialURL?: string, root: stri
       return current();
     },
     push(path) {
-      window.history.pushState("", "", path);
+      window.history.pushState("", "", root + path);
       setLocation(path);
+    },
+    addRoutes(routes: RouteDefinition[]) {
+      processRoutes(recognizer, routes, root)
     }
   };
 }
@@ -157,7 +161,7 @@ function processRoutes(
       path: root + r.path,
       handler: {
         component:
-          typeof r.component === "string" ? lazy(() => import(root + r.component)) : r.component(),
+          typeof r.component === "string" ? lazy(() => import(root + r.component)) : r.component,
         data: r.data
       }
     };
