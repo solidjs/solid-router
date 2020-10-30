@@ -98,7 +98,7 @@ export const Link: Component<JSX.AnchorHTMLAttributes<HTMLAnchorElement>> = prop
       {...props}
       onClick={e => {
         e.preventDefault();
-        router.push(router.root + props.href || "");
+        router.push(props.href || "");
       }}
     />
   );
