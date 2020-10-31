@@ -1,5 +1,13 @@
-import { createContext, useContext, Component, createSignal, createMemo, lazy } from "solid-js";
-import { Dynamic } from "solid-js/dom";
+import {
+  createContext,
+  useContext,
+  Component,
+  createSignal,
+  createMemo,
+  lazy,
+  untrack
+} from "solid-js";
+import { Show } from "solid-js/dom";
 import {
   RecognizeResults,
   RouteRecognizer,
@@ -47,31 +55,45 @@ interface RouteResolution {
 }
 export function Route<T>(props: T) {
   const { router, level } = useRouter(),
-    resolved = createMemo<RouteResolution>(
-      prev => {
+    component = createMemo(
+      () => {
         const resolved = router.current;
-        let result: RouteResolution = {
-          component: undefined,
-          data: undefined,
-          params: undefined,
-          query: undefined,
-          handler: resolved
-        };
-        if (resolved && resolved[level]) {
-          result.component = resolved[level].handler.component;
-          result.params = resolved[level].params;
-          result.query = resolved.queryParams;
-          if ((!prev || prev.handler !== resolved) && resolved[level].handler.data)
-            result.data = resolved[level].handler.data!({
-              params: result.params,
-              query: result.query
-            });
-        }
-        return result;
+        return resolved && resolved[level].handler.component;
       },
       undefined,
       true
-    );
+    ),
+    params = createMemo(
+      () => {
+        const resolved = router.current;
+        return resolved && resolved[level].params;
+      },
+      undefined,
+      true
+    ),
+    query = createMemo(
+      () => {
+        const resolved = router.current;
+        return resolved && resolved.queryParams;
+      },
+      undefined,
+      true
+    ),
+    data = () => {
+      const resolved = router.current;
+      return (
+        resolved &&
+        resolved[level].handler.data &&
+        resolved[level].handler.data!({
+          get params() {
+            return params()!;
+          },
+          get query() {
+            return query()!;
+          }
+        })
+      );
+    };
 
   return (
     <RouterContext.Provider
@@ -80,13 +102,12 @@ export function Route<T>(props: T) {
         router
       }}
     >
-      <Dynamic
-        component={resolved().component}
-        params={resolved().params}
-        query={resolved().query}
-        {...(resolved().data || {})}
-        {...props}
-      />
+      <Show when={component()}>
+        {(C: Component<any>) => {
+          const d = untrack(data);
+          return <C params={params()} query={query()} {...d} {...props} />;
+        }}
+      </Show>
     </RouterContext.Provider>
   );
 }
@@ -130,7 +151,8 @@ function createRouter(routes: RouteDefinition[], initialURL?: string, root: stri
     initialURL ? initialURL : window.location.pathname.replace(root, "") + window.location.search
   );
   const current = createMemo(() => recognizer.recognize(root + location()));
-  globalThis.window && (window.onpopstate = () => setLocation(window.location.pathname.replace(root, "")));
+  globalThis.window &&
+    (window.onpopstate = () => setLocation(window.location.pathname.replace(root, "")));
 
   return {
     root,
@@ -145,11 +167,12 @@ function createRouter(routes: RouteDefinition[], initialURL?: string, root: stri
       setLocation(path);
     },
     addRoutes(routes: RouteDefinition[]) {
-      processRoutes(recognizer, routes, root)
+      processRoutes(recognizer, routes, root);
     }
   };
 }
 
+let dynamicRegistry: Record<string, RouteHandler> = {};
 function processRoutes(
   router: RouteRecognizer<RouteHandler>,
   routes: RouteDefinition[],
@@ -157,13 +180,18 @@ function processRoutes(
   parentRoutes: RouteDef<RouteHandler>[] = []
 ) {
   routes.forEach(r => {
+    let handler;
+    if (typeof r.component === "string") {
+      handler = dynamicRegistry[r.component];
+      if (!(handler && handler.data === r.data))
+        dynamicRegistry[r.component] = handler = {
+          component: lazy(() => import(root + r.component)),
+          data: r.data
+        };
+    } else handler = { component: r.component, data: r.data };
     const mapped: RouteDef<RouteHandler> = {
       path: root + r.path,
-      handler: {
-        component:
-          typeof r.component === "string" ? lazy(() => import(root + r.component)) : r.component,
-        data: r.data
-      }
+      handler
     };
     if (!r.children) return router.add([...parentRoutes, mapped]);
     processRoutes(router, r.children, root, [...parentRoutes, mapped]);
