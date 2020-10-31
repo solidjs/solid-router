@@ -82,16 +82,17 @@ export function Route<T>(props: T) {
     data = () => {
       const resolved = router.current;
       return (
-        resolved &&
-        resolved[level].handler.data &&
-        resolved[level].handler.data!({
-          get params() {
-            return params()!;
-          },
-          get query() {
-            return query()!;
-          }
-        })
+        (resolved &&
+          resolved[level].handler.data &&
+          resolved[level].handler.data!({
+            get params() {
+              return params()!;
+            },
+            get query() {
+              return query()!;
+            }
+          })) ||
+        {}
       );
     };
 
