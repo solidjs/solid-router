@@ -48,13 +48,6 @@ export function useRouter() {
   return useContext(RouterContext);
 }
 
-interface RouteResolution {
-  component?: Component<any>;
-  params?: Params;
-  query?: QueryParams;
-  data?: Record<string, unknown>;
-  handler?: RecognizeResults<RouteHandler>;
-}
 export function Route<T>(props: T) {
   const { router, level } = useRouter(),
     component = createMemo(
