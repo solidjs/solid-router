@@ -5,7 +5,8 @@ import {
   createSignal,
   createMemo,
   lazy,
-  untrack
+  untrack,
+  useTransition
 } from "solid-js";
 import { Show } from "solid-js/dom";
 import {
@@ -32,6 +33,7 @@ interface RouteHandler {
 interface Router {
   location: string;
   current: RecognizeResults<RouteHandler> | undefined;
+  pending: boolean;
   push: (p: string) => void;
   root: string;
   addRoutes: (r: RouteDefinition[]) => void;
@@ -58,7 +60,7 @@ export function Route<T>(props: T) {
     component = createMemo(
       () => {
         const resolved = router.current;
-        return resolved && resolved[level].handler.component;
+        return resolved && resolved[level] && resolved[level].handler.component;
       },
       undefined,
       true
@@ -66,7 +68,7 @@ export function Route<T>(props: T) {
     params = createMemo(
       () => {
         const resolved = router.current;
-        return resolved && resolved[level].params;
+        return resolved && resolved[level] && resolved[level].params;
       },
       undefined,
       true
@@ -152,8 +154,10 @@ function createRouter(routes: RouteDefinition[], initialURL?: string, root: stri
     initialURL ? initialURL : window.location.pathname.replace(root, "") + window.location.search
   );
   const current = createMemo(() => recognizer.recognize(root + location()));
+  const [pending, start] = useTransition();
   globalThis.window &&
-    (window.onpopstate = () => setLocation(window.location.pathname.replace(root, "")));
+    (window.onpopstate = () =>
+      start(() => setLocation(window.location.pathname.replace(root, ""))));
 
   return {
     root,
@@ -163,9 +167,12 @@ function createRouter(routes: RouteDefinition[], initialURL?: string, root: stri
     get current() {
       return current();
     },
+    get pending() {
+      return pending();
+    },
     push(path) {
       window.history.pushState("", "", root + path);
-      setLocation(path);
+      start(() => setLocation(path));
     },
     addRoutes(routes: RouteDefinition[]) {
       processRoutes(recognizer, routes, root);
