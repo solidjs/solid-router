@@ -6,6 +6,7 @@ import {
   createMemo,
   lazy,
   untrack,
+  assignProps,
   useTransition
 } from "solid-js";
 import { Show } from "solid-js/dom";
@@ -39,21 +40,19 @@ interface Router {
   addRoutes: (r: RouteDefinition[]) => void;
 }
 
-const RouterContext = createContext<{
-  level: number;
-  router: Router;
-}>();
+const RouterContext = createContext<Router & { level: number }>();
 
 export function useRouter() {
   return useContext(RouterContext);
 }
 
 export function Route<T>(props: T) {
-  const { router, level } = useRouter(),
+  const router = useRouter(),
+    childRouter = assignProps({}, router, { level: router.level + 1 }),
     component = createMemo(
       () => {
         const resolved = router.current;
-        return resolved && resolved[level] && resolved[level].handler.component;
+        return resolved && resolved[router.level] && resolved[router.level].handler.component;
       },
       undefined,
       true
@@ -61,7 +60,7 @@ export function Route<T>(props: T) {
     params = createMemo(
       () => {
         const resolved = router.current;
-        return resolved && resolved[level] && resolved[level].params;
+        return resolved && resolved[router.level] && resolved[router.level].params;
       },
       undefined,
       true
@@ -78,8 +77,8 @@ export function Route<T>(props: T) {
       const resolved = router.current;
       return (
         (resolved &&
-          resolved[level].handler.data &&
-          resolved[level].handler.data!({
+          resolved[router.level].handler.data &&
+          resolved[router.level].handler.data!({
             get params() {
               return params()!;
             },
@@ -92,12 +91,7 @@ export function Route<T>(props: T) {
     };
 
   return (
-    <RouterContext.Provider
-      value={{
-        level: level + 1,
-        router
-      }}
-    >
+    <RouterContext.Provider value={childRouter}>
       <Show when={component()}>
         {(C: Component<any>) => {
           const d = untrack(data);
@@ -109,7 +103,7 @@ export function Route<T>(props: T) {
 }
 
 export const Link: Component<JSX.AnchorHTMLAttributes<HTMLAnchorElement>> = props => {
-  const { router } = useRouter();
+  const router = useRouter();
   return (
     <a
       {...props}
@@ -126,14 +120,14 @@ export const Router: Component<{
   initialURL?: string;
   root?: string;
 }> = props => {
-  const router = createRouter(props.routes, props.initialURL, props.root);
+  const router: Router & { level?: number } = createRouter(
+    props.routes,
+    props.initialURL,
+    props.root
+  );
+  router.level = 0;
   return (
-    <RouterContext.Provider
-      value={{
-        level: 0,
-        router
-      }}
-    >
+    <RouterContext.Provider value={router as Router & { level: number }}>
       {props.children}
     </RouterContext.Provider>
   );
