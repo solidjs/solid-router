@@ -19,7 +19,7 @@ import {
 } from "./recognizer";
 export { parseQueryString, generateQueryString } from "./recognizer";
 
-interface RouteDefinition {
+export interface RouteDefinition {
   path: string;
   component: string | Component<any>;
   data?: (props: { params: Params; query: QueryParams }) => Record<string, unknown>;
