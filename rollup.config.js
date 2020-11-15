@@ -17,7 +17,7 @@ export default {
   input: "src/index.tsx",
   output: [
     {
-      file: "lib//solid-app-router.js",
+      file: "dist//solid-app-router.cjs.js",
       format: "cjs"
     },
     {
@@ -25,6 +25,6 @@ export default {
       format: "es"
     }
   ],
-  external: ["solid-js", "solid-js/dom"],
+  external: ["solid-js", "solid-js/web"],
   plugins
 };

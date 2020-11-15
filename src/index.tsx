@@ -6,10 +6,9 @@ import {
   createMemo,
   lazy,
   untrack,
-  assignProps,
   useTransition
 } from "solid-js";
-import { Show } from "solid-js/dom";
+import { Show, assignProps, isServer } from "solid-js/web";
 import {
   RecognizeResults,
   RouteRecognizer,
@@ -142,7 +141,7 @@ function createRouter(routes: RouteDefinition[], initialURL?: string, root: stri
   );
   const current = createMemo(() => recognizer.recognize(root + location()));
   const [pending, start] = useTransition();
-  globalThis.window &&
+  !isServer &&
     (window.onpopstate = () =>
       start(() => setLocation(window.location.pathname.replace(root, ""))));
 

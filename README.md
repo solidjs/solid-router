@@ -5,7 +5,7 @@ Small, config-driven router inspired by Ember Router. While less dynamic than th
 So far this is just the basic isomorphic shell. Lots more to do.
 
 ```jsx
-import { render } from "solid-js/dom";
+import { render } from "solid-js/web";
 import { Router, Route, Link } from "../Router";
 
 const routes = [
