@@ -3,33 +3,28 @@
   "description": "Config driven router for SolidJS",
   "author": "Ryan Carniato",
   "license": "MIT",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "homepage": "https://github.com/ryansolid/solid-app-router#readme",
   "repository": {
     "type": "git",
     "url": "https://github.com/ryansolid/solid-app-router"
   },
-  "main": "dist/solid-app-router.cjs.js",
-  "module": "dist/solid-app-router.js",
-  "types": "types/index.d.ts",
+  "type": "module",
+  "main": "dist/index.jsx",
+  "module": "dist/index.jsx",
+  "types": "dist/index.d.ts",
   "files": [
-    "dist",
-    "types"
+    "dist"
   ],
   "sideEffects": "false",
   "scripts": {
-    "build": "rollup -c && tsc",
+    "build": "tsc",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "@babel/core": "^7.11.6",
-    "@babel/preset-typescript": "^7.10.4",
-    "@rollup/plugin-babel": "5.2.1",
-    "@rollup/plugin-node-resolve": "9.0.0",
-    "rollup": "^2.32.1",
+    "@types/node": "^14.14.10",
     "solid-js": "^0.22.0",
-    "babel-preset-solid": "^0.22.0",
-    "typescript": "~4.0.3"
+    "typescript": "~4.1.2"
   },
   "peerDependencies": {
     "solid-js": "^0.22.0"
