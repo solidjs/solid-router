@@ -6,7 +6,8 @@ import {
   createMemo,
   lazy,
   untrack,
-  useTransition
+  useTransition,
+  JSX
 } from "solid-js";
 import { Show, assignProps, isServer } from "solid-js/web";
 import {
