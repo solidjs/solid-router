@@ -4,9 +4,9 @@ import {
   Component,
   createSignal,
   createMemo,
-  lazy,
   untrack,
   useTransition,
+  splitProps,
   JSX
 } from "solid-js";
 import { Show, assignProps, isServer } from "solid-js/web";
@@ -21,7 +21,7 @@ export { parseQueryString, generateQueryString } from "./recognizer";
 
 export interface RouteDefinition {
   path: string;
-  component: string | Component<any>;
+  component: Component<any>;
   data?: (props: { params: Params; query: QueryParams }) => Record<string, unknown>;
   children?: RouteDefinition[];
 }
@@ -46,9 +46,10 @@ export function useRouter() {
   return useContext(RouterContext);
 }
 
-export function Route<T>(props: T) {
+export function Route<T extends { children?: any }>(props: T) {
   const router = useRouter(),
     childRouter = assignProps({}, router, { level: router.level + 1 }),
+    [p, others] = splitProps(props, ["children"]),
     component = createMemo(
       () => {
         const resolved = router.current;
@@ -95,7 +96,11 @@ export function Route<T>(props: T) {
       <Show when={component()}>
         {(C: Component<any>) => {
           const d = untrack(data);
-          return <C params={params()} query={query()} {...d} {...props} />;
+          return (
+            <C params={params()} query={query()} {...d} {...others}>
+              {p.children}
+            </C>
+          );
         }}
       </Show>
     </RouterContext.Provider>
@@ -103,15 +108,18 @@ export function Route<T>(props: T) {
 }
 
 export const Link: Component<JSX.AnchorHTMLAttributes<HTMLAnchorElement>> = props => {
-  const router = useRouter();
+  const router = useRouter(),
+    [p, others] = splitProps(props, ["children"]);
   return (
     <a
-      {...props}
+      {...others}
       onClick={e => {
         e.preventDefault();
         router.push(props.href || "");
       }}
-    />
+    >
+      {p.children}
+    </a>
   );
 };
 
@@ -167,7 +175,6 @@ function createRouter(routes: RouteDefinition[], initialURL?: string, root: stri
   };
 }
 
-let dynamicRegistry: Record<string, RouteHandler> = {};
 function processRoutes(
   router: RouteRecognizer<RouteHandler>,
   routes: RouteDefinition[],
@@ -175,18 +182,9 @@ function processRoutes(
   parentRoutes: RouteDef<RouteHandler>[] = []
 ) {
   routes.forEach(r => {
-    let handler;
-    if (typeof r.component === "string") {
-      handler = dynamicRegistry[r.component];
-      if (!(handler && handler.data === r.data))
-        dynamicRegistry[r.component] = handler = {
-          component: lazy(() => import(root + r.component)),
-          data: r.data
-        };
-    } else handler = { component: r.component, data: r.data };
     const mapped: RouteDef<RouteHandler> = {
       path: root + r.path,
-      handler
+      handler: { component: r.component, data: r.data }
     };
     if (!r.children) return router.add([...parentRoutes, mapped]);
     processRoutes(router, r.children, root, [...parentRoutes, mapped]);

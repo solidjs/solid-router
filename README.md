@@ -5,30 +5,31 @@ Small, config-driven router inspired by Ember Router. While less dynamic than th
 So far this is just the basic isomorphic shell. Lots more to do.
 
 ```jsx
+import { lazy } from "solid-js";
 import { render } from "solid-js/web";
-import { Router, Route, Link } from "../Router";
+import { Router, Route, Link } from "solid-app-router";
 
 const routes = [
   {
     path: "/users",
-    component: "/pages/users.js"
+    component: lazy(() => import("/pages/users.js"))
   },
   {
     path: "/users/:id",
-    component: "/pages/users/[id].js",
+    component: lazy(() => import("/pages/users/[id].js")),
     children: [
-      { path: "/", component: "/pages/users/[id]/index.js" },
-      { path: "/settings", component: "/pages/users/[id]/settings.js" },
-      { path: "*all", component: "/pages/users/[id]/[...all].js" }
+      { path: "/", component: lazy(() => import("/pages/users/[id]/index.js")) },
+      { path: "/settings", component: lazy(() => import("/pages/users/[id]/settings.js")) },
+      { path: "*all", component: lazy(() => import("/pages/users/[id]/[...all].js")) }
     ]
   },
   {
     path: "/",
-    component: "/pages/index.js"
+    component: lazy(() => import("/pages/index.js"))
   },
   {
     path: "*all",
-    component: "/pages/[...all].js"
+    component: lazy(() => import("/pages/[...all].js"))
   }
 ];
 
