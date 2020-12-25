@@ -184,7 +184,7 @@ interface Segment {
 
 export type BaseObject<T = unknown> = Record<string | number, T>;
 
-export type Params<T = Record<string, unknown>> = 
+export type Params<T = BaseObject> = 
   { [K in keyof T]?: T[K] } 
   & { queryParams?: BaseObject | null }
   & BaseObject;
