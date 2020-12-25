@@ -10,25 +10,25 @@ import {
   JSX
 } from "solid-js";
 import { Show, assignProps, isServer } from "solid-js/web";
-import {
-  RecognizeResults,
-  RouteRecognizer,
-  Route as RouteDef,
-  QueryParams,
-  Params
-} from "./recognizer";
+import { RouteRecognizer, Route as RouteDef } from "./recognizer";
+import type { BaseObject, Params, QueryParams, RecognizeResults } from './recognizer';
+
 export { parseQueryString, generateQueryString } from "./recognizer";
+export type { Params } from "./recognizer";
+
+export type DataFnParams<T> = { params: Params<T>; query: QueryParams };
+export type DataFn<T = BaseObject> = (props: DataFnParams<T>) => BaseObject;
 
 export interface RouteDefinition {
   path: string;
   component: Component<any>;
-  data?: (props: { params: Params; query: QueryParams }) => Record<string, unknown>;
+  data?: DataFn;
   children?: RouteDefinition[];
 }
 
 interface RouteHandler {
   component: Component<any>;
-  data?: (props: { params: Params; query: QueryParams }) => Record<string, unknown>;
+  data?: DataFn;
 }
 
 interface Router {

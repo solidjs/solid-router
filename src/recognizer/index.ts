@@ -182,14 +182,12 @@ interface Segment {
   value: string;
 }
 
-export interface Params {
-  [key: string]: unknown;
-  [key: number]: unknown;
-  queryParams?: {
-    [key: string]: unknown;
-    [key: number]: unknown;
-  } | null;
-}
+export type BaseObject<T = unknown> = Record<string | number, T>;
+
+export type Params<T = Record<string, unknown>> = 
+  { [K in keyof T]?: T[K] } 
+  & { queryParams?: BaseObject | null }
+  & BaseObject;
 
 interface ParsedHandler {
   names: string[];
