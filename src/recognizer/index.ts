@@ -28,9 +28,9 @@ interface MatchDSL<THandler> {
   (path: string, callback: MatchCallback<THandler>): void;
 }
 
-export interface QueryParams {
-  [param: string]: string[] | string | null | undefined;
-}
+export type QueryParams<T = BaseObject> = 
+  { [K in keyof T]: T[K] }
+  & { [param: string]: string[] | string | null | undefined }
 
 export interface Result<THandler> {
   handler: THandler;
