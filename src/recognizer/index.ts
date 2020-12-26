@@ -28,9 +28,9 @@ interface MatchDSL<THandler> {
   (path: string, callback: MatchCallback<THandler>): void;
 }
 
-export interface QueryParams {
-  [param: string]: string[] | string | null | undefined;
-}
+export type QueryParams<T = BaseObject> = 
+  { [K in keyof T]: T[K] }
+  & { [param: string]: string[] | string | null | undefined }
 
 export interface Result<THandler> {
   handler: THandler;
@@ -182,14 +182,12 @@ interface Segment {
   value: string;
 }
 
-export interface Params {
-  [key: string]: unknown;
-  [key: number]: unknown;
-  queryParams?: {
-    [key: string]: unknown;
-    [key: number]: unknown;
-  } | null;
-}
+export type BaseObject<T = unknown> = Record<string | number, T>;
+
+export type Params<T = BaseObject> = 
+  { [K in keyof T]?: T[K] } 
+  & { queryParams?: BaseObject | null }
+  & BaseObject;
 
 interface ParsedHandler {
   names: string[];
