@@ -11,13 +11,17 @@ import {
 } from "solid-js";
 import { Show, assignProps, isServer } from "solid-js/web";
 import { RouteRecognizer, Route as RouteDef } from "./recognizer";
-import type { BaseObject, Params, QueryParams, RecognizeResults } from './recognizer';
+import type { BaseObject, Params, QueryParams, RecognizeResults } from "./recognizer";
 
 export { parseQueryString, generateQueryString } from "./recognizer";
 export type { Params } from "./recognizer";
 
 export type DataFnParams<T> = { params: Params<T>; query: QueryParams };
 export type DataFn<T = BaseObject> = (props: DataFnParams<T>) => BaseObject;
+
+export interface LinkProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
+  external?: boolean;
+}
 
 export interface RouteDefinition {
   path: string;
@@ -107,13 +111,14 @@ export function Route<T extends { children?: any }>(props: T) {
   );
 }
 
-export const Link: Component<JSX.AnchorHTMLAttributes<HTMLAnchorElement>> = props => {
+export const Link: Component<LinkProps> = props => {
   const router = useRouter(),
-    [p, others] = splitProps(props, ["children"]);
+    [p, others] = splitProps(props, ["children", "external"]);
   return (
     <a
       {...others}
       onClick={e => {
+        if (p.external) return;
         e.preventDefault();
         router.push(props.href || "");
       }}
