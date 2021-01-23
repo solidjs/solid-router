@@ -19,7 +19,7 @@
   "files": [
     "dist"
   ],
-  "sideEffects": "false",
+  "sideEffects": false,
   "scripts": {
     "build": "tsc && rollup -c",
     "prepublishOnly": "npm run build"
