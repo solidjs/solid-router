@@ -1,12 +1,11 @@
 import babel from "@rollup/plugin-babel";
 import nodeResolve from "@rollup/plugin-node-resolve";
-import { terser } from "rollup-plugin-terser";
 
 export default {
   input: "src/index.tsx",
   output: [
     {
-      file: "dist/solid-app-router.min.js",
+      file: "dist/index.js",
       format: "es"
     }
   ],
@@ -20,7 +19,6 @@ export default {
       babelHelpers: "bundled",
       presets: ["solid", "@babel/preset-typescript"],
       exclude: "node_modules/**"
-    }),
-    terser({ output: { comments: false } })
+    })
   ]
 };

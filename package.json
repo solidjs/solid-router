@@ -3,24 +3,25 @@
   "description": "Config driven router for SolidJS",
   "author": "Ryan Carniato",
   "license": "MIT",
-  "version": "0.0.19",
+  "version": "0.0.20",
   "homepage": "https://github.com/ryansolid/solid-app-router#readme",
   "repository": {
     "type": "git",
     "url": "https://github.com/ryansolid/solid-app-router"
   },
   "type": "module",
-  "main": "dist/index.jsx",
+  "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "source": true,
   "exports": {
-    ".": "./dist/index.jsx",
-    "./cdn": "./dist/solid-app-router.min.js"
+    ".": {
+      "solid": "./dist/index.jsx",
+      "default": "./dist/index.js"
+    }
   },
   "files": [
     "dist"
   ],
-  "sideEffects": "false",
+  "sideEffects": false,
   "scripts": {
     "build": "tsc && rollup -c",
     "prepublishOnly": "npm run build"
