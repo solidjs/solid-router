@@ -9,7 +9,7 @@ import {
   splitProps,
   JSX
 } from "solid-js";
-import { Show, assignProps, isServer } from "solid-js/web";
+import { Show, mergeProps, isServer } from "solid-js/web";
 import { RouteRecognizer, Route as RouteDef } from "./recognizer";
 import type { BaseObject, Params, QueryParams, RecognizeResults } from "./recognizer";
 
@@ -51,8 +51,8 @@ export function useRouter() {
 }
 
 export function Route<T extends { children?: any }>(props: T) {
-  const router = useRouter(),
-    childRouter = assignProps({}, router, { level: router.level + 1 }),
+  const router = useRouter()!,
+    childRouter = mergeProps(router, { level: router.level + 1 }),
     [p, others] = splitProps(props, ["children"]),
     component = createMemo(
       () => {
@@ -112,7 +112,7 @@ export function Route<T extends { children?: any }>(props: T) {
 }
 
 export const Link: Component<LinkProps> = props => {
-  const router = useRouter(),
+  const router = useRouter()!,
     [p, others] = splitProps(props, ["children", "external"]);
   return (
     <a
