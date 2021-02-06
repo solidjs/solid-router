@@ -1,6 +1,5 @@
 import {
   encodePathSegment,
-  normalizePath,
   normalizeSegment
 } from "./normalizer";
 
@@ -28,7 +27,7 @@ interface MatchDSL<THandler> {
   (path: string, callback: MatchCallback<THandler>): void;
 }
 
-export type QueryParams<T = BaseObject> = 
+export type QueryParams<T = BaseObject> =
   { [K in keyof T]: T[K] }
   & { [param: string]: string[] | string | null | undefined }
 
@@ -184,8 +183,8 @@ interface Segment {
 
 export type BaseObject<T = unknown> = Record<string | number, T>;
 
-export type Params<T = BaseObject> = 
-  { [K in keyof T]?: T[K] } 
+export type Params<T = BaseObject> =
+  { [K in keyof T]?: T[K] }
   & { queryParams?: BaseObject | null }
   & BaseObject;
 
@@ -464,7 +463,6 @@ function findHandler<THandler>(
   state: State<THandler>,
   originalPath: string,
   queryParams: QueryParams,
-  shouldDecode: boolean
 ): RecognizeResults<THandler> {
   const handlers = state.handlers;
   const regex: RegExp = state.regex();
@@ -493,11 +491,7 @@ function findHandler<THandler>(
           params = {};
         }
 
-        if (shouldDecode && shouldDecodes[j]) {
-          params[name] = capture && decodeURIComponent(capture);
-        } else {
-          params[name] = capture;
-        }
+        params[name] = capture;
       }
     }
 
@@ -534,14 +528,7 @@ export class RouteRecognizer<THandler = string> {
     this.rootState = state;
   }
 
-  static ENCODE_AND_DECODE_PATH_SEGMENTS = true;
-  static Normalizer = {
-    normalizeSegment,
-    normalizePath,
-    encodePathSegment
-  };
-
-  add(routes: Route<THandler>[], options?: { as: string }): void {
+  add(routes: Route<THandler>[]): void {
     let currentState = this.rootState;
     let pattern = "^";
     const types: [number, number, number] = [0, 0, 0];
@@ -590,7 +577,6 @@ export class RouteRecognizer<THandler = string> {
   }
 
   recognize(path: string): RecognizeResults<THandler> | undefined {
-    const shouldNormalize = RouteRecognizer.ENCODE_AND_DECODE_PATH_SEGMENTS;
     let results: RecognizeResults<THandler> | undefined;
     let states: State<THandler>[] = [this.rootState];
     let queryParams = {};
@@ -612,12 +598,8 @@ export class RouteRecognizer<THandler = string> {
     }
     let originalPath = path;
 
-    if (shouldNormalize) {
-      path = normalizePath(path);
-    } else {
-      path = decodeURI(path);
-      originalPath = decodeURI(originalPath);
-    }
+    path = decodeURI(path);
+    originalPath = decodeURI(originalPath);
 
     const pathLen = path.length;
     if (pathLen > 1 && path.charAt(pathLen - 1) === "/") {
@@ -650,7 +632,7 @@ export class RouteRecognizer<THandler = string> {
       if (isSlashDropped && state.char === CHARS.ANY) {
         originalPath = originalPath + "/";
       }
-      results = findHandler(state, originalPath, queryParams, shouldNormalize);
+      results = findHandler(state, originalPath, queryParams);
     }
 
     return results;
