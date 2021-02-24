@@ -186,12 +186,20 @@ function processRoutes(
   root: string,
   parentRoutes: RouteDef<RouteHandler>[] = []
 ) {
+  let noIndex = !routes.find((r) => r.path === "/");
   routes.forEach(r => {
     const mapped: RouteDef<RouteHandler> = {
       path: root + r.path,
       handler: { component: r.component, data: r.data }
     };
-    if (!r.children) return router.add([...parentRoutes, mapped]);
-    processRoutes(router, r.children, root, [...parentRoutes, mapped]);
+    if (!r.children) {
+      if (noIndex && (r.path[0] === "*" || r.path[1] === "*")) {
+        router.add([...parentRoutes, { ...mapped, path: root + "/" }]);
+        noIndex = false;
+      }
+      router.add([...parentRoutes, mapped]);
+      return;
+    }
+    processRoutes(router, r.children, "", [...parentRoutes, mapped]);
   });
 }
