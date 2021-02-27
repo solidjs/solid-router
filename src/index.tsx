@@ -9,7 +9,9 @@ import {
   createState,
   createComputed,
   SetStateFunction,
-  batch
+  batch,
+  onCleanup,
+  createRoot
 } from "solid-js";
 import { Show, mergeProps, isServer } from "solid-js/web";
 import { RouteRecognizer, Route as RouteDef } from "./recognizer";
@@ -176,23 +178,32 @@ function createRouter(
     },
     { query: {}, params: {} }
   );
+  const disposers: (() => void)[] = [];
+  onCleanup(() => {
+    for (let i = 0, len = disposers.length; i < len; i++) disposers[i]();
+  });
   createComputed(prevLevels => {
     const levels = current();
     let i = 0;
     while (prevLevels[i] === levels[i]) i++;
+    for (let j = i; j < prevLevels.length; j++) {
+      disposers[j] && disposers[j]();
+    }
     for (; i < levels.length; i++) {
       if (levels[i].handler.data) {
-        data[i] = levels[i].handler.data!({
-          get params() {
-            return state.params;
-          },
-          get query() {
-            return state.query;
-          }
+        data[i] = createRoot(dispose => {
+          disposers[i] = dispose;
+          return levels[i].handler.data!({
+            get params() {
+              return state.params;
+            },
+            get query() {
+              return state.query;
+            }
+          });
         });
       } else data[i] = {};
     }
-    data.length = i;
     return [...levels] as RecognizeResults<RouteHandler>;
   }, ([] as unknown) as RecognizeResults<RouteHandler>);
   !isServer &&
