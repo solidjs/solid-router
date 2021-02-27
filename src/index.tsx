@@ -4,17 +4,19 @@ import {
   Component,
   createSignal,
   createMemo,
-  untrack,
   useTransition,
-  splitProps,
-  JSX
+  JSX,
+  createState,
+  createComputed,
+  SetStateFunction,
+  batch
 } from "solid-js";
 import { Show, mergeProps, isServer } from "solid-js/web";
 import { RouteRecognizer, Route as RouteDef } from "./recognizer";
 import type { BaseObject, Params, QueryParams, RecognizeResults } from "./recognizer";
 
 export { parseQueryString, generateQueryString } from "./recognizer";
-export type { Params } from "./recognizer";
+export type { Params, QueryParams } from "./recognizer";
 
 export type DataFnParams<T> = { params: Params<T>; query: QueryParams };
 export type DataFn<T = BaseObject> = (props: DataFnParams<T>) => BaseObject;
@@ -37,72 +39,49 @@ interface RouteHandler {
 
 interface Router {
   location: string;
-  current: RecognizeResults<RouteHandler> | undefined;
+  current: RecognizeResults<RouteHandler>;
+  params: Params;
+  query: QueryParams;
   pending: boolean;
-  push: (p: string) => void;
   root: string;
+  level: number;
+  data: unknown[];
+}
+interface RouterActions {
+  push: (p: string) => void;
   addRoutes: (r: RouteDefinition[]) => void;
 }
 
-const RouterContext = createContext<Router & { level: number }>();
+const RouterContext = createContext<[Router, RouterActions]>();
 
 export function useRouter() {
   return useContext(RouterContext);
 }
 
 export function Route<T extends { children?: any }>(props: T) {
-  const router = useRouter()!,
+  const [router, actions] = useRouter()!,
     childRouter = mergeProps(router, { level: router.level + 1 }),
-    [p, others] = splitProps(props, ["children"]),
     component = createMemo(
       () => {
         const resolved = router.current;
-        return resolved && resolved[router.level] && resolved[router.level].handler.component;
+        return resolved[router.level] && resolved[router.level].handler.component;
       },
       undefined,
       true
-    ),
-    params = createMemo(
-      () => {
-        const resolved = router.current;
-        return resolved && resolved[router.level] && resolved[router.level].params;
-      },
-      undefined,
-      true
-    ),
-    query = createMemo(
-      () => {
-        const resolved = router.current;
-        return resolved && resolved.queryParams;
-      },
-      undefined,
-      true
-    ),
-    data = () => {
-      const resolved = router.current;
-      return (
-        (resolved &&
-          resolved[router.level].handler.data &&
-          resolved[router.level].handler.data!({
-            get params() {
-              return params()!;
-            },
-            get query() {
-              return query()!;
-            }
-          })) ||
-        {}
-      );
-    };
+    );
 
   return (
-    <RouterContext.Provider value={childRouter}>
+    <RouterContext.Provider value={[childRouter, actions]}>
       <Show when={component()}>
         {(C: Component<any>) => {
-          const d = untrack(data);
           return (
-            <C params={params()} query={query()} {...d} {...others}>
-              {p.children}
+            <C
+              params={router.params}
+              query={router.query}
+              {...router.data[router.level]}
+              {...props}
+            >
+              {props.children}
             </C>
           );
         }}
@@ -112,18 +91,17 @@ export function Route<T extends { children?: any }>(props: T) {
 }
 
 export const Link: Component<LinkProps> = props => {
-  const router = useRouter()!,
-    [p, others] = splitProps(props, ["children", "external"]);
+  const [, { push }] = useRouter()!;
   return (
     <a
-      {...others}
+      {...props}
       onClick={e => {
-        if (p.external) return;
+        if (props.external) return;
         e.preventDefault();
-        router.push(props.href || "");
+        push(props.href || "");
       }}
     >
-      {p.children}
+      {props.children}
     </a>
   );
 };
@@ -133,51 +111,106 @@ export const Router: Component<{
   initialURL?: string;
   root?: string;
 }> = props => {
-  const router: Router & { level?: number } = createRouter(
-    props.routes,
-    props.initialURL,
-    props.root
-  );
-  router.level = 0;
-  return (
-    <RouterContext.Provider value={router as Router & { level: number }}>
-      {props.children}
-    </RouterContext.Provider>
-  );
+  const router = createRouter(props.routes, props.initialURL, props.root);
+  return <RouterContext.Provider value={router}>{props.children}</RouterContext.Provider>;
 };
 
-function createRouter(routes: RouteDefinition[], initialURL?: string, root: string = ""): Router {
+function shallowDiff(prev: Params, next: Params, set: SetStateFunction<any>, key: string) {
+  const prevKeys = Object.keys(prev);
+  const nextKeys = Object.keys(next);
+  for (let i = 0; i < prevKeys.length; i++) {
+    const k = prevKeys[i];
+    if (next[k] == null) set(key, k, undefined as any);
+  }
+  for (let i = 0; i < nextKeys.length; i++) {
+    const k = nextKeys[i];
+    if (next[k] !== prev[k]) set(key, k, next[k] as any);
+  }
+  return { ...next };
+}
+
+function createRouter(
+  routes: RouteDefinition[],
+  initialURL?: string,
+  root: string = ""
+): [Router, RouterActions] {
   const recognizer = new RouteRecognizer<RouteHandler>();
   processRoutes(recognizer, routes, root);
 
   const [location, setLocation] = createSignal(
-    initialURL ? initialURL : window.location.pathname.replace(root, "") + window.location.search
+    initialURL ? initialURL : window.location.pathname.replace(root, "") + window.location.search,
+    true
   );
-  const current = createMemo(() => recognizer.recognize(root + location()));
+  const current = createMemo(
+    () =>
+      recognizer.recognize(root + location()) || (([] as unknown) as RecognizeResults<RouteHandler>)
+  );
+  const data: unknown[] = [];
   const [pending, start] = useTransition();
-  !isServer &&
-    (window.onpopstate = () =>
-      start(() => setLocation(window.location.pathname.replace(root, ""))));
-
-  return {
+  const [state, setState] = createState({
     root,
     get location() {
       return location();
     },
-    get current() {
-      return current();
-    },
     get pending() {
       return pending();
     },
-    push(path) {
-      window.history.pushState("", "", root + path);
-      start(() => setLocation(path));
+    get current() {
+      return current();
     },
-    addRoutes(routes: RouteDefinition[]) {
-      processRoutes(recognizer, routes, root);
+    get data() {
+      return data;
+    },
+    params: {},
+    query: {},
+    level: 0
+  });
+  createComputed(
+    prev => {
+      const newQuery = current().queryParams;
+      const newParams = current().reduce((memo, item) => Object.assign(memo, item.params), {});
+      return batch(() => ({
+        query: shallowDiff(prev.query, newQuery, setState, "query"),
+        params: shallowDiff(prev.params, newParams, setState, "params")
+      }));
+    },
+    { query: {}, params: {} }
+  );
+  createComputed(prevLevels => {
+    const levels = current();
+    let i = 0;
+    while (prevLevels[i] === levels[i]) i++;
+    for (; i < levels.length; i++) {
+      if (levels[i].handler.data) {
+        data[i] = levels[i].handler.data!({
+          get params() {
+            return state.params;
+          },
+          get query() {
+            return state.query;
+          }
+        });
+      } else data[i] = {};
     }
-  };
+    data.length = i;
+    return [...levels] as RecognizeResults<RouteHandler>;
+  }, ([] as unknown) as RecognizeResults<RouteHandler>);
+  !isServer &&
+    (window.onpopstate = () =>
+      start(() => setLocation(window.location.pathname.replace(root, ""))));
+
+  return [
+    state,
+    {
+      push(path) {
+        window.history.pushState("", "", root + path);
+        start(() => setLocation(path));
+      },
+      addRoutes(routes: RouteDefinition[]) {
+        processRoutes(recognizer, routes, root);
+      }
+    }
+  ];
 }
 
 function processRoutes(
@@ -186,7 +219,7 @@ function processRoutes(
   root: string,
   parentRoutes: RouteDef<RouteHandler>[] = []
 ) {
-  let noIndex = !routes.find((r) => r.path === "/");
+  let noIndex = !routes.find(r => r.path === "/");
   routes.forEach(r => {
     const mapped: RouteDef<RouteHandler> = {
       path: root + r.path,
