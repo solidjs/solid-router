@@ -185,7 +185,13 @@ function createRouter(
   createComputed(prevLevels => {
     const levels = current();
     let i = 0;
-    while (prevLevels[i] === levels[i]) i++;
+    while (
+      prevLevels[i] &&
+      levels[i] &&
+      prevLevels[i].handler.component === levels[i].handler.component &&
+      prevLevels[i].handler.data === levels[i].handler.data
+    )
+      i++;
     for (let j = i; j < prevLevels.length; j++) {
       disposers[j] && disposers[j]();
     }
