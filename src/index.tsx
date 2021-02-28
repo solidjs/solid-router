@@ -35,7 +35,7 @@ export interface RouteDefinition {
 }
 
 interface RouteHandler {
-  component: Component<any>;
+  component: Component<any> & { preload?: () => Promise<any> };
   data?: DataFn;
 }
 
@@ -196,6 +196,7 @@ function createRouter(
       disposers[j] && disposers[j]();
     }
     for (; i < levels.length; i++) {
+      if (levels[i].handler.component.preload) levels[i].handler.component.preload!();
       if (levels[i].handler.data) {
         data[i] = createRoot(dispose => {
           disposers[i] = dispose;
