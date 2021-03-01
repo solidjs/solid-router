@@ -169,7 +169,7 @@ function createRouter(
   });
   createComputed(
     prev => {
-      const newQuery = current().queryParams;
+      const newQuery = current().queryParams || {};
       const newParams = current().reduce((memo, item) => Object.assign(memo, item.params), {});
       return batch(() => ({
         query: shallowDiff(prev.query, newQuery, setState, "query"),
