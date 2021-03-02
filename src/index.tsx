@@ -112,8 +112,10 @@ export const Router: Component<{
   routes: RouteDefinition[];
   initialURL?: string;
   root?: string;
+  ref?: any;
 }> = props => {
   const router = createRouter(props.routes, props.initialURL, props.root);
+  props.ref && props.ref(router);
   return <RouterContext.Provider value={router}>{props.children}</RouterContext.Provider>;
 };
 

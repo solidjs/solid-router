@@ -33,6 +33,7 @@ export type QueryParams<T = BaseObject> =
 
 export interface Result<THandler> {
   handler: THandler;
+  path: string;
   params: Params;
   isDynamic: boolean;
 }
@@ -266,6 +267,7 @@ function isEqualCharSpec(
 
 interface Handler<THandler> {
   handler: THandler;
+  path: string;
   names: string[];
   shouldDecodes: boolean[];
 }
@@ -497,6 +499,7 @@ function findHandler<THandler>(
 
     result[i] = {
       handler: handler.handler,
+      path: handler.path,
       params,
       isDynamic
     };
@@ -561,6 +564,7 @@ export class RouteRecognizer<THandler = string> {
       }
       handlers[i] = {
         handler: route.handler,
+        path: route.path,
         names,
         shouldDecodes
       };
