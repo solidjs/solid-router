@@ -17,6 +17,7 @@ interface Delegate<THandler> {
 
 export interface Route<THandler> {
   path: string;
+  alias?: string;
   handler: THandler;
   queryParams?: string[];
 }
@@ -564,7 +565,7 @@ export class RouteRecognizer<THandler = string> {
       }
       handlers[i] = {
         handler: route.handler,
-        path: route.path,
+        path: route.alias || route.path,
         names,
         shouldDecodes
       };

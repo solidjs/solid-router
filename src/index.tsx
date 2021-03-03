@@ -247,7 +247,7 @@ function processRoutes(
     };
     if (!r.children) {
       if (noIndex && (r.path[0] === "*" || r.path[1] === "*")) {
-        router.add([...parentRoutes, { ...mapped, path: root + "/" }]);
+        router.add([...parentRoutes, { ...mapped, path: root + "/", alias: mapped.path }]);
         noIndex = false;
       }
       router.add([...parentRoutes, mapped]);
