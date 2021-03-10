@@ -20,7 +20,16 @@ import type { BaseObject, Params, QueryParams, RecognizeResults } from "./recogn
 export { parseQueryString, generateQueryString } from "./recognizer";
 export type { Params, QueryParams } from "./recognizer";
 
-export type DataFnParams<T> = { params: Params<T>; query: QueryParams };
+export type DataFnParams<T> = { 
+  params: Params<T>;
+  query: QueryParams;
+  root: string;
+  location: string;
+  pending: boolean;
+  current: RecognizeResults<RouteHandler>;
+  data: unknown[];
+  level: number;
+};
 export type DataFn<T = BaseObject> = (props: DataFnParams<T>) => BaseObject;
 
 export interface LinkProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
