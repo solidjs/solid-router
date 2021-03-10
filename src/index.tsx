@@ -20,7 +20,7 @@ import type { BaseObject, Params, QueryParams, RecognizeResults } from "./recogn
 export { parseQueryString, generateQueryString } from "./recognizer";
 export type { Params, QueryParams } from "./recognizer";
 
-export type DataFnParams<T> = { 
+export type DataFnParams<T> = {
   params: Params<T>;
   query: QueryParams;
   root: string;
