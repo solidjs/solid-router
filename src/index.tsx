@@ -24,7 +24,13 @@ export type DataFnParams<T> = { params: Params<T>; query: QueryParams };
 export type DataFn<T = BaseObject> = (props: DataFnParams<T>) => BaseObject;
 
 export interface LinkProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
+  href: string;
   external?: boolean;
+}
+
+export interface NavLinkProps extends LinkProps {
+  activeClass?: string;
+  exact?: boolean;
 }
 
 export interface RouteDefinition {
@@ -51,6 +57,7 @@ interface Router {
 }
 interface RouterActions {
   push: (p: string) => void;
+  isActive: (url: string, exact?: boolean) => boolean;
   addRoutes: (r: RouteDefinition[]) => void;
 }
 
@@ -105,6 +112,18 @@ export const Link: Component<LinkProps> = props => {
     >
       {props.children}
     </a>
+  );
+};
+
+export const NavLink: Component<NavLinkProps> = props => {
+  const [, { isActive }] = useRouter()!;
+  return (
+    <Link
+      {...props}
+      classList={{ [props.activeClass || "active"]: isActive(props.href, props.exact) }}
+    >
+      {props.children}
+    </Link>
   );
 };
 
@@ -187,6 +206,10 @@ function createRouter(
   createComputed(prevLevels => {
     const levels = current();
     let i = 0;
+    function mapFn(dispose: () => void) {
+      disposers[i] = dispose;
+      return levels[i].handler.data!(state);
+    }
     while (
       prevLevels[i] &&
       levels[i] &&
@@ -200,17 +223,7 @@ function createRouter(
     for (; i < levels.length; i++) {
       if (levels[i].handler.component.preload) levels[i].handler.component.preload!();
       if (levels[i].handler.data) {
-        data[i] = createRoot(dispose => {
-          disposers[i] = dispose;
-          return levels[i].handler.data!({
-            get params() {
-              return state.params;
-            },
-            get query() {
-              return state.query;
-            }
-          });
-        });
+        data[i] = createRoot(mapFn);
       } else data[i] = {};
     }
     return [...levels] as RecognizeResults<RouteHandler>;
@@ -228,6 +241,13 @@ function createRouter(
       },
       addRoutes(routes: RouteDefinition[]) {
         processRoutes(recognizer, routes, root);
+      },
+      isActive(url: string, exact = false) {
+        let ref;
+        return (
+          state.location.startsWith(url) &&
+          (!exact || (ref = state.location[url.length]) === undefined || ref === "?")
+        );
       }
     }
   ];
