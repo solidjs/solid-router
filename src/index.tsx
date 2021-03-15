@@ -114,7 +114,16 @@ export const Link: Component<LinkProps> = props => {
     <a
       {...props}
       onClick={e => {
-        if (props.external) return;
+        if (
+          props.external ||
+          e.ctrlKey ||
+          e.metaKey ||
+          e.altKey ||
+          e.shiftKey ||
+          e.button ||
+          e.defaultPrevented
+        )
+          return;
         e.preventDefault();
         push(props.href || "");
       }}
