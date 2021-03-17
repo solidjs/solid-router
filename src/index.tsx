@@ -248,14 +248,14 @@ function createRouter(
   }, ([] as unknown) as RecognizeResults<RouteHandler>);
   !isServer &&
     (window.onpopstate = () =>
-      start(() => setLocation(window.location.pathname.replace(root, ""))));
+      start(() => setLocation(window.location.pathname.replace(root, "") + window.location.search)));
 
   return [
     state,
     {
       push(path) {
         window.history.pushState("", "", root + path);
-        start(() => setLocation(path));
+        start(() => setLocation(path), () => window.scrollTo(0, 0));
       },
       addRoutes(routes: RouteDefinition[]) {
         processRoutes(recognizer, routes, root);
