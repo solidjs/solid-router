@@ -76,7 +76,7 @@ export function useRouter() {
   return useContext(RouterContext);
 }
 
-export function Route<T extends { children?: any }>(props: T) {
+export function Route<T>(props: T) {
   const [router, actions] = useRouter()!,
     childRouter = mergeProps(router, { level: router.level + 1 }),
     component = createMemo(
@@ -99,7 +99,7 @@ export function Route<T extends { children?: any }>(props: T) {
               {...router.data[router.level]}
               {...props}
             >
-              {props.children}
+              <Route />
             </C>
           );
         }}
