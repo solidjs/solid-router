@@ -30,7 +30,10 @@ export type DataFnParams<T> = {
   data: unknown[];
   level: number;
 };
-export type DataFn<T = BaseObject> = (props: DataFnParams<T>) => BaseObject;
+export type DataFn<T = BaseObject> = (
+  routerState: DataFnParams<T>,
+  routerActions: RouterActions
+) => BaseObject;
 
 export interface LinkProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
   href: string;
@@ -66,6 +69,8 @@ interface Router {
 }
 interface RouterActions {
   push: (p: string) => void;
+  replace: (p: string) => void;
+  back: () => void;
   isActive: (url: string, exact?: boolean) => boolean;
   addRoutes: (r: RouteDefinition[]) => void;
 }
@@ -184,7 +189,7 @@ function createRouter(
   );
   const current = createMemo(
     () =>
-      recognizer.recognize(root + location()) || (([] as unknown) as RecognizeResults<RouteHandler>)
+      recognizer.recognize(root + location()) || ([] as unknown as RecognizeResults<RouteHandler>)
   );
   const data: unknown[] = [];
   const [pending, start] = useTransition();
@@ -206,6 +211,36 @@ function createRouter(
     query: {},
     level: 0
   });
+  const actions: RouterActions = {
+    push(path) {
+      window.history.pushState("", "", root + path);
+      start(
+        () => setLocation(path),
+        () => window.scrollTo(0, 0)
+      );
+    },
+    replace(path) {
+      window.history.replaceState("", "", root + path);
+      start(
+        () => setLocation(path),
+        () => window.scrollTo(0, 0)
+      );
+    },
+    back() {
+      window.history.back();
+      start(() => setLocation(window.location.pathname.replace(root, "") + window.location.search));
+    },
+    addRoutes(routes: RouteDefinition[]) {
+      processRoutes(recognizer, routes, root);
+    },
+    isActive(url: string, exact = false) {
+      let ref;
+      return (
+        state.location.startsWith(url) &&
+        (!exact || (ref = state.location[url.length]) === undefined || ref === "?")
+      );
+    }
+  };
   createComputed(
     prev => {
       const newQuery = current().queryParams || {};
@@ -226,7 +261,7 @@ function createRouter(
     let i = 0;
     function mapFn(dispose: () => void) {
       disposers[i] = dispose;
-      return levels[i].handler.data!(state);
+      return levels[i].handler.data!(state, actions);
     }
     while (
       prevLevels[i] &&
@@ -245,30 +280,14 @@ function createRouter(
       } else data[i] = {};
     }
     return [...levels] as RecognizeResults<RouteHandler>;
-  }, ([] as unknown) as RecognizeResults<RouteHandler>);
+  }, [] as unknown as RecognizeResults<RouteHandler>);
   !isServer &&
     (window.onpopstate = () =>
-      start(() => setLocation(window.location.pathname.replace(root, "") + window.location.search)));
+      start(() =>
+        setLocation(window.location.pathname.replace(root, "") + window.location.search)
+      ));
 
-  return [
-    state,
-    {
-      push(path) {
-        window.history.pushState("", "", root + path);
-        start(() => setLocation(path), () => window.scrollTo(0, 0));
-      },
-      addRoutes(routes: RouteDefinition[]) {
-        processRoutes(recognizer, routes, root);
-      },
-      isActive(url: string, exact = false) {
-        let ref;
-        return (
-          state.location.startsWith(url) &&
-          (!exact || (ref = state.location[url.length]) === undefined || ref === "?")
-        );
-      }
-    }
-  ];
+  return [state, actions];
 }
 
 function processRoutes(
