@@ -26,8 +26,6 @@ export type DataFnParams<T> = {
   root: string;
   location: string;
   pending: boolean;
-  current: RecognizeResults<RouteHandler>;
-  data: unknown[];
   level: number;
 };
 export type DataFn<T = BaseObject> = (
@@ -193,7 +191,11 @@ function createRouter(
   );
   const data: unknown[] = [];
   const [pending, start] = useTransition();
-  const [state, setState] = createState({
+  const [routeState, setRouteState] = createState({
+    params: {},
+    query: {}
+  });
+  const state = {
     root,
     get location() {
       return location();
@@ -201,15 +203,24 @@ function createRouter(
     get pending() {
       return pending();
     },
-    get current() {
-      return current();
+    get params() {
+      return routeState.params;
     },
-    get data() {
-      return data;
+    get query() {
+      return routeState.query;
     },
-    params: {},
-    query: {},
     level: 0
+  };
+  // make it non-enumerable
+  Object.defineProperties(state, {
+    current: {
+      get() {
+        return current();
+      }
+    },
+    data: {
+      value: data
+    }
   });
   const actions: RouterActions = {
     push(path) {
@@ -246,8 +257,8 @@ function createRouter(
       const newQuery = current().queryParams || {};
       const newParams = current().reduce((memo, item) => Object.assign(memo, item.params), {});
       return batch(() => ({
-        query: shallowDiff(prev.query, newQuery, setState, "query"),
-        params: shallowDiff(prev.params, newParams, setState, "params")
+        query: shallowDiff(prev.query, newQuery, setRouteState, "query"),
+        params: shallowDiff(prev.params, newParams, setRouteState, "params")
       }));
     },
     { query: {}, params: {} }
@@ -287,7 +298,7 @@ function createRouter(
         setLocation(window.location.pathname.replace(root, "") + window.location.search)
       ));
 
-  return [state, actions];
+  return [state as Router, actions];
 }
 
 function processRoutes(
