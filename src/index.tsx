@@ -79,6 +79,14 @@ export function useRouter() {
   return useContext(RouterContext);
 }
 
+export function useMatch() {
+  return useContext(RouterContext)[0];
+}
+
+export function useHistory() {
+  return useContext(RouterContext)[1];
+}
+
 export function Route<T>(props: T) {
   const [router, actions] = useRouter()!,
     childRouter = mergeProps(router, { level: router.level + 1 }),
