@@ -112,10 +112,11 @@ export function Route<T>(props: T) {
 }
 
 export const Link: Component<LinkProps> = props => {
-  const [, { push }] = useRouter()!;
+  const [router, { push }] = useRouter()!;
   return (
     <a
       {...props}
+      href={router.root + props.href}
       onClick={e => {
         if (
           props.external ||
