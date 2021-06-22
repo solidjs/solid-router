@@ -3,7 +3,7 @@
 // decoding the rest of the path
 const SEGMENT_RESERVED_CHARS = /%|\//g;
 export function normalizeSegment(segment: string): string {
-  if (segment.length < 3 || segment.indexOf("%") === -1) return segment;
+  if (segment.length < 3 || !segment.includes("%")) return segment;
   return decodeURIComponent(segment).replace(
     SEGMENT_RESERVED_CHARS,
     encodeURIComponent
