@@ -631,7 +631,7 @@ export class RouteRecognizer<THandler = string> {
 
     const state = solutions[0];
 
-    if (state?.handlers) {
+    if (state && state.handlers) {
       // if a trailing slash was dropped and a star segment is the last segment
       // specified, put the trailing slash back
       if (isSlashDropped && state.char === CHARS.ANY) {
