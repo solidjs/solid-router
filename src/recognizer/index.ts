@@ -235,10 +235,10 @@ function parse(
 
     if (type & SegmentFlags.Named) {
       part = part.slice(1);
-      names = names ?? [];
+      names = names || [];
       names.push(part);
 
-      shouldDecodes = shouldDecodes ?? [];
+      shouldDecodes = shouldDecodes || [];
       shouldDecodes.push((type & SegmentFlags.Decoded) !== 0);
     }
 
@@ -253,8 +253,8 @@ function parse(
   }
 
   return {
-    names: names ?? EmptyArray,
-    shouldDecodes: shouldDecodes ?? EmptyArray
+    names: names || EmptyArray,
+    shouldDecodes: shouldDecodes || EmptyArray
   } as ParsedHandler;
 }
 
@@ -412,8 +412,8 @@ function isMatch(spec: CharSpec, char: number): boolean {
 //  * prefers more static segments to more
 function sortSolutions<THandler>(states: State<THandler>[]): State<THandler>[] {
   return states.sort(function (a, b) {
-    const [astatics, adynamics, astars] = a.types ?? [0, 0, 0];
-    const [bstatics, bdynamics, bstars] = b.types ?? [0, 0, 0];
+    const [astatics, adynamics, astars] = a.types || [0, 0, 0];
+    const [bstatics, bdynamics, bstars] = b.types || [0, 0, 0];
     if (astars !== bstars) {
       return astars - bstars;
     }
@@ -458,7 +458,7 @@ export type RecognizeResults<T> = Array<Result<T>> & {
 };
 function createResults<T>(queryParams?: QueryParams): RecognizeResults<T> {
   const results: any = [];
-  results.queryParams = queryParams ?? {};
+  results.queryParams = queryParams || {};
   return results;
 }
 
@@ -565,7 +565,7 @@ export class RouteRecognizer<THandler = string> {
       }
       handlers[i] = {
         handler: route.handler,
-        path: route.alias ?? route.path,
+        path: route.alias || route.path,
         names,
         shouldDecodes
       };
