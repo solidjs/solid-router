@@ -53,13 +53,13 @@ function getParam(params: Params | null | undefined, key: string): string {
   }
 
   if (!hasOwnProperty.call(params, key)) {
-    throw new Error("You must provide param `" + key + "` to `generate`.");
+    throw new Error(`You must provide param \`${key}\` to \`generate\`.`);
   }
 
   const value = params[key];
-  const str = typeof value === "string" ? value : "" + value;
+  const str = typeof value === "string" ? value : `${value}`;
   if (str.length === 0) {
-    throw new Error("You must provide a param `" + key + "`.");
+    throw new Error(`You must provide a param \`${key}\`.`);
   }
   return str;
 }
@@ -577,7 +577,7 @@ export class RouteRecognizer<THandler = string> {
     }
 
     currentState.handlers = handlers;
-    currentState.pattern = pattern + "$";
+    currentState.pattern = `${pattern}$`;
     currentState.types = types;
   }
 
@@ -599,7 +599,7 @@ export class RouteRecognizer<THandler = string> {
     }
 
     if (!path.startsWith("/")) {
-      path = "/" + path;
+      path = `/${path}`;
     }
     let originalPath = path;
 
@@ -635,7 +635,7 @@ export class RouteRecognizer<THandler = string> {
       // if a trailing slash was dropped and a star segment is the last segment
       // specified, put the trailing slash back
       if (isSlashDropped && state.char === CHARS.ANY) {
-        originalPath = originalPath + "/";
+        originalPath = `${originalPath}/`;
       }
       results = findHandler(state, originalPath, queryParams);
     }
@@ -657,11 +657,11 @@ export function generateQueryString(params: Params): string {
     let pair = encodeURIComponent(key);
     if (isArray(value)) {
       for (let j = 0; j < value.length; j++) {
-        const arrayPair = key + "[]" + "=" + encodeURIComponent(value[j]);
+        const arrayPair = `${key}[]=${encodeURIComponent(value[j])}`;
         pairs.push(arrayPair);
       }
     } else {
-      pair += "=" + encodeURIComponent(value as string);
+      pair += `=${encodeURIComponent(value as string)}`;
       pairs.push(pair);
     }
   }
@@ -670,7 +670,7 @@ export function generateQueryString(params: Params): string {
     return "";
   }
 
-  return "?" + pairs.join("&");
+  return `?${pairs.join("&")}`;
 }
 
 export function parseQueryString(queryString: string): QueryParams {
