@@ -142,7 +142,7 @@ export const NavLink: Component<NavLinkProps> = props => {
   return (
     <Link
       {...props}
-      classList={{ [props.activeClass || "active"]: isActive(props.href, props.exact) }}
+      classList={{ [props.activeClass ?? "active"]: isActive(props.href, props.exact) }}
     >
       {props.children}
     </Link>
@@ -188,7 +188,7 @@ function createRouter(
   );
   const current = createMemo(
     () =>
-      recognizer.recognize(root + location()) || ([] as unknown as RecognizeResults<RouteHandler>)
+      recognizer.recognize(root + location()) ?? ([] as unknown as RecognizeResults<RouteHandler>)
   );
   const data: unknown[] = [];
   const [pending, start] = useTransition();
