@@ -283,7 +283,7 @@ function createRouter(
     )
       i++;
     for (let j = i; j < prevLevels.length; j++) {
-      disposers[j] && disposers[j]();
+      disposers[j]?.();
     }
     for (; i < levels.length; i++) {
       if (levels[i].handler.component.preload) levels[i].handler.component.preload!();
