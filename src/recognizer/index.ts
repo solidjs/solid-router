@@ -39,7 +39,7 @@ export interface Result<THandler> {
   isDynamic: boolean;
 }
 
-const escapeRegex = /(\/|\.|\*|\+|\?|\||\(|\)|\[|\]|\{|\}|\\)/g;
+const escapeRegex = /([()*+./?[\\]{|}])/g;
 
 const isArray = Array.isArray;
 // eslint-disable-next-line @typescript-eslint/unbound-method
