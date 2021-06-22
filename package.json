@@ -19,8 +19,10 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
+  "source": "./src/index.tsx",
   "sideEffects": false,
   "scripts": {
     "build": "tsc && rollup -c",
