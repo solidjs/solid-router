@@ -3,7 +3,7 @@
 // decoding the rest of the path
 const SEGMENT_RESERVED_CHARS = /%|\//g;
 export function normalizeSegment(segment: string): string {
-  if (segment.length < 3 || segment.indexOf("%") === -1) return segment;
+  if (segment.length < 3 || !segment.includes("%")) return segment;
   return decodeURIComponent(segment).replace(
     SEGMENT_RESERVED_CHARS,
     encodeURIComponent
@@ -20,7 +20,7 @@ export function normalizeSegment(segment: string): string {
 // The chars "!", "'", "(", ")", "*" do not get changed by `encodeURIComponent`,
 // so the possible encoded chars are:
 // ['%24', '%26', '%2B', '%2C', '%3B', '%3D', '%3A', '%40'].
-const PATH_SEGMENT_ENCODINGS = /%(?:2(?:4|6|B|C)|3(?:B|D|A)|40)/g;
+const PATH_SEGMENT_ENCODINGS = /%(?:2[46BC]|3[ABD]|40)/g;
 
 export function encodePathSegment(str: string): string {
   return encodeURIComponent(str).replace(
