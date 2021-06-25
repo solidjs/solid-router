@@ -6,13 +6,12 @@ import {
   createMemo,
   useTransition,
   JSX,
-  createState,
   createComputed,
-  SetStateFunction,
   batch,
   onCleanup,
   createRoot
 } from "solid-js";
+import { SetStoreFunction, createStore } from "solid-js/store";
 import { Show, mergeProps, isServer } from "solid-js/web";
 import { RouteRecognizer, Route as RouteDef } from "./recognizer";
 import type { BaseObject, Params, QueryParams, RecognizeResults } from "./recognizer";
@@ -82,14 +81,10 @@ export function useRouter() {
 export function Route<T>(props: T) {
   const [router, actions] = useRouter()!,
     childRouter = mergeProps(router, { level: router.level + 1 }),
-    component = createMemo(
-      () => {
-        const resolved = router.current;
-        return resolved[router.level] && resolved[router.level].handler.component;
-      },
-      undefined,
-      true
-    );
+    component = createMemo(() => {
+      const resolved = router.current;
+      return resolved[router.level] && resolved[router.level].handler.component;
+    });
 
   return (
     <RouterContext.Provider value={[childRouter, actions]}>
@@ -160,7 +155,7 @@ export const Router: Component<{
   return <RouterContext.Provider value={router}>{props.children}</RouterContext.Provider>;
 };
 
-function shallowDiff(prev: Params, next: Params, set: SetStateFunction<any>, key: string) {
+function shallowDiff(prev: Params, next: Params, set: SetStoreFunction<any>, key: string) {
   const prevKeys = Object.keys(prev);
   const nextKeys = Object.keys(next);
   for (let i = 0; i < prevKeys.length; i++) {
@@ -183,8 +178,7 @@ function createRouter(
   processRoutes(recognizer, routes, root);
 
   const [location, setLocation] = createSignal(
-    initialURL ? initialURL : window.location.pathname.replace(root, "") + window.location.search,
-    true
+    initialURL ? initialURL : window.location.pathname.replace(root, "") + window.location.search
   );
   const current = createMemo(
     () =>
@@ -192,7 +186,7 @@ function createRouter(
   );
   const data: unknown[] = [];
   const [pending, start] = useTransition();
-  const [routeState, setRouteState] = createState({
+  const [routeState, setRouteState] = createStore({
     params: {},
     query: {}
   });

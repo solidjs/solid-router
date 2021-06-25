@@ -1,5 +1,8 @@
 # Solid App Router
 
+> Solid 1.0 use 0.0.50 or greater
+> Solid 0.x use 0.0.46
+
 Small, config-driven router inspired by Ember Router. While less dynamic than the common React Router approach which I would recommend for most SPAs, this approach is good for file system based routing. For things like you'd find in isomorphic metaframeworks.
 
 So far this is just the basic isomorphic shell. Lots more to do.
