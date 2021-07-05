@@ -8,7 +8,11 @@ function normalize(path: string) {
   return s ? "/" + s : "";
 }
 
-export function resolvePath(base: string, path: string, from?: string): string | undefined {
+export function resolvePath(
+  base: string,
+  path: string,
+  from?: string
+): string | undefined {
   if (hasSchemeRegex.test(path)) {
     return undefined;
   }
@@ -41,7 +45,11 @@ export function joinPaths(from: string, to: string): string {
   return `${from.replace(/[/*]+$/, "")}/${to.replace(/^\/+/, "")}`;
 }
 
-export function createPath(path: string, base: string, hasChildren: boolean = false): string {
+export function createPath(
+  path: string,
+  base: string,
+  hasChildren: boolean = false
+): string {
   const joined = joinPaths(base, path);
   return hasChildren && !joined.endsWith("*") ? joinPaths(joined, "*") : joined;
 }
@@ -56,7 +64,8 @@ export function extractQuery(url: URL): Record<string, string> {
 
 export function createMatcher(
   path: string,
-  index: number
+  index: number = 0,
+  end?: boolean
 ): (location: string) => RouteMatch | null {
   const isSplat = path.endsWith("/*");
   const pathParts = path.toLowerCase().split("/").filter(Boolean);
@@ -65,10 +74,10 @@ export function createMatcher(
   }
   const pathLen = pathParts.length;
 
-  return (location: string, index: number = 0) => {
+  return (location: string) => {
     const locParts = location.toLowerCase().split("/").filter(Boolean);
     const locLen = locParts.length;
-    if (pathLen > locLen || (pathLen < locLen && !isSplat)) {
+    if (pathLen > locLen || (pathLen < locLen && (!isSplat && end !== false))) {
       return null;
     }
 
@@ -97,4 +106,8 @@ export function createMatcher(
 
     return match;
   };
+}
+
+export function renderPath(path: string): string {
+  return path;
 }

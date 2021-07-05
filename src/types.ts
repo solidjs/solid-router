@@ -2,11 +2,39 @@ import { JSX } from "solid-js";
 
 export type Params = Record<string, string>;
 
-export type RouteRenderFunc = (router: RouterState, route: RouteState) => JSX.Element;
+export type RouteData = Record<string, any>;
+
+export type RouteUpdateMode = "push" | "replace" | "init";
+
+export interface RouteUpdate {
+  value: string;
+  mode?: RouteUpdateMode;
+}
+
+export interface RouterIntegration {
+  signal: RouteUpdateSignal;
+  utils?: Partial<RouterUtils>;
+}
+
+export type RouteUpdateSignal = [
+  () => RouteUpdate,
+  (value: RouteUpdate) => void
+];
+
+export type RouteRenderFunc = (
+  route: RouteState,
+  router: RouterState
+) => JSX.Element;
+
+export type RouteDataFunc = (
+  route: RouteState,
+  router: RouterState
+) => RouteData | undefined;
 
 export interface RouteDefinition {
   path: string;
   element: JSX.Element | RouteRenderFunc;
+  data?: RouteDataFunc;
   children?: RouteDefinition[];
 }
 
@@ -21,6 +49,7 @@ export interface Route {
   pattern: string;
   children?: Route[];
   element: RouteRenderFunc;
+  data?: RouteDataFunc;
   matcher: (location: string) => RouteMatch | null;
 }
 
@@ -32,10 +61,13 @@ export interface MatchedRoute {
 }
 
 export interface RouteState {
+  parent?: RouteState;
+  child?: RouteState;
+  data?: RouteData;
   pattern: string;
   path: string;
   params: Params;
-  outlet: JSX.Element;
+  outlet: () => JSX.Element;
   resolvePath: (to: string) => string | undefined;
 }
 
@@ -44,12 +76,20 @@ export interface RouterLocation {
   readonly queryString: string;
 }
 
+export interface RouterUtils {
+  renderPath(path: string): string;
+}
+
+export interface RedirectOptions {
+  resolve: boolean;
+}
+
 export interface RouterState {
   readonly base: string;
   readonly location: RouterLocation;
   readonly query: Params;
-  //isRouting: () => boolean;
-  //utils: RouterUtils;
-  //push(to: string, options?: RedirectOptions): void;
-  //replace(to: string, options?: RedirectOptions): void;
+  isRouting: () => boolean;
+  utils: RouterUtils;
+  push(to: string, options?: RedirectOptions): void;
+  replace(to: string, options?: RedirectOptions): void;
 }
