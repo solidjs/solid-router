@@ -52,12 +52,6 @@ export const Routes = (props: RoutesProps) => {
     getMatches(routes(), router.location.path, parentRoute ? parentRoute.params : {})
   );
 
-  // This exists as hack tp pevent `matches` from being a direct dependency of states and each RouteState
-  // If an existing RouteState recalulates it's path or params from `matches` and that match is gone,
-  // well thats no good. Ideally `states` would recalucate first and dispose of the unmatched RouteState.
-  // This seems to work but I can't really gaurentee it.
-  const matches2 = createMemo(matches);
-
   const disposers: (() => void)[] = [];
   const routeStates = createMemo(
     on(matches, (nextMatches, prevMatches, prev) => {
@@ -90,7 +84,7 @@ export const Routes = (props: RoutesProps) => {
               router,
               next[i - 1] || parentRoute,
               () => routeStates()[i + 1],
-              () => matches2()[i]
+              () => matches()[i]
             );
           });
         }

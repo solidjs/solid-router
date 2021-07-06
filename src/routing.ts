@@ -279,9 +279,17 @@ export function createRouteState(
   match: () => MatchedRoute
 ): RouteState {
   const { route } = match();
-  const path = createMemo(() => match().path);
+  const safeRoute = createMemo<MatchedRoute>((prev) => {
+    const m = match();
+    if (!m) {
+      console.log('!! THIS IS A BUG !! A match evaluated for a route that will be disposed');
+      return prev!;
+    }
+    return m;
+  })
+  const path = createMemo(() => safeRoute().path);
   const params = createMemoObject<Record<string, string>>(
-    on(path, () => match().params) as () => Record<string, string>
+    on(path, () => safeRoute().params) as () => Record<string, string>
   );
 
   const routeState: RouteState = {
