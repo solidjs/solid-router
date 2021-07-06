@@ -19,7 +19,7 @@ import {
   RouteState,
   RouteUpdateSignal
 } from "./types";
-import { createMatcher, joinPaths } from "./utils";
+import { createLocationMatcher, joinPaths } from "./utils";
 import { pathIntegration } from "./integration";
 
 export interface RouterProps {
@@ -196,7 +196,7 @@ export function NavLink(props: NavLinkProps) {
   const to = createMemo(() => (props.noResolve ? props.href : useResolvedPath(props.href)));
   const matcher = createMemo(() => {
     const path = to();
-    return path !== undefined ? createMatcher(path, 0, props.end) : undefined;
+    return path !== undefined ? createLocationMatcher(path, props.end) : undefined;
   });
   const isActive = createMemo(() => {
     const m = matcher();

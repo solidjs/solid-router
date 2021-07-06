@@ -8,11 +8,7 @@ function normalize(path: string) {
   return s ? "/" + s : "";
 }
 
-export function resolvePath(
-  base: string,
-  path: string,
-  from?: string
-): string | undefined {
+export function resolvePath(base: string, path: string, from?: string): string | undefined {
   if (hasSchemeRegex.test(path)) {
     return undefined;
   }
@@ -45,11 +41,7 @@ export function joinPaths(from: string, to: string): string {
   return `${from.replace(/[/*]+$/, "")}/${to.replace(/^\/+/, "")}`;
 }
 
-export function createPath(
-  path: string,
-  base: string,
-  hasChildren: boolean = false
-): string {
+export function createPath(path: string, base: string, hasChildren: boolean = false): string {
   const joined = joinPaths(base, path);
   return hasChildren && !joined.endsWith("*") ? joinPaths(joined, "*") : joined;
 }
@@ -62,30 +54,27 @@ export function extractQuery(url: URL): Record<string, string> {
   return query;
 }
 
-export function createMatcher(
+function createMatcher(
   path: string,
-  index: number = 0,
-  end?: boolean
+  end: boolean = false,
+  score: number = 0
 ): (location: string) => RouteMatch | null {
-  const isSplat = path.endsWith("/*");
   const pathParts = path.toLowerCase().split("/").filter(Boolean);
-  if (isSplat) {
-    pathParts.pop();
-  }
   const pathLen = pathParts.length;
+  const initialMatch: RouteMatch = {
+    score,
+    path: pathParts.length ? "" : "/",
+    params: {}
+  };
 
   return (location: string) => {
     const locParts = location.toLowerCase().split("/").filter(Boolean);
     const locLen = locParts.length;
-    if (pathLen > locLen || (pathLen < locLen && (!isSplat && end !== false))) {
+    if (pathLen > locLen || (pathLen < locLen && end)) {
       return null;
     }
 
-    const match: RouteMatch = {
-      score: 1000 + index,
-      path: pathParts.length ? "" : "/",
-      params: {}
-    };
+    const match = { ...initialMatch };
 
     for (let i = 0; i < pathLen; i++) {
       const pathPart = pathParts[i];
@@ -106,6 +95,19 @@ export function createMatcher(
 
     return match;
   };
+}
+
+export function createLocationMatcher(to: string, end?: boolean): (location: string) => boolean {
+  const matcher = createMatcher(to.split("?", 1)[0], end);
+  return (location: string) => !!matcher(location);
+}
+
+export function createPathMatcher(
+  path: string,
+  index: number = 0
+): (location: string) => RouteMatch | null {
+  const isSplat = path.endsWith("/*");
+  return createMatcher(isSplat ? path.slice(0, -2) : path, !isSplat, 1000 + index);
 }
 
 export function renderPath(path: string): string {

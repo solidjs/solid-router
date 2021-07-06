@@ -24,7 +24,7 @@ import type {
   RedirectOptions
 } from "./types";
 import {
-  createMatcher,
+  createPathMatcher,
   createPath,
   extractQuery,
   invariant,
@@ -80,7 +80,7 @@ export function createRoutes(
         return element as JSX.Element;
       },
       data: route.data,
-      matcher: createMatcher(path, arr.length - i),
+      matcher: createPathMatcher(path, arr.length - i),
       children: children && createRoutes(children, path)
     };
   });
