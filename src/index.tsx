@@ -8,7 +8,6 @@ export type {
   RouteData,
   RouteDefinition,
   RouteDataFunc,
-  RouteRenderFunc,
   RouteState,
   RouteUpdate,
   RouteUpdateMode,

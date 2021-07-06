@@ -1,4 +1,4 @@
-import { JSX, Show, createMemo, on, createRoot, mergeProps, splitProps } from "solid-js";
+import { JSX, Show, createMemo, on, createRoot, mergeProps, splitProps, Component } from "solid-js";
 import {
   RouteContext,
   RouterContext,
@@ -13,7 +13,6 @@ import {
 import {
   RouteData,
   RouteDefinition,
-  RouteRenderFunc,
   RouterIntegration,
   RouterState,
   RouteState,
@@ -111,7 +110,7 @@ export const useRoutes = (routes: RouteDefinition | RouteDefinition[], base?: st
 
 interface RouteProps {
   path: string;
-  element: JSX.Element | RouteRenderFunc;
+  element: JSX.Element | Component;
   children?: JSX.Element;
   data?: (route: RouteState, router: RouterState) => RouteData | undefined | void;
 }

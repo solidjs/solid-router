@@ -1,4 +1,5 @@
 import {
+  createComponent,
   createContext,
   createMemo,
   createRenderEffect,
@@ -67,15 +68,15 @@ export function createRoutes(
     return {
       originalPath: route.path,
       pattern: path,
-      element: (routeState, router) => {
+      element: (routeState) => {
         const { element } = route;
         // In the case no element was defined on the <Route>, default to the route's outlet
         if (element === undefined) {
           return routeState.outlet;
         }
-        // Allow render function with easy access to router and the route context
+        // Handle component form
         if (typeof element === "function" && element.length) {
-          return element(routeState, router);
+          return createComponent(element, {});
         }
         return element as JSX.Element;
       },
@@ -303,7 +304,7 @@ export function createRouteState(
     },
     params,
     outlet() {
-      return route.element(routeState, router);
+      return route.element(routeState);
     },
     resolvePath(to: string) {
       return resolvePath(router.base, to, path());

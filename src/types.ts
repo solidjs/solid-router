@@ -1,4 +1,4 @@
-import { JSX } from "solid-js";
+import { Component, JSX } from "solid-js";
 
 export type Params = Record<string, string>;
 
@@ -16,24 +16,13 @@ export interface RouterIntegration {
   utils?: Partial<RouterUtils>;
 }
 
-export type RouteUpdateSignal = [
-  () => RouteUpdate,
-  (value: RouteUpdate) => void
-];
+export type RouteUpdateSignal = [() => RouteUpdate, (value: RouteUpdate) => void];
 
-export type RouteRenderFunc = (
-  route: RouteState,
-  router: RouterState
-) => JSX.Element;
-
-export type RouteDataFunc = (
-  route: RouteState,
-  router: RouterState
-) => RouteData | undefined;
+export type RouteDataFunc = (route: RouteState, router: RouterState) => RouteData | undefined;
 
 export interface RouteDefinition {
   path: string;
-  element: JSX.Element | RouteRenderFunc;
+  element: JSX.Element | Component;
   data?: RouteDataFunc;
   children?: RouteDefinition[];
 }
@@ -48,7 +37,7 @@ export interface Route {
   originalPath: string;
   pattern: string;
   children?: Route[];
-  element: RouteRenderFunc;
+  element: (route: RouteState) => JSX.Element;
   data?: RouteDataFunc;
   matcher: (location: string) => RouteMatch | null;
 }
