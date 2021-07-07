@@ -5,7 +5,6 @@ import type {
   RouterIntegration,
   RouterUtils
 } from "./types";
-// import type { History } from "history";
 
 function bindEvent(target: EventTarget, type: string, handler: EventListener) {
   target.addEventListener(type, handler);
@@ -79,25 +78,3 @@ export function hashIntegration() {
     }
   );
 }
-
-// export function historyIntegration(history: History) {
-//   return createIntegration(
-//     () => history.location.pathname + history.location.search,
-//     (value, mode) => {
-//       if (mode === "push") {
-//         history.push(value);
-//       } else {
-//         history.replace(value);
-//       }
-//     },
-//     (notify) =>
-//       history.listen((evt) => {
-//         if (evt.action === "POP") {
-//           notify();
-//         }
-//       }),
-//     {
-//       renderPath: history.createHref
-//     }
-//   );
-// }
