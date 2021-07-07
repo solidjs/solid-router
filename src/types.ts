@@ -22,7 +22,7 @@ export type RouteDataFunc = (route: RouteState, router: RouterState) => RouteDat
 
 export interface RouteDefinition {
   path: string;
-  element: JSX.Element | Component;
+  element?: JSX.Element | Component;
   data?: RouteDataFunc;
   children?: RouteDefinition[];
 }

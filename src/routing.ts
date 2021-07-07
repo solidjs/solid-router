@@ -12,6 +12,7 @@ import {
   useContext,
   useTransition
 } from "solid-js";
+import { Outlet } from "./components";
 import type {
   Route,
   MatchedRoute,
@@ -69,11 +70,7 @@ export function createRoutes(
       originalPath: route.path,
       pattern: path,
       element: (routeState) => {
-        const { element } = route;
-        // In the case no element was defined on the <Route>, default to the route's outlet
-        if (element === undefined) {
-          return routeState.outlet;
-        }
+        const { element = Outlet } = route;
         // Handle component form
         if (typeof element === "function" && element.length) {
           return createComponent(element, {});

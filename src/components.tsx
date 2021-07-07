@@ -110,7 +110,7 @@ export const useRoutes = (routes: RouteDefinition | RouteDefinition[], base?: st
 
 interface RouteProps {
   path: string;
-  element: JSX.Element | Component;
+  element?: JSX.Element | Component;
   children?: JSX.Element;
   data?: (route: RouteState, router: RouterState) => RouteData | undefined | void;
 }
