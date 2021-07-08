@@ -54,15 +54,30 @@ export function extractQuery(url: URL): Record<string, string> {
   return query;
 }
 
-function createMatcher(
+export function createLocationMatcher(path: string, end?: boolean) {
+  const [pathname] = path.split(/[?#]/, 1);
+  return (location: string) => {
+    if (end) {
+      return location.toLowerCase() === pathname.toLowerCase();
+    }
+    return location.toLowerCase().startsWith(pathname.toLowerCase())
+  }
+}
+
+export function createPathMatcher(
   path: string,
-  end: boolean = false,
-  score: number = 0
+  index: number = 0
 ): (location: string) => RouteMatch | null {
+  const isSplat = path.endsWith("/*");
+
+  if (isSplat) {
+    path = path.slice(0, -2);
+  }
+
   const pathParts = path.toLowerCase().split("/").filter(Boolean);
   const pathLen = pathParts.length;
   const initialMatch: RouteMatch = {
-    score,
+    score: 1000 + index,
     path: pathParts.length ? "" : "/",
     params: {}
   };
@@ -70,7 +85,7 @@ function createMatcher(
   return (location: string) => {
     const locParts = location.toLowerCase().split("/").filter(Boolean);
     const locLen = locParts.length;
-    if (pathLen > locLen || (pathLen < locLen && end)) {
+    if (pathLen > locLen || (pathLen < locLen && !isSplat)) {
       return null;
     }
 
@@ -95,21 +110,4 @@ function createMatcher(
 
     return match;
   };
-}
-
-export function createLocationMatcher(to: string, end?: boolean): (location: string) => boolean {
-  const matcher = createMatcher(to.split("?", 1)[0], end);
-  return (location: string) => !!matcher(location);
-}
-
-export function createPathMatcher(
-  path: string,
-  index: number = 0
-): (location: string) => RouteMatch | null {
-  const isSplat = path.endsWith("/*");
-  return createMatcher(isSplat ? path.slice(0, -2) : path, !isSplat, 1000 + index);
-}
-
-export function renderPath(path: string): string {
-  return path;
 }

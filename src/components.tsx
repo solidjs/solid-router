@@ -8,9 +8,15 @@ import {
   useRouter,
   createRoutes,
   getMatches,
-  useResolvedPath
+  useResolvedPath,
+  useLocation,
+  useNavigate,
+  useHref,
+  useParams
 } from "./routing";
 import {
+  Location,
+  Navigate,
   RouteData,
   RouteDefinition,
   RouterIntegration,
@@ -18,7 +24,7 @@ import {
   RouteState,
   RouteUpdateSignal
 } from "./types";
-import { createLocationMatcher, joinPaths } from "./utils";
+import { joinPaths } from "./utils";
 import { pathIntegration } from "./integration";
 
 export interface RouterProps {
@@ -42,14 +48,11 @@ export interface RoutesProps {
 export const Routes = (props: RoutesProps) => {
   const router = useRouter();
   const parentRoute = useRoute();
+  const location = useLocation();
 
-  const basePath = createMemo(() =>
-    joinPaths(parentRoute ? parentRoute.path : router.base, props.base || "")
-  );
-  const routes = createMemo(() => createRoutes(props.children as any, basePath()));
-  const matches = createMemo(() =>
-    getMatches(routes(), router.location.path, parentRoute ? parentRoute.params : {})
-  );
+  const basePath = useResolvedPath(() => props.base || "");
+  const routes = createMemo(() => createRoutes(props.children as any, basePath() || "", Outlet));
+  const matches = createMemo(() => getMatches(routes(), location.pathname));
 
   const disposers: (() => void)[] = [];
   const routeStates = createMemo(
@@ -134,10 +137,8 @@ interface LinkBaseProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
 
 function LinkBase(props: LinkBaseProps) {
   const [, rest] = splitProps(props, ["children", "to", "href", "onClick"]);
-  const router = useRouter();
-  const href = createMemo(() =>
-    props.to !== undefined ? router.utils.renderPath(props.to) : props.href
-  );
+  const navigate = useNavigate();
+  const href = useHref(() => props.to);
 
   const handleClick: JSX.EventHandler<HTMLAnchorElement, MouseEvent> = evt => {
     const { onClick, to, target } = props;
@@ -154,12 +155,12 @@ function LinkBase(props: LinkBaseProps) {
       !(evt.metaKey || evt.altKey || evt.ctrlKey || evt.shiftKey)
     ) {
       evt.preventDefault();
-      router.push(to, { resolve: false });
+      navigate(to, { resolve: false });
     }
   };
 
   return (
-    <a {...rest} href={href()} onClick={handleClick}>
+    <a {...rest} href={href() ?? props.href} onClick={handleClick}>
       {props.children}
     </a>
   );
@@ -167,12 +168,10 @@ function LinkBase(props: LinkBaseProps) {
 
 export interface LinkProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
   href: string;
-  noResolve?: boolean;
 }
 
 export function Link(props: LinkProps) {
-  const to = createMemo(() => (props.noResolve ? props.href : useResolvedPath(props.href)));
-
+  const to = useResolvedPath(() => props.href);
   return <LinkBase {...props} to={to()} />;
 }
 
@@ -184,16 +183,16 @@ export interface NavLinkProps extends LinkProps {
 export function NavLink(props: NavLinkProps) {
   props = mergeProps({ activeClass: "is-active" }, props);
   const [, rest] = splitProps(props, ["activeClass", "end"]);
-  const router = useRouter();
-
-  const to = createMemo(() => (props.noResolve ? props.href : useResolvedPath(props.href)));
-  const matcher = createMemo(() => {
-    const path = to();
-    return path !== undefined ? createLocationMatcher(path, props.end) : undefined;
-  });
+  const location = useLocation();
+  const to = useResolvedPath(() => props.href);
   const isActive = createMemo(() => {
-    const m = matcher();
-    return m && !!m(router.location.path);
+    const to_ = to();
+    if (to_ === undefined) {
+      return false;
+    }
+    const path = to_.split(/[?#]/, 1)[0].toLowerCase();
+    const loc = location.pathname.toLowerCase();
+    return props.end ? path === loc : loc.startsWith(path);
   });
 
   return (
@@ -207,14 +206,14 @@ export function NavLink(props: NavLinkProps) {
 }
 
 export interface RedirectProps {
-  href: ((router: RouterState) => string) | string;
-  noResolve?: boolean;
+  href: ((args: { navigate: Navigate; location: Location }) => string) | string;
 }
 
 export function Redirect(props: RedirectProps) {
-  const router = useRouter();
-  const href = props.href;
-  const path = typeof href === "function" ? href(router) : href;
-  router.replace(path, { resolve: !props.noResolve });
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { href } = props;
+  const path = typeof href === "function" ? href({ navigate, location }) : href;
+  navigate(path, { replace: true });
   return null;
 }

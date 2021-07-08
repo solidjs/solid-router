@@ -2,9 +2,34 @@ import { Component, JSX } from "solid-js";
 
 export type Params = Record<string, string>;
 
+export type LocationState = string | null;
+
 export type RouteData = Record<string, any>;
 
 export type RouteUpdateMode = "push" | "replace" | "init";
+
+export interface Path {
+  pathname: string;
+  search: string;
+  hash: string;
+}
+
+export interface Location<S extends LocationState = LocationState> extends Path {
+  query: Params,
+  state: S;
+  key: string;
+}
+
+export interface NavigateOptions {
+  resolve: boolean;
+  replace: boolean;
+  state: LocationState;
+}
+
+export interface Navigate {
+  (to: string, options?: Partial<NavigateOptions>): void;
+  (to: number): void;
+}
 
 export interface RouteUpdate {
   value: string;
@@ -18,7 +43,13 @@ export interface RouterIntegration {
 
 export type RouteUpdateSignal = [() => RouteUpdate, (value: RouteUpdate) => void];
 
-export type RouteDataFunc = (route: RouteState, router: RouterState) => RouteData | undefined;
+export interface RouteArgs<T extends Params = Params> {
+  params: T;
+  location: Location;
+  navigate: Navigate;
+}
+
+export type RouteDataFunc = (args: RouteArgs) => RouteData | undefined;
 
 export interface RouteDefinition {
   path: string;
@@ -37,7 +68,7 @@ export interface Route {
   originalPath: string;
   pattern: string;
   children?: Route[];
-  element: (route: RouteState) => JSX.Element;
+  element: () => JSX.Element;
   data?: RouteDataFunc;
   matcher: (location: string) => RouteMatch | null;
 }
@@ -54,31 +85,20 @@ export interface RouteState {
   child?: RouteState;
   data?: RouteData;
   pattern: string;
-  path: string;
   params: Params;
+  path: () => string;
   outlet: () => JSX.Element;
-  resolvePath: (to: string) => string | undefined;
-}
-
-export interface RouterLocation {
-  readonly path: string;
-  readonly queryString: string;
+  resolvePath(to: string): string | undefined;
 }
 
 export interface RouterUtils {
   renderPath(path: string): string;
 }
 
-export interface RedirectOptions {
-  resolve: boolean;
-}
-
 export interface RouterState {
-  readonly base: string;
-  readonly location: RouterLocation;
-  readonly query: Params;
+  base: RouteState;
+  location: Location;
+  navigate: Navigate;
   isRouting: () => boolean;
-  utils: RouterUtils;
-  push(to: string, options?: RedirectOptions): void;
-  replace(to: string, options?: RedirectOptions): void;
+  renderPath(path: string): string;
 }

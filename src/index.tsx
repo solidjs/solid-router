@@ -1,19 +1,27 @@
-export { useRouter, useRoute } from "./routing";
+export {
+  useLocation,
+  useNavigate,
+  useIsRouting,
+  useMatch,
+  useData,
+  useParams,
+  useResolvedPath,
+  useHref
+} from "./routing";
 export * from "./components";
-export * from './integration';
-export * from './utils';
+export * from "./integration";
 export type {
+  Location,
+  LocationState,
+  Navigate,
+  NavigateOptions,
   Params,
-  RedirectOptions,
   RouteData,
   RouteDefinition,
   RouteDataFunc,
-  RouteState,
   RouteUpdate,
   RouteUpdateMode,
   RouteUpdateSignal,
   RouterIntegration,
-  RouterLocation,
-  RouterState,
   RouterUtils
 } from "./types";

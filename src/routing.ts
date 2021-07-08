@@ -1,4 +1,5 @@
 import {
+  Component,
   createComponent,
   createContext,
   createMemo,
@@ -12,18 +13,18 @@ import {
   useContext,
   useTransition
 } from "solid-js";
-import { Outlet } from "./components";
 import type {
-  Route,
   MatchedRoute,
+  NavigateOptions,
+  Params,
+  RouterIntegration,
   RouterState,
+  Route,
   RouteState,
   RouteDefinition,
-  Params,
-  RouteUpdateSignal,
-  RouterIntegration,
   RouteUpdateMode,
-  RedirectOptions
+  RouteUpdateSignal,
+  Location
 } from "./types";
 import {
   createPathMatcher,
@@ -31,7 +32,6 @@ import {
   extractQuery,
   invariant,
   resolvePath,
-  renderPath,
   toArray
 } from "./utils";
 
@@ -46,21 +46,51 @@ export const RouterContext = createContext<RouterState>();
 export const RouteContext = createContext<RouteState>();
 
 export const useRouter = () =>
-  invariant(
-    useContext(RouterContext),
-    "Make sure your app is wrapped in a <Router />"
-  );
+  invariant(useContext(RouterContext), "Make sure your app is wrapped in a <Router />");
 
-export const useRoute = () => useContext(RouteContext);
+export const useRoute = () => useContext(RouteContext) || useRouter().base;
 
-export const useResolvedPath = (path: string) => {
+export const useResolvedPath = (path: () => string) => {
   const route = useRoute();
-  return route ? route.resolvePath(path) : resolvePath(useRouter().base, path);
+  return createMemo(() => route.resolvePath(path()));
+};
+
+export const useHref = (to: () => string | undefined) => {
+  const router = useRouter();
+  return createMemo(() => {
+    const to_ = to();
+    return to_ !== undefined ? router.renderPath(to_) : to_;
+  });
+};
+
+export const useNavigate = () => useRouter().navigate;
+export const useLocation = () => useRouter().location;
+export const useIsRouting = () => useRouter().isRouting;
+
+export const useMatch = (path: () => string) => {
+  const location = useLocation();
+  const matcher = createMemo(() => createPathMatcher(path()));
+  return createMemo(() => matcher()(location.pathname));
+};
+
+export const useParams = <T extends Params>() => useRoute().params as T;
+
+export const useData = <T extends Params>(delta: number = 0) => {
+  let current = useRoute();
+  let n = delta;
+  while (n-- > 0) {
+    if (!current.parent) {
+      throw new RangeError(`Route ancestor ${delta} is out of bounds`);
+    }
+    current = current.parent;
+  }
+  return current.data as T;
 };
 
 export function createRoutes(
   routes: RouteDefinition | RouteDefinition[],
-  base: string
+  base: string,
+  fallback: Component
 ): Route[] {
   return toArray(routes).map<Route>((route, i, arr) => {
     const { children } = route;
@@ -69,8 +99,8 @@ export function createRoutes(
     return {
       originalPath: route.path,
       pattern: path,
-      element: (routeState) => {
-        const { element = Outlet } = route;
+      element: () => {
+        const { element = fallback } = route;
         // Handle component form
         if (typeof element === "function" && element.length) {
           return createComponent(element, {});
@@ -79,7 +109,7 @@ export function createRoutes(
       },
       data: route.data,
       matcher: createPathMatcher(path, arr.length - i),
-      children: children && createRoutes(children, path)
+      children: children && createRoutes(children, path, fallback)
     };
   });
 }
@@ -87,7 +117,6 @@ export function createRoutes(
 export function getMatches(
   routes: Route[],
   location: string,
-  parentParams: Params,
   acc: MatchedRoute[] = []
 ): MatchedRoute[] {
   const winner = routes.reduce<MatchedRoute | undefined>((winner, route) => {
@@ -95,8 +124,7 @@ export function getMatches(
     if (match && (!winner || match.score > winner.score)) {
       return {
         route,
-        ...match,
-        params: { ...parentParams, ...match.params }
+        ...match
       };
     }
     return winner;
@@ -105,7 +133,7 @@ export function getMatches(
   if (winner) {
     acc.push(winner);
     if (winner.route.children) {
-      getMatches(winner.route.children, location, parentParams, acc);
+      getMatches(winner.route.children, location, acc);
     }
   }
 
@@ -147,18 +175,59 @@ function normalizeIntegration(
   return integration;
 }
 
+export function createLocation(path: () => string): Location {
+  const origin = new URL("http://sar");
+  const url = createMemo<URL>(
+    prev => {
+      const path_ = path();
+      try {
+        return new URL(path_, origin);
+      } catch (err) {
+        console.error(`Invalid path ${path_}`);
+        return prev;
+      }
+    },
+    origin,
+    {
+      equals: (a, b) => a.href === b.href
+    }
+  );
+
+  const pathname = createMemo(() => url().pathname);
+  const search = createMemo(() => url().search.slice(1));
+  const hash = createMemo(() => url().hash.slice(1));
+  const state = createMemo(() => null);
+  const key = createMemo(() => "");
+
+  return {
+    get pathname() {
+      return pathname();
+    },
+    get search() {
+      return search();
+    },
+    get hash() {
+      return hash();
+    },
+    get state() {
+      return state();
+    },
+    get key() {
+      return key();
+    },
+    query: createMemoObject(on(search, () => extractQuery(url())) as () => Params)
+  };
+}
+
 export function createRouterState(
   integration?: RouterIntegration | RouteUpdateSignal,
   base: string = ""
 ): RouterState {
   const {
     signal: [source, setSource],
-    utils: integrationUtils
+    utils
   } = normalizeIntegration(integration);
-  const utils = {
-    renderPath,
-    ...integrationUtils
-  };
+
   const basePath = resolvePath("", base);
 
   if (basePath === undefined) {
@@ -167,57 +236,47 @@ export function createRouterState(
     setSource({ value: basePath, mode: "init" });
   }
 
+  const baseRoute: RouteState = {
+    pattern: basePath,
+    params: {},
+    path: () => basePath,
+    outlet: () => null,
+    resolvePath(to: string) {
+      return resolvePath(basePath, to);
+    }
+  };
+
   const referrers: Referrer[] = [];
   const [isRouting, start] = useTransition();
   const [reference, setReference] = createSignal(source().value);
+  const location = createLocation(reference);
 
-  const url = createMemo<URL>(
-    (prev) => {
-      try {
-        return new URL(reference(), "http://origin");
-      } catch (err) {
-        console.error(`Invalid path ${source()}`);
-        return prev;
-      }
-    },
-    new URL("/", "http://origin"),
-    {
-      equals: (a, b) => a.href === b.href
-    }
-  );
-  const path = createMemo(() => url().pathname);
-  const queryString = createMemo(() => url().search.slice(1));
-  const query = createMemoObject<Record<string, string>>(
-    on(queryString, () => extractQuery(url())) as () => Record<string, string>
-  );
+  // The `navigate` function looks up the closest route to handle resolution. Redfining this makes
+  // testing the router state easier as we don't have to wrap the test in the RouterContext.
+  const useRoute = () => useContext(RouteContext) || baseRoute;
 
-  function redirect(
-    mode: RouteUpdateMode,
-    to: string,
-    options: RedirectOptions = {
-      resolve: false
+  function navigate(to: string | number, options?: Partial<NavigateOptions>) {
+    if (typeof to === "number") {
+      console.log("Relative navigation is not implemented - doing nothing :)");
+      return;
     }
-  ) {
-    let resolvedTo: string | undefined;
 
-    if (options.resolve) {
-      const currentRoute = useRoute();
-      if (currentRoute) {
-        resolvedTo = currentRoute.resolvePath(to);
-      } else {
-        resolvedTo = resolvePath(basePath!, to);
-      }
-    } else {
-      resolvedTo = resolvePath("", to);
-    }
+    const finalOptions = {
+      replace: false,
+      resolve: true,
+      state: null,
+      ...options
+    };
+
+    const resolvedTo = finalOptions.resolve ? useRoute().resolvePath(to) : resolvePath("", to);
 
     if (resolvedTo === undefined) {
-      throw new Error(`Path '${path}' is not a routable path`);
+      throw new Error(`Path '${to}' is not a routable path`);
     }
 
     const redirectCount = referrers.push({
       ref: untrack(reference),
-      mode
+      mode: finalOptions.replace ? "replace" : "push"
     });
 
     if (redirectCount > MAX_REDIRECTS) {
@@ -249,24 +308,11 @@ export function createRouterState(
   });
 
   return {
-    base: basePath,
-    location: {
-      get path() {
-        return path();
-      },
-      get queryString() {
-        return queryString();
-      }
-    },
-    query,
+    base: baseRoute,
+    location,
     isRouting,
-    utils,
-    push(to, options) {
-      redirect("push", to, options);
-    },
-    replace(to, options) {
-      redirect("replace", to, options);
-    }
+    renderPath: utils?.renderPath || ((path: string) => path),
+    navigate
   };
 }
 
@@ -277,14 +323,14 @@ export function createRouteState(
   match: () => MatchedRoute
 ): RouteState {
   const { route } = match();
-  const safeRoute = createMemo<MatchedRoute>((prev) => {
+  const safeRoute = createMemo<MatchedRoute>(prev => {
     const m = match();
     if (!m) {
-      console.log('!! THIS IS A BUG !! A match evaluated for a route that will be disposed');
+      console.log("!! THIS IS A BUG !! A match evaluated for a route that will be disposed");
       return prev!;
     }
     return m;
-  })
+  });
   const path = createMemo(() => safeRoute().path);
   const params = createMemoObject<Record<string, string>>(
     on(path, () => safeRoute().params) as () => Record<string, string>
@@ -296,20 +342,20 @@ export function createRouteState(
     get child() {
       return child();
     },
-    get path() {
-      return path();
-    },
+    path,
     params,
-    outlet() {
-      return route.element(routeState);
-    },
+    outlet: () => route.element(),
     resolvePath(to: string) {
-      return resolvePath(router.base, to, path());
+      return resolvePath(router.base.path(), to, path());
     }
   };
 
   if (route.data) {
-    routeState.data = route.data(routeState, router);
+    routeState.data = route.data({
+      params,
+      location: router.location,
+      navigate: router.navigate
+    });
   }
 
   return routeState;
