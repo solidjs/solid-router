@@ -89,8 +89,8 @@ export const useData = <T extends Params>(delta: number = 0) => {
 
 export function createRoutes(
   routes: RouteDefinition | RouteDefinition[],
-  base: string,
-  fallback: Component
+  base: string = "",
+  fallback: Component | null = null
 ): Route[] {
   return toArray(routes).map<Route>((route, i, arr) => {
     const { children } = route;

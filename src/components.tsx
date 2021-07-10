@@ -11,20 +11,17 @@ import {
   useResolvedPath,
   useLocation,
   useNavigate,
-  useHref,
-  useParams
+  useHref
 } from "./routing";
 import {
   Location,
   Navigate,
-  RouteData,
+  RouteDataFunc,
   RouteDefinition,
   RouterIntegration,
-  RouterState,
   RouteState,
   RouteUpdateSignal
 } from "./types";
-import { joinPaths } from "./utils";
 import { pathIntegration } from "./integration";
 
 export interface RouterProps {
@@ -48,11 +45,10 @@ export interface RoutesProps {
 export const Routes = (props: RoutesProps) => {
   const router = useRouter();
   const parentRoute = useRoute();
-  const location = useLocation();
 
   const basePath = useResolvedPath(() => props.base || "");
   const routes = createMemo(() => createRoutes(props.children as any, basePath() || "", Outlet));
-  const matches = createMemo(() => getMatches(routes(), location.pathname));
+  const matches = createMemo(() => getMatches(routes(), router.location.pathname));
 
   const disposers: (() => void)[] = [];
   const routeStates = createMemo(
@@ -108,14 +104,18 @@ export const Routes = (props: RoutesProps) => {
 };
 
 export const useRoutes = (routes: RouteDefinition | RouteDefinition[], base?: string) => {
-  return () => <Routes base={base}>{routes as any}</Routes>;
+  return (props: { fallback?: JSX.Element }) => (
+    <Routes base={base} fallback={props.fallback}>
+      {routes as any}
+    </Routes>
+  );
 };
 
 interface RouteProps {
   path: string;
   element?: JSX.Element | Component;
   children?: JSX.Element;
-  data?: (route: RouteState, router: RouterState) => RouteData | undefined | void;
+  data?: RouteDataFunc;
 }
 
 export const Route = (props: RouteProps) => {
@@ -138,7 +138,7 @@ interface LinkBaseProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
 function LinkBase(props: LinkBaseProps) {
   const [, rest] = splitProps(props, ["children", "to", "href", "onClick"]);
   const navigate = useNavigate();
-  const href = useHref(() => props.to);
+  const href = useHref(() => props.to)
 
   const handleClick: JSX.EventHandler<HTMLAnchorElement, MouseEvent> = evt => {
     const { onClick, to, target } = props;
