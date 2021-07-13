@@ -3,7 +3,7 @@
   "description": "Config driven router for SolidJS",
   "author": "Ryan Carniato",
   "license": "MIT",
-  "version": "0.0.50",
+  "version": "0.0.51",
   "homepage": "https://github.com/solidjs/solid-app-router#readme",
   "repository": {
     "type": "git",
