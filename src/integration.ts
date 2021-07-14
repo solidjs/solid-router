@@ -1,10 +1,5 @@
 import { createSignal, onCleanup } from "solid-js";
-import type {
-  RouteUpdateMode,
-  RouteUpdate,
-  RouterIntegration,
-  RouterUtils
-} from "./types";
+import type { RouteUpdateMode, RouteUpdate, RouterIntegration, RouterUtils } from "./types";
 
 function bindEvent(target: EventTarget, type: string, handler: EventListener) {
   target.addEventListener(type, handler);
@@ -17,10 +12,7 @@ function intercept<T>(
   set?: (v: T) => T
 ): [() => T, (v: T) => void] {
   const [value, setValue] = signal;
-  return [
-    get ? () => get(value()) : value,
-    set ? (v: T) => setValue(set(v)) : setValue
-  ];
+  return [get ? () => get(value()) : value, set ? (v: T) => setValue(set(v)) : setValue];
 }
 
 export function createIntegration(
@@ -32,7 +24,7 @@ export function createIntegration(
   const signal = intercept<RouteUpdate>(
     createSignal({ value: get() }, { equals: (a, b) => a.value === b.value }),
     undefined,
-    (next) => {
+    next => {
       const { value, mode } = next;
       mode && set(value, mode);
       return next;
@@ -52,6 +44,18 @@ export function createIntegration(
   };
 }
 
+export function staticIntegration(obj: RouteUpdate): RouterIntegration {
+  return {
+    signal: [
+      () => obj,
+      next => {
+        obj.value = next.value;
+        obj.mode = next.mode;
+      }
+    ]
+  };
+}
+
 export function pathIntegration() {
   return createIntegration(
     () => window.location.pathname + window.location.search,
@@ -62,19 +66,19 @@ export function pathIntegration() {
         window.history.replaceState(null, "", value);
       }
     },
-    (notify) => bindEvent(window, "popstate", () => notify())
+    notify => bindEvent(window, "popstate", () => notify())
   );
 }
 
 export function hashIntegration() {
   return createIntegration(
     () => window.location.hash.slice(1),
-    (value) => {
+    value => {
       window.location.hash = value;
     },
-    (notify) => bindEvent(window, "hashchange", () => notify()),
+    notify => bindEvent(window, "hashchange", () => notify()),
     {
-      renderPath: (path) => `#${path}`
+      renderPath: path => `#${path}`
     }
   );
 }

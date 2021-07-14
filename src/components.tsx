@@ -24,7 +24,7 @@ import {
   RouteState,
   RouteUpdateSignal
 } from "./types";
-import { pathIntegration } from "./integration";
+import { pathIntegration, staticIntegration } from "./integration";
 
 export interface RouterProps {
   source?: RouterIntegration | RouteUpdateSignal;
@@ -34,14 +34,9 @@ export interface RouterProps {
   children: JSX.Element;
 }
 
-const staticIntegration = (obj: RouteUpdate): RouteUpdateSignal => [
-  () => obj,
-  next => (obj.value = next.value)
-];
-
 export const Router = (props: RouterProps) => {
   const integration =
-    props.source || (isServer ? staticIntegration({ value: props.url! }) : pathIntegration());
+    props.source || (isServer ? staticIntegration({ value: props.url || "" }) : pathIntegration());
   const routerState = createRouterState(integration, props.base);
 
   return <RouterContext.Provider value={routerState}>{props.children}</RouterContext.Provider>;
@@ -126,14 +121,17 @@ type RouteProps = {
   path: string;
   children?: JSX.Element;
   data?: RouteDataFunc;
-} & ({
-  element?: never;
-  component: Component;
-} | {
-  component?: never;
-  element?: JSX.Element;
-  preload?: () => void;
-})
+} & (
+  | {
+      element?: never;
+      component: Component;
+    }
+  | {
+      component?: never;
+      element?: JSX.Element;
+      preload?: () => void;
+    }
+);
 
 export const Route = (props: RouteProps) => {
   return props as unknown as JSX.Element;
