@@ -1,3 +1,4 @@
+import { createMemo, getOwner, runWithOwner } from "solid-js";
 import type { RouteMatch } from "./types";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
@@ -101,11 +102,31 @@ export function createPathMatcher(
       }
       match.path += `/${locSegment}`;
     }
-    
+
     if (splat) {
       match.params[splat] = lenDiff ? locSegments.slice(-lenDiff).join("/") : "";
     }
 
     return match;
   };
+}
+
+export function createMemoObject<T extends object>(fn: () => T): T {
+  const map = new Map();
+  const owner = getOwner()!;
+  return new Proxy(
+    {},
+    {
+      get(_, property) {
+        const memo =
+          map.get(property) ||
+          runWithOwner(owner, () => {
+            const p = createMemo(() => (fn() as any)[property]);
+            map.set(property, p);
+            return p;
+          });
+        return memo();
+      }
+    }
+  ) as T;
 }

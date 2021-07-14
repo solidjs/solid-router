@@ -1,18 +1,15 @@
 import {
-  Component,
   createComponent,
   createContext,
   createMemo,
   createRenderEffect,
   createSignal,
-  getOwner,
-  JSX,
   on,
-  runWithOwner,
   untrack,
   useContext,
   useTransition
 } from "solid-js";
+import type { Component, JSX } from "solid-js";
 import { isServer } from "solid-js/web";
 import type {
   MatchedRoute,
@@ -33,8 +30,10 @@ import {
   extractQuery,
   invariant,
   resolvePath,
-  toArray
+  toArray,
+  createMemoObject
 } from "./utils";
+import { normalizeIntegration } from "./integration";
 
 const MAX_REDIRECTS = 100;
 
@@ -98,25 +97,22 @@ export function createRoutes(
   fallback?: Component
 ): Route[] {
   return toArray(routes).map<Route>((route, i, arr) => {
-    const { children } = route;
-    const path = createPath(route.path, base, !!children);
+    const { path: originalPath, children, component, data } = route;
+    const path = createPath(originalPath, base, !!children);
 
     return {
-      originalPath: route.path,
+      originalPath,
       pattern: path,
-      element: () => {
-        const { component, element } = route;
-        if (component) {
-          return createComponent(component, {});
-        } else if (element === undefined && fallback) {
-          return createComponent(fallback, {});
-        }
-        return element as JSX.Element;
-      },
-      preload: route.component
-        ? (route.component as MaybePreloadableComponent).preload
-        : route.preload,
-      data: route.data,
+      element: component
+        ? () => createComponent(component, {})
+        : () => {
+            const { element } = route;
+            return element === undefined && fallback
+              ? createComponent(fallback, {})
+              : (element as JSX.Element);
+          },
+      preload: route.component ? (component as MaybePreloadableComponent).preload : route.preload,
+      data,
       matcher: createPathMatcher(path, arr.length - i),
       children: children && createRoutes(children, path, fallback)
     };
@@ -147,41 +143,6 @@ export function getMatches(
   }
 
   return acc;
-}
-
-export function createMemoObject<T extends object>(fn: () => T): T {
-  const map = new Map();
-  const owner = getOwner()!;
-  return new Proxy(
-    {},
-    {
-      get(_, property) {
-        const memo =
-          map.get(property) ||
-          runWithOwner(owner, () => {
-            const p = createMemo(() => (fn() as any)[property]);
-            map.set(property, p);
-            return p;
-          });
-        return memo();
-      }
-    }
-  ) as T;
-}
-
-function normalizeIntegration(
-  integration: RouterIntegration | RouteUpdateSignal | undefined
-): RouterIntegration {
-  if (!integration) {
-    return {
-      signal: createSignal({ value: "" })
-    };
-  } else if (Array.isArray(integration)) {
-    return {
-      signal: integration
-    };
-  }
-  return integration;
 }
 
 export function createLocation(path: () => string): Location {
@@ -338,42 +299,25 @@ export function createRouteState(
   child: () => RouteState,
   match: () => MatchedRoute
 ): RouteState {
-  const { route } = match();
-  const safeRoute = createMemo<MatchedRoute>(prev => {
-    const m = match();
-    if (!m) {
-      console.log("!! THIS IS A BUG !! A match evaluated for a route that will be disposed");
-      return prev!;
-    }
-    return m;
-  });
-  const path = createMemo(() => safeRoute().path);
-  const params = createMemoObject<Record<string, string>>(
-    on(path, () => safeRoute().params) as () => Record<string, string>
-  );
+  const { base, location, navigate } = router;
+  const { pattern, element: outlet, preload, data } = match().route;
+  const path = createMemo(() => match().path);
+  const params = createMemoObject(on(path, () => match().params) as () => Params);
 
-  const routeState: RouteState = {
+  preload && preload();
+
+  return {
     parent,
-    pattern: route.pattern,
+    pattern,
     get child() {
       return child();
     },
     path,
     params,
-    outlet: () => route.element(),
+    outlet,
+    data: data && data({ params, location, navigate }),
     resolvePath(to: string) {
-      return resolvePath(router.base.path(), to, path());
+      return resolvePath(base.path(), to, path());
     }
   };
-
-  route.preload && route.preload();
-  if (route.data) {
-    routeState.data = route.data({
-      params,
-      location: router.location,
-      navigate: router.navigate
-    });
-  }
-
-  return routeState;
 }
