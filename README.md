@@ -64,24 +64,24 @@ import { Router, useRoutes, Link } from "solid-app-router";
 const routes = [
   {
     path: "/users",
-    element: lazy(() => import("/pages/users.js"))
+    component: lazy(() => import("/pages/users.js"))
   },
   {
     path: "/users/:id",
-    element: lazy(() => import("/pages/users/[id].js")),
+    component: lazy(() => import("/pages/users/[id].js")),
     children: [
-      { path: "/", element: lazy(() => import("/pages/users/[id]/index.js")) },
-      { path: "/settings", element: lazy(() => import("/pages/users/[id]/settings.js")) },
-      { path: "*all", element: lazy(() => import("/pages/users/[id]/[...all].js")) }
+      { path: "/", component: lazy(() => import("/pages/users/[id]/index.js")) },
+      { path: "/settings", component: lazy(() => import("/pages/users/[id]/settings.js")) },
+      { path: "/*all", component: lazy(() => import("/pages/users/[id]/[...all].js")) }
     ]
   },
   {
     path: "/",
-    element: lazy(() => import("/pages/index.js"))
+    component: lazy(() => import("/pages/index.js"))
   },
   {
-    path: "*all",
-    element: lazy(() => import("/pages/[...all].js"))
+    path: "/*all",
+    component: lazy(() => import("/pages/[...all].js"))
   }
 ];
 
