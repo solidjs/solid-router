@@ -13,6 +13,7 @@ import {
   useContext,
   useTransition
 } from "solid-js";
+import { isServer } from "solid-js/web";
 import type {
   MatchedRoute,
   NavigateOptions,
@@ -256,34 +257,41 @@ export function createRouterState(
   const useRoute = () => useContext(RouteContext) || baseRoute;
 
   function navigate(to: string | number, options?: Partial<NavigateOptions>) {
-    if (typeof to === "number") {
-      console.log("Relative navigation is not implemented - doing nothing :)");
-      return;
-    }
+    // Untrack in case someone navigates in an effect - don't want to track `reference` or route paths
+    untrack(() => {
+      if (typeof to === "number") {
+        console.warn("Relative navigation is not implemented - doing nothing :)");
+        return;
+      }
 
-    const finalOptions = {
-      replace: false,
-      resolve: true,
-      state: null,
-      ...options
-    };
+      const { replace, resolve } = {
+        replace: false,
+        resolve: true,
+        ...options
+      };
 
-    const resolvedTo = finalOptions.resolve ? useRoute().resolvePath(to) : resolvePath("", to);
+      const resolvedTo = resolve ? useRoute().resolvePath(to) : resolvePath("", to);
 
-    if (resolvedTo === undefined) {
-      throw new Error(`Path '${to}' is not a routable path`);
-    }
+      if (resolvedTo === undefined) {
+        throw new Error(`Path '${to}' is not a routable path`);
+      } else if (referrers.length >= MAX_REDIRECTS) {
+        throw new Error("Too many redirects");
+      }
 
-    const redirectCount = referrers.push({
-      ref: untrack(reference),
-      mode: finalOptions.replace ? "replace" : "push"
+      const mode = replace ? "replace" : "push";
+      const ref = reference();
+
+      if (resolvedTo !== ref) {
+        if (isServer) {
+          setSource({ value: resolvedTo, mode });
+
+          // TODO: Abort render and maybe send script to perform client-side redirect for streaming case
+        } else {
+          referrers.push({ ref, mode });
+          start(() => setReference(resolvedTo));
+        }
+      }
     });
-
-    if (redirectCount > MAX_REDIRECTS) {
-      throw new Error("Too many redirects");
-    }
-
-    start(() => setReference(resolvedTo!));
   }
 
   function handleRouteEnd(nextRef: string) {
