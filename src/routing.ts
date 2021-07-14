@@ -43,6 +43,10 @@ interface Referrer {
   mode: RouteUpdateMode;
 }
 
+interface MaybePreloadableComponent extends Component {
+  preload?: () => void;
+}
+
 export const RouterContext = createContext<RouterState>();
 export const RouteContext = createContext<RouteState>();
 
@@ -91,7 +95,7 @@ export const useData = <T extends Params>(delta: number = 0) => {
 export function createRoutes(
   routes: RouteDefinition | RouteDefinition[],
   base: string = "",
-  fallback: Component | null = null
+  fallback?: Component
 ): Route[] {
   return toArray(routes).map<Route>((route, i, arr) => {
     const { children } = route;
@@ -101,13 +105,17 @@ export function createRoutes(
       originalPath: route.path,
       pattern: path,
       element: () => {
-        const { element = fallback } = route;
-        // Handle component form
-        if (typeof element === "function" && element.length) {
-          return createComponent(element, {});
+        const { component, element } = route;
+        if (component) {
+          return createComponent(component, {});
+        } else if (element === undefined && fallback) {
+          return createComponent(fallback, {});
         }
         return element as JSX.Element;
       },
+      preload: route.component
+        ? (route.component as MaybePreloadableComponent).preload
+        : route.preload,
       data: route.data,
       matcher: createPathMatcher(path, arr.length - i),
       children: children && createRoutes(children, path, fallback)
@@ -358,6 +366,7 @@ export function createRouteState(
     }
   };
 
+  route.preload && route.preload();
   if (route.data) {
     routeState.data = route.data({
       params,

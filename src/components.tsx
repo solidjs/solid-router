@@ -1,5 +1,5 @@
 import { JSX, Show, createMemo, on, createRoot, mergeProps, splitProps, Component } from "solid-js";
-import { isServer } from "solid-js/web"
+import { isServer } from "solid-js/web";
 import {
   RouteContext,
   RouterContext,
@@ -34,11 +34,14 @@ export interface RouterProps {
   children: JSX.Element;
 }
 
-
-const staticIntegration = (obj: RouteUpdate): RouteUpdateSignal => [() => obj, (next) => obj.value = next.value];
+const staticIntegration = (obj: RouteUpdate): RouteUpdateSignal => [
+  () => obj,
+  next => (obj.value = next.value)
+];
 
 export const Router = (props: RouterProps) => {
-  const integration = props.source || (isServer ? staticIntegration({ value: props.url! }) : pathIntegration())
+  const integration =
+    props.source || (isServer ? staticIntegration({ value: props.url! }) : pathIntegration());
   const routerState = createRouterState(integration, props.base);
 
   return <RouterContext.Provider value={routerState}>{props.children}</RouterContext.Provider>;
@@ -119,12 +122,18 @@ export const useRoutes = (routes: RouteDefinition | RouteDefinition[], base?: st
   );
 };
 
-interface RouteProps {
+type RouteProps = {
   path: string;
-  element?: JSX.Element | Component;
   children?: JSX.Element;
   data?: RouteDataFunc;
-}
+} & ({
+  element?: never;
+  component: Component;
+} | {
+  component?: never;
+  element?: JSX.Element;
+  preload?: () => void;
+})
 
 export const Route = (props: RouteProps) => {
   return props as unknown as JSX.Element;
@@ -146,7 +155,7 @@ interface LinkBaseProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
 function LinkBase(props: LinkBaseProps) {
   const [, rest] = splitProps(props, ["children", "to", "href", "onClick"]);
   const navigate = useNavigate();
-  const href = useHref(() => props.to)
+  const href = useHref(() => props.to);
 
   const handleClick: JSX.EventHandler<HTMLAnchorElement, MouseEvent> = evt => {
     const { onClick, to, target } = props;

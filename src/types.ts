@@ -15,7 +15,7 @@ export interface Path {
 }
 
 export interface Location<S extends LocationState = LocationState> extends Path {
-  query: Params,
+  query: Params;
   state: S;
   key: string;
 }
@@ -51,12 +51,21 @@ export interface RouteArgs<T extends Params = Params> {
 
 export type RouteDataFunc = (args: RouteArgs) => RouteData | undefined;
 
-export interface RouteDefinition {
+export type RouteDefinition = {
   path: string;
-  element?: JSX.Element | Component;
   data?: RouteDataFunc;
   children?: RouteDefinition[];
-}
+} & (
+  | {
+      element?: never;
+      component: Component;
+    }
+  | {
+      component?: never;
+      element?: JSX.Element;
+      preload?: () => void;
+    }
+);
 
 export interface RouteMatch {
   score: number;
@@ -69,6 +78,7 @@ export interface Route {
   pattern: string;
   children?: Route[];
   element: () => JSX.Element;
+  preload?: () => void;
   data?: RouteDataFunc;
   matcher: (location: string) => RouteMatch | null;
 }
