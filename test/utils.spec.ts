@@ -97,11 +97,29 @@ describe('createPathMatcher should', () => {
     expect(match!.params).toEqual(expected.params);
   });
 
-  test('not match past end when not ending in a /*', () => {
+  test('not match past end when not ending in /*', () => {
     const expected = null;
     const matcher = createPathMatcher('/foo/bar');
     const match = matcher('/foo/bar/baz');
     expect(match).toBe(expected);
+  });
+
+  test('include remaining unmatched location as param when ending in /*param_name', () => {
+    const expected = { path: '/foo/bar', params: { something: 'baz/qux' }}
+    const matcher = createPathMatcher('/foo/bar/*something');
+    const match = matcher('/foo/bar/baz/qux');
+    expect(match).not.toBe(null);
+    expect(match!.path).toBe(expected.path);
+    expect(match!.params).toEqual(expected.params);
+  });
+
+  test('include empty param when ending in /*param_name and exact match', () => {
+    const expected = { path: '/foo/bar', params: { something: '' }}
+    const matcher = createPathMatcher('/foo/bar/*something');
+    const match = matcher('/foo/bar');
+    expect(match).not.toBe(null);
+    expect(match!.path).toBe(expected.path);
+    expect(match!.params).toEqual(expected.params);
   });
 });
 

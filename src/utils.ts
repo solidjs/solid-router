@@ -60,52 +60,50 @@ export function createLocationMatcher(path: string, end?: boolean) {
     if (end) {
       return location.toLowerCase() === pathname.toLowerCase();
     }
-    return location.toLowerCase().startsWith(pathname.toLowerCase())
-  }
+    return location.toLowerCase().startsWith(pathname.toLowerCase());
+  };
 }
 
 export function createPathMatcher(
   path: string,
   index: number = 0
 ): (location: string) => RouteMatch | null {
-  const isSplat = path.endsWith("/*");
-
-  if (isSplat) {
-    path = path.slice(0, -2);
-  }
-
-  const pathParts = path.toLowerCase().split("/").filter(Boolean);
-  const pathLen = pathParts.length;
-  const initialMatch: RouteMatch = {
-    score: 1000 + index,
-    path: pathParts.length ? "" : "/",
-    params: {}
-  };
+  const [pattern, splat] = path.split(/^\*|\/\*/, 2);
+  const segments = pattern.toLowerCase().split("/").filter(Boolean);
+  const segmentsLen = segments.length;
+  const isSplat = splat !== undefined;
 
   return (location: string) => {
-    const locParts = location.toLowerCase().split("/").filter(Boolean);
-    const locLen = locParts.length;
-    if (pathLen > locLen || (pathLen < locLen && !isSplat)) {
+    const locSegments = location.toLowerCase().split("/").filter(Boolean);
+    const locLen = locSegments.length;
+    const lenDiff = locLen - segmentsLen;
+    if (lenDiff < 0 || (lenDiff > 0 && !isSplat)) {
       return null;
     }
 
-    const match = { ...initialMatch };
+    const match: RouteMatch = {
+      score: (lenDiff ? 2000 : 1000) + index,
+      path: segmentsLen ? "" : "/",
+      params: {}
+    };
 
-    for (let i = 0; i < pathLen; i++) {
-      const pathPart = pathParts[i];
-      const locPart = locParts[i];
+    for (let i = 0; i < segmentsLen; i++) {
+      const segment = segments[i];
+      const locSegment = locSegments[i];
 
-      if (pathPart === locPart) {
+      if (segment === locSegment) {
         match.score += 3000;
-      } else if (pathPart[0] === ":") {
+      } else if (segment[0] === ":") {
         match.score += 2000;
-        match.params[pathPart.slice(1)] = locPart;
-      } else if (pathPart === "*") {
-        match.score += 1000;
+        match.params[segment.slice(1)] = locSegment;
       } else {
         return null;
       }
-      match.path += `/${locPart}`;
+      match.path += `/${locSegment}`;
+    }
+    
+    if (splat) {
+      match.params[splat] = lenDiff ? locSegments.slice(-lenDiff).join("/") : "";
     }
 
     return match;
