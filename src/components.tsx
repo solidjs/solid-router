@@ -1,4 +1,5 @@
 import { JSX, Show, createMemo, on, createRoot, mergeProps, splitProps, Component } from "solid-js";
+import { isServer } from "solid-js/web"
 import {
   RouteContext,
   RouterContext,
@@ -17,6 +18,7 @@ import {
   Location,
   Navigate,
   RouteDataFunc,
+  RouteUpdate,
   RouteDefinition,
   RouterIntegration,
   RouteState,
@@ -26,12 +28,18 @@ import { pathIntegration } from "./integration";
 
 export interface RouterProps {
   source?: RouterIntegration | RouteUpdateSignal;
+  url?: string;
+  context?: object;
   base?: string;
   children: JSX.Element;
 }
 
+
+const staticIntegration = (obj: RouteUpdate): RouteUpdateSignal => [() => obj, (next) => obj.value = next.value];
+
 export const Router = (props: RouterProps) => {
-  const routerState = createRouterState(props.source || pathIntegration(), props.base);
+  const integration = props.source || (isServer ? staticIntegration({ value: props.url! }) : pathIntegration())
+  const routerState = createRouterState(integration, props.base);
 
   return <RouterContext.Provider value={routerState}>{props.children}</RouterContext.Provider>;
 };
@@ -67,15 +75,15 @@ export const Routes = (props: RoutesProps) => {
             disposers[i]();
           }
 
-          console.log(
-            `creating new route state for '${matches()[i].route.pattern}' == '${
-              nextMatch.route.pattern
-            }`
-          );
+          // console.log(
+          //   `creating new route state for '${matches()[i].route.pattern}' == '${
+          //     nextMatch.route.pattern
+          //   }`
+          // );
 
           createRoot(dispose => {
             disposers[i] = () => {
-              console.log(`disposing route ${nextMatch.route.pattern}`);
+              // console.log(`disposing route ${nextMatch.route.pattern}`);
               dispose();
             };
             next[i] = createRouteState(
