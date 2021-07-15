@@ -59,7 +59,7 @@ export const Routes = (props: RoutesProps) => {
   const matches = createMemo(() => getMatches(routes(), router.location.pathname));
 
   const disposers: (() => void)[] = [];
-  const routeStates = createMemo(
+  const routeStates = createMemo<RouteState[]>(
     on(matches, (nextMatches, prevMatches, prev) => {
       let equal = prevMatches && nextMatches.length === prevMatches.length;
       const next: RouteState[] = [];
@@ -90,7 +90,7 @@ export const Routes = (props: RoutesProps) => {
       disposers.splice(nextMatches.length).forEach(dispose => dispose());
 
       return prev && equal ? prev : next;
-    }) as (prevValue?: RouteState[]) => RouteState[]
+    })
   );
 
   return (

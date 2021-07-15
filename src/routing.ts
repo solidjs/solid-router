@@ -185,7 +185,7 @@ export function createLocation(path: () => string): Location {
     get key() {
       return key();
     },
-    query: createMemoObject(on(search, () => extractQuery(url())) as () => Params)
+    query: createMemoObject(on(search, () => extractQuery(url())))
   };
 }
 
@@ -302,7 +302,7 @@ export function createRouteState(
   const { base, location, navigate } = router;
   const { pattern, element: outlet, preload, data } = match().route;
   const path = createMemo(() => match().path);
-  const params = createMemoObject(on(path, () => match().params) as () => Params);
+  const params = createMemoObject(on(path, () => match().params));
 
   preload && preload();
 
