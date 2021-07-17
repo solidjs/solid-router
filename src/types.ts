@@ -108,12 +108,12 @@ export interface RouterUtils {
 export interface RouterOutMatch {
   originalPath: string,
   pattern: string,
-  path: string
+  path: string,
+  params: Params
 }
 
 export interface RouterOutContext {
   url?: string,
-  onNavigate?: (value: RouteUpdate) => void,
   matches: RouterOutMatch[][]
 }
 
