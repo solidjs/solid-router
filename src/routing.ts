@@ -22,7 +22,8 @@ import type {
   RouteDefinition,
   RouteUpdateMode,
   RouteUpdateSignal,
-  Location
+  Location,
+  RouterOutContext
 } from "./types";
 import {
   createPathMatcher,
@@ -191,7 +192,8 @@ export function createLocation(path: () => string): Location {
 
 export function createRouterState(
   integration?: RouterIntegration | RouteUpdateSignal,
-  base: string = ""
+  base: string = "",
+  context?: object
 ): RouterState {
   const {
     signal: [source, setSource],
@@ -199,6 +201,13 @@ export function createRouterState(
   } = normalizeIntegration(integration);
 
   const basePath = resolvePath("", base);
+  const outContext =
+    isServer && context
+      ? Object.assign(context, {
+          matches: [],
+          url: undefined
+        }) as RouterOutContext
+      : undefined;
 
   if (basePath === undefined) {
     throw new Error(`${basePath} is not a valid base path`);
@@ -252,9 +261,10 @@ export function createRouterState(
 
       if (resolvedTo !== ref) {
         if (isServer) {
+          if (outContext) {
+            outContext.url = resolvedTo;
+          }
           setSource({ value: resolvedTo, mode });
-
-          // TODO: Abort render and maybe send script to perform client-side redirect for streaming case
         } else {
           referrers.push({ ref, mode });
           start(() => setReference(resolvedTo));
@@ -286,6 +296,7 @@ export function createRouterState(
 
   return {
     base: baseRoute,
+    outContext,
     location,
     isRouting,
     renderPath: utils?.renderPath || ((path: string) => path),

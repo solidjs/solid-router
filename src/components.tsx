@@ -26,18 +26,26 @@ import type {
 } from "./types";
 import { pathIntegration, staticIntegration } from "./integration";
 
-export interface RouterProps {
-  source?: RouterIntegration | RouteUpdateSignal;
-  url?: string;
-  context?: object;
+export type RouterProps = {
   base?: string;
   children: JSX.Element;
-}
+  context?: object;
+} & (
+  | {
+      url?: never;
+      source?: RouterIntegration | RouteUpdateSignal;
+    }
+  | {
+      source?: never;
+      url: string;
+    }
+);
 
 export const Router = (props: RouterProps) => {
+  const { source, url, base, context } = props;
   const integration =
-    props.source || (isServer ? staticIntegration({ value: props.url || "" }) : pathIntegration());
-  const routerState = createRouterState(integration, props.base);
+    source || (isServer ? staticIntegration({ value: url || "" }) : pathIntegration());
+  const routerState = createRouterState(integration, base, context);
 
   return <RouterContext.Provider value={routerState}>{props.children}</RouterContext.Provider>;
 };
@@ -57,6 +65,17 @@ export const Routes = (props: RoutesProps) => {
     createRoutes(props.children as RouteDefinition | RouteDefinition[], basePath() || "", Outlet)
   );
   const matches = createMemo(() => getMatches(routes(), router.location.pathname));
+
+  if (router.outContext) {
+    router.outContext.matches.push(
+      matches().map(({ route, path, params }) => ({
+        originalPath: route.originalPath,
+        pattern: route.pattern,
+        path,
+        params
+      }))
+    );
+  }
 
   const disposers: (() => void)[] = [];
   let root: RouteState | undefined;
