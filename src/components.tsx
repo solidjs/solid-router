@@ -1,4 +1,5 @@
-import { JSX, Show, createMemo, on, createRoot, mergeProps, splitProps, Component } from "solid-js";
+import { Show, createMemo, on, createRoot, mergeProps, splitProps } from "solid-js";
+import type { Component, JSX } from "solid-js";
 import { isServer } from "solid-js/web";
 import {
   RouteContext,
@@ -14,11 +15,10 @@ import {
   useNavigate,
   useHref
 } from "./routing";
-import {
+import type {
   Location,
   Navigate,
   RouteDataFunc,
-  RouteUpdate,
   RouteDefinition,
   RouterIntegration,
   RouteState,
@@ -26,18 +26,26 @@ import {
 } from "./types";
 import { pathIntegration, staticIntegration } from "./integration";
 
-export interface RouterProps {
-  source?: RouterIntegration | RouteUpdateSignal;
-  url?: string;
-  context?: object;
+export type RouterProps = {
   base?: string;
   children: JSX.Element;
-}
+  context?: object;
+} & (
+  | {
+      url?: never;
+      source?: RouterIntegration | RouteUpdateSignal;
+    }
+  | {
+      source?: never;
+      url: string;
+    }
+);
 
 export const Router = (props: RouterProps) => {
+  const { source, url, base, context } = props;
   const integration =
-    props.source || (isServer ? staticIntegration({ value: props.url || "" }) : pathIntegration());
-  const routerState = createRouterState(integration, props.base);
+    source || (isServer ? staticIntegration({ value: url || "" }) : pathIntegration());
+  const routerState = createRouterState(integration, base, context);
 
   return <RouterContext.Provider value={routerState}>{props.children}</RouterContext.Provider>;
 };
@@ -53,11 +61,26 @@ export const Routes = (props: RoutesProps) => {
   const parentRoute = useRoute();
 
   const basePath = useResolvedPath(() => props.base || "");
-  const routes = createMemo(() => createRoutes(props.children as any, basePath() || "", Outlet));
+  const routes = createMemo(() =>
+    createRoutes(props.children as RouteDefinition | RouteDefinition[], basePath() || "", Outlet)
+  );
   const matches = createMemo(() => getMatches(routes(), router.location.pathname));
 
+  if (router.outContext) {
+    router.outContext.matches.push(
+      matches().map(({ route, path, params }) => ({
+        originalPath: route.originalPath,
+        pattern: route.pattern,
+        path,
+        params
+      }))
+    );
+  }
+
   const disposers: (() => void)[] = [];
-  const routeStates = createMemo(
+  let root: RouteState | undefined;
+
+  const routeStates = createMemo<RouteState[]>(
     on(matches, (nextMatches, prevMatches, prev) => {
       let equal = prevMatches && nextMatches.length === prevMatches.length;
       const next: RouteState[] = [];
@@ -73,17 +96,8 @@ export const Routes = (props: RoutesProps) => {
             disposers[i]();
           }
 
-          // console.log(
-          //   `creating new route state for '${matches()[i].route.pattern}' == '${
-          //     nextMatch.route.pattern
-          //   }`
-          // );
-
           createRoot(dispose => {
-            disposers[i] = () => {
-              // console.log(`disposing route ${nextMatch.route.pattern}`);
-              dispose();
-            };
+            disposers[i] = dispose;
             next[i] = createRouteState(
               router,
               next[i - 1] || parentRoute,
@@ -94,16 +108,18 @@ export const Routes = (props: RoutesProps) => {
         }
       }
 
-      disposers.splice(nextMatches.length).forEach(dispose => {
-        dispose();
-      });
+      disposers.splice(nextMatches.length).forEach(dispose => dispose());
 
-      return prev && equal ? prev : next;
-    }) as (prevValue?: RouteState[]) => RouteState[]
+      if (prev && equal) {
+        return prev;
+      }
+      root = next[0];
+      return next;
+    })
   );
 
   return (
-    <Show when={routeStates()[0]} fallback={props.fallback}>
+    <Show when={routeStates() && root} fallback={props.fallback}>
       {route => <RouteContext.Provider value={route}>{route.outlet()}</RouteContext.Provider>}
     </Show>
   );
@@ -133,15 +149,13 @@ type RouteProps = {
     }
 );
 
-export const Route = (props: RouteProps) => {
-  return props as unknown as JSX.Element;
-};
+export const Route = (props: RouteProps) => props as JSX.Element;
 
 export const Outlet = () => {
   const route = useRoute();
   return (
-    <Show when={route?.child}>
-      {route => <RouteContext.Provider value={route}>{route.outlet()}</RouteContext.Provider>}
+    <Show when={route.child}>
+      {child => <RouteContext.Provider value={child}>{child.outlet()}</RouteContext.Provider>}
     </Show>
   );
 };

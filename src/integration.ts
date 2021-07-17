@@ -1,5 +1,11 @@
 import { createSignal, onCleanup } from "solid-js";
-import type { RouteUpdateMode, RouteUpdate, RouterIntegration, RouterUtils } from "./types";
+import type {
+  RouteUpdateMode,
+  RouteUpdate,
+  RouterIntegration,
+  RouterUtils,
+  RouteUpdateSignal
+} from "./types";
 
 function bindEvent(target: EventTarget, type: string, handler: EventListener) {
   target.addEventListener(type, handler);
@@ -42,6 +48,21 @@ export function createIntegration(
     signal,
     utils
   };
+}
+
+export function normalizeIntegration(
+  integration: RouterIntegration | RouteUpdateSignal | undefined
+): RouterIntegration {
+  if (!integration) {
+    return {
+      signal: createSignal({ value: "" })
+    };
+  } else if (Array.isArray(integration)) {
+    return {
+      signal: integration
+    };
+  }
+  return integration;
 }
 
 export function staticIntegration(obj: RouteUpdate): RouterIntegration {

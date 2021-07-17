@@ -105,8 +105,21 @@ export interface RouterUtils {
   renderPath(path: string): string;
 }
 
+export interface RouterOutMatch {
+  originalPath: string,
+  pattern: string,
+  path: string
+}
+
+export interface RouterOutContext {
+  url?: string,
+  onNavigate?: (value: RouteUpdate) => void,
+  matches: RouterOutMatch[][]
+}
+
 export interface RouterState {
   base: RouteState;
+  outContext?: RouterOutContext;
   location: Location;
   navigate: Navigate;
   isRouting: () => boolean;

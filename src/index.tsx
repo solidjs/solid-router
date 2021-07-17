@@ -23,5 +23,7 @@ export type {
   RouteUpdateMode,
   RouteUpdateSignal,
   RouterIntegration,
+  RouterOutContext,
+  RouterOutMatch,
   RouterUtils
 } from "./types";
