@@ -86,6 +86,7 @@ export function pathIntegration() {
       } else {
         window.history.replaceState(null, "", value);
       }
+      window.scrollTo(0, 0);
     },
     notify => bindEvent(window, "popstate", () => notify())
   );
@@ -96,6 +97,7 @@ export function hashIntegration() {
     () => window.location.hash.slice(1),
     value => {
       window.location.hash = value;
+      window.scrollTo(0, 0);
     },
     notify => bindEvent(window, "hashchange", () => notify()),
     {
