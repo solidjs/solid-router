@@ -13,7 +13,7 @@ export * from "./integration";
 export type {
   Location,
   LocationState,
-  Navigate,
+  Navigator,
   NavigateOptions,
   Params,
   RouteData,
