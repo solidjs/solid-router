@@ -26,7 +26,7 @@ export interface NavigateOptions {
   state: LocationState;
 }
 
-export interface Navigate {
+export interface Navigator {
   (to: string, options?: Partial<NavigateOptions>): void;
   (to: number): void;
 }
@@ -46,7 +46,7 @@ export type RouteUpdateSignal = [() => RouteUpdate, (value: RouteUpdate) => void
 export interface RouteArgs<T extends Params = Params> {
   params: T;
   location: Location;
-  navigate: Navigate;
+  navigate: Navigator;
 }
 
 export type RouteDataFunc = (args: RouteArgs) => RouteData | undefined;
@@ -121,7 +121,7 @@ export interface RouterState {
   base: RouteState;
   outContext?: RouterOutContext;
   location: Location;
-  navigate: Navigate;
+  navigate: Navigator;
   isRouting: () => boolean;
   renderPath(path: string): string;
 }

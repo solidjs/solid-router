@@ -17,7 +17,7 @@ import {
 } from "./routing";
 import type {
   Location,
-  Navigate,
+  Navigator,
   RouteDataFunc,
   RouteDefinition,
   RouterIntegration,
@@ -234,11 +234,11 @@ export function NavLink(props: NavLinkProps) {
   );
 }
 
-export interface RedirectProps {
-  href: ((args: { navigate: Navigate; location: Location }) => string) | string;
+export interface NavigateProps {
+  href: ((args: { navigate: Navigator; location: Location }) => string) | string;
 }
 
-export function Redirect(props: RedirectProps) {
+export function Navigate(props: NavigateProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { href } = props;
