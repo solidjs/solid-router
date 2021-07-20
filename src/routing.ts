@@ -293,7 +293,7 @@ export function createRouterContext(
     out: output,
     location,
     isRouting,
-    renderPath: utils?.renderPath || ((path: string) => path),
+    renderPath: (utils && utils.renderPath) || ((path: string) => path),
     navigate
   };
 }

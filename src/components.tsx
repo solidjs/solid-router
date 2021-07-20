@@ -86,7 +86,7 @@ export const Routes = (props: RoutesProps) => {
       let equal = prevMatches && nextMatches.length === prevMatches.length;
       const next: RouteContext[] = [];
       for (let i = 0, len = nextMatches.length; i < len; i++) {
-        const prevMatch = prevMatches?.[i];
+        const prevMatch = prevMatches && prevMatches[i];
         const nextMatch = nextMatches[i];
 
         if (prev && prevMatch && nextMatch.route.pattern === prevMatch.route.pattern) {
@@ -186,7 +186,7 @@ function LinkBase(props: LinkBaseProps) {
   };
 
   return (
-    <a {...rest} href={href() ?? props.href} onClick={handleClick}>
+    <a {...rest} href={href() || props.href} onClick={handleClick}>
       {props.children}
     </a>
   );
