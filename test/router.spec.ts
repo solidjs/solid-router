@@ -1,30 +1,30 @@
 import { createRoot, createSignal } from "solid-js";
-import { createRouterState } from "../src/routing";
-import type { RouteUpdate } from "../src/types";
+import { createRouterContext } from "../src/routing";
+import type { LocationChange } from "../src/types";
 import { createAsyncRoot, createCounter, waitFor } from "./helpers";
 
 describe("Router should", () => {
   describe("have member `base` which should", () => {
     test(`have a default path when base path is not defined`, () => {
       createRoot(() => {
-        const signal = createSignal<RouteUpdate>({ value: "" });
-        const { base } = createRouterState(signal, undefined);
+        const signal = createSignal<LocationChange>({ value: "" });
+        const { base } = createRouterContext(signal, undefined);
         expect(base.path()).toBe("/");
       });
     });
 
     test(`have a normalized version of the base path when defined`, () => {
       createRoot(() => {
-        const signal = createSignal<RouteUpdate>({ value: "" });
-        const { base } = createRouterState(signal, "base");
+        const signal = createSignal<LocationChange>({ value: "" });
+        const { base } = createRouterContext(signal, "base");
         expect(base.path()).toBe("/base");
       });
     });
 
     test(`throw when the base path is invalid`, () => {
       createRoot(() => {
-        const signal = createSignal<RouteUpdate>({ value: "" });
-        expect(() => createRouterState(signal, "http://example.com")).toThrow();
+        const signal = createSignal<LocationChange>({ value: "" });
+        expect(() => createRouterContext(signal, "http://example.com")).toThrow();
       });
     });
   });
@@ -32,10 +32,10 @@ describe("Router should", () => {
   describe("have member `location` which should", () => {
     test(`be initialized by the integration signal`, () => {
       createRoot(() => {
-        const signal = createSignal<RouteUpdate>({
+        const signal = createSignal<LocationChange>({
           value: "/foo/bar?hello=world"
         });
-        const { location } = createRouterState(signal);
+        const { location } = createRouterContext(signal);
         expect(location.pathname).toBe("/foo/bar");
         expect(location.search).toBe("hello=world");
       });
@@ -45,10 +45,10 @@ describe("Router should", () => {
       test(`be reactive to the path part of the integration signal`, () =>
         createAsyncRoot(resolve => {
           const expected = "/fizz/buzz";
-          const signal = createSignal<RouteUpdate>({
+          const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
-          const { location } = createRouterState(signal);
+          const { location } = createRouterContext(signal);
           expect(location.pathname).toBe("/foo/bar");
           signal[1]({ value: expected + "?hello=world" });
 
@@ -60,10 +60,10 @@ describe("Router should", () => {
 
       test(`ignore the queryString part of the integration signal`, () =>
         createRoot(() => {
-          const signal = createSignal<RouteUpdate>({
+          const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
-          const { location } = createRouterState(signal);
+          const { location } = createRouterContext(signal);
           const count = createCounter(() => location.pathname);
 
           expect(location.pathname).toBe("/foo/bar");
@@ -76,10 +76,10 @@ describe("Router should", () => {
       test(`be reactive to the queryString part of the integration signal`, () =>
         createAsyncRoot(resolve => {
           const expected = "fizz=buzz";
-          const signal = createSignal<RouteUpdate>({
+          const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
-          const { location } = createRouterState(signal);
+          const { location } = createRouterContext(signal);
 
           expect(location.search).toBe("hello=world");
           signal[1]({ value: "/foo/baz?" + expected });
@@ -92,10 +92,10 @@ describe("Router should", () => {
 
       test(`ignore the path part of the integration signal`, () =>
         createRoot(() => {
-          const signal = createSignal<RouteUpdate>({
+          const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
-          const { location } = createRouterState(signal);
+          const { location } = createRouterContext(signal);
           const count = createCounter(() => location.search);
 
           expect(location.search).toBe("hello=world");
@@ -108,10 +108,10 @@ describe("Router should", () => {
     describe("have member `query` which should", () => {
       test(`be parsed from location.search`, () => {
         createRoot(() => {
-          const signal = createSignal<RouteUpdate>({
+          const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world&fizz=buzz"
           });
-          const { location } = createRouterState(signal);
+          const { location } = createRouterContext(signal);
           expect(location.query.hello).toEqual("world");
           expect(location.query.fizz).toEqual("buzz");
         });
@@ -119,10 +119,10 @@ describe("Router should", () => {
 
       test(`be reactive to location.search`, () =>
         createAsyncRoot(resolve => {
-          const signal = createSignal<RouteUpdate>({
+          const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
-          const { location } = createRouterState(signal);
+          const { location } = createRouterContext(signal);
 
           expect(location.query.hello).toEqual("world");
           signal[1]({ value: "/foo/bar?hello=world&fizz=buzz" });
@@ -135,10 +135,10 @@ describe("Router should", () => {
 
       test(`have fine-grain reactivity`, () =>
         createAsyncRoot(resolve => {
-          const signal = createSignal<RouteUpdate>({
+          const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
-          const { location } = createRouterState(signal);
+          const { location } = createRouterContext(signal);
           const count = createCounter(() => location.query.hello);
 
           expect(location.query.hello).toEqual("world");
@@ -155,10 +155,10 @@ describe("Router should", () => {
 
       test(`have properties which are reactive`, () =>
         createAsyncRoot(resolve => {
-          const signal = createSignal<RouteUpdate>({
+          const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
-          const { location } = createRouterState(signal);
+          const { location } = createRouterContext(signal);
           const count = createCounter(() => location.query.hello);
 
           expect(location.query.hello).toEqual("world");
@@ -177,10 +177,10 @@ describe("Router should", () => {
   describe("have member `navigate` which should", () => {
     test(`update the location each time it is called`, () => {
       createRoot(() => {
-        const signal = createSignal<RouteUpdate>({
+        const signal = createSignal<LocationChange>({
           value: "/"
         });
-        const { location, navigate } = createRouterState(signal);
+        const { location, navigate } = createRouterContext(signal);
 
         expect(location.pathname).toBe("/");
         navigate("/foo/1");
@@ -194,10 +194,10 @@ describe("Router should", () => {
 
     test(`do nothing if the new path is the same`, () =>
       createRoot(() => {
-        const signal = createSignal<RouteUpdate>({
+        const signal = createSignal<LocationChange>({
           value: "/foo/bar"
         });
-        const { location, navigate } = createRouterState(signal);
+        const { location, navigate } = createRouterContext(signal);
         const count = createCounter(() => location.pathname);
 
         expect(location.pathname).toBe("/foo/bar");
@@ -208,26 +208,26 @@ describe("Router should", () => {
 
     test(`update the integrationSignal`, () =>
       createAsyncRoot(resolve => {
-        const signal = createSignal<RouteUpdate>({
+        const signal = createSignal<LocationChange>({
           value: "/"
         });
-        const { navigate } = createRouterState(signal);
+        const { navigate } = createRouterContext(signal);
         expect(signal[0]().value).toBe("/");
         navigate("/foo/bar");
 
         waitFor(() => signal[0]().value === "/foo/bar").then(n => {
           expect(n).toBe(1);
-          expect(signal[0]().mode).toBe("push");
+          expect(signal[0]().replace).not.toBe(true);
           resolve();
         });
       }));
 
     test(`be able to be called many times before it updates the integrationSignal`, () =>
       createAsyncRoot(resolve => {
-        const signal = createSignal<RouteUpdate>({
+        const signal = createSignal<LocationChange>({
           value: "/"
         });
-        const { navigate } = createRouterState(signal);
+        const { navigate } = createRouterContext(signal);
 
         expect(signal[0]()).toEqual({ value: "/" });
         navigate("/foo/1");
@@ -238,17 +238,17 @@ describe("Router should", () => {
 
         waitFor(() => signal[0]().value === "/foo/5").then(n => {
           expect(n).toBe(1);
-          expect(signal[0]().mode).toBe("push");
+          expect(signal[0]().replace).not.toBe(true);
           resolve();
         });
       }));
 
     test(`throw if called more than 100 times during a reactive update`, () => {
       createRoot(() => {
-        const signal = createSignal<RouteUpdate>({
+        const signal = createSignal<LocationChange>({
           value: "/"
         });
-        const { navigate } = createRouterState(signal);
+        const { navigate } = createRouterContext(signal);
         function pushAlot() {
           for (let i = 0; i < 101; i++) {
             navigate(`/foo/${i}`);

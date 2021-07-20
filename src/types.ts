@@ -6,8 +6,6 @@ export type LocationState = string | null;
 
 export type RouteData = Record<string, any>;
 
-export type RouteUpdateMode = "push" | "replace" | "init";
-
 export interface Path {
   pathname: string;
   search: string;
@@ -31,25 +29,23 @@ export interface Navigator {
   (to: number): void;
 }
 
-export interface RouteUpdate {
+export interface LocationChange {
   value: string;
-  mode?: RouteUpdateMode;
+  replace?: boolean;
 }
 
+export type LocationChangeSignal = [() => LocationChange, (next: LocationChange) => void];
+
 export interface RouterIntegration {
-  signal: RouteUpdateSignal;
+  signal: LocationChangeSignal;
   utils?: Partial<RouterUtils>;
 }
 
-export type RouteUpdateSignal = [() => RouteUpdate, (value: RouteUpdate) => void];
-
-export interface RouteArgs<T extends Params = Params> {
-  params: T;
+export type RouteDataFunc = (args: {
+  params: Params;
   location: Location;
   navigate: Navigator;
-}
-
-export type RouteDataFunc = (args: RouteArgs) => RouteData | undefined;
+}) => RouteData | undefined;
 
 export type RouteDefinition = {
   path: string;
@@ -67,10 +63,21 @@ export type RouteDefinition = {
     }
 );
 
-export interface RouteMatch {
+export interface PathMatch {
   score: number;
   params: Params;
   path: string;
+}
+
+export interface RouteMatch extends PathMatch {
+  route: Route;
+}
+
+export interface OutputMatch {
+  originalPath: string;
+  pattern: string;
+  path: string;
+  params: Params;
 }
 
 export interface Route {
@@ -80,19 +87,12 @@ export interface Route {
   element: () => JSX.Element;
   preload?: () => void;
   data?: RouteDataFunc;
-  matcher: (location: string) => RouteMatch | null;
+  matcher: (location: string) => PathMatch | null;
 }
 
-export interface MatchedRoute {
-  route: Route;
-  score: number;
-  params: Params;
-  path: string;
-}
-
-export interface RouteState {
-  parent?: RouteState;
-  child?: RouteState;
+export interface RouteContext {
+  parent?: RouteContext;
+  child?: RouteContext;
   data?: RouteData;
   pattern: string;
   params: Params;
@@ -105,21 +105,21 @@ export interface RouterUtils {
   renderPath(path: string): string;
 }
 
-export interface RouterOutMatch {
-  originalPath: string,
-  pattern: string,
-  path: string,
-  params: Params
+export interface OutputMatch {
+  originalPath: string;
+  pattern: string;
+  path: string;
+  params: Params;
 }
 
-export interface RouterOutContext {
-  url?: string,
-  matches: RouterOutMatch[][]
+export interface RouterOutput {
+  url?: string;
+  matches: OutputMatch[][];
 }
 
-export interface RouterState {
-  base: RouteState;
-  outContext?: RouterOutContext;
+export interface RouterContext {
+  base: RouteContext;
+  out?: RouterOutput;
   location: Location;
   navigate: Navigator;
   isRouting: () => boolean;

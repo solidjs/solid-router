@@ -1,5 +1,5 @@
 import { createMemo, getOwner, runWithOwner } from "solid-js";
-import type { RouteMatch } from "./types";
+import type { Params, PathMatch } from "./types";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|\/+$|\s+/;
@@ -47,8 +47,8 @@ export function createPath(path: string, base: string, hasChildren: boolean = fa
   return hasChildren && !joined.endsWith("*") ? joinPaths(joined, "*") : joined;
 }
 
-export function extractQuery(url: URL): Record<string, string> {
-  const query: Record<string, string> = {};
+export function extractQuery(url: URL): Params {
+  const query: Params = {};
   url.searchParams.forEach((value, key) => {
     query[key] = value;
   });
@@ -68,7 +68,7 @@ export function createLocationMatcher(path: string, end?: boolean) {
 export function createPathMatcher(
   path: string,
   index: number = 0
-): (location: string) => RouteMatch | null {
+): (location: string) => PathMatch | null {
   const [pattern, splat] = path.split(/^\*|\/\*/, 2);
   const segments = pattern.toLowerCase().split("/").filter(Boolean);
   const segmentsLen = segments.length;
@@ -82,7 +82,7 @@ export function createPathMatcher(
       return null;
     }
 
-    const match: RouteMatch = {
+    const match: PathMatch = {
       score: (lenDiff ? 2000 : 1000) + index,
       path: segmentsLen ? "" : "/",
       params: {}

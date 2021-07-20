@@ -1,11 +1,5 @@
 import { createSignal, onCleanup } from "solid-js";
-import type {
-  RouteUpdateMode,
-  RouteUpdate,
-  RouterIntegration,
-  RouterUtils,
-  RouteUpdateSignal
-} from "./types";
+import type { LocationChange, LocationChangeSignal, RouterIntegration, RouterUtils } from "./types";
 
 function bindEvent(target: EventTarget, type: string, handler: EventListener) {
   target.addEventListener(type, handler);
@@ -13,26 +7,25 @@ function bindEvent(target: EventTarget, type: string, handler: EventListener) {
 }
 
 function intercept<T>(
-  signal: [() => T, (v: T) => void],
+  [value, setValue]: [() => T, (v: T) => void],
   get?: (v: T) => T,
   set?: (v: T) => T
 ): [() => T, (v: T) => void] {
-  const [value, setValue] = signal;
   return [get ? () => get(value()) : value, set ? (v: T) => setValue(set(v)) : setValue];
 }
 
 export function createIntegration(
   get: () => string,
-  set: (value: string, mode: RouteUpdateMode) => void,
+  set: (next: LocationChange) => void,
   init?: (notify: (value?: string) => void) => () => void,
   utils?: Partial<RouterUtils>
 ): RouterIntegration {
-  const signal = intercept<RouteUpdate>(
+  let ignore = false;
+  const signal = intercept<LocationChange>(
     createSignal({ value: get() }, { equals: (a, b) => a.value === b.value }),
     undefined,
     next => {
-      const { value, mode } = next;
-      mode && set(value, mode);
+      !ignore && set(next);
       return next;
     }
   );
@@ -40,7 +33,9 @@ export function createIntegration(
   init &&
     onCleanup(
       init((value = get()) => {
+        ignore = true;
         signal[1]({ value });
+        ignore = false;
       })
     );
 
@@ -51,7 +46,7 @@ export function createIntegration(
 }
 
 export function normalizeIntegration(
-  integration: RouterIntegration | RouteUpdateSignal | undefined
+  integration: RouterIntegration | LocationChangeSignal | undefined
 ): RouterIntegration {
   if (!integration) {
     return {
@@ -65,26 +60,20 @@ export function normalizeIntegration(
   return integration;
 }
 
-export function staticIntegration(obj: RouteUpdate): RouterIntegration {
+export function staticIntegration(obj: LocationChange): RouterIntegration {
   return {
-    signal: [
-      () => obj,
-      next => {
-        obj.value = next.value;
-        obj.mode = next.mode;
-      }
-    ]
+    signal: [() => obj, next => Object.assign(obj, next)]
   };
 }
 
 export function pathIntegration() {
   return createIntegration(
     () => window.location.pathname + window.location.search,
-    (value, mode) => {
-      if (mode === "push") {
-        window.history.pushState(null, "", value);
-      } else {
+    ({ value, replace }) => {
+      if (replace) {
         window.history.replaceState(null, "", value);
+      } else {
+        window.history.pushState(null, "", value);
       }
       window.scrollTo(0, 0);
     },
@@ -95,7 +84,7 @@ export function pathIntegration() {
 export function hashIntegration() {
   return createIntegration(
     () => window.location.hash.slice(1),
-    value => {
+    ({ value }) => {
       window.location.hash = value;
       window.scrollTo(0, 0);
     },

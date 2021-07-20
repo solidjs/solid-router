@@ -1,29 +1,28 @@
-export {
-  useLocation,
-  useNavigate,
-  useIsRouting,
-  useMatch,
-  useData,
-  useParams,
-  useResolvedPath,
-  useHref
-} from "./routing";
 export * from "./components";
 export * from "./integration";
+export {
+  useData,
+  useHref,
+  useIsRouting,
+  useLocation,
+  useMatch,
+  useNavigate,
+  useParams,
+  useResolvedPath
+} from "./routing";
 export type {
   Location,
+  LocationChange,
+  LocationChangeSignal,
   LocationState,
-  Navigator,
   NavigateOptions,
+  Navigator,
+  OutputMatch,
   Params,
   RouteData,
-  RouteDefinition,
   RouteDataFunc,
-  RouteUpdate,
-  RouteUpdateMode,
-  RouteUpdateSignal,
+  RouteDefinition,
   RouterIntegration,
-  RouterOutContext,
-  RouterOutMatch,
+  RouterOutput,
   RouterUtils
 } from "./types";

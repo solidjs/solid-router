@@ -1,3 +1,4 @@
+import type { Component, JSX } from "solid-js";
 import {
   createComponent,
   createContext,
@@ -9,51 +10,45 @@ import {
   useContext,
   useTransition
 } from "solid-js";
-import type { Component, JSX } from "solid-js";
 import { isServer } from "solid-js/web";
+import { normalizeIntegration } from "./integration";
 import type {
-  MatchedRoute,
+  Location,
+  LocationChange,
+  LocationChangeSignal,
   NavigateOptions,
   Params,
-  RouterIntegration,
-  RouterState,
   Route,
-  RouteState,
+  RouteContext,
   RouteDefinition,
-  RouteUpdateMode,
-  RouteUpdateSignal,
-  Location,
-  RouterOutContext
+  RouteMatch,
+  RouterContext,
+  RouterIntegration,
+  RouterOutput
 } from "./types";
 import {
-  createPathMatcher,
+  createMemoObject,
   createPath,
+  createPathMatcher,
   extractQuery,
   invariant,
   resolvePath,
-  toArray,
-  createMemoObject
+  toArray
 } from "./utils";
-import { normalizeIntegration } from "./integration";
 
 const MAX_REDIRECTS = 100;
-
-interface Referrer {
-  ref: string;
-  mode: RouteUpdateMode;
-}
 
 interface MaybePreloadableComponent extends Component {
   preload?: () => void;
 }
 
-export const RouterContext = createContext<RouterState>();
-export const RouteContext = createContext<RouteState>();
+export const RouterContextObj = createContext<RouterContext>();
+export const RouteContextObj = createContext<RouteContext>();
 
 export const useRouter = () =>
-  invariant(useContext(RouterContext), "Make sure your app is wrapped in a <Router />");
+  invariant(useContext(RouterContextObj), "Make sure your app is wrapped in a <Router />");
 
-export const useRoute = () => useContext(RouteContext) || useRouter().base;
+export const useRoute = () => useContext(RouteContextObj) || useRouter().base;
 
 export const useResolvedPath = (path: () => string) => {
   const route = useRoute();
@@ -120,12 +115,12 @@ export function createRoutes(
   });
 }
 
-export function getMatches(
+export function createRouteMatches(
   routes: Route[],
   location: string,
-  acc: MatchedRoute[] = []
-): MatchedRoute[] {
-  const winner = routes.reduce<MatchedRoute | undefined>((winner, route) => {
+  acc: RouteMatch[] = []
+): RouteMatch[] {
+  const winner = routes.reduce<RouteMatch | undefined>((winner, route) => {
     const match = route.matcher(location);
     if (match && (!winner || match.score > winner.score)) {
       return {
@@ -139,7 +134,7 @@ export function getMatches(
   if (winner) {
     acc.push(winner);
     if (winner.route.children) {
-      getMatches(winner.route.children, location, acc);
+      createRouteMatches(winner.route.children, location, acc);
     }
   }
 
@@ -190,32 +185,32 @@ export function createLocation(path: () => string): Location {
   };
 }
 
-export function createRouterState(
-  integration?: RouterIntegration | RouteUpdateSignal,
+export function createRouterContext(
+  integration?: RouterIntegration | LocationChangeSignal,
   base: string = "",
-  context?: object
-): RouterState {
+  out?: object
+): RouterContext {
   const {
     signal: [source, setSource],
     utils
   } = normalizeIntegration(integration);
 
   const basePath = resolvePath("", base);
-  const outContext =
-    isServer && context
-      ? Object.assign(context, {
+  const output =
+    isServer && out
+      ? (Object.assign(out, {
           matches: [],
           url: undefined
-        }) as RouterOutContext
+        }) as RouterOutput)
       : undefined;
 
   if (basePath === undefined) {
     throw new Error(`${basePath} is not a valid base path`);
   } else if (basePath && !source().value) {
-    setSource({ value: basePath, mode: "init" });
+    setSource({ value: basePath, replace: true });
   }
 
-  const baseRoute: RouteState = {
+  const baseRoute: RouteContext = {
     pattern: basePath,
     params: {},
     path: () => basePath,
@@ -225,14 +220,14 @@ export function createRouterState(
     }
   };
 
-  const referrers: Referrer[] = [];
   const [isRouting, start] = useTransition();
   const [reference, setReference] = createSignal(source().value);
   const location = createLocation(reference);
+  const referrers: LocationChange[] = [];
 
   // The `navigate` function looks up the closest route to handle resolution. Redfining this makes
   // testing the router state easier as we don't have to wrap the test in the RouterContext.
-  const useRoute = () => useContext(RouteContext) || baseRoute;
+  const useRoute = () => useContext(RouteContextObj) || baseRoute;
 
   function navigate(to: string | number, options?: Partial<NavigateOptions>) {
     // Untrack in case someone navigates in an effect - don't want to track `reference` or route paths
@@ -256,30 +251,29 @@ export function createRouterState(
         throw new Error("Too many redirects");
       }
 
-      const mode = replace ? "replace" : "push";
-      const ref = reference();
+      const current = reference();
 
-      if (resolvedTo !== ref) {
+      if (resolvedTo !== current) {
         if (isServer) {
-          if (outContext) {
-            outContext.url = resolvedTo;
+          if (output) {
+            output.url = resolvedTo;
           }
-          setSource({ value: resolvedTo, mode });
+          setSource({ value: resolvedTo, replace });
         } else {
-          referrers.push({ ref, mode });
+          referrers.push({ value: current, replace });
           start(() => setReference(resolvedTo));
         }
       }
     });
   }
 
-  function handleRouteEnd(nextRef: string) {
+  function navigateEnd(next: string) {
     const first = referrers.shift();
     if (first) {
-      if (nextRef !== first.ref) {
+      if (next !== first.value) {
         setSource({
-          value: nextRef,
-          mode: first.mode
+          value: next,
+          replace: first.replace
         });
       }
       referrers.length = 0;
@@ -291,12 +285,12 @@ export function createRouterState(
   });
 
   createRenderEffect(() => {
-    handleRouteEnd(reference());
+    navigateEnd(reference());
   });
 
   return {
     base: baseRoute,
-    outContext,
+    out: output,
     location,
     isRouting,
     renderPath: utils?.renderPath || ((path: string) => path),
@@ -304,12 +298,12 @@ export function createRouterState(
   };
 }
 
-export function createRouteState(
-  router: RouterState,
-  parent: RouteState,
-  child: () => RouteState,
-  match: () => MatchedRoute
-): RouteState {
+export function createRouteContext(
+  router: RouterContext,
+  parent: RouteContext,
+  child: () => RouteContext,
+  match: () => RouteMatch
+): RouteContext {
   const { base, location, navigate } = router;
   const { pattern, element: outlet, preload, data } = match().route;
   const path = createMemo(() => match().path);
