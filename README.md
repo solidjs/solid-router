@@ -1,8 +1,4 @@
 # Solid App Router
-
-> Solid 1.0 use 0.0.50 or greater
-> Solid 0.x use 0.0.46
-
 ## JSX Based
 ```jsx
 import { lazy } from "solid-js";
