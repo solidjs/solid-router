@@ -140,16 +140,18 @@ render(
 
 Solid App Router provides `<Link>` component to provides links in your application. By default all Routes and Links are relative to the parent that created them.
 
-Solid provides a `<NavLink>` component that applies the `active` class when the current route matches its path.
+Solid App Router provides a `<NavLink>` component that applies the `active` class when the current route matches its path.
 
-Solid also has a `<Navigate>` component useful for inlining redirects.
+Solid App Router also has a `<Navigate>` component useful for inlining redirects.
 
 These Components all use `href` to define the path:
 
 ```jsx
-<NavLink href="/">Home</NavLink>
-<NavLink href="/about">About</NavLink>
-<NavLink href="/other">Other</NavLink>
+<>
+  <NavLink href="/">Home</NavLink>
+  <NavLink href="/about">About</NavLink>
+  <NavLink href="/other">Other</NavLink>
+</>
 ```
 
 ## Router Primitives
