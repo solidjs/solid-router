@@ -207,7 +207,7 @@ export interface NavLinkProps extends LinkProps {
 }
 
 export function NavLink(props: NavLinkProps) {
-  props = mergeProps({ activeClass: "is-active" }, props);
+  props = mergeProps({ activeClass: "active" }, props);
   const [, rest] = splitProps(props, ["activeClass", "end"]);
   const location = useLocation();
   const to = useResolvedPath(() => props.href);
