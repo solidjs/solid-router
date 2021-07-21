@@ -239,7 +239,7 @@ function User() {
   const user = useData();
   return (
     <>
-      <h1>{user().name}</h1>
+      <h1>{user()?.name}</h1>
       {/* Insert nested Route Here */}
       <Outlet />
     </>
@@ -252,7 +252,18 @@ function User() {
 Data functions are designed to load in parallel to your lazy loaded routes. They get bundled with your main bundle allowing your page code to be separated and loaded on demand in parallel. You can pass in the `data` prop to your Route definition.
 
 ```js
-// users/[id].data.js
+import { lazy } from "solid-js";
+import { Route } from "solid-app-router";
+import UserData from "./pages/users/[id].data.js";
+
+const User = lazy(() => import("/pages/users/[id].js"));
+
+// In the Route definition
+<Route path="/users/:id" element={<User />} data={UserData} />
+```
+
+```js
+// pages/users/[id].data.js
 import { createResource } from "solid-js";
 
 function fetchUser(userId) { /* fetching logic */ }
