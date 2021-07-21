@@ -43,7 +43,6 @@ const Home = lazy(() => import("/pages/index.js"));
 const NotFound = lazy(() => import("/pages/[...all].js"));
 
 function App() {
-  const Routes = useRoutes(routes);
   return (
     <>
       <h1>Awesome Site</h1>
