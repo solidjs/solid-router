@@ -50,7 +50,7 @@ export type RouteDataFunc = (args: {
 export type RouteDefinition = {
   path: string;
   data?: RouteDataFunc;
-  children?: RouteDefinition[];
+  children?: RouteDefinition | RouteDefinition[];
 } & (
   | {
       element?: never;
@@ -64,7 +64,6 @@ export type RouteDefinition = {
 );
 
 export interface PathMatch {
-  score: number;
   params: Params;
   path: string;
 }
@@ -83,11 +82,16 @@ export interface OutputMatch {
 export interface Route {
   originalPath: string;
   pattern: string;
-  children?: Route[];
   element: () => JSX.Element;
   preload?: () => void;
   data?: RouteDataFunc;
-  matcher: (location: string) => PathMatch | null;
+  matcher: (location: string) => PathMatch | null
+}
+
+export interface Branch {
+  routes: Route[];
+  score: number;
+  matcher: (location: string) => RouteMatch[] | null;
 }
 
 export interface RouteContext {

@@ -1,5 +1,5 @@
 import { createMemo, getOwner, runWithOwner } from "solid-js";
-import type { Params, PathMatch } from "./types";
+import type { Params, PathMatch, Route } from "./types";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|\/+$|\s+/;
@@ -42,11 +42,6 @@ export function joinPaths(from: string, to: string): string {
   return `${from.replace(/[/*]+$/, "")}/${to.replace(/^\/+/, "")}`;
 }
 
-export function createPath(path: string, base: string, hasChildren: boolean = false): string {
-  const joined = joinPaths(base, path);
-  return hasChildren && !joined.endsWith("*") ? joinPaths(joined, "*") : joined;
-}
-
 export function extractQuery(url: URL): Params {
   const query: Params = {};
   url.searchParams.forEach((value, key) => {
@@ -55,49 +50,30 @@ export function extractQuery(url: URL): Params {
   return query;
 }
 
-export function createLocationMatcher(path: string, end?: boolean) {
-  const [pathname] = path.split(/[?#]/, 1);
-  return (location: string) => {
-    if (end) {
-      return location.toLowerCase() === pathname.toLowerCase();
-    }
-    return location.toLowerCase().startsWith(pathname.toLowerCase());
-  };
-}
+export function createMatcher(path: string, partial?: boolean) {
+  const [pattern, splat] = path.split("/*", 2)
+  const segments = pattern.split("/").filter(Boolean);
+  const len = segments.length;
 
-export function createPathMatcher(
-  path: string,
-  index: number = 0
-): (location: string) => PathMatch | null {
-  const [pattern, splat] = path.split(/^\*|\/\*/, 2);
-  const segments = pattern.toLowerCase().split("/").filter(Boolean);
-  const segmentsLen = segments.length;
-  const isSplat = splat !== undefined;
-
-  return (location: string) => {
-    const locSegments = location.toLowerCase().split("/").filter(Boolean);
-    const locLen = locSegments.length;
-    const lenDiff = locLen - segmentsLen;
-    if (lenDiff < 0 || (lenDiff > 0 && !isSplat)) {
+  return (location: string): PathMatch | null => {
+    const locSegments = location.split("/").filter(Boolean);
+    const lenDiff = locSegments.length - len;
+    if (lenDiff < 0 || (lenDiff > 0 && splat === undefined && !partial)) {
       return null;
     }
 
     const match: PathMatch = {
-      score: (lenDiff ? 2000 : 1000) + index,
-      path: segmentsLen ? "" : "/",
+      path: len ? "" : "/",
       params: {}
     };
 
-    for (let i = 0; i < segmentsLen; i++) {
+    for (let i = 0; i < len; i++) {
       const segment = segments[i];
       const locSegment = locSegments[i];
 
-      if (segment === locSegment) {
-        match.score += 3000;
-      } else if (segment[0] === ":") {
-        match.score += 2000;
+      if (segment[0] === ":") {
         match.params[segment.slice(1)] = locSegment;
-      } else {
+      } else if (segment.localeCompare(locSegment, undefined, { sensitivity: 'base' }) !== 0) {
         return null;
       }
       match.path += `/${locSegment}`;
@@ -108,7 +84,16 @@ export function createPathMatcher(
     }
 
     return match;
-  };
+  }
+}
+
+export function scoreRoute(route: Route): number {
+  const [pattern, splat] = route.pattern.split("/*", 2);
+  const segments = pattern.split("/").filter(Boolean);
+  return segments.reduce(
+    (score, segment) => score + (segment.startsWith(":") ? 2 : 3),
+    segments.length - (splat === undefined ? 0 : 1)
+  );
 }
 
 export function createMemoObject<T extends object>(fn: () => T): T {

@@ -13,6 +13,7 @@ import {
 import { isServer } from "solid-js/web";
 import { normalizeIntegration } from "./integration";
 import type {
+  Branch,
   Location,
   LocationChange,
   LocationChangeSignal,
@@ -28,12 +29,12 @@ import type {
 } from "./types";
 import {
   createMemoObject,
-  createPath,
-  createPathMatcher,
   extractQuery,
   invariant,
   resolvePath,
-  toArray
+  createMatcher,
+  joinPaths,
+  scoreRoute
 } from "./utils";
 
 const MAX_REDIRECTS = 100;
@@ -69,7 +70,7 @@ export const useIsRouting = () => useRouter().isRouting;
 
 export const useMatch = (path: () => string) => {
   const location = useLocation();
-  const matcher = createMemo(() => createPathMatcher(path()));
+  const matcher = createMemo(() => createMatcher(path()));
   return createMemo(() => matcher()(location.pathname));
 };
 
@@ -87,58 +88,94 @@ export const useData = <T extends Params>(delta: number = 0) => {
   return current.data as T;
 };
 
-export function createRoutes(
-  routes: RouteDefinition | RouteDefinition[],
+export function createRoute(
+  routeDef: RouteDefinition,
   base: string = "",
   fallback?: Component
-): Route[] {
-  return toArray(routes).map<Route>((route, i, arr) => {
-    const { path: originalPath, children, component, data } = route;
-    const path = createPath(originalPath, base, !!children);
+): Route {
+  const { path: originalPath, component, data, children } = routeDef;
+  const isLeaf = !children || (Array.isArray(children) && !children.length);
+  const path = joinPaths(base, originalPath);
+  const pattern = isLeaf ? path : path.split("/*", 1)[0];
 
-    return {
-      originalPath,
-      pattern: path,
-      element: component
-        ? () => createComponent(component, {})
-        : () => {
-            const { element } = route;
-            return element === undefined && fallback
-              ? createComponent(fallback, {})
-              : (element as JSX.Element);
-          },
-      preload: route.component ? (component as MaybePreloadableComponent).preload : route.preload,
-      data,
-      matcher: createPathMatcher(path, arr.length - i),
-      children: children && createRoutes(children, path, fallback)
-    };
-  });
+  return {
+    originalPath,
+    pattern,
+    element: component
+      ? () => createComponent(component, {})
+      : () => {
+          const { element } = routeDef;
+          return element === undefined && fallback
+            ? createComponent(fallback, {})
+            : (element as JSX.Element);
+        },
+    preload: routeDef.component
+      ? (component as MaybePreloadableComponent).preload
+      : routeDef.preload,
+    data,
+    matcher: createMatcher(pattern, !isLeaf)
+  };
 }
 
-export function createRouteMatches(
-  routes: Route[],
-  location: string,
-  acc: RouteMatch[] = []
-): RouteMatch[] {
-  const winner = routes.reduce<RouteMatch | undefined>((winner, route) => {
-    const match = route.matcher(location);
-    if (match && (!winner || match.score > winner.score)) {
-      return {
-        route,
-        ...match
-      };
+export function createBranch(routes: Route[], index: number = 0): Branch {
+  return {
+    routes,
+    score: scoreRoute(routes[routes.length - 1]) * 10000 - index,
+    matcher(location) {
+      const matches: RouteMatch[] = [];
+      for (let i = routes.length - 1; i >= 0; i--) {
+        const route = routes[i];
+        const match = route.matcher(location);
+        if (!match) {
+          return null;
+        }
+        matches.unshift({
+          ...match,
+          route
+        });
+      }
+      return matches;
     }
-    return winner;
-  }, undefined);
+  };
+}
 
-  if (winner) {
-    acc.push(winner);
-    if (winner.route.children) {
-      createRouteMatches(winner.route.children, location, acc);
+export function createBranches(
+  routeDef: RouteDefinition | RouteDefinition[],
+  base: string = "",
+  fallback?: Component,
+  stack: Route[] = [],
+  branches: Branch[] = []
+): Branch[] {
+  const routeDefs = Array.isArray(routeDef) ? routeDef : [routeDef];
+
+  for (let i = 0, len = routeDefs.length; i < len; i++) {
+    const def = routeDefs[i];
+    const route = createRoute(def, base, fallback);
+
+    stack.push(route);
+
+    if (def.children) {
+      createBranches(def.children, route.pattern, fallback, stack, branches);
+    } else {
+      const branch = createBranch([...stack], branches.length);
+      branches.push(branch);
     }
+
+    stack.pop();
   }
 
-  return acc;
+  // Stack will be empty on final return
+  return stack.length ? branches : branches.sort((a, b) => b.score - a.score);
+}
+
+export function getRouteMatches(branches: Branch[], location: string): RouteMatch[] {
+  for (let i = 0, len = branches.length; i < len; i++) {
+    const match = branches[i].matcher(location);
+    if (match) {
+      return match;
+    }
+  }
+  return [];
 }
 
 export function createLocation(path: () => string): Location {

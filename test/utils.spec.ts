@@ -1,4 +1,4 @@
-import { createPathMatcher, createLocationMatcher, resolvePath } from '../src/utils';
+import { createMatcher, resolvePath } from '../src/utils';
 
 describe('resolvePath should', () => {
   test('normalize the base arg', () => {
@@ -62,10 +62,10 @@ describe('resolvePath should', () => {
   });
 });
 
-describe('createPathMatcher should', () => {
+describe('createMatcher should', () => {
   test('return empty object when location matches simple path', () => {
     const expected = { path: '/foo/bar', params: {}};
-    const matcher = createPathMatcher('/foo/bar');
+    const matcher = createMatcher('/foo/bar');
     const match = matcher('/foo/bar');
     expect(match).not.toBe(null);
     expect(match!.path).toBe(expected.path);
@@ -74,14 +74,14 @@ describe('createPathMatcher should', () => {
 
   test('return null when location does not match', () => {
     const expected = null;
-    const matcher = createPathMatcher('/foo/bar');
+    const matcher = createMatcher('/foo/bar');
     const match = matcher('/foo/baz');
     expect(match).toEqual(expected);
   });
 
   test('return params collection when location matches parameterized path', () => {
     const expected = { path: '/foo/abc-123', params: { id: 'abc-123' }};
-    const matcher = createPathMatcher('/foo/:id');
+    const matcher = createMatcher('/foo/:id');
     const match = matcher('/foo/abc-123');
     expect(match).not.toBe(null);
     expect(match!.path).toBe(expected.path);
@@ -90,7 +90,7 @@ describe('createPathMatcher should', () => {
 
   test('match past end when end when ending in a /*', () => {
     const expected = { path: '/foo/bar', params: {}}
-    const matcher = createPathMatcher('/foo/bar/*');
+    const matcher = createMatcher('/foo/bar/*');
     const match = matcher('/foo/bar/baz');
     expect(match).not.toBe(null);
     expect(match!.path).toBe(expected.path);
@@ -99,14 +99,14 @@ describe('createPathMatcher should', () => {
 
   test('not match past end when not ending in /*', () => {
     const expected = null;
-    const matcher = createPathMatcher('/foo/bar');
+    const matcher = createMatcher('/foo/bar');
     const match = matcher('/foo/bar/baz');
     expect(match).toBe(expected);
   });
 
   test('include remaining unmatched location as param when ending in /*param_name', () => {
     const expected = { path: '/foo/bar', params: { something: 'baz/qux' }}
-    const matcher = createPathMatcher('/foo/bar/*something');
+    const matcher = createMatcher('/foo/bar/*something');
     const match = matcher('/foo/bar/baz/qux');
     expect(match).not.toBe(null);
     expect(match!.path).toBe(expected.path);
@@ -115,26 +115,10 @@ describe('createPathMatcher should', () => {
 
   test('include empty param when ending in /*param_name and exact match', () => {
     const expected = { path: '/foo/bar', params: { something: '' }}
-    const matcher = createPathMatcher('/foo/bar/*something');
+    const matcher = createMatcher('/foo/bar/*something');
     const match = matcher('/foo/bar');
     expect(match).not.toBe(null);
     expect(match!.path).toBe(expected.path);
     expect(match!.params).toEqual(expected.params);
-  });
-});
-
-describe('createLocationMatcher should', () => {
-  test('match past end when end option is false', () => {
-    const expected = true;
-    const matcher = createLocationMatcher('/foo/bar');
-    const match = matcher('/foo/bar/baz');
-    expect(match).toBe(expected);
-  });
-
-  test('not match past end when end option is true', () => {
-    const expected = false;
-    const matcher = createLocationMatcher('/foo/bar', true);
-    const match = matcher('/foo/bar/baz');
-    expect(match).toBe(expected);
   });
 });
