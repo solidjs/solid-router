@@ -3,10 +3,10 @@ import { createMemo, createRoot, mergeProps, on, Show, splitProps } from "solid-
 import { isServer } from "solid-js/web";
 import { pathIntegration, staticIntegration } from "./integration";
 import {
+  createBranches,
   createRouteContext,
-  createRouteMatches,
   createRouterContext,
-  createRoutes,
+  getRouteMatches,
   RouteContextObj,
   RouterContextObj,
   useHref,
@@ -62,10 +62,10 @@ export const Routes = (props: RoutesProps) => {
   const parentRoute = useRoute();
 
   const basePath = useResolvedPath(() => props.base || "");
-  const routes = createMemo(() =>
-    createRoutes(props.children as RouteDefinition | RouteDefinition[], basePath() || "", Outlet)
+  const branches = createMemo(() =>
+    createBranches(props.children as RouteDefinition | RouteDefinition[], basePath() || "", Outlet)
   );
-  const matches = createMemo(() => createRouteMatches(routes(), router.location.pathname));
+  const matches = createMemo(() => getRouteMatches(branches(), router.location.pathname));
 
   if (router.out) {
     router.out.matches.push(
