@@ -76,7 +76,7 @@ export const useMatch = (path: () => string) => {
 
 export const useParams = <T extends Params>() => useRoute().params as T;
 
-export const useData = <T extends Params>(delta: number = 0) => {
+export const useData = <T>(delta: number = 0) => {
   let current = useRoute();
   let n = delta;
   while (n-- > 0) {
@@ -344,7 +344,7 @@ export function createRouteContext(
   const { base, location, navigate } = router;
   const { pattern, element: outlet, preload, data } = match().route;
   const path = createMemo(() => match().path);
-  const params = createMemoObject(on(path, () => match().params));
+  const params = createMemoObject(() => match().params);
 
   preload && preload();
 
