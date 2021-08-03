@@ -159,6 +159,7 @@ export const Outlet = () => {
 
 interface LinkBaseProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
   to: string | undefined;
+  replace?: boolean;
 }
 
 function LinkBase(props: LinkBaseProps) {
@@ -181,7 +182,7 @@ function LinkBase(props: LinkBaseProps) {
       !(evt.metaKey || evt.altKey || evt.ctrlKey || evt.shiftKey)
     ) {
       evt.preventDefault();
-      navigate(to, { resolve: false });
+      navigate(to, { resolve: false, replace: props.replace || false });
     }
   };
 
@@ -194,6 +195,7 @@ function LinkBase(props: LinkBaseProps) {
 
 export interface LinkProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
   href: string;
+  replace?: boolean;
 }
 
 export function Link(props: LinkProps) {
