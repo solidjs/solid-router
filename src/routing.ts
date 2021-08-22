@@ -21,6 +21,7 @@ import type {
   Params,
   Route,
   RouteContext,
+  RouteDataFunc,
   RouteDefinition,
   RouteMatch,
   RouterContext,
@@ -225,6 +226,7 @@ export function createLocation(path: () => string): Location {
 export function createRouterContext(
   integration?: RouterIntegration | LocationChangeSignal,
   base: string = "",
+  data?: RouteDataFunc,
   out?: object
 ): RouterContext {
   const {
@@ -247,20 +249,21 @@ export function createRouterContext(
     setSource({ value: basePath, replace: true });
   }
 
+  const [isRouting, start] = useTransition();
+  const [reference, setReference] = createSignal(source().value);
+  const location = createLocation(reference);
+  const referrers: LocationChange[] = [];
+
   const baseRoute: RouteContext = {
     pattern: basePath,
     params: {},
     path: () => basePath,
     outlet: () => null,
+    data: data && data({ params: {}, location, navigate }),
     resolvePath(to: string) {
       return resolvePath(basePath, to);
     }
   };
-
-  const [isRouting, start] = useTransition();
-  const [reference, setReference] = createSignal(source().value);
-  const location = createLocation(reference);
-  const referrers: LocationChange[] = [];
 
   // The `navigate` function looks up the closest route to handle resolution. Redfining this makes
   // testing the router state easier as we don't have to wrap the test in the RouterContext.

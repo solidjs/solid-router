@@ -28,6 +28,7 @@ import type {
 
 export type RouterProps = {
   base?: string;
+  data?: RouteDataFunc;
   children: JSX.Element;
   out?: object;
 } & (
@@ -42,10 +43,10 @@ export type RouterProps = {
 );
 
 export const Router = (props: RouterProps) => {
-  const { source, url, base, out } = props;
+  const { source, url, base, data, out } = props;
   const integration =
     source || (isServer ? staticIntegration({ value: url || "" }) : pathIntegration());
-  const routerState = createRouterContext(integration, base, out);
+  const routerState = createRouterContext(integration, base, data, out);
 
   return (
     <RouterContextObj.Provider value={routerState}>{props.children}</RouterContextObj.Provider>
