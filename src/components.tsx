@@ -21,10 +21,10 @@ import type {
   Location,
   LocationChangeSignal,
   Navigator,
+  Route as RouteType,
   RouteContext,
   RouteDataFunc,
   RouteDefinition,
-  RouteMatch,
   RouterIntegration
 } from "./types";
 
@@ -79,7 +79,7 @@ export const Routes = (props: RoutesProps) => {
   const router = useRouter();
   const parentRoute = useRoute();
 
-  let activeRoutes = new Set<RouteMatch>();
+  const activeRoutes = new Set<RouteType>();
   const prefetchCache = new Map<string, number>();
 
   const basePath = useResolvedPath(() => props.base || "");
@@ -104,14 +104,14 @@ export const Routes = (props: RoutesProps) => {
 
   const routeStates = createMemo<RouteContext[]>(
     on(matches, (nextMatches, prevMatches, prev) => {
-      activeRoutes = new Set(nextMatches);
-      
       let equal = prevMatches && nextMatches.length === prevMatches.length;
       const next: RouteContext[] = [];
 
+      activeRoutes.clear();
       for (let i = 0, len = nextMatches.length; i < len; i++) {
         const prevMatch = prevMatches && prevMatches[i];
         const nextMatch = nextMatches[i];
+        activeRoutes.add(nextMatch.route);
 
         if (prev && prevMatch && nextMatch.route.pattern === prevMatch.route.pattern) {
           next[i] = prev[i];
@@ -158,7 +158,7 @@ export const Routes = (props: RoutesProps) => {
         for (let i = 0, len = matches.length; i < len; i++) {
           const { path, route, params } = matches[i];
           const key = `${i}:${path}?${location.search}`;
-          if (!activeRoutes.has(matches[i]) && !prefetchCache.has(key)) {
+          if (!activeRoutes.has(matches[i].route) && !prefetchCache.has(key)) {
             const { data, preload } = route;
             preload && preload();
             data && data({ params, location, navigate: () => {} });
