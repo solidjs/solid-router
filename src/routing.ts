@@ -66,6 +66,7 @@ export const useHref = (to: () => string | undefined) => {
 };
 
 export const useNavigate = () => useRouter().navigate;
+export const usePrefetch = () => useRouter().prefetch;
 export const useLocation = () => useRouter().location;
 export const useIsRouting = () => useRouter().isRouting;
 
@@ -179,23 +180,32 @@ export function getRouteMatches(branches: Branch[], location: string): RouteMatc
   return [];
 }
 
+const DEFAULT_URL = new URL("http://solidjs.com");
+
+function createUrl(path: string) {
+  try {
+    return new URL(path, DEFAULT_URL);
+  } catch (err) {
+    console.error(`Invalid path ${path}`);
+    return undefined;
+  }
+}
+
+export function createStaticLocation(url: URL): Location {
+  return {
+    pathname: url.pathname,
+    search: url.search.slice(1),
+    hash: url.hash.slice(1),
+    state: null,
+    key: "",
+    query: extractQuery(url)
+  };
+}
+
 export function createLocation(path: () => string): Location {
-  const origin = new URL("http://sar");
-  const url = createMemo<URL>(
-    prev => {
-      const path_ = path();
-      try {
-        return new URL(path_, origin);
-      } catch (err) {
-        console.error(`Invalid path ${path_}`);
-        return prev;
-      }
-    },
-    origin,
-    {
-      equals: (a, b) => a.href === b.href
-    }
-  );
+  const url = createMemo<URL>(prev => createUrl(path()) || prev, DEFAULT_URL, {
+    equals: (a, b) => a.href === b.href
+  });
 
   const pathname = createMemo(() => url().pathname);
   const search = createMemo(() => url().search.slice(1));
@@ -253,6 +263,7 @@ export function createRouterContext(
   const [reference, setReference] = createSignal(source().value);
   const location = createLocation(reference);
   const referrers: LocationChange[] = [];
+  const [prefetchLocation, setPrefetchLocation] = createSignal<Location>();
 
   const baseRoute: RouteContext = {
     pattern: basePath,
@@ -320,6 +331,15 @@ export function createRouterContext(
     }
   }
 
+  function prefetch(path: string) {
+    const url = createUrl(path);
+    const next = url && createStaticLocation(url);
+    next &&
+      setPrefetchLocation(prev =>
+        !prev || next.pathname !== prev.pathname || next.search !== prev.search ? next : prev
+      );
+  }
+
   createRenderEffect(() => {
     start(() => setReference(source().value));
   });
@@ -332,9 +352,11 @@ export function createRouterContext(
     base: baseRoute,
     out: output,
     location,
+    prefetchLocation,
     isRouting,
     renderPath: (utils && utils.renderPath) || ((path: string) => path),
-    navigate
+    navigate,
+    prefetch
   };
 }
 

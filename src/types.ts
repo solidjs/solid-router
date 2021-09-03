@@ -29,6 +29,10 @@ export interface Navigator {
   (to: number): void;
 }
 
+export interface Prefetch {
+  (path: string): void;
+}
+
 export interface LocationChange {
   value: string;
   replace?: boolean;
@@ -125,7 +129,9 @@ export interface RouterContext {
   base: RouteContext;
   out?: RouterOutput;
   location: Location;
+  prefetchLocation: () => Location | undefined;
   navigate: Navigator;
+  prefetch: Prefetch;
   isRouting: () => boolean;
   renderPath(path: string): string;
 }

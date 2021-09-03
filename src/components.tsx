@@ -1,4 +1,4 @@
-import type { Component, JSX } from "solid-js";
+import { Component, createComputed, JSX } from "solid-js";
 import { createMemo, createRoot, mergeProps, on, Show, splitProps } from "solid-js";
 import { isServer } from "solid-js/web";
 import { pathIntegration, staticIntegration } from "./integration";
@@ -12,6 +12,7 @@ import {
   useHref,
   useLocation,
   useNavigate,
+  usePrefetch,
   useResolvedPath,
   useRoute,
   useRouter
@@ -23,8 +24,24 @@ import type {
   RouteContext,
   RouteDataFunc,
   RouteDefinition,
+  RouteMatch,
   RouterIntegration
 } from "./types";
+
+function forwardEvent<T, E extends Event>(
+  to: () => JSX.EventHandlerUnion<T, E> | undefined,
+  fn: JSX.EventHandler<T, E>
+): JSX.EventHandler<T, E> {
+  return evt => {
+    const to_ = to();
+    if (typeof to_ === "function") {
+      to_(evt);
+    } else if (to_) {
+      to_[0](to_[1], evt);
+    }
+    fn(evt);
+  };
+}
 
 export type RouterProps = {
   base?: string;
@@ -62,6 +79,9 @@ export const Routes = (props: RoutesProps) => {
   const router = useRouter();
   const parentRoute = useRoute();
 
+  let activeRoutes = new Set<RouteMatch>();
+  const prefetchCache = new Map<string, number>();
+
   const basePath = useResolvedPath(() => props.base || "");
   const branches = createMemo(() =>
     createBranches(props.children as RouteDefinition | RouteDefinition[], basePath() || "", Outlet)
@@ -84,8 +104,11 @@ export const Routes = (props: RoutesProps) => {
 
   const routeStates = createMemo<RouteContext[]>(
     on(matches, (nextMatches, prevMatches, prev) => {
+      activeRoutes = new Set(nextMatches);
+      
       let equal = prevMatches && nextMatches.length === prevMatches.length;
       const next: RouteContext[] = [];
+
       for (let i = 0, len = nextMatches.length; i < len; i++) {
         const prevMatch = prevMatches && prevMatches[i];
         const nextMatch = nextMatches[i];
@@ -117,6 +140,32 @@ export const Routes = (props: RoutesProps) => {
       }
       root = next[0];
       return next;
+    })
+  );
+
+  createComputed(
+    on(router.prefetchLocation, location => {
+      if (location) {
+        const matches = getRouteMatches(branches(), location.pathname);
+        const now = Date.now();
+        const ttl = 5 * 1000;
+
+        // Remove expired entries
+        for (let [key, expiresAt] of prefetchCache) {
+          expiresAt <= now && prefetchCache.delete(key);
+        }
+
+        for (let i = 0, len = matches.length; i < len; i++) {
+          const { path, route, params } = matches[i];
+          const key = `${i}:${path}?${location.search}`;
+          if (!activeRoutes.has(matches[i]) && !prefetchCache.has(key)) {
+            const { data, preload } = route;
+            preload && preload();
+            data && data({ params, location, navigate: () => {} });
+            prefetchCache.set(key, now + ttl);
+          }
+        }
+      }
     })
   );
 
@@ -161,34 +210,49 @@ export const Outlet = () => {
 interface LinkBaseProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
   to: string | undefined;
   replace?: boolean;
+  prefetch?: boolean;
 }
 
 function LinkBase(props: LinkBaseProps) {
   const [, rest] = splitProps(props, ["children", "to", "href", "onClick"]);
   const navigate = useNavigate();
+  const prefetch = usePrefetch();
   const href = useHref(() => props.to);
 
-  const handleClick: JSX.EventHandler<HTMLAnchorElement, MouseEvent> = evt => {
-    const { onClick, to, target } = props;
-    if (typeof onClick === "function") {
-      onClick(evt);
-    } else if (onClick) {
-      onClick[0](onClick[1], evt);
+  const handleClick = forwardEvent(
+    () => props.onClick,
+    evt => {
+      const { to, target } = props;
+      if (
+        to !== undefined &&
+        !evt.defaultPrevented &&
+        evt.button === 0 &&
+        (!target || target === "_self") &&
+        !(evt.metaKey || evt.altKey || evt.ctrlKey || evt.shiftKey)
+      ) {
+        evt.preventDefault();
+        navigate(to, { resolve: false, replace: props.replace || false });
+      }
     }
-    if (
-      to !== undefined &&
-      !evt.defaultPrevented &&
-      evt.button === 0 &&
-      (!target || target === "_self") &&
-      !(evt.metaKey || evt.altKey || evt.ctrlKey || evt.shiftKey)
-    ) {
-      evt.preventDefault();
-      navigate(to, { resolve: false, replace: props.replace || false });
+  );
+
+  const handleEnter = forwardEvent(
+    () => props.onPointerEnter,
+    () => {
+      const { to } = props;
+      if (to !== undefined) {
+        prefetch(to);
+      }
     }
-  };
+  );
 
   return (
-    <a {...rest} href={href() || props.href} onClick={handleClick}>
+    <a
+      {...rest}
+      href={href() || props.href}
+      onClick={handleClick}
+      onPointerEnter={handleEnter}
+    >
       {props.children}
     </a>
   );
@@ -197,6 +261,7 @@ function LinkBase(props: LinkBaseProps) {
 export interface LinkProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
   href: string;
   replace?: boolean;
+  prefetch?: boolean;
 }
 
 export function Link(props: LinkProps) {

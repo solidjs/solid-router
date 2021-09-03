@@ -7,6 +7,7 @@ export {
   useLocation,
   useMatch,
   useNavigate,
+  usePrefetch,
   useParams,
   useResolvedPath
 } from "./routing";
@@ -19,6 +20,7 @@ export type {
   Navigator,
   OutputMatch,
   Params,
+  Prefetch,
   RouteData,
   RouteDataFunc,
   RouteDefinition,
