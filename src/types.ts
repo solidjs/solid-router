@@ -2,9 +2,7 @@ import { Component, JSX } from "solid-js";
 
 export type Params = Record<string, string>;
 
-export type LocationState = string | null;
-
-export type RouteData = Record<string, any>;
+export type LocationState = string | null;;
 
 export interface Path {
   pathname: string;
@@ -45,11 +43,13 @@ export interface RouterIntegration {
   utils?: Partial<RouterUtils>;
 }
 
-export type RouteDataFunc = (args: {
+export interface RouteDataFuncArgs {
   params: Params;
   location: Location;
   navigate: Navigator;
-}) => RouteData | undefined;
+}
+
+export type RouteDataFunc = (args: RouteDataFuncArgs) => unknown;
 
 export type RouteDefinition = {
   path: string;
@@ -101,7 +101,7 @@ export interface Branch {
 export interface RouteContext {
   parent?: RouteContext;
   child?: RouteContext;
-  data?: RouteData;
+  data?: unknown;
   pattern: string;
   params: Params;
   path: () => string;

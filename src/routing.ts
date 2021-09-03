@@ -78,7 +78,7 @@ export const useMatch = (path: () => string) => {
 
 export const useParams = <T extends Params>() => useRoute().params as T;
 
-export const useData = <T>(delta: number = 0) => {
+export const useData = <T = any>(delta: number = 0) => {
   let current = useRoute();
   let n = delta;
   while (n-- > 0) {
