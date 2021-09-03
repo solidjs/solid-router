@@ -1,4 +1,4 @@
-import { Component, JSX } from "solid-js";
+import type { Component, JSX } from "solid-js";
 
 export type Params = Record<string, string>;
 
@@ -89,7 +89,7 @@ export interface Route {
   element: () => JSX.Element;
   preload?: () => void;
   data?: RouteDataFunc;
-  matcher: (location: string) => PathMatch | null
+  matcher: (location: string) => PathMatch | null;
 }
 
 export interface Branch {

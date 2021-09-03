@@ -51,7 +51,7 @@ export function extractQuery(url: URL): Params {
 }
 
 export function createMatcher(path: string, partial?: boolean) {
-  const [pattern, splat] = path.split("/*", 2)
+  const [pattern, splat] = path.split("/*", 2);
   const segments = pattern.split("/").filter(Boolean);
   const len = segments.length;
 
@@ -73,7 +73,7 @@ export function createMatcher(path: string, partial?: boolean) {
 
       if (segment[0] === ":") {
         match.params[segment.slice(1)] = locSegment;
-      } else if (segment.localeCompare(locSegment, undefined, { sensitivity: 'base' }) !== 0) {
+      } else if (segment.localeCompare(locSegment, undefined, { sensitivity: "base" }) !== 0) {
         return null;
       }
       match.path += `/${locSegment}`;
@@ -84,7 +84,7 @@ export function createMatcher(path: string, partial?: boolean) {
     }
 
     return match;
-  }
+  };
 }
 
 export function scoreRoute(route: Route): number {

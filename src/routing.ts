@@ -29,12 +29,12 @@ import type {
   RouterOutput
 } from "./types";
 import {
+  createMatcher,
   createMemoObject,
   extractQuery,
   invariant,
-  resolvePath,
-  createMatcher,
   joinPaths,
+  resolvePath,
   scoreRoute
 } from "./utils";
 

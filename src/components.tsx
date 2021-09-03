@@ -1,5 +1,5 @@
-import { Component, createComputed, JSX } from "solid-js";
-import { createMemo, createRoot, mergeProps, on, Show, splitProps } from "solid-js";
+import type { Component, JSX } from "solid-js";
+import { createComputed, createMemo, createRoot, mergeProps, on, Show, splitProps } from "solid-js";
 import { isServer } from "solid-js/web";
 import { pathIntegration, staticIntegration } from "./integration";
 import {
@@ -247,12 +247,7 @@ function LinkBase(props: LinkBaseProps) {
   );
 
   return (
-    <a
-      {...rest}
-      href={href() || props.href}
-      onClick={handleClick}
-      onPointerEnter={handleEnter}
-    >
+    <a {...rest} href={href() || props.href} onClick={handleClick} onPointerEnter={handleEnter}>
       {props.children}
     </a>
   );
