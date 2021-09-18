@@ -29,6 +29,8 @@ export interface Navigator {
   (to: number): void;
 }
 
+export type NavigatorFactory = () => Navigator;
+
 export interface LocationChange {
   value: string;
   replace?: boolean;
@@ -125,7 +127,7 @@ export interface RouterContext {
   base: RouteContext;
   out?: RouterOutput;
   location: Location;
-  navigate: Navigator;
+  navigatorFactory: NavigatorFactory;
   isRouting: () => boolean;
   renderPath(path: string): string;
 }

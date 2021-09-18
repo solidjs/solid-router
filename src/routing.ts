@@ -65,7 +65,7 @@ export const useHref = (to: () => string | undefined) => {
   });
 };
 
-export const useNavigate = () => useRouter().navigate;
+export const useNavigate = () => useRouter().navigatorFactory();
 export const useLocation = () => useRouter().location;
 export const useIsRouting = () => useRouter().isRouting;
 
@@ -259,17 +259,13 @@ export function createRouterContext(
     params: {},
     path: () => basePath,
     outlet: () => null,
-    data: data && data({ params: {}, location, navigate }),
+    data: data && data({ params: {}, location, navigate: navigatorFactory() }),
     resolvePath(to: string) {
       return resolvePath(basePath, to);
     }
   };
 
-  // The `navigate` function looks up the closest route to handle resolution. Redfining this makes
-  // testing the router state easier as we don't have to wrap the test in the RouterContext.
-  const useRoute = () => useContext(RouteContextObj) || baseRoute;
-
-  function navigate(to: string | number, options?: Partial<NavigateOptions>) {
+  function navigateFromRoute(route: RouteContext, to: string | number, options?: Partial<NavigateOptions>) {
     // Untrack in case someone navigates in an effect - don't want to track `reference` or route paths
     untrack(() => {
       if (typeof to === "number") {
@@ -283,7 +279,7 @@ export function createRouterContext(
         ...options
       };
 
-      const resolvedTo = resolve ? useRoute().resolvePath(to) : resolvePath("", to);
+      const resolvedTo = resolve ? route.resolvePath(to) : resolvePath("", to);
 
       if (resolvedTo === undefined) {
         throw new Error(`Path '${to}' is not a routable path`);
@@ -305,6 +301,15 @@ export function createRouterContext(
         }
       }
     });
+  }
+
+  function navigatorFactory() {
+    // The returned `navigate` function should resolve paths relative to the route context
+    // that was in effect when `navigatorFactory` was called (such as from useNavigate).
+    const route = useContext(RouteContextObj) || baseRoute;
+    return function navigate(to: string | number, options?: Partial<NavigateOptions>) {
+      return navigateFromRoute(route, to, options);
+    }
   }
 
   function navigateEnd(next: string) {
@@ -334,7 +339,7 @@ export function createRouterContext(
     location,
     isRouting,
     renderPath: (utils && utils.renderPath) || ((path: string) => path),
-    navigate
+    navigatorFactory
   };
 }
 
@@ -344,7 +349,7 @@ export function createRouteContext(
   child: () => RouteContext,
   match: () => RouteMatch
 ): RouteContext {
-  const { base, location, navigate } = router;
+  const { base, location, navigatorFactory } = router;
   const { pattern, element: outlet, preload, data } = match().route;
   const path = createMemo(() => match().path);
   const params = createMemoObject(() => match().params);
@@ -360,7 +365,7 @@ export function createRouteContext(
     path,
     params,
     outlet,
-    data: data && data({ params, location, navigate }),
+    data: data && data({ params, location, navigate: navigatorFactory() }),
     resolvePath(to: string) {
       return resolvePath(base.path(), to, path());
     }
