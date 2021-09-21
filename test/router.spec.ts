@@ -180,7 +180,8 @@ describe("Router should", () => {
         const signal = createSignal<LocationChange>({
           value: "/"
         });
-        const { location, navigate } = createRouterContext(signal);
+        const { location, navigatorFactory } = createRouterContext(signal);
+        const navigate = navigatorFactory();
 
         expect(location.pathname).toBe("/");
         navigate("/foo/1");
@@ -197,7 +198,8 @@ describe("Router should", () => {
         const signal = createSignal<LocationChange>({
           value: "/foo/bar"
         });
-        const { location, navigate } = createRouterContext(signal);
+        const { location, navigatorFactory } = createRouterContext(signal);
+        const navigate = navigatorFactory();
         const count = createCounter(() => location.pathname);
 
         expect(location.pathname).toBe("/foo/bar");
@@ -211,7 +213,8 @@ describe("Router should", () => {
         const signal = createSignal<LocationChange>({
           value: "/"
         });
-        const { navigate } = createRouterContext(signal);
+        const { navigatorFactory } = createRouterContext(signal);
+        const navigate = navigatorFactory();
         expect(signal[0]().value).toBe("/");
         navigate("/foo/bar");
 
@@ -227,7 +230,8 @@ describe("Router should", () => {
         const signal = createSignal<LocationChange>({
           value: "/"
         });
-        const { navigate } = createRouterContext(signal);
+        const { navigatorFactory } = createRouterContext(signal);
+        const navigate = navigatorFactory();
 
         expect(signal[0]()).toEqual({ value: "/" });
         navigate("/foo/1");
@@ -248,7 +252,8 @@ describe("Router should", () => {
         const signal = createSignal<LocationChange>({
           value: "/"
         });
-        const { navigate } = createRouterContext(signal);
+        const { navigatorFactory } = createRouterContext(signal);
+        const navigate = navigatorFactory();
         function pushAlot() {
           for (let i = 0; i < 101; i++) {
             navigate(`/foo/${i}`);
