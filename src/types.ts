@@ -4,8 +4,6 @@ export type Params = Record<string, string>;
 
 export type LocationState = string | null;
 
-export type RouteData = Record<string, any>;
-
 export interface Path {
   pathname: string;
   search: string;
@@ -43,11 +41,13 @@ export interface RouterIntegration {
   utils?: Partial<RouterUtils>;
 }
 
-export type RouteDataFunc = (args: {
+export interface RouteDataFuncArgs {
   params: Params;
   location: Location;
   navigate: Navigator;
-}) => RouteData | undefined;
+}
+
+export type RouteDataFunc<T = unknown> = (args: RouteDataFuncArgs) => T;
 
 export type RouteDefinition = {
   path: string;
@@ -87,7 +87,7 @@ export interface Route {
   element: () => JSX.Element;
   preload?: () => void;
   data?: RouteDataFunc;
-  matcher: (location: string) => PathMatch | null
+  matcher: (location: string) => PathMatch | null;
 }
 
 export interface Branch {
@@ -99,7 +99,7 @@ export interface Branch {
 export interface RouteContext {
   parent?: RouteContext;
   child?: RouteContext;
-  data?: RouteData;
+  data?: unknown;
   pattern: string;
   params: Params;
   path: () => string;

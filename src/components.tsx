@@ -64,7 +64,11 @@ export const Routes = (props: RoutesProps) => {
 
   const basePath = useResolvedPath(() => props.base || "");
   const branches = createMemo(() =>
-    createBranches(props.children as RouteDefinition | RouteDefinition[], basePath() || "", Outlet)
+    createBranches(
+      props.children as unknown as RouteDefinition | RouteDefinition[],
+      basePath() || "",
+      Outlet
+    )
   );
   const matches = createMemo(() => getRouteMatches(branches(), router.location.pathname));
 
@@ -147,7 +151,7 @@ export type RouteProps = {
     }
 );
 
-export const Route = (props: RouteProps) => props as JSX.Element;
+export const Route = (props: RouteProps) => props as unknown as JSX.Element;
 
 export const Outlet = () => {
   const route = useRoute();
