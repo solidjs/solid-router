@@ -311,11 +311,11 @@ export function createRouterContext(
     });
   }
 
-  function navigatorFactory(
-    route: RouteContext = useContext(RouteContextObj) || baseRoute
-  ): Navigator {
+  function navigatorFactory(route?: RouteContext): Navigator {
+    // Workaround for vite issue (https://github.com/vitejs/vite/issues/3803)
+    route = route || useContext(RouteContextObj) || baseRoute;
     return (to: string | number, options?: Partial<NavigateOptions>) =>
-      navigateFromRoute(route, to, options);
+      navigateFromRoute(route!, to, options);
   }
 
   function navigateEnd(next: string) {
