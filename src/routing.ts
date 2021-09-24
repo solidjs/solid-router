@@ -18,6 +18,7 @@ import type {
   LocationChange,
   LocationChangeSignal,
   NavigateOptions,
+  Navigator,
   Params,
   Route,
   RouteContext,
@@ -259,13 +260,20 @@ export function createRouterContext(
     params: {},
     path: () => basePath,
     outlet: () => null,
-    data: data && data({ params: {}, location, navigate: navigatorFactory() }),
     resolvePath(to: string) {
       return resolvePath(basePath, to);
     }
   };
 
-  function navigateFromRoute(route: RouteContext, to: string | number, options?: Partial<NavigateOptions>) {
+  if (data) {
+    baseRoute.data = data({ params: {}, location, navigate: navigatorFactory(baseRoute) });
+  }
+
+  function navigateFromRoute(
+    route: RouteContext,
+    to: string | number,
+    options?: Partial<NavigateOptions>
+  ) {
     // Untrack in case someone navigates in an effect - don't want to track `reference` or route paths
     untrack(() => {
       if (typeof to === "number") {
@@ -303,13 +311,11 @@ export function createRouterContext(
     });
   }
 
-  function navigatorFactory() {
-    // The returned `navigate` function should resolve paths relative to the route context
-    // that was in effect when `navigatorFactory` was called (such as from useNavigate).
-    const route = useContext(RouteContextObj) || baseRoute;
-    return function navigate(to: string | number, options?: Partial<NavigateOptions>) {
-      return navigateFromRoute(route, to, options);
-    }
+  function navigatorFactory(
+    route: RouteContext = useContext(RouteContextObj) || baseRoute
+  ): Navigator {
+    return (to: string | number, options?: Partial<NavigateOptions>) =>
+      navigateFromRoute(route, to, options);
   }
 
   function navigateEnd(next: string) {
@@ -356,7 +362,7 @@ export function createRouteContext(
 
   preload && preload();
 
-  return {
+  const route: RouteContext = {
     parent,
     pattern,
     get child() {
@@ -365,9 +371,14 @@ export function createRouteContext(
     path,
     params,
     outlet,
-    data: data && data({ params, location, navigate: navigatorFactory() }),
     resolvePath(to: string) {
       return resolvePath(base.path(), to, path());
     }
   };
+
+  if (data) {
+    route.data = data({ params, location, navigate: navigatorFactory(route) });
+  }
+
+  return route;
 }

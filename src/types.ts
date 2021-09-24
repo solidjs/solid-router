@@ -29,7 +29,7 @@ export interface Navigator {
   (to: number): void;
 }
 
-export type NavigatorFactory = () => Navigator;
+export type NavigatorFactory = (route?: RouteContext) => Navigator;
 
 export interface LocationChange {
   value: string;
