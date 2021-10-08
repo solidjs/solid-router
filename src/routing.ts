@@ -332,7 +332,10 @@ export function createRouterContext(
   }
 
   createRenderEffect(() => {
-    start(() => setReference(source().value));
+    const next = source().value;
+    if (next !== untrack(reference)) {
+      start(() => setReference(next));
+    }
   });
 
   createRenderEffect(() => {
