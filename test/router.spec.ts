@@ -175,8 +175,8 @@ describe("Router should", () => {
   });
 
   describe("have member `navigate` which should", () => {
-    test(`update the location each time it is called`, () => {
-      createRoot(() => {
+    test(`update the location in the next microtask`, () => {
+      createAsyncRoot((resolve) => {
         const signal = createSignal<LocationChange>({
           value: "/"
         });
@@ -185,16 +185,15 @@ describe("Router should", () => {
 
         expect(location.pathname).toBe("/");
         navigate("/foo/1");
-        expect(location.pathname).toBe("/foo/1");
-        navigate("/foo/2");
-        expect(location.pathname).toBe("/foo/2");
-        navigate("/foo/3");
-        expect(location.pathname).toBe("/foo/3");
+        setTimeout(() => {
+          expect(location.pathname).toBe("/foo/1");
+          resolve();
+        })
       });
     });
 
     test(`do nothing if the new path is the same`, () =>
-      createRoot(() => {
+      createAsyncRoot((resolve) => {
         const signal = createSignal<LocationChange>({
           value: "/foo/bar"
         });
@@ -204,8 +203,11 @@ describe("Router should", () => {
 
         expect(location.pathname).toBe("/foo/bar");
         navigate("/foo/bar");
-        expect(location.pathname).toBe("/foo/bar");
-        expect(count()).toBe(0);
+        setTimeout(() => {
+          expect(location.pathname).toBe("/foo/bar");
+          expect(count()).toBe(0);
+          resolve();
+        });
       }));
 
     test(`update the integrationSignal`, () =>

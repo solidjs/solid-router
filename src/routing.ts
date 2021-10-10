@@ -304,8 +304,12 @@ export function createRouterContext(
           }
           setSource({ value: resolvedTo, replace });
         } else {
-          referrers.push({ value: current, replace });
-          start(() => setReference(resolvedTo));
+          const len = referrers.push({ value: current, replace });
+          start(() => setReference(resolvedTo), () => {
+            if (referrers.length === len) {
+              navigateEnd(resolvedTo);
+            }
+          });
         }
       }
     });
@@ -319,7 +323,7 @@ export function createRouterContext(
   }
 
   function navigateEnd(next: string) {
-    const first = referrers.shift();
+    const first = referrers[0];
     if (first) {
       if (next !== first.value) {
         setSource({
@@ -336,10 +340,6 @@ export function createRouterContext(
     if (next !== untrack(reference)) {
       start(() => setReference(next));
     }
-  });
-
-  createRenderEffect(() => {
-    navigateEnd(reference());
   });
 
   return {
