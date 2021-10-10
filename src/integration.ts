@@ -68,7 +68,7 @@ export function staticIntegration(obj: LocationChange): RouterIntegration {
 
 export function pathIntegration() {
   return createIntegration(
-    () => window.location.pathname + window.location.search,
+    () => window.location.pathname + window.location.search + window.location.hash,
     ({ value, replace }) => {
       if (replace) {
         window.history.replaceState(null, "", value);
