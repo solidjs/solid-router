@@ -19,6 +19,7 @@ export interface Location<S extends LocationState = LocationState> extends Path 
 export interface NavigateOptions {
   resolve: boolean;
   replace: boolean;
+  scroll: boolean;
   state: LocationState;
 }
 
@@ -32,6 +33,7 @@ export type NavigatorFactory = (route?: RouteContext) => Navigator;
 export interface LocationChange {
   value: string;
   replace?: boolean;
+  scroll?: boolean;
 }
 
 export type LocationChangeSignal = [() => LocationChange, (next: LocationChange) => void];

@@ -165,6 +165,7 @@ export const Outlet = () => {
 interface LinkBaseProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
   to: string | undefined;
   replace?: boolean;
+  noScroll?: boolean;
 }
 
 function LinkBase(props: LinkBaseProps) {
@@ -187,7 +188,7 @@ function LinkBase(props: LinkBaseProps) {
       !(evt.metaKey || evt.altKey || evt.ctrlKey || evt.shiftKey)
     ) {
       evt.preventDefault();
-      navigate(to, { resolve: false, replace: props.replace || false });
+      navigate(to, { resolve: false, replace: props.replace || false, scroll: !props.noScroll });
     }
   };
 

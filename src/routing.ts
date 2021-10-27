@@ -247,7 +247,7 @@ export function createRouterContext(
   if (basePath === undefined) {
     throw new Error(`${basePath} is not a valid base path`);
   } else if (basePath && !source().value) {
-    setSource({ value: basePath, replace: true });
+    setSource({ value: basePath, replace: true, scroll: false });
   }
 
   const [isRouting, start] = useTransition();
@@ -281,9 +281,10 @@ export function createRouterContext(
         return;
       }
 
-      const { replace, resolve } = {
+      const { replace, resolve, scroll } = {
         replace: false,
         resolve: true,
+        scroll: true,
         ...options
       };
 
@@ -302,9 +303,9 @@ export function createRouterContext(
           if (output) {
             output.url = resolvedTo;
           }
-          setSource({ value: resolvedTo, replace });
+          setSource({ value: resolvedTo, replace, scroll });
         } else {
-          const len = referrers.push({ value: current, replace });
+          const len = referrers.push({ value: current, replace, scroll });
           start(() => setReference(resolvedTo), () => {
             if (referrers.length === len) {
               navigateEnd(resolvedTo);
@@ -328,7 +329,8 @@ export function createRouterContext(
       if (next !== first.value) {
         setSource({
           value: next,
-          replace: first.replace
+          replace: first.replace,
+          scroll: first.scroll
         });
       }
       referrers.length = 0;
