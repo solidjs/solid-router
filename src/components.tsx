@@ -202,6 +202,7 @@ function LinkBase(props: LinkBaseProps) {
 export interface LinkProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
   href: string;
   replace?: boolean;
+  noScroll?: boolean;
 }
 
 export function Link(props: LinkProps) {
