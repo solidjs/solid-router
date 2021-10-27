@@ -1,5 +1,11 @@
 import { createSignal, onCleanup } from "solid-js";
-import type { LocationChange, LocationChangeSignal, RouterIntegration, RouterUtils } from "./types";
+import type {
+  LocationChange,
+  LocationChangeSignal,
+  PathIntegration,
+  RouterIntegration,
+  RouterUtils
+} from "./types";
 
 function bindEvent(target: EventTarget, type: string, handler: EventListener) {
   target.addEventListener(type, handler);
@@ -66,7 +72,7 @@ export function staticIntegration(obj: LocationChange): RouterIntegration {
   };
 }
 
-export function pathIntegration() {
+export function pathIntegration({ preventScroll }: PathIntegration = {}) {
   return createIntegration(
     () => window.location.pathname + window.location.search + window.location.hash,
     ({ value, replace }) => {
@@ -75,7 +81,9 @@ export function pathIntegration() {
       } else {
         window.history.pushState(null, "", value);
       }
-      window.scrollTo(0, 0);
+      if (!preventScroll) {
+        window.scrollTo(0, 0);
+      }
     },
     notify => bindEvent(window, "popstate", () => notify())
   );

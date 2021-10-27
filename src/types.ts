@@ -34,6 +34,10 @@ export interface LocationChange {
   replace?: boolean;
 }
 
+export interface PathIntegration {
+  preventScroll?: boolean;
+}
+
 export type LocationChangeSignal = [() => LocationChange, (next: LocationChange) => void];
 
 export interface RouterIntegration {

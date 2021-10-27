@@ -31,6 +31,7 @@ export type RouterProps = {
   data?: RouteDataFunc;
   children: JSX.Element;
   out?: object;
+  preventScroll?: boolean;
 } & (
   | {
       url?: never;
@@ -43,9 +44,10 @@ export type RouterProps = {
 );
 
 export const Router = (props: RouterProps) => {
-  const { source, url, base, data, out } = props;
+  const { source, url, base, data, out, preventScroll } = props;
   const integration =
-    source || (isServer ? staticIntegration({ value: url || "" }) : pathIntegration());
+    source ||
+    (isServer ? staticIntegration({ value: url || "" }) : pathIntegration({ preventScroll }));
   const routerState = createRouterContext(integration, base, data, out);
 
   return (
