@@ -83,7 +83,10 @@ export function pathIntegration() {
         window.scrollTo(0, 0);
       }
     },
-    notify => bindEvent(window, "popstate", () => notify())
+    notify => bindEvent(window, "popstate", () => notify()),
+    {
+      go: delta => window.history.go(delta)
+    }
   );
 }
 
@@ -98,6 +101,7 @@ export function hashIntegration() {
     },
     notify => bindEvent(window, "hashchange", () => notify()),
     {
+      go: delta => window.history.go(delta),
       renderPath: path => `#${path}`
     }
   );

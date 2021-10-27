@@ -246,7 +246,7 @@ export function createRouterContext(
 ): RouterContext {
   const {
     signal: [source, setSource],
-    utils
+    utils = {}
   } = normalizeIntegration(integration);
 
   const basePath = resolvePath("", base);
@@ -292,7 +292,13 @@ export function createRouterContext(
     // Untrack in case someone navigates in an effect - don't want to track `reference` or route paths
     untrack(() => {
       if (typeof to === "number") {
-        console.warn("Relative navigation is not implemented - doing nothing :)");
+        if (!to) {
+          // A delta of 0 means stay at the current location, so it is ignored
+        } else if (utils.go) {
+          utils.go(to);
+        } else {
+          console.warn("Router integration does not support relative routing")
+        }
         return;
       }
 
@@ -376,7 +382,7 @@ export function createRouterContext(
     out: output,
     location,
     isRouting,
-    renderPath: (utils && utils.renderPath) || ((path: string) => path),
+    renderPath: utils.renderPath || ((path: string) => path),
     navigatorFactory
   };
 }

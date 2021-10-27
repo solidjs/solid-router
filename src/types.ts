@@ -25,7 +25,7 @@ export interface NavigateOptions<S = unknown> {
 
 export interface Navigator {
   (to: string, options?: Partial<NavigateOptions>): void;
-  (to: number): void;
+  (delta: number): void;
 }
 
 export type NavigatorFactory = (route?: RouteContext) => Navigator;
@@ -112,6 +112,7 @@ export interface RouteContext {
 
 export interface RouterUtils {
   renderPath(path: string): string;
+  go(delta: number): void;
 }
 
 export interface OutputMatch {
