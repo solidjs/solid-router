@@ -39,7 +39,7 @@ export function toArray<T>(items: T | T[]): T[] {
 }
 
 export function joinPaths(from: string, to: string): string {
-  return `${from.replace(/[/*]+$/, "")}/${to.replace(/^\/+/, "")}`;
+  return to ? `${from.replace(/[/*]+$/, "")}/${to.replace(/^\/+/, "")}` : from;
 }
 
 export function extractQuery(url: URL): Params {

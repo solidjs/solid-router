@@ -25,6 +25,7 @@ import type {
   RouteDefinition,
   RouterIntegration
 } from "./types";
+import { joinPaths } from "./utils";
 
 export type RouterProps = {
   base?: string;
@@ -61,12 +62,10 @@ export interface RoutesProps {
 export const Routes = (props: RoutesProps) => {
   const router = useRouter();
   const parentRoute = useRoute();
-
-  const basePath = useResolvedPath(() => props.base || "");
   const branches = createMemo(() =>
     createBranches(
       props.children as unknown as RouteDefinition | RouteDefinition[],
-      basePath() || "",
+      joinPaths(parentRoute.pattern, props.base || ""),
       Outlet
     )
   );
