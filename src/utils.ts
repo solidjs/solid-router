@@ -6,7 +6,7 @@ const trimPathRegex = /^\/+|\/+$|\s+/;
 
 function normalize(path: string) {
   const s = path.replace(trimPathRegex, "");
-  return s ? "/" + s : "";
+  return s ? s.startsWith('?') ? s : "/" + s : "";
 }
 
 export function resolvePath(base: string, path: string, from?: string): string | undefined {
