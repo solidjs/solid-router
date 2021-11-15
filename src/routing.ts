@@ -85,7 +85,7 @@ export const useQuery = <T extends Params>(): [T, (params: SetParams) => void] =
   const navigate = useNavigate();
   const setQuery = (params: SetParams) => {
     const query = mergeQueryString(location.search, params);
-    navigate(query ? `?${query}` : "");
+    navigate(query ? `?${query}` : "", { scroll: false });
   };
   return [location.query as T, setQuery];
 };
