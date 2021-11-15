@@ -27,7 +27,8 @@ import type {
   RouteMatch,
   RouterContext,
   RouterIntegration,
-  RouterOutput
+  RouterOutput,
+  SetParams
 } from "./types";
 import {
   createMemoObject,
@@ -36,7 +37,8 @@ import {
   resolvePath,
   createMatcher,
   joinPaths,
-  scoreRoute
+  scoreRoute,
+  mergeQueryString
 } from "./utils";
 
 const MAX_REDIRECTS = 100;
@@ -77,6 +79,16 @@ export const useMatch = (path: () => string) => {
 };
 
 export const useParams = <T extends Params>() => useRoute().params as T;
+
+export const useQuery = <T extends Params>(): [T, (params: SetParams) => void] => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const setQuery = (params: SetParams) => {
+    const query = mergeQueryString(location.search, params);
+    navigate(query ? `?${query}` : "");
+  };
+  return [location.query as T, setQuery];
+};
 
 export const useData = <T>(delta: number = 0) => {
   let current = useRoute();
@@ -307,9 +319,9 @@ export function createRouterContext(
         } else {
           const len = referrers.push({ value: current, replace, scroll });
           start(() => setReference(resolvedTo), () => {
-            if (referrers.length === len) {
-              navigateEnd(resolvedTo);
-            }
+              if (referrers.length === len) {
+                navigateEnd(resolvedTo);
+              }
           });
         }
       }

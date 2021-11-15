@@ -2,6 +2,8 @@ import { Component, JSX } from "solid-js";
 
 export type Params = Record<string, string>;
 
+export type SetParams = Record<string, string | number | boolean | null | undefined>;
+
 export type LocationState = string | null;
 
 export interface Path {

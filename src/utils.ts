@@ -1,5 +1,5 @@
 import { createMemo, getOwner, runWithOwner } from "solid-js";
-import type { Params, PathMatch, Route } from "./types";
+import type { Params, PathMatch, Route, SetParams } from "./types";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|\/+$|\s+/;
@@ -114,4 +114,16 @@ export function createMemoObject<T extends object>(fn: () => T): T {
       }
     }
   ) as T;
+}
+
+export function mergeQueryString(queryString: string, params: SetParams) {
+  const merged = new URLSearchParams(queryString);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value == null || value === "") {
+      merged.delete(key);
+    } else {
+      merged.set(key, String(value));
+    }
+  });
+  return merged.toString();
 }
