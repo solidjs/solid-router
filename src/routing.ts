@@ -318,11 +318,14 @@ export function createRouterContext(
           setSource({ value: resolvedTo, replace, scroll });
         } else {
           const len = referrers.push({ value: current, replace, scroll });
-          start(() => setReference(resolvedTo), () => {
+          start(
+            () => setReference(resolvedTo),
+            () => {
               if (referrers.length === len) {
                 navigateEnd(resolvedTo);
               }
-          });
+            }
+          );
         }
       }
     });
