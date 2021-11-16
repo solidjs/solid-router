@@ -42,12 +42,12 @@ export function joinPaths(from: string, to: string): string {
   return to ? `${from.replace(/[/*]+$/, "")}/${to.replace(/^\/+/, "")}` : from;
 }
 
-export function extractQuery(url: URL): Params {
-  const query: Params = {};
+export function extractSearchParams(url: URL): Params {
+  const params: Params = {};
   url.searchParams.forEach((value, key) => {
-    query[key] = value;
+    params[key] = value;
   });
-  return query;
+  return params;
 }
 
 export function createMatcher(path: string, partial?: boolean) {
@@ -116,8 +116,8 @@ export function createMemoObject<T extends object>(fn: () => T): T {
   ) as T;
 }
 
-export function mergeQueryString(queryString: string, params: SetParams) {
-  const merged = new URLSearchParams(queryString);
+export function mergeSearchString(search: string, params: SetParams) {
+  const merged = new URLSearchParams(search);
   Object.entries(params).forEach(([key, value]) => {
     if (value == null || value === "") {
       merged.delete(key);

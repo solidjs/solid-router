@@ -32,13 +32,13 @@ import type {
 } from "./types";
 import {
   createMemoObject,
-  extractQuery,
+  extractSearchParams,
   invariant,
   resolvePath,
   createMatcher,
   joinPaths,
   scoreRoute,
-  mergeQueryString
+  mergeSearchString
 } from "./utils";
 
 const MAX_REDIRECTS = 100;
@@ -80,14 +80,17 @@ export const useMatch = (path: () => string) => {
 
 export const useParams = <T extends Params>() => useRoute().params as T;
 
-export const useQuery = <T extends Params>(): [T, (params: SetParams) => void] => {
+export const useSearchParams = <T extends Params>(): [
+  T,
+  (params: SetParams, options?: Partial<NavigateOptions>) => void
+] => {
   const location = useLocation();
   const navigate = useNavigate();
-  const setQuery = (params: SetParams) => {
-    const query = mergeQueryString(location.search, params);
-    navigate(query ? `?${query}` : "", { scroll: false });
+  const setSearchParams = (params: SetParams, options?: Partial<NavigateOptions>) => {
+    const searchString = mergeSearchString(location.search, params);
+    navigate(searchString ? `?${searchString}` : "", { scroll: false, ...options, resolve: true });
   };
-  return [location.query as T, setQuery];
+  return [location.query as T, setSearchParams];
 };
 
 export const useData = <T>(delta: number = 0) => {
@@ -232,7 +235,7 @@ export function createLocation(path: () => string): Location {
     get key() {
       return key();
     },
-    query: createMemoObject(on(search, () => extractQuery(url())))
+    query: createMemoObject(on(search, () => extractSearchParams(url())))
   };
 }
 

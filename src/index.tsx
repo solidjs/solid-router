@@ -8,10 +8,10 @@ export {
   useMatch,
   useNavigate,
   useParams,
-  useQuery,
-  useResolvedPath
+  useResolvedPath,
+  useSearchParams
 } from "./routing";
-export { mergeQueryString as _mergeQueryString } from "./utils";
+export { mergeSearchString as _mergeSearchString } from "./utils";
 export type {
   Location,
   LocationChange,
