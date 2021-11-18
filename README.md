@@ -190,7 +190,7 @@ Retrieves reactive `location` object useful for getting things like `pathname`
 ```js
 const location = useLocation();
 
-const createMemo(() => parseQuery(location.query));
+const createMemo(() => parsePath(location.pathname));
 ```
 
 ### useSearchParams
@@ -204,7 +204,7 @@ const [searchParams, setSearchParams] = useSearchParams();
 
 return <div>
   <span>Page: {searchParams.page}</span>
-  <button onClick={() => setSeachParams({ page: searchParams.page + 1})}>Next Page</button>
+  <button onClick={() => setSearchParams({ page: searchParams.page + 1})}>Next Page</button>
 </div>
 ```
 
