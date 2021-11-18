@@ -1,12 +1,12 @@
 import { createMemo, getOwner, runWithOwner } from "solid-js";
-import type { Params, PathMatch, Route } from "./types";
+import type { Params, PathMatch, Route, SetParams } from "./types";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|\/+$|\s+/;
 
 function normalize(path: string) {
   const s = path.replace(trimPathRegex, "");
-  return s ? s.startsWith('?') ? s : "/" + s : "";
+  return s ? (s.startsWith("?") ? s : "/" + s) : "";
 }
 
 export function resolvePath(base: string, path: string, from?: string): string | undefined {
@@ -42,16 +42,16 @@ export function joinPaths(from: string, to: string): string {
   return to ? `${from.replace(/[/*]+$/, "")}/${to.replace(/^\/+/, "")}` : from;
 }
 
-export function extractQuery(url: URL): Params {
-  const query: Params = {};
+export function extractSearchParams(url: URL): Params {
+  const params: Params = {};
   url.searchParams.forEach((value, key) => {
-    query[key] = value;
+    params[key] = value;
   });
-  return query;
+  return params;
 }
 
 export function createMatcher(path: string, partial?: boolean) {
-  const [pattern, splat] = path.split("/*", 2)
+  const [pattern, splat] = path.split("/*", 2);
   const segments = pattern.split("/").filter(Boolean);
   const len = segments.length;
 
@@ -73,7 +73,7 @@ export function createMatcher(path: string, partial?: boolean) {
 
       if (segment[0] === ":") {
         match.params[segment.slice(1)] = locSegment;
-      } else if (segment.localeCompare(locSegment, undefined, { sensitivity: 'base' }) !== 0) {
+      } else if (segment.localeCompare(locSegment, undefined, { sensitivity: "base" }) !== 0) {
         return null;
       }
       match.path += `/${locSegment}`;
@@ -84,7 +84,7 @@ export function createMatcher(path: string, partial?: boolean) {
     }
 
     return match;
-  }
+  };
 }
 
 export function scoreRoute(route: Route): number {
@@ -114,4 +114,16 @@ export function createMemoObject<T extends object>(fn: () => T): T {
       }
     }
   ) as T;
+}
+
+export function mergeSearchString(search: string, params: SetParams) {
+  const merged = new URLSearchParams(search);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value == null || value === "") {
+      merged.delete(key);
+    } else {
+      merged.set(key, String(value));
+    }
+  });
+  return merged.toString();
 }

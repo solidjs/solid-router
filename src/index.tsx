@@ -8,8 +8,10 @@ export {
   useMatch,
   useNavigate,
   useParams,
-  useResolvedPath
+  useResolvedPath,
+  useSearchParams
 } from "./routing";
+export { mergeSearchString as _mergeSearchString } from "./utils";
 export type {
   Location,
   LocationChange,
@@ -24,5 +26,6 @@ export type {
   RouteDefinition,
   RouterIntegration,
   RouterOutput,
-  RouterUtils
+  RouterUtils,
+  SetParams
 } from "./types";

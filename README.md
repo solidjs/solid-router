@@ -168,18 +168,12 @@ const params = useParams();
 const [user] = createResource(() => params.id, fetchUser);
 ```
 
-### useLocation
-
-Retrieves reactive `location` object useful for getting things like `pathname` or `query`
-
-```js
-const location = useLocation();
-
-const createMemo(() => parseQuery(location.query));
-```
 ### useNavigate
 
-Retrieves method to do navigation.
+Retrieves method to do navigation. The method accepts a path to navigate to and an optional object with the following options:
+- resolve (*boolean*, default `true`): resolve the path against the current route
+- replace (*boolean*, default `false`): replace the history entry
+- scroll (*boolean*, default `true`): scroll to top after navigation
 
 ```js
 const navigate = useNavigate();
@@ -187,6 +181,31 @@ const navigate = useNavigate();
 if (unauthorized) {
   navigate("/login", { replace: true });
 }
+```
+
+### useLocation
+
+Retrieves reactive `location` object useful for getting things like `pathname`
+
+```js
+const location = useLocation();
+
+const createMemo(() => parseQuery(location.query));
+```
+
+### useSearchParams
+
+Retrieves a tuple containing a reactive object to read the current location's query parameters and a method to update them. The object is a proxy so you must access properties to subscribe to reactive updates. Note values will be strings and property names will retain their casing.
+
+The setter method accepts an object whos entries will be merged into the current query string. Values `''`, `undefined` and `null` will remove the key from the resulting query string. Updates will behave just like a navigation and the setter accepts the same optional second parameter as `navigate` and auto-scrolling is disabled by default.
+
+```js
+const [searchParams, setSearchParams] = useSearchParams();
+
+return <div>
+  <span>Page: {searchParams.page}</span>
+  <button onClick={() => setSeachParams({ page: searchParams.page + 1})}>Next Page</button>
+</div>
 ```
 
 ### useIsRouting

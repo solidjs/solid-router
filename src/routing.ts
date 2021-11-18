@@ -27,16 +27,18 @@ import type {
   RouteMatch,
   RouterContext,
   RouterIntegration,
-  RouterOutput
+  RouterOutput,
+  SetParams
 } from "./types";
 import {
   createMemoObject,
-  extractQuery,
+  extractSearchParams,
   invariant,
   resolvePath,
   createMatcher,
   joinPaths,
-  scoreRoute
+  scoreRoute,
+  mergeSearchString
 } from "./utils";
 
 const MAX_REDIRECTS = 100;
@@ -77,6 +79,19 @@ export const useMatch = (path: () => string) => {
 };
 
 export const useParams = <T extends Params>() => useRoute().params as T;
+
+export const useSearchParams = <T extends Params>(): [
+  T,
+  (params: SetParams, options?: Partial<NavigateOptions>) => void
+] => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const setSearchParams = (params: SetParams, options?: Partial<NavigateOptions>) => {
+    const searchString = mergeSearchString(location.search, params);
+    navigate(searchString ? `?${searchString}` : "", { scroll: false, ...options, resolve: true });
+  };
+  return [location.query as T, setSearchParams];
+};
 
 export const useData = <T>(delta: number = 0) => {
   let current = useRoute();
@@ -220,7 +235,7 @@ export function createLocation(path: () => string): Location {
     get key() {
       return key();
     },
-    query: createMemoObject(on(search, () => extractQuery(url())))
+    query: createMemoObject(on(search, () => extractSearchParams(url())))
   };
 }
 
@@ -306,11 +321,14 @@ export function createRouterContext(
           setSource({ value: resolvedTo, replace, scroll });
         } else {
           const len = referrers.push({ value: current, replace, scroll });
-          start(() => setReference(resolvedTo), () => {
-            if (referrers.length === len) {
-              navigateEnd(resolvedTo);
+          start(
+            () => setReference(resolvedTo),
+            () => {
+              if (referrers.length === len) {
+                navigateEnd(resolvedTo);
+              }
             }
-          });
+          );
         }
       }
     });
