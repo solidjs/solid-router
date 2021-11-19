@@ -69,11 +69,11 @@ export function staticIntegration(obj: LocationChange): RouterIntegration {
 export function pathIntegration() {
   return createIntegration(
     () => window.location.pathname + window.location.search + window.location.hash,
-    ({ value, replace, scroll }) => {
+    ({ value, replace, scroll, state }) => {
       if (replace) {
-        window.history.replaceState(null, "", value);
+        window.history.replaceState(state, "", value);
       } else {
-        window.history.pushState(null, "", value);
+        window.history.pushState(state, "", value);
       }
       if (scroll) {
         window.scrollTo(0, 0);
@@ -86,7 +86,7 @@ export function pathIntegration() {
 export function hashIntegration() {
   return createIntegration(
     () => window.location.hash.slice(1),
-    ({ value, scroll}) => {
+    ({ value, scroll }) => {
       window.location.hash = value;
       if (scroll) {
         window.scrollTo(0, 0);

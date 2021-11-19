@@ -1,4 +1,4 @@
-import type { Component, JSX } from "solid-js";
+import type { Component, JSX, Accessor } from "solid-js";
 import {
   createComponent,
   createContext,
@@ -69,7 +69,7 @@ export const useHref = (to: () => string | undefined) => {
 };
 
 export const useNavigate = () => useRouter().navigatorFactory();
-export const useLocation = () => useRouter().location;
+export const useLocation = <S = unknown>() => useRouter().location as Location<S>;
 export const useIsRouting = () => useRouter().isRouting;
 
 export const useMatch = (path: () => string) => {
@@ -195,7 +195,7 @@ export function getRouteMatches(branches: Branch[], location: string): RouteMatc
   return [];
 }
 
-export function createLocation(path: () => string): Location {
+export function createLocation(path: Accessor<string>, state: Accessor<any>): Location {
   const origin = new URL("http://sar");
   const url = createMemo<URL>(
     prev => {
@@ -216,7 +216,6 @@ export function createLocation(path: () => string): Location {
   const pathname = createMemo(() => url().pathname);
   const search = createMemo(() => url().search.slice(1));
   const hash = createMemo(() => url().hash.slice(1));
-  const state = createMemo(() => null);
   const key = createMemo(() => "");
 
   return {
@@ -230,7 +229,7 @@ export function createLocation(path: () => string): Location {
       return hash();
     },
     get state() {
-      return state();
+      return state() || null;
     },
     get key() {
       return key();
@@ -267,7 +266,8 @@ export function createRouterContext(
 
   const [isRouting, start] = useTransition();
   const [reference, setReference] = createSignal(source().value);
-  const location = createLocation(reference);
+  const [state, setState] = createSignal(source().state);
+  const location = createLocation(reference, state);
   const referrers: LocationChange[] = [];
 
   const baseRoute: RouteContext = {
@@ -296,7 +296,7 @@ export function createRouterContext(
         return;
       }
 
-      const { replace, resolve, scroll } = {
+      const { replace, resolve, scroll, state } = {
         replace: false,
         resolve: true,
         scroll: true,
@@ -318,11 +318,15 @@ export function createRouterContext(
           if (output) {
             output.url = resolvedTo;
           }
-          setSource({ value: resolvedTo, replace, scroll });
+          setSource({ value: resolvedTo, replace, scroll, state });
         } else {
-          const len = referrers.push({ value: current, replace, scroll });
+          const len = referrers.push({ value: current, replace, scroll, state });
           start(
-            () => setReference(resolvedTo),
+            () => {
+              // TODO: not sure about batch()
+              setReference(resolvedTo);
+              setState(state);
+            },
             () => {
               if (referrers.length === len) {
                 navigateEnd(resolvedTo);
@@ -348,7 +352,8 @@ export function createRouterContext(
         setSource({
           value: next,
           replace: first.replace,
-          scroll: first.scroll
+          scroll: first.scroll,
+          state: first.state
         });
       }
       referrers.length = 0;
@@ -358,7 +363,11 @@ export function createRouterContext(
   createRenderEffect(() => {
     const next = source().value;
     if (next !== untrack(reference)) {
-      start(() => setReference(next));
+      start(() => {
+        // TODO same
+        setReference(next);
+        setState(state);
+      });
     }
   });
 

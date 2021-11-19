@@ -4,25 +4,23 @@ export type Params = Record<string, string>;
 
 export type SetParams = Record<string, string | number | boolean | null | undefined>;
 
-export type LocationState = string | null;
-
 export interface Path {
   pathname: string;
   search: string;
   hash: string;
 }
 
-export interface Location<S extends LocationState = LocationState> extends Path {
+export interface Location<S = unknown> extends Path {
   query: Params;
-  state: S;
+  state: Readonly<Partial<S>> | null;
   key: string;
 }
 
-export interface NavigateOptions {
+export interface NavigateOptions<S = unknown> {
   resolve: boolean;
   replace: boolean;
   scroll: boolean;
-  state: LocationState;
+  state: S;
 }
 
 export interface Navigator {
@@ -32,10 +30,11 @@ export interface Navigator {
 
 export type NavigatorFactory = (route?: RouteContext) => Navigator;
 
-export interface LocationChange {
+export interface LocationChange<S = unknown> {
   value: string;
   replace?: boolean;
   scroll?: boolean;
+  state?: S;
 }
 
 export type LocationChangeSignal = [() => LocationChange, (next: LocationChange) => void];
