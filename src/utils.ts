@@ -33,10 +33,6 @@ export function invariant<T>(value: T | null | undefined, message: string): T {
   return value;
 }
 
-export function toArray<T>(items: T | T[]): T[] {
-  return Array.isArray(items) ? items : [items];
-}
-
 export function joinPaths(from: string, to: string): string {
   const t = normalize(to);
   if (t) {
