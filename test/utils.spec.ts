@@ -1,4 +1,4 @@
-import { createMatcher, resolvePath } from '../src/utils';
+import { createMatcher, joinPaths, resolvePath } from '../src/utils';
 
 describe('resolvePath should', () => {
   test('normalize the base arg', () => {
@@ -120,5 +120,62 @@ describe('createMatcher should', () => {
     expect(match).not.toBe(null);
     expect(match!.path).toBe(expected.path);
     expect(match!.params).toEqual(expected.params);
+  });
+});
+
+describe('joinPaths should', () => {
+  test.each([
+    ["/foo", "bar", "/foo/bar"],
+    ["/foo/", "bar", "/foo/bar"],
+    ["/foo", "/bar", "/foo/bar"],
+    ["/foo/", "/bar", "/foo/bar"],
+  ])(`join with a single '/' (case '%s' and '%s' as '%s')`, (from, to, expected) => {
+    const joined = joinPaths(from, to);
+    expect(joined).toBe(expected);
+  });
+  
+  test.each([
+    ["/foo", "", "/foo"],
+    ["foo", "", "/foo"],
+    ["", "foo", "/foo"],
+    ["", "/foo", "/foo"],
+    ["/", "foo", "/foo"],
+    ["/", "/foo", "/foo"],
+  ])(`ensure leading '/' (case '%s' and '%s' as '%s')`, (from, to, expected) => {
+    const joined = joinPaths(from, to);
+    expect(joined).toBe(expected);
+  });
+
+
+  test.each([
+    ["/foo", "", "/foo"],
+    ["/foo/", "/", "/foo"],
+    ["/foo/", "bar/", "/foo/bar"],
+  ])(`strip trailing '/' (case '%s' and '%s' as '%s')`, (from, to, expected) => {
+    const joined = joinPaths(from, to);
+    expect(joined).toBe(expected);
+  });
+
+  test.each([
+    ["foo/*", "", "/foo/*"],
+    ["/foo/*all", "", "/foo/*all"],
+    ["/foo/*", "bar", "/foo/bar"],
+    ["/foo/*all", "bar", "/foo/bar"],
+    ["/*", "foo", "/foo"],
+    ["/*all", "foo", "/foo"],
+    ["*", "foo", "/foo"],
+  ])(`strip trailing '/*' (case '%s' and '%s' as '%s')`, (from, to, expected) => {
+    const joined = joinPaths(from, to);
+    expect(joined).toBe(expected);
+  });
+
+  test.each([
+    ["/foo/:bar", "", "/foo/:bar"],
+    ["/foo/:bar", "baz", "/foo/:bar/baz"],
+    ["/foo", ":bar/baz", "/foo/:bar/baz"],
+    ["", ":bar/baz", "/:bar/baz"],
+  ])(`preserve parameters (case '%s' and '%s' as '%s')`, (from, to, expected) => {
+    const joined = joinPaths(from, to);
+    expect(joined).toBe(expected);
   });
 });

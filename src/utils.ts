@@ -2,7 +2,7 @@ import { createMemo, getOwner, runWithOwner } from "solid-js";
 import type { Params, PathMatch, Route, SetParams } from "./types";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
-const trimPathRegex = /^\/+|\/+$|\s+/;
+const trimPathRegex = /^\/+|\/+$|\s+/g;
 
 function normalize(path: string) {
   const s = path.replace(trimPathRegex, "");
@@ -13,7 +13,6 @@ export function resolvePath(base: string, path: string, from?: string): string |
   if (hasSchemeRegex.test(path)) {
     return undefined;
   }
-
   const basePath = normalize(base);
   const fromPath = from && normalize(from);
   let result = "";
@@ -39,7 +38,12 @@ export function toArray<T>(items: T | T[]): T[] {
 }
 
 export function joinPaths(from: string, to: string): string {
-  return to ? `${from.replace(/[/*]+$/, "")}/${to.replace(/^\/+/, "")}` : from;
+  const t = normalize(to);
+  if (t) {
+    const f = from.replace(/^\/+|\/*(\*.*)?$/g, "");
+    return f ? `/${f}${t}` : t;
+  }
+  return normalize(from);
 }
 
 export function extractSearchParams(url: URL): Params {

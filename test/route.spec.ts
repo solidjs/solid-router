@@ -26,6 +26,14 @@ describe("createRoute should", () => {
       expect(route.pattern).toBe('/foo/bar');
     });
 
+    test(`strip /*all from the base`, () => {
+      const routeDef = {
+        path: "bar"
+      };
+      const route = createRoute(routeDef, '/foo/*all');
+      expect(route.pattern).toBe('/foo/bar');
+    });
+
     test(`strip /* when the route has children`, () => {
       const routeDef = {
         path: "foo/*",
