@@ -165,10 +165,11 @@ interface LinkBaseProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
   to: string | undefined;
   replace?: boolean;
   noScroll?: boolean;
+  state?: unknown;
 }
 
 function LinkBase(props: LinkBaseProps) {
-  const [, rest] = splitProps(props, ["children", "to", "href", "onClick"]);
+  const [, rest] = splitProps(props, ["children", "to", "href", "state", "onClick"]);
   const navigate = useNavigate();
   const href = useHref(() => props.to);
 
@@ -187,7 +188,12 @@ function LinkBase(props: LinkBaseProps) {
       !(evt.metaKey || evt.altKey || evt.ctrlKey || evt.shiftKey)
     ) {
       evt.preventDefault();
-      navigate(to, { resolve: false, replace: props.replace || false, scroll: !props.noScroll });
+      navigate(to, {
+        resolve: false,
+        replace: props.replace || false,
+        scroll: !props.noScroll,
+        state: props.state
+      });
     }
   };
 
@@ -202,6 +208,7 @@ export interface LinkProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
   href: string;
   replace?: boolean;
   noScroll?: boolean;
+  state?: unknown;
 }
 
 export function Link(props: LinkProps) {
