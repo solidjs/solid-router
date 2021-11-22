@@ -72,7 +72,8 @@ describe("Router should", () => {
           expect(count()).toBe(0);
         }));
     });
-    describe(`contain propery 'queryString' which should`, () => {
+
+    describe(`contain property 'queryString' which should`, () => {
       test(`be reactive to the queryString part of the integration signal`, () =>
         createAsyncRoot(resolve => {
           const expected = "fizz=buzz";
@@ -226,6 +227,23 @@ describe("Router should", () => {
           resolve();
         });
       }));
+
+    test(`pass state to location`, () => createAsyncRoot(resolve => {
+      const state = { foo: 'bar' };
+      const signal = createSignal<LocationChange>({ value: "/" });
+
+      const { location, navigatorFactory } = createRouterContext(signal);
+      const navigate = navigatorFactory();
+
+      expect(location.state).toBeUndefined();
+      navigate("/foo", { state });
+
+      waitFor(() => signal[0]().value === "/foo").then(n => {
+        expect(n).toBe(1);
+        expect(location.state).toEqual(state);
+        resolve();
+      });
+    }));
 
     test(`be able to be called many times before it updates the integrationSignal`, () =>
       createAsyncRoot(resolve => {

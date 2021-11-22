@@ -174,6 +174,7 @@ Retrieves method to do navigation. The method accepts a path to navigate to and 
 - resolve (*boolean*, default `true`): resolve the path against the current route
 - replace (*boolean*, default `false`): replace the history entry
 - scroll (*boolean*, default `true`): scroll to top after navigation
+- state (*any*, default `undefined`): pass custom state to `location.state`
 
 ```js
 const navigate = useNavigate();

@@ -229,7 +229,7 @@ export function createLocation(path: Accessor<string>, state: Accessor<any>): Lo
       return hash();
     },
     get state() {
-      return state() || null;
+      return state();
     },
     get key() {
       return key();
@@ -323,7 +323,6 @@ export function createRouterContext(
           const len = referrers.push({ value: current, replace, scroll, state });
           start(
             () => {
-              // TODO: not sure about batch()
               setReference(resolvedTo);
               setState(state);
             },
@@ -364,7 +363,6 @@ export function createRouterContext(
     const next = source().value;
     if (next !== untrack(reference)) {
       start(() => {
-        // TODO same
         setReference(next);
         setState(state);
       });
