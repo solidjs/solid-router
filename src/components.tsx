@@ -248,13 +248,14 @@ export function NavLink(props: NavLinkProps) {
 
 export interface NavigateProps {
   href: ((args: { navigate: Navigator; location: Location }) => string) | string;
+  state?: unknown
 }
 
 export function Navigate(props: NavigateProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { href } = props;
+  const { href, state } = props;
   const path = typeof href === "function" ? href({ navigate, location }) : href;
-  navigate(path, { replace: true });
+  navigate(path, { replace: true, state });
   return null;
 }

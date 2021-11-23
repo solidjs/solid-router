@@ -15,14 +15,15 @@ function intercept<T>(
 }
 
 export function createIntegration(
-  get: () => string,
+  get: () => string | LocationChange,
   set: (next: LocationChange) => void,
-  init?: (notify: (value?: string) => void) => () => void,
+  init?: (notify: (value?: string | LocationChange) => void) => () => void,
   utils?: Partial<RouterUtils>
 ): RouterIntegration {
   let ignore = false;
+  const wrap = (value: string | LocationChange) => typeof value === 'string' ? { value } : value;
   const signal = intercept<LocationChange>(
-    createSignal({ value: get() }, { equals: (a, b) => a.value === b.value }),
+    createSignal(wrap(get()), { equals: (a, b) => a.value === b.value }),
     undefined,
     next => {
       !ignore && set(next);
@@ -34,7 +35,7 @@ export function createIntegration(
     onCleanup(
       init((value = get()) => {
         ignore = true;
-        signal[1]({ value });
+        signal[1](wrap(value));
         ignore = false;
       })
     );
@@ -68,7 +69,10 @@ export function staticIntegration(obj: LocationChange): RouterIntegration {
 
 export function pathIntegration() {
   return createIntegration(
-    () => window.location.pathname + window.location.search + window.location.hash,
+    () => ({
+      value: window.location.pathname + window.location.search + window.location.hash,
+      state: history.state
+    }),
     ({ value, replace, scroll, state }) => {
       if (replace) {
         window.history.replaceState(state, "", value);
