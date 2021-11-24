@@ -328,7 +328,10 @@ export function createRouterContext(
             },
             () => {
               if (referrers.length === len) {
-                navigateEnd(resolvedTo);
+                navigateEnd({
+                  value: resolvedTo,
+                  state
+                });
               }
             }
           );
@@ -344,15 +347,14 @@ export function createRouterContext(
       navigateFromRoute(route!, to, options);
   }
 
-  function navigateEnd(next: string) {
+  function navigateEnd(next: LocationChange) {
     const first = referrers[0];
     if (first) {
-      if (next !== first.value) {
+      if (next.value !== first.value) {
         setSource({
-          value: next,
+          ...next,
           replace: first.replace,
-          scroll: first.scroll,
-          state: first.state
+          scroll: first.scroll
         });
       }
       referrers.length = 0;
