@@ -360,10 +360,10 @@ export function createRouterContext(
   }
 
   createRenderEffect(() => {
-    const next = source().value;
-    if (next !== untrack(reference)) {
+    const { value, state } = source();
+    if (value !== untrack(reference)) {
       start(() => {
-        setReference(next);
+        setReference(value);
         setState(state);
       });
     }
