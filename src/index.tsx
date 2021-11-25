@@ -16,7 +16,6 @@ export type {
   Location,
   LocationChange,
   LocationChangeSignal,
-  LocationState,
   NavigateOptions,
   Navigator,
   OutputMatch,
