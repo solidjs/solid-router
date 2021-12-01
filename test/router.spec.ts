@@ -245,6 +245,23 @@ describe("Router should", () => {
       });
     }));
 
+    test(`allow state replacement without location change`, () => createAsyncRoot(resolve => {
+      const state = { foo: 'bar' };
+      const signal = createSignal<LocationChange>({ value: "/", });
+
+      const { location, navigatorFactory } = createRouterContext(signal);
+      const navigate = navigatorFactory();
+
+      expect(location.state).toBeUndefined();
+      navigate("/", { state });
+
+      waitFor(() => signal[0]().state === state).then(n => {
+        expect(n).toBe(1);
+        expect(location.state).toEqual(state);
+        resolve();
+      });
+    }));
+
     test(`be able to be called many times before it updates the integrationSignal`, () =>
       createAsyncRoot(resolve => {
         const signal = createSignal<LocationChange>({

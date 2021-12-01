@@ -302,7 +302,7 @@ export function createRouterContext(
         return;
       }
 
-      const { replace, resolve, scroll, state } = {
+      const { replace, resolve, scroll, state: nextState } = {
         replace: false,
         resolve: true,
         scroll: true,
@@ -319,24 +319,24 @@ export function createRouterContext(
 
       const current = reference();
 
-      if (resolvedTo !== current) {
+      if (resolvedTo !== current || nextState !== state()) {
         if (isServer) {
           if (output) {
             output.url = resolvedTo;
           }
-          setSource({ value: resolvedTo, replace, scroll, state });
+          setSource({ value: resolvedTo, replace, scroll, state: nextState });
         } else {
           const len = referrers.push({ value: current, replace, scroll, state });
           start(
             () => {
               setReference(resolvedTo);
-              setState(state);
+              setState(nextState);
             },
             () => {
               if (referrers.length === len) {
                 navigateEnd({
                   value: resolvedTo,
-                  state
+                  state: nextState
                 });
               }
             }
@@ -356,7 +356,7 @@ export function createRouterContext(
   function navigateEnd(next: LocationChange) {
     const first = referrers[0];
     if (first) {
-      if (next.value !== first.value) {
+      if (next.value !== first.value || next.state !== first.state) {
         setSource({
           ...next,
           replace: first.replace,
