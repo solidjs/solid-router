@@ -38,7 +38,8 @@ import {
   createMatcher,
   joinPaths,
   scoreRoute,
-  mergeSearchString
+  mergeSearchString,
+  warnOnce
 } from "./utils";
 
 const MAX_REDIRECTS = 100;
@@ -296,8 +297,8 @@ export function createRouterContext(
           // A delta of 0 means stay at the current location, so it is ignored
         } else if (utils.go) {
           utils.go(to);
-        } else {
-          console.warn("Router integration does not support relative routing")
+        } else if ("_SOLID_DEV_") {
+          warnOnce(true, "Router integration does not support relative navigation (eg. back/forward)");
         }
         return;
       }

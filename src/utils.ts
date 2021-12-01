@@ -33,6 +33,16 @@ export function invariant<T>(value: T | null | undefined, message: string): T {
   return value;
 }
 
+export const warnOnce = (() => {
+  const seen = new Set<string>();
+  return (condition: boolean, message: string, key: string = message) => {
+    if (condition && !seen.has(key)) {
+      seen.add(key);
+      console.warn(message);
+    }
+  }
+})();
+
 export function joinPaths(from: string, to: string): string {
   const t = normalize(to);
   if (t) {
