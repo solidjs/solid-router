@@ -1,3 +1,5 @@
+/*@refresh skip*/
+
 import type { Component, JSX } from "solid-js";
 import { createMemo, createRoot, mergeProps, on, Show, splitProps } from "solid-js";
 import { isServer } from "solid-js/web";
