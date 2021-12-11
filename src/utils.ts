@@ -111,6 +111,9 @@ export function createMemoObject<T extends object>(fn: () => T): T {
             return p;
           });
         return memo();
+      },
+      ownKeys() {
+        return Reflect.ownKeys(fn());
       }
     }
   ) as T;

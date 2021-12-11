@@ -1,4 +1,4 @@
-import { createMatcher, joinPaths, resolvePath } from '../src/utils';
+import { createMatcher, joinPaths, resolvePath, createMemoObject } from '../src/utils';
 
 describe('resolvePath should', () => {
   test('normalize the base arg', () => {
@@ -177,5 +177,17 @@ describe('joinPaths should', () => {
   ])(`preserve parameters (case '%s' and '%s' as '%s')`, (from, to, expected) => {
     const joined = joinPaths(from, to);
     expect(joined).toBe(expected);
+  });
+});
+
+describe('createMemoObject should', () => {
+  test('allow listing its keys', () => {
+    const actual = createMemoObject(() => ({
+      hello: 'world',
+      get throws() {
+        throw new Error('throws');
+      }
+    }));
+    expect(Object.getOwnPropertyNames(actual)).toEqual(['hello', 'throws']);
   });
 });
