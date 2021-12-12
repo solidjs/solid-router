@@ -112,6 +112,12 @@ export function createMemoObject<T extends object>(fn: () => T): T {
           });
         return memo();
       },
+      getOwnPropertyDescriptor() {
+        return {
+          enumerable: true,
+          configurable: true
+        };
+      },
       ownKeys() {
         return Reflect.ownKeys(fn());
       }
