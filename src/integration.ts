@@ -21,7 +21,7 @@ export function createIntegration(
   utils?: Partial<RouterUtils>
 ): RouterIntegration {
   let ignore = false;
-  const wrap = (value: string | LocationChange) => typeof value === 'string' ? { value } : value;
+  const wrap = (value: string | LocationChange) => (typeof value === "string" ? { value } : value);
   const signal = intercept<LocationChange>(
     createSignal(wrap(get()), { equals: (a, b) => a.value === b.value }),
     undefined,

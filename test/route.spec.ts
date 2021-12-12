@@ -14,35 +14,35 @@ describe("createRoute should", () => {
       const routeDef = {
         path: "bar"
       };
-      const route = createRoute(routeDef, '/foo');
-      expect(route.pattern).toBe('/foo/bar');
+      const route = createRoute(routeDef, "/foo");
+      expect(route.pattern).toBe("/foo/bar");
     });
 
     test(`strip /* from the base`, () => {
       const routeDef = {
         path: "bar"
       };
-      const route = createRoute(routeDef, '/foo/*');
-      expect(route.pattern).toBe('/foo/bar');
+      const route = createRoute(routeDef, "/foo/*");
+      expect(route.pattern).toBe("/foo/bar");
     });
 
     test(`strip /*all from the base`, () => {
       const routeDef = {
         path: "bar"
       };
-      const route = createRoute(routeDef, '/foo/*all');
-      expect(route.pattern).toBe('/foo/bar');
+      const route = createRoute(routeDef, "/foo/*all");
+      expect(route.pattern).toBe("/foo/bar");
     });
 
     test(`strip /* when the route has children`, () => {
       const routeDef = {
         path: "foo/*",
         children: {
-          path: 'bar'
+          path: "bar"
         }
       };
       const route = createRoute(routeDef);
-      expect(route.pattern).toBe('/foo');
+      expect(route.pattern).toBe("/foo");
     });
   });
 
@@ -52,10 +52,10 @@ describe("createRoute should", () => {
         path: "foo/:id/bar/:name"
       };
       const route = createRoute(routeDef);
-      const { params } = route.matcher('/foo/123/bar/solid')!;
+      const { params } = route.matcher("/foo/123/bar/solid")!;
       expect(params).toEqual({
-        id: '123',
-        name: 'solid'
+        id: "123",
+        name: "solid"
       });
     });
 
@@ -64,23 +64,23 @@ describe("createRoute should", () => {
         path: "foo/:id/bar/:name"
       };
       const route = createRoute(routeDef);
-      const { path } = route.matcher('/foo/123/bar/solid')!;
-      expect(path).toBe('/foo/123/bar/solid')
+      const { path } = route.matcher("/foo/123/bar/solid")!;
+      expect(path).toBe("/foo/123/bar/solid");
     });
 
     test(`allow partial match for routes with children`, () => {
       const routeDef = {
         path: "foo/:id",
         children: {
-          path: 'bar/:name'
+          path: "bar/:name"
         }
       };
       const route = createRoute(routeDef);
-      const match = route.matcher('/foo/123/bar/solid');
+      const match = route.matcher("/foo/123/bar/solid");
       expect(match).not.toBeNull();
-      expect(match!.path).toBe('/foo/123')
+      expect(match!.path).toBe("/foo/123");
       expect(match!.params).toEqual({
-        id: '123'
+        id: "123"
       });
     });
 
@@ -89,11 +89,11 @@ describe("createRoute should", () => {
         path: "foo/:id/*"
       };
       const route = createRoute(routeDef);
-      const match = route.matcher('/foo/123/bar/solid');
+      const match = route.matcher("/foo/123/bar/solid");
       expect(match).not.toBeNull();
-      expect(match!.path).toBe('/foo/123')
+      expect(match!.path).toBe("/foo/123");
       expect(match!.params).toEqual({
-        id: '123'
+        id: "123"
       });
     });
 
@@ -102,12 +102,12 @@ describe("createRoute should", () => {
         path: "foo/:id/*all"
       };
       const route = createRoute(routeDef);
-      const match = route.matcher('/foo/123/bar/solid');
+      const match = route.matcher("/foo/123/bar/solid");
       expect(match).not.toBeNull();
-      expect(match!.path).toBe('/foo/123')
+      expect(match!.path).toBe("/foo/123");
       expect(match!.params).toEqual({
-        id: '123',
-        all: 'bar/solid'
+        id: "123",
+        all: "bar/solid"
       });
     });
 
@@ -116,7 +116,7 @@ describe("createRoute should", () => {
         path: "foo/bar/baz"
       };
       const route = createRoute(routeDef);
-      const match = route.matcher('/fOo/BAR/bAZ');
+      const match = route.matcher("/fOo/BAR/bAZ");
       expect(match).not.toBeNull();
     });
 
@@ -125,10 +125,10 @@ describe("createRoute should", () => {
         path: "foo/:sUpEr/*aLL"
       };
       const route = createRoute(routeDef);
-      const { params } = route.matcher('/foo/123/bar/solid')!;
+      const { params } = route.matcher("/foo/123/bar/solid")!;
       expect(params).toEqual({
-        sUpEr: '123',
-        aLL: 'bar/solid'
+        sUpEr: "123",
+        aLL: "bar/solid"
       });
     });
 
@@ -137,10 +137,10 @@ describe("createRoute should", () => {
         path: "foo/:id/*all"
       };
       const route = createRoute(routeDef);
-      const { params } = route.matcher('/foo/someTHING/BaR/sOlId')!;
+      const { params } = route.matcher("/foo/someTHING/BaR/sOlId")!;
       expect(params).toEqual({
-        id: 'someTHING',
-        all: 'BaR/sOlId'
+        id: "someTHING",
+        all: "BaR/sOlId"
       });
     });
   });
@@ -166,16 +166,16 @@ describe("createBranch should", () => {
         createRoute({
           path: "foo",
           children: {
-            path: 'bar',
+            path: "bar",
             children: {
-              path: 'baz'
+              path: "baz"
             }
           }
         }),
         createRoute({
           path: "foo/bar",
           children: {
-            path: 'baz'
+            path: "baz"
           }
         }),
         createRoute({
@@ -186,7 +186,7 @@ describe("createBranch should", () => {
         createRoute({
           path: "foo",
           children: {
-            path: 'bar'
+            path: "bar"
           }
         }),
         createRoute({
@@ -201,7 +201,7 @@ describe("createBranch should", () => {
         createRoute({
           path: "foo",
           children: {
-            path: 'bar'
+            path: "bar"
           }
         }),
         createRoute({
@@ -212,7 +212,7 @@ describe("createBranch should", () => {
         createRoute({
           path: "foo",
           children: {
-            path: ':id'
+            path: ":id"
           }
         }),
         createRoute({
@@ -223,28 +223,34 @@ describe("createBranch should", () => {
     });
 
     test("prioritize order", () => {
-      const branch1 = createBranch([
-        createRoute({
-          path: "foo",
-          children: {
-            path: 'bar'
-          }
-        }),
-        createRoute({
-          path: "foo/bar"
-        })
-      ], 0);
-      const branch2 = createBranch([
-        createRoute({
-          path: "foo",
-          children: {
-            path: 'bar'
-          }
-        }),
-        createRoute({
-          path: "foo/bar"
-        })
-      ], 1);
+      const branch1 = createBranch(
+        [
+          createRoute({
+            path: "foo",
+            children: {
+              path: "bar"
+            }
+          }),
+          createRoute({
+            path: "foo/bar"
+          })
+        ],
+        0
+      );
+      const branch2 = createBranch(
+        [
+          createRoute({
+            path: "foo",
+            children: {
+              path: "bar"
+            }
+          }),
+          createRoute({
+            path: "foo/bar"
+          })
+        ],
+        1
+      );
       expect(branch1.score).toBeGreaterThan(branch2.score);
     });
 
@@ -253,7 +259,7 @@ describe("createBranch should", () => {
         createRoute({
           path: "foo",
           children: {
-            path: 'bar'
+            path: "bar"
           }
         }),
         createRoute({
@@ -264,7 +270,7 @@ describe("createBranch should", () => {
         createRoute({
           path: "foo",
           children: {
-            path: 'bar/*'
+            path: "bar/*"
           }
         }),
         createRoute({
@@ -280,14 +286,14 @@ describe("createBranch should", () => {
           createRoute({
             path: "foo/:id",
             children: {
-              path: 'bar/:name'
+              path: "bar/:name"
             }
           }),
           createRoute({
             path: "foo/:id/bar/:name"
           })
         ]);
-        const location = '/foo/123/bar/solid';
+        const location = "/foo/123/bar/solid";
         const match = branch.matcher(location);
         expect(match).not.toBeNull();
 
@@ -295,10 +301,10 @@ describe("createBranch should", () => {
           params,
           path
         }));
-        const expected = branch.routes.map((route) => ({
-          ...route.matcher(location),
+        const expected = branch.routes.map(route => ({
+          ...route.matcher(location)
         }));
-        expect(matches).toEqual(expected)
+        expect(matches).toEqual(expected);
       });
 
       test("short circuit if the final route doesn't match", () => {
@@ -306,15 +312,15 @@ describe("createBranch should", () => {
           createRoute({
             path: "foo/:id",
             children: {
-              path: 'bar/:name'
+              path: "bar/:name"
             }
           }),
           createRoute({
             path: "foo/:id/bar/:name"
           })
         ]);
-        const spy = jest.spyOn(branch.routes[0], 'matcher')
-        const location = '/foo/123/bar';
+        const spy = jest.spyOn(branch.routes[0], "matcher");
+        const location = "/foo/123/bar";
         const match = branch.matcher(location);
         expect(match).toBeNull();
         expect(spy).not.toHaveBeenCalled();
@@ -430,21 +436,24 @@ describe("createBranches should", () => {
       path: "root",
       children: [
         {
-          path: "/*",
+          path: "/*"
         },
         {
-          path: ":id",
+          path: ":id"
         },
         {
           path: "foo",
-          children: [{
-            path: 'bar'
-          }, {
-            path: 'bar/*'
-          }]
+          children: [
+            {
+              path: "bar"
+            },
+            {
+              path: "bar/*"
+            }
+          ]
         },
         {
-          path: "baz/qux",
+          path: "baz/qux"
         }
       ]
     });
@@ -457,7 +466,7 @@ describe("createBranches should", () => {
       "/root/baz/qux",
       "/root/foo/bar/*",
       "/root/:id",
-      "/root/*",
+      "/root/*"
     ]);
 
     expect(scores[0]).toBeGreaterThan(scores[1]);

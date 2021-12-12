@@ -166,7 +166,7 @@ describe("Router should", () => {
           signal[1]({ value: "/foo/bar?hello=foo" });
 
           waitFor(() => signal[0]().value === "/foo/bar?hello=foo").then(() => {
-            expect(location.search).toEqual('hello=foo');
+            expect(location.search).toEqual("hello=foo");
             expect(location.query.hello).toEqual("foo");
             expect(count()).toBe(1);
             resolve();
@@ -177,7 +177,7 @@ describe("Router should", () => {
 
   describe("have member `navigate` which should", () => {
     test(`update the location in the next microtask`, () => {
-      createAsyncRoot((resolve) => {
+      createAsyncRoot(resolve => {
         const signal = createSignal<LocationChange>({
           value: "/"
         });
@@ -189,12 +189,12 @@ describe("Router should", () => {
         setTimeout(() => {
           expect(location.pathname).toBe("/foo/1");
           resolve();
-        })
+        });
       });
     });
 
     test(`do nothing if the new path is the same`, () =>
-      createAsyncRoot((resolve) => {
+      createAsyncRoot(resolve => {
         const signal = createSignal<LocationChange>({
           value: "/foo/bar"
         });
@@ -228,39 +228,41 @@ describe("Router should", () => {
         });
       }));
 
-    test(`pass state to location`, () => createAsyncRoot(resolve => {
-      const state = { foo: 'bar' };
-      const signal = createSignal<LocationChange>({ value: "/" });
+    test(`pass state to location`, () =>
+      createAsyncRoot(resolve => {
+        const state = { foo: "bar" };
+        const signal = createSignal<LocationChange>({ value: "/" });
 
-      const { location, navigatorFactory } = createRouterContext(signal);
-      const navigate = navigatorFactory();
+        const { location, navigatorFactory } = createRouterContext(signal);
+        const navigate = navigatorFactory();
 
-      expect(location.state).toBeUndefined();
-      navigate("/foo", { state });
+        expect(location.state).toBeUndefined();
+        navigate("/foo", { state });
 
-      waitFor(() => signal[0]().value === "/foo").then(n => {
-        expect(n).toBe(1);
-        expect(location.state).toEqual(state);
-        resolve();
-      });
-    }));
+        waitFor(() => signal[0]().value === "/foo").then(n => {
+          expect(n).toBe(1);
+          expect(location.state).toEqual(state);
+          resolve();
+        });
+      }));
 
-    test(`allow state replacement without location change`, () => createAsyncRoot(resolve => {
-      const state = { foo: 'bar' };
-      const signal = createSignal<LocationChange>({ value: "/", });
+    test(`allow state replacement without location change`, () =>
+      createAsyncRoot(resolve => {
+        const state = { foo: "bar" };
+        const signal = createSignal<LocationChange>({ value: "/" });
 
-      const { location, navigatorFactory } = createRouterContext(signal);
-      const navigate = navigatorFactory();
+        const { location, navigatorFactory } = createRouterContext(signal);
+        const navigate = navigatorFactory();
 
-      expect(location.state).toBeUndefined();
-      navigate("/", { state });
+        expect(location.state).toBeUndefined();
+        navigate("/", { state });
 
-      waitFor(() => signal[0]().state === state).then(n => {
-        expect(n).toBe(1);
-        expect(location.state).toEqual(state);
-        resolve();
-      });
-    }));
+        waitFor(() => signal[0]().state === state).then(n => {
+          expect(n).toBe(1);
+          expect(location.state).toEqual(state);
+          resolve();
+        });
+      }));
 
     test(`be able to be called many times before it updates the integrationSignal`, () =>
       createAsyncRoot(resolve => {

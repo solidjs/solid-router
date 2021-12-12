@@ -297,12 +297,17 @@ export function createRouterContext(
         } else if (utils.go) {
           utils.go(to);
         } else {
-          console.warn("Router integration does not support relative routing")
+          console.warn("Router integration does not support relative routing");
         }
         return;
       }
 
-      const { replace, resolve, scroll, state: nextState } = {
+      const {
+        replace,
+        resolve,
+        scroll,
+        state: nextState
+      } = {
         replace: false,
         resolve: true,
         scroll: true,

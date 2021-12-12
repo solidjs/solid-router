@@ -250,7 +250,7 @@ export function NavLink(props: NavLinkProps) {
 
 export interface NavigateProps {
   href: ((args: { navigate: Navigator; location: Location }) => string) | string;
-  state?: unknown
+  state?: unknown;
 }
 
 export function Navigate(props: NavigateProps) {
