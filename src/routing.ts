@@ -234,7 +234,7 @@ export function createLocation(path: Accessor<string>, state: Accessor<any>): Lo
     get key() {
       return key();
     },
-    query: createMemoObject(on(search, () => extractSearchParams(url())))
+    query: createMemoObject(on(search, () => extractSearchParams(url())) as () => Params)
   };
 }
 
@@ -332,20 +332,17 @@ export function createRouterContext(
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
         } else {
           const len = referrers.push({ value: current, replace, scroll, state });
-          start(
-            () => {
-              setReference(resolvedTo);
-              setState(nextState);
-            },
-            () => {
-              if (referrers.length === len) {
-                navigateEnd({
-                  value: resolvedTo,
-                  state: nextState
-                });
-              }
+          start(() => {
+            setReference(resolvedTo);
+            setState(nextState);
+          }).then(() => {
+            if (referrers.length === len) {
+              navigateEnd({
+                value: resolvedTo,
+                state: nextState
+              });
             }
-          );
+          });
         }
       }
     });

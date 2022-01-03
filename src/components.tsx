@@ -87,8 +87,8 @@ export const Routes = (props: RoutesProps) => {
   const disposers: (() => void)[] = [];
   let root: RouteContext | undefined;
 
-  const routeStates = createMemo<RouteContext[]>(
-    on(matches, (nextMatches, prevMatches, prev) => {
+  const routeStates = createMemo(
+    on(matches, (nextMatches, prevMatches, prev: RouteContext[] | undefined) => {
       let equal = prevMatches && nextMatches.length === prevMatches.length;
       const next: RouteContext[] = [];
       for (let i = 0, len = nextMatches.length; i < len; i++) {
