@@ -96,33 +96,31 @@ export function scoreRoute(route: Route): number {
   );
 }
 
-export function createMemoObject<T extends object>(fn: () => T): T {
+export function createMemoObject<T extends Record<string | symbol, unknown>>(fn: () => T): T {
   const map = new Map();
   const owner = getOwner()!;
-  return new Proxy(
-    {},
-    {
-      get(_, property) {
-        const memo =
-          map.get(property) ||
-          runWithOwner(owner, () => {
-            const p = createMemo(() => (fn() as any)[property]);
-            map.set(property, p);
-            return p;
-          });
-        return memo();
-      },
-      getOwnPropertyDescriptor() {
-        return {
-          enumerable: true,
-          configurable: true
-        };
-      },
-      ownKeys() {
-        return Reflect.ownKeys(fn());
+  return new Proxy(<T>{}, {
+    get(_, property) {
+      if (!map.has(property)) {
+        runWithOwner(owner, () =>
+          map.set(
+            property,
+            createMemo(() => fn()[property])
+          )
+        );
       }
+      return map.get(property)();
+    },
+    getOwnPropertyDescriptor() {
+      return {
+        enumerable: true,
+        configurable: true
+      };
+    },
+    ownKeys() {
+      return Reflect.ownKeys(fn());
     }
-  ) as T;
+  });
 }
 
 export function mergeSearchString(search: string, params: SetParams) {
