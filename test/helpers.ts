@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createRoot } from "solid-js";
 
 export function createCounter(fn: () => void, start: number = -1) {
-  return createMemo(n => {
+  return createMemo((n: number) => {
     fn();
     return n + 1;
   }, start);

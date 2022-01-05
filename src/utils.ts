@@ -96,21 +96,24 @@ export function scoreRoute(route: Route): number {
   );
 }
 
-export function createMemoObject<T extends object>(fn: () => T): T {
+export function createMemoObject<T extends Record<string | number | symbol, unknown>>(
+  fn: () => T
+): T {
   const map = new Map();
   const owner = getOwner()!;
   return new Proxy(
     {},
     {
       get(_, property) {
-        const memo =
-          map.get(property) ||
-          runWithOwner(owner, () => {
-            const p = createMemo(() => (fn() as any)[property]);
-            map.set(property, p);
-            return p;
-          });
-        return memo();
+        if (!map.has(property)) {
+          runWithOwner(owner, () =>
+            map.set(
+              property,
+              createMemo(() => fn()[property])
+            )
+          );
+        }
+        return map.get(property)();
       },
       getOwnPropertyDescriptor() {
         return {
