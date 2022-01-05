@@ -96,7 +96,7 @@ export function scoreRoute(route: Route): number {
   );
 }
 
-export function createMemoObject<T extends Record<string | number | symbol, unknown>>(
+export function createMemoObject<T extends Record<string | symbol, unknown>>(
   fn: () => T
 ): T {
   const map = new Map();
