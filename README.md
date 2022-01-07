@@ -223,7 +223,7 @@ return <div classList={{ "grey-out": isRouting() }}>
 
 ### useData
 
-Retrieves the return value from the data function. You can access parent data by passing a number to indicate ancestor. No argument is the route's own data, `1` is the immediate parent, `2` is the parent's parent, and so on.
+Retrieves the return value from the data function. You can access parent data by passing a number to indicate ancestor. No argument (or `0`) is the route's own data, `1` is the immediate parent, `2` is the parent's parent, and so on. Alternatively, `-1` is the top-level route's data, `-2` is the immediate child, etc.
 
 ```js
 const user = useData();

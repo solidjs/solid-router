@@ -95,8 +95,23 @@ export const useSearchParams = <T extends Params>(): [
 
 export const useData = <T>(delta: number = 0) => {
   let current = useRoute();
-  let n = delta;
-  while (n-- > 0) {
+  let n: number;
+  if (delta >= 0) {
+    // Nonnegative numbers count number of levels up from route
+    n = delta;
+  } else if (delta < 0) {
+    // Negative numbers count backwards, down from root route
+    let count = 1, ancestor = current;
+    while (ancestor.parent) {
+      ancestor = ancestor.parent;
+      count++;
+    }
+    n = count + delta;
+    if (n < 0) {
+      throw new RangeError(`Route descendant ${delta} is out of bounds`);
+    }
+  }
+  while (n!-- > 0) {
     if (!current.parent) {
       throw new RangeError(`Route ancestor ${delta} is out of bounds`);
     }
