@@ -167,18 +167,20 @@ export function createBranches(
 
   for (let i = 0, len = routeDefs.length; i < len; i++) {
     const def = routeDefs[i];
-    const route = createRoute(def, base, fallback);
+    if (def && typeof def === 'object' && def.hasOwnProperty('path')) {
+      const route = createRoute(def, base, fallback);
 
-    stack.push(route);
+      stack.push(route);
 
-    if (def.children) {
-      createBranches(def.children, route.pattern, fallback, stack, branches);
-    } else {
-      const branch = createBranch([...stack], branches.length);
-      branches.push(branch);
+      if (def.children) {
+        createBranches(def.children, route.pattern, fallback, stack, branches);
+      } else {
+        const branch = createBranch([...stack], branches.length);
+        branches.push(branch);
+      }
+
+      stack.pop();
     }
-
-    stack.pop();
   }
 
   // Stack will be empty on final return
