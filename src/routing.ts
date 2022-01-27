@@ -80,6 +80,8 @@ export const useMatch = (path: () => string) => {
 
 export const useParams = <T extends Params>() => useRoute().params as T;
 
+export const useRouteData = <T>() => useRoute().data as T;
+
 export const useSearchParams = <T extends Params>(): [
   T,
   (params: SetParams, options?: Partial<NavigateOptions>) => void
@@ -91,18 +93,6 @@ export const useSearchParams = <T extends Params>(): [
     navigate(searchString ? `?${searchString}` : "", { scroll: false, ...options, resolve: true });
   };
   return [location.query as T, setSearchParams];
-};
-
-export const useData = <T>(delta: number = 0) => {
-  let current = useRoute();
-  let n = delta;
-  while (n-- > 0) {
-    if (!current.parent) {
-      throw new RangeError(`Route ancestor ${delta} is out of bounds`);
-    }
-    current = current.parent;
-  }
-  return current.data as T;
 };
 
 export function createRoute(
@@ -282,9 +272,12 @@ export function createRouterContext(
     }
   };
 
-  if (data) {
-    baseRoute.data = data({ params: {}, location, navigate: navigatorFactory(baseRoute) });
-  }
+  baseRoute.data = data && data({
+    data: undefined,
+    params: {},
+    location,
+    navigate: navigatorFactory(baseRoute)
+  });
 
   function navigateFromRoute(
     route: RouteContext,
@@ -418,9 +411,9 @@ export function createRouteContext(
     }
   };
 
-  if (data) {
-    route.data = data({ params, location, navigate: navigatorFactory(route) });
-  }
+  route.data = data
+    ? data({ data: parent.data, params, location, navigate: navigatorFactory(route) })
+    : parent.data;
 
   return route;
 }
