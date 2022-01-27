@@ -45,6 +45,7 @@ export interface RouterIntegration {
 }
 
 export interface RouteDataFuncArgs {
+  data: unknown;
   params: Params;
   location: Location;
   navigate: Navigator;

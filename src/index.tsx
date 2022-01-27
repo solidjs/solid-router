@@ -1,7 +1,7 @@
 export * from "./components";
 export * from "./integration";
 export {
-  useData,
+  useRouteData,
   useHref,
   useIsRouting,
   useLocation,
