@@ -156,8 +156,9 @@ describe("joinPaths should", () => {
   });
 
   test.each([
-    ["foo/*", "", "/foo/*"],
-    ["/foo/*all", "", "/foo/*all"],
+    ["foo/*", "", "/foo"],
+    ["foo/*", "/", "/foo"],
+    ["/foo/*all", "", "/foo"],
     ["/foo/*", "bar", "/foo/bar"],
     ["/foo/*all", "bar", "/foo/bar"],
     ["/*", "foo", "/foo"],

@@ -34,12 +34,7 @@ export function invariant<T>(value: T | null | undefined, message: string): T {
 }
 
 export function joinPaths(from: string, to: string): string {
-  const t = normalize(to);
-  if (t) {
-    const f = from.replace(/^\/+|\/*(\*.*)?$/g, "");
-    return f ? `/${f}${t}` : t;
-  }
-  return normalize(from);
+  return normalize(from).replace(/\/*(\*.*)?$/g, "") + normalize(to);
 }
 
 export function extractSearchParams(url: URL): Params {
