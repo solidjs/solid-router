@@ -29,6 +29,20 @@ import type {
 } from "./types";
 import { joinPaths } from "./utils";
 
+// declare module "solid-js" {
+//   namespace JSX {
+//     interface AnchorExtended extends AnchorHTMLAttributes<HTMLAnchorElement> {
+//       state?: string;
+//       noscroll?: boolean;
+//       replace?: boolean;
+//     }
+
+//     interface IntrinsicElements {
+//       a: AnchorExtended
+//     }
+//   }
+// }
+
 export type RouterProps = {
   base?: string;
   data?: RouteDataFunc;
@@ -163,6 +177,10 @@ export const Outlet = () => {
   );
 };
 
+function serialize(obj: unknown): string | undefined {
+  return obj !== undefined ? JSON.stringify(obj) : undefined;
+}
+
 interface LinkBaseProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
   to: string | undefined;
   replace?: boolean;
@@ -172,35 +190,21 @@ interface LinkBaseProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
 
 function LinkBase(props: LinkBaseProps) {
   const [, rest] = splitProps(props, ["children", "to", "href", "state", "onClick"]);
-  const navigate = useNavigate();
   const href = useHref(() => props.to);
 
-  const handleClick: JSX.EventHandler<HTMLAnchorElement, MouseEvent> = evt => {
-    const { onClick, to, target } = props;
-    if (typeof onClick === "function") {
-      onClick(evt);
-    } else if (onClick) {
-      onClick[0](onClick[1], evt);
-    }
-    if (
-      to !== undefined &&
-      !evt.defaultPrevented &&
-      evt.button === 0 &&
-      (!target || target === "_self") &&
-      !(evt.metaKey || evt.altKey || evt.ctrlKey || evt.shiftKey)
-    ) {
-      evt.preventDefault();
-      navigate(to, {
-        resolve: false,
-        replace: props.replace || false,
-        scroll: !props.noScroll,
-        state: props.state
-      });
-    }
-  };
-
   return (
-    <a {...rest} href={href() || props.href} onClick={handleClick}>
+    <a
+      {...rest}
+      href={href() || props.href}
+      {...{
+        state: serialize(props.state),
+        noscroll: props.noScroll,
+        replace: props.replace
+      }}
+      // state={serialize(props.state)}
+      // noscroll={props.noScroll}
+      // replace={props.replace}
+    >
       {props.children}
     </a>
   );
