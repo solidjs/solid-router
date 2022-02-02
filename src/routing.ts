@@ -6,6 +6,7 @@ import {
   createRenderEffect,
   createSignal,
   on,
+  onCleanup,
   untrack,
   useContext,
   useTransition
@@ -373,6 +374,58 @@ export function createRouterContext(
       });
     }
   });
+
+  if (!isServer) {
+    function handleAnchorClick(evt: MouseEvent) {
+      if (
+        evt.defaultPrevented ||
+        evt.button !== 0 ||
+        evt.metaKey ||
+        evt.altKey ||
+        evt.ctrlKey ||
+        evt.shiftKey
+      )
+        return;
+
+      const a = evt
+        .composedPath()
+        .find(el => el instanceof Node && el.nodeName.toUpperCase() === "A") as
+        | HTMLAnchorElement
+        | SVGAElement
+        | undefined;
+
+      if (!a) return;
+
+      const isSvg = a instanceof SVGAElement;
+      const href = isSvg ? a.href.baseVal : a.href;
+      const target = isSvg ? a.target.baseVal : a.target;
+      if (!href || target) return;
+
+      const rel = (a.getAttribute("rel") || "").split(/\s+/);
+      if (a.hasAttribute("download") || (rel && rel.includes("external"))) return;
+
+      const url = isSvg ? new URL(href, document.baseURI) : new URL(href);
+      if (
+        url.origin !== window.location.origin ||
+        (basePath && url.pathname && !url.pathname.toLowerCase().startsWith(basePath.toLowerCase()))
+      )
+        return;
+
+      const to = url.pathname + url.search + url.hash;
+      const state = a.getAttribute("state");
+
+      evt.preventDefault();
+      navigateFromRoute(baseRoute, to, {
+        resolve: false,
+        replace: a.hasAttribute("replace"),
+        scroll: !a.hasAttribute("noscroll"),
+        state: state && JSON.parse(state)
+      });
+    }
+
+    document.addEventListener("click", handleAnchorClick);
+    onCleanup(() => document.removeEventListener("click", handleAnchorClick));
+  }
 
   return {
     base: baseRoute,
