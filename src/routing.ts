@@ -399,7 +399,7 @@ export function createRouterContext(
       const isSvg = a instanceof SVGAElement;
       const href = isSvg ? a.href.baseVal : a.href;
       const target = isSvg ? a.target.baseVal : a.target;
-      if (!href || target) return;
+      if (target || (!href && !a.hasAttribute('state'))) return;
 
       const rel = (a.getAttribute("rel") || "").split(/\s+/);
       if (a.hasAttribute("download") || (rel && rel.includes("external"))) return;

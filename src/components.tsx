@@ -29,19 +29,15 @@ import type {
 } from "./types";
 import { joinPaths } from "./utils";
 
-// declare module "solid-js" {
-//   namespace JSX {
-//     interface AnchorExtended extends AnchorHTMLAttributes<HTMLAnchorElement> {
-//       state?: string;
-//       noscroll?: boolean;
-//       replace?: boolean;
-//     }
-
-//     interface IntrinsicElements {
-//       a: AnchorExtended
-//     }
-//   }
-// }
+declare module "solid-js" {
+  namespace JSX {
+    interface AnchorHTMLAttributes<T> {
+      state?: string;
+      noScroll?: boolean;
+      replace?: boolean;
+    }
+  }
+}
 
 export type RouterProps = {
   base?: string;
@@ -177,40 +173,23 @@ export const Outlet = () => {
   );
 };
 
-function serialize(obj: unknown): string | undefined {
-  return obj !== undefined ? JSON.stringify(obj) : undefined;
-}
-
-interface LinkBaseProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
+interface LinkBaseProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, "state"> {
   to: string | undefined;
-  replace?: boolean;
-  noScroll?: boolean;
   state?: unknown;
 }
 
 function LinkBase(props: LinkBaseProps) {
-  const [, rest] = splitProps(props, ["children", "to", "href", "state", "onClick"]);
+  const [, rest] = splitProps(props, ["children", "to", "href", "state"]);
   const href = useHref(() => props.to);
 
   return (
-    <a
-      {...rest}
-      href={href() || props.href}
-      {...{
-        state: serialize(props.state),
-        noscroll: props.noScroll,
-        replace: props.replace
-      }}
-      // state={serialize(props.state)}
-      // noscroll={props.noScroll}
-      // replace={props.replace}
-    >
+    <a {...rest} href={href() || props.href} state={JSON.stringify(props.state)}>
       {props.children}
     </a>
   );
 }
 
-export interface LinkProps extends JSX.AnchorHTMLAttributes<HTMLAnchorElement> {
+export interface LinkProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, "state"> {
   href: string;
   replace?: boolean;
   noScroll?: boolean;
