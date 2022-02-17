@@ -9,7 +9,8 @@ import {
   onCleanup,
   untrack,
   useContext,
-  useTransition
+  useTransition,
+  resetErrorBoundaries
 } from "solid-js";
 import { isServer } from "solid-js/web";
 import { normalizeIntegration } from "./integration";
@@ -331,6 +332,7 @@ export function createRouterContext(
           start(() => {
             setReference(resolvedTo);
             setState(nextState);
+            resetErrorBoundaries()
           }).then(() => {
             if (referrers.length === len) {
               navigateEnd({
