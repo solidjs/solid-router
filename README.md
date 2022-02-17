@@ -157,6 +157,14 @@ These Components all use `href` to define the path.
 </>
 ```
 
+There are a few special properties that can be applied to links to add additional behavior.
+
+`noScroll` - This prevents default behavior of scrolling to top navigation.
+`replace` - This will replace history instead of pushing it.
+`state` - This will add the state to the browser history. It must be serializable.
+
+If you have a same domain link that you want the router not to handle use `rel="external"`
+
 ## Router Primitives
 
 Solid App Router provides a number of primitives that read off the Router and Route context.
