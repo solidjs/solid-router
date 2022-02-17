@@ -1,5 +1,7 @@
 # Solid App Router
 
+> 0.3.x only works with Solid v1.3.5 or later.
+
 Solid App Router is a universal router for SolidJS that combines paradigms of React Router and Ember Router. Routes can be defined both in the JSX and as a JSON object for file-system based routing and supports Nested Routing.
 
 It supports all Solid's SSR methods and has Solid's Transitions baked in, so use freely with Suspense, Resources, and Lazy components. Solid App Router also allows you to define a Data function that loads in parallel of the Routes to allow automatic fetch-as-you-render that removes client side request waterfalls.
@@ -147,7 +149,9 @@ These Components all use `href` to define the path.
 
 ```jsx
 <>
-  <NavLink href="/" end>Home</NavLink>
+  <NavLink href="/" end>
+    Home
+  </NavLink>
   <NavLink href="/about">About</NavLink>
   <NavLink href="/other">Other</NavLink>
 </>
@@ -171,10 +175,11 @@ const [user] = createResource(() => params.id, fetchUser);
 ### useNavigate
 
 Retrieves method to do navigation. The method accepts a path to navigate to and an optional object with the following options:
-- resolve (*boolean*, default `true`): resolve the path against the current route
-- replace (*boolean*, default `false`): replace the history entry
-- scroll (*boolean*, default `true`): scroll to top after navigation
-- state (*any*, default `undefined`): pass custom state to `location.state`
+
+- resolve (_boolean_, default `true`): resolve the path against the current route
+- replace (_boolean_, default `false`): replace the history entry
+- scroll (_boolean_, default `true`): scroll to top after navigation
+- state (_any_, default `undefined`): pass custom state to `location.state`
 
 ```js
 const navigate = useNavigate();
@@ -203,10 +208,12 @@ The setter method accepts an object whos entries will be merged into the current
 ```js
 const [searchParams, setSearchParams] = useSearchParams();
 
-return <div>
-  <span>Page: {searchParams.page}</span>
-  <button onClick={() => setSearchParams({ page: searchParams.page + 1})}>Next Page</button>
-</div>
+return (
+  <div>
+    <span>Page: {searchParams.page}</span>
+    <button onClick={() => setSearchParams({ page: searchParams.page + 1 })}>Next Page</button>
+  </div>
+);
 ```
 
 ### useIsRouting
@@ -216,17 +223,21 @@ Retrieves signal that indicates whether the route is currently in a Transition. 
 ```js
 const isRouting = useIsRouting();
 
-return <div classList={{ "grey-out": isRouting() }}>
-  <MyAwesomeConent />
-</div>
+return (
+  <div classList={{ "grey-out": isRouting() }}>
+    <MyAwesomeConent />
+  </div>
+);
 ```
 
-### useData
+### useRouteData
 
-Retrieves the return value from the data function. You can access parent data by passing a number to indicate ancestor. No argument is the route's own data, `1` is the immediate parent, `2` is the parent's parent, and so on.
+Retrieves the return value from the data function.
+
+> In previous versions you could use numbers to access parent data. This is no longer supported. Instead the data functions themselves receive the parent data that you can expose through the specific nested routes data.
 
 ```js
-const user = useData();
+const user = useRouteData();
 
 return <h1>{user().name}</h1>;
 ```
@@ -238,7 +249,7 @@ return <h1>{user().name}</h1>;
 ```js
 const match = useMatch(() => props.href);
 
-return <div classList={{active: Boolean(match())}} />
+return <div classList={{ active: Boolean(match()) }} />;
 ```
 
 ### useRoutes
@@ -252,10 +263,10 @@ You can define long paths on your routes and they are handle independently. But 
 However, while `<Routes>` serve as the entry point for the navigation, for nested routes you need to indicate where the nested route should be inserted. You use the `<Outlet>` component to do that.
 
 ```jsx
-import { Outlet, useData } from "solid-app-router";
+import { Outlet, useRouteData } from "solid-app-router";
 
 function User() {
-  const user = useData();
+  const user = useRouteData();
   return (
     <>
       <h1>{user()?.name}</h1>
@@ -278,16 +289,18 @@ import UserData from "./pages/users/[id].data.js";
 const User = lazy(() => import("/pages/users/[id].js"));
 
 // In the Route definition
-<Route path="/users/:id" element={<User />} data={UserData} />
+<Route path="/users/:id" element={<User />} data={UserData} />;
 ```
 
 ```js
 // pages/users/[id].data.js
 import { createResource } from "solid-js";
 
-function fetchUser(userId) { /* fetching logic */ }
+function fetchUser(userId) {
+  /* fetching logic */
+}
 
-export default function UserData({ params, location, navigate }) {
+export default function UserData({ params, location, navigate, data }) {
   const [user] = createResource(() => params.id, fetchUser);
 
   return user;

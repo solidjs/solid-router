@@ -202,12 +202,13 @@ export function Link(props: LinkProps) {
 }
 
 export interface NavLinkProps extends LinkProps {
+  inactiveClass?: string;
   activeClass?: string;
   end?: boolean;
 }
 
 export function NavLink(props: NavLinkProps) {
-  props = mergeProps({ activeClass: "active" }, props);
+  props = mergeProps({ inactiveClass: "inactive", activeClass: "active" }, props);
   const [, rest] = splitProps(props, ["activeClass", "end"]);
   const location = useLocation();
   const to = useResolvedPath(() => props.href);
@@ -225,7 +226,7 @@ export function NavLink(props: NavLinkProps) {
     <LinkBase
       {...rest}
       to={to()}
-      classList={{ [props.activeClass!]: isActive() }}
+      classList={{ [props.inactiveClass!]: !isActive(), [props.activeClass!]: isActive() }}
       aria-current={isActive() ? "page" : undefined}
     />
   );
