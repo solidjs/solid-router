@@ -1,6 +1,7 @@
 # Solid App Router
 
 > 0.3.x only works with Solid v1.3.5 or later.
+> `useData` has been renamed to `useRouteData` and no longer takes arguments. Refer to documentation below.
 
 Solid App Router is a universal router for SolidJS that combines paradigms of React Router and Ember Router. Routes can be defined both in the JSX and as a JSON object for file-system based routing and supports Nested Routing.
 
