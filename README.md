@@ -190,6 +190,8 @@ Retrieves method to do navigation. The method accepts a path to navigate to and 
 - scroll (_boolean_, default `true`): scroll to top after navigation
 - state (_any_, default `undefined`): pass custom state to `location.state`
 
+__Note:__ The state is serialized using the [structured clone algorithm](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Structured_clone_algorithm) which does not support all object types.
+
 ```js
 const navigate = useNavigate();
 
