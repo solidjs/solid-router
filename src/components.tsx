@@ -209,7 +209,7 @@ export interface NavLinkProps extends LinkProps {
 
 export function NavLink(props: NavLinkProps) {
   props = mergeProps({ inactiveClass: "inactive", activeClass: "active" }, props);
-  const [, rest] = splitProps(props, ["activeClass", "end"]);
+  const [, rest] = splitProps(props, ["activeClass", "inactiveClass", "end"]);
   const location = useLocation();
   const to = useResolvedPath(() => props.href);
   const isActive = createMemo(() => {
