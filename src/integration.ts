@@ -102,7 +102,8 @@ export function hashIntegration() {
     notify => bindEvent(window, "hashchange", () => notify()),
     {
       go: delta => window.history.go(delta),
-      renderPath: path => `#${path}`
+      renderPath: path => `#${path}`,
+      parsePath: str => str.replace(/^\/#/, "")
     }
   );
 }

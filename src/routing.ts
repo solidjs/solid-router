@@ -243,6 +243,9 @@ export function createRouterContext(
     utils = {}
   } = normalizeIntegration(integration);
 
+  const parsePath = utils.parsePath || (p => p);
+  const renderPath = utils.renderPath || (p => p);
+
   const basePath = resolvePath("", base);
   const output =
     isServer && out
@@ -413,7 +416,7 @@ export function createRouterContext(
       )
         return;
 
-      const to = url.pathname + url.search + url.hash;
+      const to = parsePath(url.pathname + url.search + url.hash);
       const state = a.getAttribute("state");
 
       evt.preventDefault();
@@ -434,7 +437,8 @@ export function createRouterContext(
     out: output,
     location,
     isRouting,
-    renderPath: utils.renderPath || ((path: string) => path),
+    renderPath,
+    parsePath,
     navigatorFactory
   };
 }

@@ -113,6 +113,7 @@ export interface RouteContext {
 
 export interface RouterUtils {
   renderPath(path: string): string;
+  parsePath(str: string): string;
   go(delta: number): void;
 }
 
@@ -135,4 +136,5 @@ export interface RouterContext {
   navigatorFactory: NavigatorFactory;
   isRouting: () => boolean;
   renderPath(path: string): string;
+  parsePath(str: string): string;
 }
