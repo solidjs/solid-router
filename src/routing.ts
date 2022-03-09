@@ -159,7 +159,7 @@ export function createBranches(
 
   for (let i = 0, len = routeDefs.length; i < len; i++) {
     const def = routeDefs[i];
-    if (def && typeof def === 'object' && def.hasOwnProperty('path')) {
+    if (def && typeof def === "object" && def.hasOwnProperty("path")) {
       const route = createRoute(def, base, fallback);
 
       stack.push(route);
@@ -277,12 +277,14 @@ export function createRouterContext(
     }
   };
 
-  baseRoute.data = data && data({
-    data: undefined,
-    params: {},
-    location,
-    navigate: navigatorFactory(baseRoute)
-  });
+  baseRoute.data =
+    data &&
+    data({
+      data: undefined,
+      params: {},
+      location,
+      navigate: navigatorFactory(baseRoute)
+    });
 
   function navigateFromRoute(
     route: RouteContext,
@@ -335,7 +337,7 @@ export function createRouterContext(
           start(() => {
             setReference(resolvedTo);
             setState(nextState);
-            resetErrorBoundaries()
+            resetErrorBoundaries();
           }).then(() => {
             if (referrers.length === len) {
               navigateEnd({
@@ -404,7 +406,7 @@ export function createRouterContext(
       const isSvg = a instanceof SVGAElement;
       const href = isSvg ? a.href.baseVal : a.href;
       const target = isSvg ? a.target.baseVal : a.target;
-      if (target || (!href && !a.hasAttribute('state'))) return;
+      if (target || (!href && !a.hasAttribute("state"))) return;
 
       const rel = (a.getAttribute("rel") || "").split(/\s+/);
       if (a.hasAttribute("download") || (rel && rel.includes("external"))) return;
