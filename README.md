@@ -207,7 +207,7 @@ Retrieves reactive `location` object useful for getting things like `pathname`
 ```js
 const location = useLocation();
 
-const createMemo(() => parsePath(location.pathname));
+const pathname = createMemo(() => parsePath(location.pathname));
 ```
 
 ### useSearchParams
