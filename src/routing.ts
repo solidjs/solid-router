@@ -55,7 +55,8 @@ export const RouteContextObj = createContext<RouteContext>();
 export const useRouter = () =>
   invariant(useContext(RouterContextObj), "Make sure your app is wrapped in a <Router />");
 
-export const useRoute = () => useContext(RouteContextObj) || useRouter().base;
+let TempRoute: RouteContext | undefined;
+export const useRoute = () => TempRoute || useContext(RouteContextObj) || useRouter().base;
 
 export const useResolvedPath = (path: () => string) => {
   const route = useRoute();
@@ -277,14 +278,19 @@ export function createRouterContext(
     }
   };
 
-  baseRoute.data =
-    data &&
-    data({
-      data: undefined,
-      params: {},
-      location,
-      navigate: navigatorFactory(baseRoute)
-    });
+  if (data) {
+    try {
+      TempRoute = baseRoute;
+      baseRoute.data = data({
+        data: undefined,
+        params: {},
+        location,
+        navigate: navigatorFactory(baseRoute)
+      });
+    } finally {
+      TempRoute = undefined;
+    }
+  }
 
   function navigateFromRoute(
     route: RouteContext,
@@ -466,15 +472,21 @@ export function createRouteContext(
     },
     path,
     params,
+    data: parent.data,
     outlet,
     resolvePath(to: string) {
       return resolvePath(base.path(), to, path());
     }
   };
 
-  route.data = data
-    ? data({ data: parent.data, params, location, navigate: navigatorFactory(route) })
-    : parent.data;
+  if (data) {
+    try {
+      TempRoute = route;
+      route.data = data({ data: parent.data, params, location, navigate: navigatorFactory(route) });
+    } finally {
+      TempRoute = undefined;
+    }
+  }
 
   return route;
 }
