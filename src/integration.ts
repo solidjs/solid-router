@@ -103,7 +103,7 @@ export function hashIntegration() {
     {
       go: delta => window.history.go(delta),
       renderPath: path => `#${path}`,
-      parsePath: str => str.replace(/^\/#/, "")
+      parsePath: str => str.replace(/^.*#/, "")
     }
   );
 }
