@@ -339,7 +339,7 @@ export function createRouterContext(
           }
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
         } else {
-          const len = referrers.push({ value: current, replace, scroll, state });
+          const len = referrers.push({ value: current, replace, scroll, state: state() });
           start(() => {
             setReference(resolvedTo);
             setState(nextState);
