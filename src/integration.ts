@@ -14,8 +14,17 @@ function intercept<T>(
   return [get ? () => get(value()) : value, set ? (v: T) => setValue(set(v)) : setValue];
 }
 
+function querySelector<T extends Element>(selector: string) {
+  // Guard against selector being an invalid CSS selector
+  try {
+    return document.querySelector<T>(selector);
+  } catch (e) {
+    return null;
+  }
+}
+
 function scrollToHash(hash: string, fallbackTop?: boolean) {
-  const el = document.getElementById(hash);
+  const el = querySelector(`a#${hash}`);
   if (el) {
     el.scrollIntoView();
   } else if (fallbackTop) {
