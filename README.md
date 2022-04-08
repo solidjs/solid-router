@@ -9,6 +9,24 @@ Solid App Router is a universal router for SolidJS - it works whether you're ren
 
 It supports all of Solid's SSR methods and has Solid's transitions baked in, so use it freely with suspense, resources, and lazy components. Solid App Router also allows you to define a data function that loads parallel to the routes ([render-as-you-fetch](https://epicreact.dev/render-as-you-fetch/)).
 
+- [Getting Started](#getting-started)
+  - [Set Up the Router](#set-up-the-router)
+  - [Configure Your Routes](#configure-your-routes)
+- [Create Links to Your Routes](#create-links-to-your-routes)
+- [Dynamic Routes](#dynamic-routes)
+- [Data Functions](#data-functions)
+- [Nested Routes](#nested-routes) 
+- [Config Based Routing](#config-based-routing)
+- [Router Primitives](#router-primitives)
+  - [useParams](#useparams)
+  - [useNavigate](#usenavigate)
+  - [useLocation](#uselocation)
+  - [useSearchParams](#usesearchparams)
+  - [useIsRouting](#useisrouting)
+  - [useRouteData](#useroutedata)
+  - [useMatch](#usematch)
+  - [useRoutes](#useroutes)
+
 ## Getting Started
 
 ### Set Up the Router
@@ -36,7 +54,7 @@ render(
 
 This sets up a context so that we can display the routes anywhere in the app.
 
-### Configure your Routes
+### Configure Your Routes
 
 `solid-app-router` allows you to configure your routes using JSX:
 
