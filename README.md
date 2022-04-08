@@ -134,6 +134,24 @@ Both of these components have the same props:
 | noScroll | boolean | If true, turn off the default behavior of scrolling to the top of the new page                                                                                                           |
 | replace  | boolean | If true, don't add a new entry to the browser history. (By default, the new page will be added to the browser history, so pressing the back button will take you to the previous route.) |
 | state    | unknown | [Push this value](https://developer.mozilla.org/en-US/docs/Web/API/History/pushState) to the history stack when navigating                                                                                                                                                     |
+
+If you have a same-domain path that you want to link to _without_ going through the router, set `rel="external"` on the link component.
+### The Navigate Component
+`solid-app-router` provides a `Navigate` component that works similarly to `Link` and `NavLink`, but it will _immediately_ navigate to the provided path as soon as the component is rendered. It also uses the `href` prop, but you have the additional option of passing a function to `href` that returns a path to navigate to:
+
+```jsx
+function getPath ({navigate, location}) {
+  //navigate is the result of calling useNavigate(); location is the result of calling useLocation(). 
+  //You can use those to dynamically determine a path to navigate to
+  return "/some-path";
+}
+
+//Navigating to /redirect will redirect you to the result of getPath
+<Route path="/redirect">
+  <Navigate href={getPath}/>
+</Route>
+```
+
 ## Dynamic Routes
 
 If you don't know the path ahead of time, you might want to treat part of the path as a flexible parameter that is passed on to the component. 
@@ -188,13 +206,13 @@ export default function User () {
 If you want to expose the wild part of the path to the component as a parameter, you can name it:
 
 ```jsx
-<Route path='foo/*any' element={<div>{useParams().any</div>}/>
+<Route path='foo/*any' element={<div>{useParams().any}</div>}/>
 ```
 
 Note that the wildcard token must be the last part of the path; `foo/*any/bar` won't create any routes.
 
 ## Data Functions
-In the above example, the User component is lazy-loaded and then the data is fetched. With route data functions, we can instead start fetching the data parallel to loading the route, so we can use the data as soon as possible.
+In the [above example](#dynamic-routes), the User component is lazy-loaded and then the data is fetched. With route data functions, we can instead start fetching the data parallel to loading the route, so we can use the data as soon as possible.
 
 To do this, create a function that fetches and returns the data using `createResource`. Then pass that function to the `data` prop of the `Route` component. 
 
@@ -313,58 +331,9 @@ You can nest indefinitely - just remember that only leaf nodes will become their
 
 If you declare a `data` function on a parent and a child, the result of the parent's data function will be passed to the child's data function as the `data` property of the argument, as described in the last section. This works even if it isn't a direct child, because by default every route forwards its parent's data. 
 
-## JSX Based
+## Config Based Routing
 
-```jsx
-import { lazy } from "solid-js";
-import { render } from "solid-js/web";
-import { Router, Routes, Route, Link } from "solid-app-router";
-
-const Users = lazy(() => import("/pages/users.js"));
-const User = lazy(() => import("/pages/users/[id].js"));
-const UserHome = lazy(() => import("/pages/users/[id]/index.js"));
-const UserSettings = lazy(() => import("/pages/users/[id]/settings.js"));
-const UserNotFound = lazy(() => import("/pages/users/[id]/[...all].js"));
-const Home = lazy(() => import("/pages/index.js"));
-const NotFound = lazy(() => import("/pages/[...all].js"));
-
-function App() {
-  return (
-    <>
-      <h1>Awesome Site</h1>
-      <Link class="nav" href="/">
-        Home
-      </Link>
-      <Link class="nav" href="/users">
-        Users
-      </Link>
-      <Routes>
-        <Route path="/users" element={<Users />} />
-        <Route path="/users/:id" element={<User />}>
-          <Route path="/" element={<UserHome />} />
-          <Route path="/settings" element={<UserSettings />} />
-          <Route path="/*all" element={<UserNotFound />} />
-        </Route>
-        <Route path="/" element={<Home />} />
-        <Route path="/*all" element={<NotFound />} />
-      </Routes>
-    </>
-  );
-}
-
-render(
-  () => (
-    <Router>
-      <App />
-    </Router>
-  ),
-  document.getElementById("app")
-);
-```
-
-## Config Based
-
-Great for filesystem based routing:
+You don't have to use JSX to set up your routes; you can pass an object directly with `useRoutes`:
 
 ```jsx
 import { lazy } from "solid-js";
@@ -420,35 +389,6 @@ render(
   document.getElementById("app")
 );
 ```
-
-## Creating Links
-
-Solid App Router provides `<Link>` component to provides links in your application. By default all Routes and Links are relative to the parent that created them.
-
-Solid App Router provides a `<NavLink>` component that applies the `active` class when the current route matches its path. It has an `end` prop to indicate if it is the end of the path.
-
-Solid App Router also has a `<Navigate>` component useful for inlining redirects.
-
-These Components all use `href` to define the path.
-
-```jsx
-<>
-  <NavLink href="/" end>
-    Home
-  </NavLink>
-  <NavLink href="/about">About</NavLink>
-  <NavLink href="/other">Other</NavLink>
-</>
-```
-
-There are a few special properties that can be applied to links to add additional behavior.
-
-`noScroll` - This prevents default behavior of scrolling to top navigation.
-`replace` - This will replace history instead of pushing it.
-`state` - This will add the state to the browser history. It must be serializable.
-
-If you have a same domain link that you want the router not to handle use `rel="external"`
-
 ## Router Primitives
 
 Solid App Router provides a number of primitives that read off the Router and Route context.
