@@ -204,7 +204,7 @@ import { fetchUser } ...
 
 export default function User () {
 
-  const params = useParams;
+  const params = useParams();
 
   const [userData] = createResource(() => params.id, fetchUser);
 
