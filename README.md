@@ -87,8 +87,8 @@ export default function App() {
     <h1>My Site with Lots of Pages<h1/>
     <Routes>
       <Route path="/users" element={<Users/>} />
-      <Route path="/" element={<Home/>}>
-      <Route path="/about" element={<div>This site was made with Solid</div>}>
+      <Route path="/" element={<Home/>} />
+      <Route path="/about" element={<div>This site was made with Solid</div>} />
     </Routes>
   <>)
 }
@@ -109,8 +109,8 @@ export default function App() {
     <h1>My Site with Lots of Pages<h1/>
     <Routes>
       <Route path="/users" element={<Users/>} />
-      <Route path="/" element={<Home/>}>
-      <Route path="/about" element={<div>This site was made with Solid</div>}>
+      <Route path="/" element={<Home/>} />
+      <Route path="/about" element={<div>This site was made with Solid</div>} />
     </Routes>
   <>)
 }
@@ -135,8 +135,8 @@ export default function App() {
     </nav>
     <Routes>
       <Route path="/users" element={<Users/>} />
-      <Route path="/" element={<Home/>}>
-      <Route path="/about" element={<div>This site was made with Solid</div>}>
+      <Route path="/" element={<Home/>} />
+      <Route path="/about" element={<div>This site was made with Solid</div>} />
     </Routes>
   <>)
 }
@@ -187,8 +187,8 @@ export default function App() {
     <Routes>
       <Route path="/users" element={<Users/>} />
       <Route path="/users/:id" element={<User/>} />
-      <Route path="/" element={<Home/>}>
-      <Route path="/about" element={<div>This site was made with Solid</div>}>
+      <Route path="/" element={<Home/>} />
+      <Route path="/about" element={<div>This site was made with Solid</div>} />
     </Routes>
   <>)
 }
@@ -293,7 +293,7 @@ The following two route definitions have the same result:
 ```
 ```jsx
 <Route path="/users">
-  <Route path="/:id" element={<User/>}>
+  <Route path="/:id" element={<User/>} />
 </Route>
 ```
 `/users/:id` renders the `<User/>` component, and `/users/` is an empty route.
@@ -303,7 +303,7 @@ Only leaf Route nodes (innermost `Route` components) are given a route. If you w
 ```jsx
 //This won't work the way you'd expect
 <Route path="/users" element={<Users/>}>
-  <Route path="/:id" element={<User/>}>
+  <Route path="/:id" element={<User/>} />
 </Route>
 
 //This works
@@ -312,8 +312,8 @@ Only leaf Route nodes (innermost `Route` components) are given a route. If you w
 
 //This also works
 <Route path="/users">
-  <Route path="/" element={<Users/>}>
-  <Route path="/:id" element={<User/>}>
+  <Route path="/" element={<Users/>} />
+  <Route path="/:id" element={<User/>} />
 </Route>
 ```
 
@@ -331,8 +331,8 @@ function PageWrapper () {
 }
 
 <Route path="/users" element={<PageWrapper/>}>
-  <Route path="/" element={<Users/>}>
-  <Route path="/:id" element={<User/>}>
+  <Route path="/" element={<Users/>} />
+  <Route path="/:id" element={<User/>} />
 </Route>
 ```
 The routes are still configured the same, but now the route elements will appear inside the parent element where the `<Outlet/>` was declared.
