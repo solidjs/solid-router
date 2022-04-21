@@ -37,7 +37,7 @@ describe("Router should", () => {
         });
         const { location } = createRouterContext(signal);
         expect(location.pathname).toBe("/foo/bar");
-        expect(location.search).toBe("hello=world");
+        expect(location.search).toBe("?hello=world");
       });
     });
 
@@ -76,16 +76,16 @@ describe("Router should", () => {
     describe(`contain property 'queryString' which should`, () => {
       test(`be reactive to the queryString part of the integration signal`, () =>
         createAsyncRoot(resolve => {
-          const expected = "fizz=buzz";
+          const expected = "?fizz=buzz";
           const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
           const { location } = createRouterContext(signal);
 
-          expect(location.search).toBe("hello=world");
-          signal[1]({ value: "/foo/baz?" + expected });
+          expect(location.search).toBe("?hello=world");
+          signal[1]({ value: "/foo/baz" + expected });
 
-          waitFor(() => signal[0]().value === "/foo/baz?" + expected).then(() => {
+          waitFor(() => signal[0]().value === "/foo/baz" + expected).then(() => {
             expect(location.search).toBe(expected);
             resolve();
           });
@@ -99,9 +99,9 @@ describe("Router should", () => {
           const { location } = createRouterContext(signal);
           const count = createCounter(() => location.search);
 
-          expect(location.search).toBe("hello=world");
+          expect(location.search).toBe("?hello=world");
           signal[1]({ value: "/fizz/buzz?hello=world" });
-          expect(location.search).toBe("hello=world");
+          expect(location.search).toBe("?hello=world");
           expect(count()).toBe(0);
         }));
     });
@@ -166,7 +166,7 @@ describe("Router should", () => {
           signal[1]({ value: "/foo/bar?hello=foo" });
 
           waitFor(() => signal[0]().value === "/foo/bar?hello=foo").then(() => {
-            expect(location.search).toEqual("hello=foo");
+            expect(location.search).toEqual("?hello=foo");
             expect(location.query.hello).toEqual("foo");
             expect(count()).toBe(1);
             resolve();

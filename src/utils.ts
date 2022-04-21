@@ -127,5 +127,6 @@ export function mergeSearchString(search: string, params: SetParams) {
       merged.set(key, String(value));
     }
   });
-  return merged.toString();
+  const s = merged.toString();
+  return s ? `?${s}` : "";
 }

@@ -93,7 +93,7 @@ export const useSearchParams = <T extends Params>(): [
   const navigate = useNavigate();
   const setSearchParams = (params: SetParams, options?: Partial<NavigateOptions>) => {
     const searchString = mergeSearchString(location.search, params);
-    navigate(searchString ? `?${searchString}` : "", { scroll: false, ...options, resolve: true });
+    navigate(searchString, { scroll: false, ...options, resolve: true });
   };
   return [location.query as T, setSearchParams];
 };
@@ -209,8 +209,8 @@ export function createLocation(path: Accessor<string>, state: Accessor<any>): Lo
   );
 
   const pathname = createMemo(() => url().pathname);
-  const search = createMemo(() => url().search.slice(1));
-  const hash = createMemo(() => url().hash.slice(1));
+  const search = createMemo(() => url().search);
+  const hash = createMemo(() => url().hash);
   const key = createMemo(() => "");
 
   return {
