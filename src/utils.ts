@@ -4,9 +4,9 @@ import type { Params, PathMatch, Route, SetParams } from "./types";
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|\/+$|\s+/g;
 
-function normalize(path: string) {
+function normalize(path: string, omitSlash: boolean = false) {
   const s = path.replace(trimPathRegex, "");
-  return s ? (s.startsWith("?") ? s : "/" + s) : "";
+  return s ? (omitSlash || /^[?#]/.test(s) ? s : "/" + s) : "";
 }
 
 export function resolvePath(base: string, path: string, from?: string): string | undefined {
@@ -16,14 +16,14 @@ export function resolvePath(base: string, path: string, from?: string): string |
   const basePath = normalize(base);
   const fromPath = from && normalize(from);
   let result = "";
-  if (!fromPath || path.charAt(0) === "/") {
+  if (!fromPath || path.startsWith("/")) {
     result = basePath;
   } else if (fromPath.toLowerCase().indexOf(basePath.toLowerCase()) !== 0) {
     result = basePath + fromPath;
   } else {
     result = fromPath;
   }
-  return result + normalize(path) || "/";
+  return (result || '/') + normalize(path, !result);
 }
 
 export function invariant<T>(value: T | null | undefined, message: string): T {

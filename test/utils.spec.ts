@@ -60,6 +60,18 @@ describe("resolvePath should", () => {
     const actual = resolvePath("/base", "bar", "BASE/foo");
     expect(actual).toBe(expected);
   });
+
+  test(`work with rooted search and base`, () => {
+    const expected = "/base?foo=bar";
+    const actual = resolvePath("/base", "/?foo=bar", "/base/page");
+    expect(actual).toBe(expected);
+  });
+
+  test(`work with rooted search`, () => {
+    const expected = "/?foo=bar";
+    const actual = resolvePath("", "/?foo=bar", "");
+    expect(actual).toBe(expected);
+  });
 });
 
 describe("createMatcher should", () => {
