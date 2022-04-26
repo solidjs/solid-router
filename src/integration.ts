@@ -109,9 +109,13 @@ export function pathIntegration() {
 export function hashIntegration() {
   return createIntegration(
     () => window.location.hash.slice(1),
-    ({ value, scroll }) => {
-      window.location.hash = value;
+    ({ value, replace, scroll, state }) => {
       const hashIndex = value.indexOf("#");
+      if (replace) {
+        window.history.replaceState(state, "", (hashIndex === 0 ? "" : "#") + value);
+      } else {
+        window.location.hash = value;
+      }
       const hash = hashIndex >= 0 ? value.slice(hashIndex + 1) : "";
       scrollToHash(hash, scroll);
     },
