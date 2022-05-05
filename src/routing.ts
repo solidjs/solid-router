@@ -380,12 +380,15 @@ export function createRouterContext(
 
   createRenderEffect(() => {
     const { value, state } = source();
-    if (value !== untrack(reference)) {
-      start(() => {
-        setReference(value);
-        setState(state);
-      });
-    }
+    // Untrack this whole block so `start` doesn't cause Solid's Listener to be preserved
+    untrack(() => {
+      if (value !== reference()) {
+        start(() => {
+          setReference(value);
+          setState(state);
+        });
+      }
+    });
   });
 
   if (!isServer) {
