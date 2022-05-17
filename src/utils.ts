@@ -2,7 +2,7 @@ import { createMemo, getOwner, runWithOwner } from "solid-js";
 import type { Params, PathMatch, Route, SetParams } from "./types";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
-const trimPathRegex = /^\/+|\/+$|\s+/g;
+const trimPathRegex = /^\/+|\/+$/g;
 
 function normalize(path: string, omitSlash: boolean = false) {
   const s = path.replace(trimPathRegex, "");
@@ -43,6 +43,10 @@ export function extractSearchParams(url: URL): Params {
     params[key] = value;
   });
   return params;
+}
+
+export function urlDecode(str: string, isQuery?: boolean) {
+  return decodeURIComponent(isQuery ? str.replace(/\+/g, ' ') : str);
 }
 
 export function createMatcher(path: string, partial?: boolean) {

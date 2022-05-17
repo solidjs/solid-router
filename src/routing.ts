@@ -40,7 +40,8 @@ import {
   createMatcher,
   joinPaths,
   scoreRoute,
-  mergeSearchString
+  mergeSearchString,
+  urlDecode
 } from "./utils";
 
 const MAX_REDIRECTS = 100;
@@ -208,9 +209,9 @@ export function createLocation(path: Accessor<string>, state: Accessor<any>): Lo
     }
   );
 
-  const pathname = createMemo(() => url().pathname);
-  const search = createMemo(() => url().search);
-  const hash = createMemo(() => url().hash);
+  const pathname = createMemo(() => urlDecode(url().pathname));
+  const search = createMemo(() => urlDecode(url().search, true));
+  const hash = createMemo(() => urlDecode(url().hash));
   const key = createMemo(() => "");
 
   return {
@@ -421,13 +422,14 @@ export function createRouterContext(
       if (a.hasAttribute("download") || (rel && rel.includes("external"))) return;
 
       const url = isSvg ? new URL(href, document.baseURI) : new URL(href);
+      const pathname = urlDecode(url.pathname);
       if (
         url.origin !== window.location.origin ||
-        (basePath && url.pathname && !url.pathname.toLowerCase().startsWith(basePath.toLowerCase()))
+        (basePath && pathname && !pathname.toLowerCase().startsWith(basePath.toLowerCase()))
       )
         return;
 
-      const to = parsePath(url.pathname + url.search + url.hash);
+      const to = parsePath(pathname + urlDecode(url.search, true) + urlDecode(url.hash));
       const state = a.getAttribute("state");
 
       evt.preventDefault();

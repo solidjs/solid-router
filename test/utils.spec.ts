@@ -72,6 +72,12 @@ describe("resolvePath should", () => {
     const actual = resolvePath("", "/?foo=bar", "");
     expect(actual).toBe(expected);
   });
+
+  test.only(`preserve spaces`, () => {
+    const expected = "/ foo / bar baz ";
+    const actual = resolvePath(" foo ", " bar baz ", "");
+    expect(actual).toBe(expected);
+  });
 });
 
 describe("createMatcher should", () => {

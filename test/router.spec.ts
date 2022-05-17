@@ -71,6 +71,15 @@ describe("Router should", () => {
           expect(location.pathname).toBe("/foo/bar");
           expect(count()).toBe(0);
         }));
+
+      test.only(`handle URL decoding`, () =>
+        createRoot(() => {
+          const signal = createSignal<LocationChange>({
+            value: "/foo bar+baz"
+          });
+          const { location } = createRouterContext(signal);
+          expect(location.pathname).toBe("/foo bar+baz");
+        }));
     });
 
     describe(`contain property 'queryString' which should`, () => {
@@ -103,6 +112,26 @@ describe("Router should", () => {
           signal[1]({ value: "/fizz/buzz?hello=world" });
           expect(location.search).toBe("?hello=world");
           expect(count()).toBe(0);
+        }));
+
+      test.only(`handle URL decoding`, () =>
+        createRoot(() => {
+          const signal = createSignal<LocationChange>({
+            value: "/foo?hello+world=bar+baz"
+          });
+          const { location } = createRouterContext(signal);
+          expect(location.search).toBe("?hello world=bar baz");
+        }));
+    });
+
+    describe(`contain property 'hash' which should`, () => {
+      test.only(`handle URL decoding`, () =>
+        createRoot(() => {
+          const signal = createSignal<LocationChange>({
+            value: "/foo#bar baz"
+          });
+          const { location } = createRouterContext(signal);
+          expect(location.hash).toBe("#bar baz");
         }));
     });
 
