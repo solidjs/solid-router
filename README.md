@@ -16,6 +16,7 @@ It supports all of Solid's SSR methods and has Solid's transitions baked in, so 
 - [Dynamic Routes](#dynamic-routes)
 - [Data Functions](#data-functions)
 - [Nested Routes](#nested-routes) 
+- [Hash Mode Router](#hash-mode-router) 
 - [Config Based Routing](#config-based-routing)
 - [Router Primitives](#router-primitives)
   - [useParams](#useparams)
@@ -348,6 +349,16 @@ You can nest indefinitely - just remember that only leaf nodes will become their
 ```
 
 If you declare a `data` function on a parent and a child, the result of the parent's data function will be passed to the child's data function as the `data` property of the argument, as described in the last section. This works even if it isn't a direct child, because by default every route forwards its parent's data. 
+
+## Hash Mode Router
+
+By default, `solid-app-router` use `location.pathname` as route path. You can simply switch to hash mode through the `source` property on `<Router>` component.
+
+```jsx
+import { Router, hashIntegration } from 'solid-app-router'
+
+<Router source={hashIntegration()}><App></Router>
+```
 
 ## Config Based Routing
 
