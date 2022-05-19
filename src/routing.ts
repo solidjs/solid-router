@@ -393,6 +393,10 @@ export function createRouterContext(
   });
 
   if (!isServer) {
+    function isSvg<T extends SVGElement>(el: T | HTMLElement): el is T {
+      return el.namespaceURI === "http://www.w3.org/2000/svg";
+    }
+
     function handleAnchorClick(evt: MouseEvent) {
       if (
         evt.defaultPrevented ||
@@ -413,15 +417,15 @@ export function createRouterContext(
 
       if (!a) return;
 
-      const isSvg = a instanceof SVGAElement;
-      const href = isSvg ? a.href.baseVal : a.href;
-      const target = isSvg ? a.target.baseVal : a.target;
+      const svg = isSvg(a);
+      const href = svg ? a.href.baseVal : a.href;
+      const target = svg ? a.target.baseVal : a.target;
       if (target || (!href && !a.hasAttribute("state"))) return;
 
       const rel = (a.getAttribute("rel") || "").split(/\s+/);
       if (a.hasAttribute("download") || (rel && rel.includes("external"))) return;
 
-      const url = isSvg ? new URL(href, document.baseURI) : new URL(href);
+      const url = svg ? new URL(href, document.baseURI) : new URL(href);
       const pathname = urlDecode(url.pathname);
       if (
         url.origin !== window.location.origin ||
