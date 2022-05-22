@@ -101,8 +101,8 @@ This way, the `Users` and `Home` components will only be loaded if you're naviga
 ```jsx
 import { lazy } from "solid-js";
 import { Routes, Route } from "solid-app-router"
-const Users = lazy(() => import("./pages/Home"));
-const Home = lazy(() => import("./pages/Users"));
+const Users = lazy(() => import("./pages/Users"));
+const Home = lazy(() => import("./pages/Home"));
 
 export default function App() {
   return (<>
@@ -123,8 +123,8 @@ Use the `Link` component to create an anchor tag that takes you to a route:
 ```jsx
 import { lazy } from "solid-js";
 import { Routes, Route, Link } from "solid-app-router"
-const Users = lazy(() => import("./pages/Home"));
-const Home = lazy(() => import("./pages/Users"));
+const Users = lazy(() => import("./pages/Users"));
+const Home = lazy(() => import("./pages/Home"));
 
 export default function App() {
   return (<>
@@ -177,9 +177,9 @@ If you don't know the path ahead of time, you might want to treat part of the pa
 ```jsx
 import { lazy } from "solid-js";
 import { Routes, Route } from "solid-app-router"
-const Users = lazy(() => import("./pages/Home"));
-const Home = lazy(() => import("./pages/Users"));
-const Home = lazy(() => import("./pages/User"));
+const Users = lazy(() => import("./pages/Users"));
+const User = lazy(() => import("./pages/User"));
+const Home = lazy(() => import("./pages/Home"));
 
 export default function App() {
   return (<>
