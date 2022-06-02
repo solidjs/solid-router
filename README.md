@@ -413,7 +413,7 @@ Solid App Router provides a number of primitives that read off the Router and Ro
 
 ### useParams
 
-Retrieves an object containing the route path parameters as defined in the Route.
+Retrieves a reactive, store-like object containing the current route path parameters as defined in the Route.
 
 ```js
 const params = useParams();
