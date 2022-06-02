@@ -84,7 +84,7 @@ import Users from "./pages/Users"
 
 export default function App() {
   return (<>
-    <h1>My Site with Lots of Pages<h1/>
+    <h1>My Site with Lots of Pages</h1>
     <Routes>
       <Route path="/users" element={<Users/>} />
       <Route path="/" element={<Home/>} />
@@ -106,7 +106,7 @@ const Home = lazy(() => import("./pages/Users"));
 
 export default function App() {
   return (<>
-    <h1>My Site with Lots of Pages<h1/>
+    <h1>My Site with Lots of Pages</h1>
     <Routes>
       <Route path="/users" element={<Users/>} />
       <Route path="/" element={<Home/>} />
@@ -128,7 +128,7 @@ const Home = lazy(() => import("./pages/Users"));
 
 export default function App() {
   return (<>
-    <h1>My Site with Lots of Pages<h1/>
+    <h1>My Site with Lots of Pages</h1>
     <nav>
       <Link href="/about">About</Link>
       <Link href="/">Home</Link>
