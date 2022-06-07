@@ -24,7 +24,7 @@ function querySelector<T extends Element>(selector: string) {
 }
 
 function scrollToHash(hash: string, fallbackTop?: boolean) {
-  const el = querySelector(`a#${hash}`);
+  const el = querySelector(`#${hash}`);
   if (el) {
     el.scrollIntoView();
   } else if (fallbackTop) {
