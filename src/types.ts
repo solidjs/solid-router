@@ -86,6 +86,7 @@ export interface OutputMatch {
 }
 
 export interface Route {
+  key: unknown,
   originalPath: string;
   pattern: string;
   element: () => JSX.Element;

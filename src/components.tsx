@@ -105,7 +105,7 @@ export const Routes = (props: RoutesProps) => {
         const prevMatch = prevMatches && prevMatches[i];
         const nextMatch = nextMatches[i];
 
-        if (prev && prevMatch && nextMatch.route.pattern === prevMatch.route.pattern) {
+        if (prev && prevMatch && nextMatch.route.key === prevMatch.route.key) {
           next[i] = prev[i];
         } else {
           equal = false;

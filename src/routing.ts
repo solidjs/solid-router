@@ -110,6 +110,7 @@ export function createRoute(
   const pattern = isLeaf ? path : path.split("/*", 1)[0];
 
   return {
+    key: routeDef,
     originalPath,
     pattern,
     element: component
