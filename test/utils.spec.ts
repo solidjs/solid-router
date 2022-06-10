@@ -1,4 +1,10 @@
-import { createMatcher, joinPaths, resolvePath, createMemoObject, expandOptionals } from "../src/utils";
+import {
+  createMatcher,
+  joinPaths,
+  resolvePath,
+  createMemoObject,
+  expandOptionals
+} from "../src/utils";
 
 describe("resolvePath should", () => {
   test("normalize the base arg", () => {
@@ -240,10 +246,24 @@ describe("expandOptionals should", () => {
     ["/foo/:x", ["/foo/:x"]],
     ["/foo/:x?", ["/foo", "/foo/:x"]],
     ["/bar/:x?/", ["/bar/", "/bar/:x/"]],
-    ["/foo/:x?/:y?/:z", ["/foo/:z", "/foo/:x/:z","/foo/:x/:y/:z"]],
+    ["/foo/:x?/:y?/:z", ["/foo/:z", "/foo/:x/:z", "/foo/:x/:y/:z"]],
     ["/foo/:x?/:y/:z?", ["/foo/:y", "/foo/:x/:y", "/foo/:y/:z", "/foo/:x/:y/:z"]],
+    ["/foo/:x?/:y?/:z?", ["/foo", "/foo/:x", "/foo/:x/:y", "/foo/:x/:y/:z"]],
+    [
+      "/foo/:x?/bar/:y?/baz/:z?",
+      [
+        "/foo/bar/baz",
+        "/foo/:x/bar/baz",
+        "/foo/bar/:y/baz",
+        "/foo/:x/bar/:y/baz",
+        "/foo/bar/baz/:z",
+        "/foo/:x/bar/baz/:z",
+        "/foo/bar/:y/baz/:z",
+        "/foo/:x/bar/:y/baz/:z"
+      ]
+    ]
   ])(`expand case '%s'`, (pattern, expected) => {
-    const expanded = expandOptionals(pattern)
+    const expanded = expandOptionals(pattern);
     expect(expanded).toEqual(expected);
   });
 });
