@@ -238,11 +238,12 @@ describe("createMemoObject should", () => {
 describe("expandOptionals should", () => {
   test.each([
     ["/foo/:x", ["/foo/:x"]],
-    ["/foo/:x?", ["/foo/:x","/foo"]],
-    ["/bar/:x?/", ["/bar/:x/","/bar/"]],
-    ["/foo/:x?/:y?/:z", ["/foo/:x/:y/:z","/foo/:x/:z","/foo/:y/:z","/foo/:z"]],
+    ["/foo/:x?", ["/foo", "/foo/:x"]],
+    ["/bar/:x?/", ["/bar/", "/bar/:x/"]],
+    ["/foo/:x?/:y?/:z", ["/foo/:z", "/foo/:x/:z","/foo/:x/:y/:z"]],
+    ["/foo/:x?/:y/:z?", ["/foo/:y", "/foo/:x/:y", "/foo/:y/:z", "/foo/:x/:y/:z"]],
   ])(`expand case '%s'`, (pattern, expected) => {
     const expanded = expandOptionals(pattern)
-    expect(expanded.sort()).toEqual(expected.sort());
+    expect(expanded).toEqual(expected);
   });
 });
