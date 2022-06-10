@@ -54,7 +54,7 @@ export interface RouteDataFuncArgs {
 export type RouteDataFunc<T = unknown> = (args: RouteDataFuncArgs) => T;
 
 export type RouteDefinition = {
-  path: string;
+  path: string | string[];
   data?: RouteDataFunc;
   children?: RouteDefinition | RouteDefinition[];
 } & (

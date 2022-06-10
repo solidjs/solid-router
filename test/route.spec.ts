@@ -1,12 +1,26 @@
-import { createBranch, createBranches, createRoute } from "../src/routing";
+import { createBranch, createBranches, createRoutes } from "../src/routing";
 
-describe("createRoute should", () => {
-  test(`return an object containing the originalPath`, () => {
-    const routeDef = {
-      path: "foo"
-    };
-    const route = createRoute(routeDef);
-    expect(route.originalPath).toBe(routeDef.path);
+const createRoute = (...args: Parameters<typeof createRoutes>) => createRoutes(...args)[0];
+
+describe("createRoutes should", () => {
+  describe(`return an array of objects for each path`, () => {
+    test(`with a single path`, () => {
+      const routeDef = {
+        path: "foo"
+      };
+      const routes = createRoutes(routeDef);
+      expect(routes[0].originalPath).toBe(routeDef.path);
+    });
+
+    test(`with multiple paths`, () => {
+      const routeDef = {
+        path: ["foo", "bar", "baz"]
+      };
+      const routes = createRoutes(routeDef);
+      for (const [i, expected] of routeDef.path.entries()) {
+        expect(routes[i].originalPath).toBe(expected);
+      }
+    });
   });
 
   describe(`include pattern which should`, () => {
@@ -142,6 +156,28 @@ describe("createRoute should", () => {
         id: "someTHING",
         all: "BaR/sOlId"
       });
+    });
+  });
+
+  describe(`expand optional parameters`, () => {
+    test(`with a single path`, () => {
+      const routeDef = {
+        path: "foo/:id?"
+      };
+      const routes = createRoutes(routeDef);
+      expect(routes[0].originalPath).toBe("foo");
+      expect(routes[1].originalPath).toBe("foo/:id");
+    });
+
+    test(`with a multiple paths`, () => {
+      const routeDef = {
+        path: ["foo/:id?", "bar/:name?"]
+      };
+      const routes = createRoutes(routeDef);
+      expect(routes[0].originalPath).toBe("foo");
+      expect(routes[1].originalPath).toBe("foo/:id");
+      expect(routes[2].originalPath).toBe("bar");
+      expect(routes[3].originalPath).toBe("bar/:name");
     });
   });
 });

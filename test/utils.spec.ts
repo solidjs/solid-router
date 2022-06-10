@@ -1,4 +1,4 @@
-import { createMatcher, joinPaths, resolvePath, createMemoObject } from "../src/utils";
+import { createMatcher, joinPaths, resolvePath, createMemoObject, expandOptionals } from "../src/utils";
 
 describe("resolvePath should", () => {
   test("normalize the base arg", () => {
@@ -73,7 +73,7 @@ describe("resolvePath should", () => {
     expect(actual).toBe(expected);
   });
 
-  test.only(`preserve spaces`, () => {
+  test(`preserve spaces`, () => {
     const expected = "/ foo / bar baz ";
     const actual = resolvePath(" foo ", " bar baz ", "");
     expect(actual).toBe(expected);
@@ -232,5 +232,17 @@ describe("createMemoObject should", () => {
         getter: "works too"
       })
     );
+  });
+});
+
+describe("expandOptionals should", () => {
+  test.each([
+    ["/foo/:x", ["/foo/:x"]],
+    ["/foo/:x?", ["/foo/:x","/foo"]],
+    ["/bar/:x?/", ["/bar/:x/","/bar/"]],
+    ["/foo/:x?/:y?/:z", ["/foo/:x/:y/:z","/foo/:x/:z","/foo/:y/:z","/foo/:z"]],
+  ])(`expand case '%s'`, (pattern, expected) => {
+    const expanded = expandOptionals(pattern)
+    expect(expanded.sort()).toEqual(expected.sort());
   });
 });

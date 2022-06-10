@@ -41,7 +41,8 @@ import {
   joinPaths,
   scoreRoute,
   mergeSearchString,
-  urlDecode
+  urlDecode,
+  expandOptionals
 } from "./utils";
 
 const MAX_REDIRECTS = 100;
@@ -99,20 +100,16 @@ export const useSearchParams = <T extends Params>(): [
   return [location.query as T, setSearchParams];
 };
 
-export function createRoute(
+export function createRoutes(
   routeDef: RouteDefinition,
   base: string = "",
   fallback?: Component
-): Route {
-  const { path: originalPath, component, data, children } = routeDef;
+): Route[] {
+  const { component, data, children } = routeDef;
   const isLeaf = !children || (Array.isArray(children) && !children.length);
-  const path = joinPaths(base, originalPath);
-  const pattern = isLeaf ? path : path.split("/*", 1)[0];
 
-  return {
+  const shared = {
     key: routeDef,
-    originalPath,
-    pattern,
     element: component
       ? () => createComponent(component, {})
       : () => {
@@ -124,9 +121,22 @@ export function createRoute(
     preload: routeDef.component
       ? (component as MaybePreloadableComponent).preload
       : routeDef.preload,
-    data,
-    matcher: createMatcher(pattern, !isLeaf)
+    data
   };
+
+  return asArray(routeDef.path).reduce<Route[]>((acc, path) => {
+    for (const originalPath of expandOptionals(path)) {
+      const path = joinPaths(base, originalPath);
+      const pattern = isLeaf ? path : path.split("/*", 1)[0];
+      acc.push({
+        ...shared,
+        originalPath,
+        pattern,
+        matcher: createMatcher(pattern, !isLeaf)
+      });
+    }
+    return acc;
+  }, []);
 }
 
 export function createBranch(routes: Route[], index: number = 0): Branch {
@@ -151,6 +161,10 @@ export function createBranch(routes: Route[], index: number = 0): Branch {
   };
 }
 
+function asArray<T>(value: T | T[]): T[] {
+  return Array.isArray(value) ? value : [value];
+}
+
 export function createBranches(
   routeDef: RouteDefinition | RouteDefinition[],
   base: string = "",
@@ -158,23 +172,24 @@ export function createBranches(
   stack: Route[] = [],
   branches: Branch[] = []
 ): Branch[] {
-  const routeDefs = Array.isArray(routeDef) ? routeDef : [routeDef];
+  const routeDefs = asArray(routeDef);
 
   for (let i = 0, len = routeDefs.length; i < len; i++) {
     const def = routeDefs[i];
     if (def && typeof def === "object" && def.hasOwnProperty("path")) {
-      const route = createRoute(def, base, fallback);
+      const routes = createRoutes(def, base, fallback);
+      for (const route of routes) {
+        stack.push(route);
 
-      stack.push(route);
+        if (def.children) {
+          createBranches(def.children, route.pattern, fallback, stack, branches);
+        } else {
+          const branch = createBranch([...stack], branches.length);
+          branches.push(branch);
+        }
 
-      if (def.children) {
-        createBranches(def.children, route.pattern, fallback, stack, branches);
-      } else {
-        const branch = createBranch([...stack], branches.length);
-        branches.push(branch);
+        stack.pop();
       }
-
-      stack.pop();
     }
   }
 

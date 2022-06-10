@@ -23,7 +23,7 @@ export function resolvePath(base: string, path: string, from?: string): string |
   } else {
     result = fromPath;
   }
-  return (result || '/') + normalize(path, !result);
+  return (result || "/") + normalize(path, !result);
 }
 
 export function invariant<T>(value: T | null | undefined, message: string): T {
@@ -46,7 +46,7 @@ export function extractSearchParams(url: URL): Params {
 }
 
 export function urlDecode(str: string, isQuery?: boolean) {
-  return decodeURIComponent(isQuery ? str.replace(/\+/g, ' ') : str);
+  return decodeURIComponent(isQuery ? str.replace(/\+/g, " ") : str);
 }
 
 export function createMatcher(path: string, partial?: boolean) {
@@ -133,4 +133,15 @@ export function mergeSearchString(search: string, params: SetParams) {
   });
   const s = merged.toString();
   return s ? `?${s}` : "";
+}
+
+export function expandOptionals(pattern: string): string[] {
+  const match = /(\/?\:[^\/]+)\?/.exec(pattern);
+  if (!match) return [pattern];
+  const prefix = pattern.slice(0, match.index);
+  const suffix = pattern.slice(match.index + match[0].length);
+  return expandOptionals(suffix).reduce<string[]>((acc, p) => {
+    acc.push(prefix + p, prefix + match[1] + p);
+    return acc;
+  }, []);
 }
