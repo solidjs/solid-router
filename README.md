@@ -143,7 +143,7 @@ export default function App() {
 }
 ```
 
-If you use `NavLink` instead of `Link`, the anchor tag will have an `active` class if its route is currently shown, and `inactive` otherwise. 
+If you use `NavLink` instead of `Link`, the anchor tag will have an `active` class if its href matches the current location, and `inactive` otherwise. **Note:** By default matching includes locations that are descendents (eg. href `/users` matches locations `/users` and `/users/123`), use the boolean `end` prop to prevent matching these. This is particularly useful for links to the root route `/` which would match everything.
 
 Both of these components have the same props:
 
@@ -155,6 +155,7 @@ Both of these components have the same props:
 | state    | unknown | [Push this value](https://developer.mozilla.org/en-US/docs/Web/API/History/pushState) to the history stack when navigating                                                                                                                                                     |
 
 If you have a same-domain path that you want to link to _without_ going through the router, set `rel="external"` on the link component.
+
 ### The Navigate Component
 `solid-app-router` provides a `Navigate` component that works similarly to `Link` and `NavLink`, but it will _immediately_ navigate to the provided path as soon as the component is rendered. It also uses the `href` prop, but you have the additional option of passing a function to `href` that returns a path to navigate to:
 
@@ -199,6 +200,7 @@ The colon indicates that `id` can be any string, and as long as the URL fits tha
 
 You can then access that `id` from within a route component with `useParams`:
 
+
 ```jsx
 //async fetching function
 import { fetchUser } ...
@@ -211,6 +213,15 @@ export default function User () {
 
   return <a href={userData.twitter}>{userData.name}</a>
 }
+```
+
+### Optional Parameters
+
+Parameters can be specified as optional by adding a question mark to the end of the parameter name:
+
+```jsx
+//Matches stories and stories/123 but not stories/123/comments
+<Route path='/stories/:id?' element={<Stories/>} />
 ```
 
 ### Wildcard Routes
@@ -229,6 +240,16 @@ If you want to expose the wild part of the path to the component as a parameter,
 ```
 
 Note that the wildcard token must be the last part of the path; `foo/*any/bar` won't create any routes.
+
+### Multiple Paths
+
+Routes also support defining multiple paths using an array. This allows a route to remain mounted and not rerender when switching between two or more locations that it matches:
+
+```jsx
+//Navigating from login to register does not cause the Login component to re-render
+<Route path={["login", "register"]} element={<Login/>}/>
+```
+
 
 ## Data Functions
 In the [above example](#dynamic-routes), the User component is lazy-loaded and then the data is fetched. With route data functions, we can instead start fetching the data parallel to loading the route, so we can use the data as soon as possible.
