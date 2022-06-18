@@ -168,7 +168,7 @@ export const Route = (props: RouteProps) => {
     get children() {
       return childRoutes();
     }
-  });
+  }) as unknown as JSX.Element;
 }
 
 export const Outlet = () => {
