@@ -1,7 +1,11 @@
-# Solid App Router
+<p>
+  <img src="https://assets.solidjs.com/banner?project=App%20Router&type=core" alt="Solid App Router" />
+</p>
 
 > 0.3.x only works with Solid v1.3.5 or later.
 > `useData` has been renamed to `useRouteData` and no longer takes arguments. Refer to documentation below.
+
+# Solid App Router [![npm Version](https://img.shields.io/npm/v/solid-app-router.svg?style=flat-square)](https://www.npmjs.org/package/solid-app-router)
 
 A router lets you change your view based on the URL in the browser. This allows your "single-page" application to simulate a traditional multipage site. To use Solid App Router, you specify components called Routes that depend on the value of the URL (the "path"), and the router handles the mechanism of swapping them in and out.
 
