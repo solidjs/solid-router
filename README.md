@@ -1,5 +1,5 @@
 <p>
-  <img src="https://assets.solidjs.com/banner?project=App%20Router&type=core" alt="Solid App Router" />
+  <img src="https://assets.solidjs.com/banner?project=Router&type=core" alt="Solid App Router" />
 </p>
 
 > 0.3.x only works with Solid v1.3.5 or later.
