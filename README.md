@@ -70,12 +70,12 @@ This sets up a context so that we can display the routes anywhere in the app.
 import { Routes, Route } from "solid-app-router"
 
 export default function App() {
-  return (<>
+  return <>
     <h1>My Site with Lots of Pages</h1>
     <Routes>
 
     </Routes>
-  <>)
+  </>
 }
 ```
 
@@ -88,14 +88,14 @@ import Home from "./pages/Home"
 import Users from "./pages/Users"
 
 export default function App() {
-  return (<>
+  return <>
     <h1>My Site with Lots of Pages</h1>
     <Routes>
       <Route path="/users" element={<Users/>} />
       <Route path="/" element={<Home/>} />
       <Route path="/about" element={<div>This site was made with Solid</div>} />
     </Routes>
-  <>)
+  </>
 }
 ```
 
@@ -110,14 +110,14 @@ const Users = lazy(() => import("./pages/Users"));
 const Home = lazy(() => import("./pages/Home"));
 
 export default function App() {
-  return (<>
+  return <>
     <h1>My Site with Lots of Pages</h1>
     <Routes>
       <Route path="/users" element={<Users/>} />
       <Route path="/" element={<Home/>} />
       <Route path="/about" element={<div>This site was made with Solid</div>} />
     </Routes>
-  <>)
+  </>
 }
 ```
 
@@ -132,7 +132,7 @@ const Users = lazy(() => import("./pages/Users"));
 const Home = lazy(() => import("./pages/Home"));
 
 export default function App() {
-  return (<>
+  return <>
     <h1>My Site with Lots of Pages</h1>
     <nav>
       <Link href="/about">About</Link>
@@ -143,7 +143,7 @@ export default function App() {
       <Route path="/" element={<Home/>} />
       <Route path="/about" element={<div>This site was made with Solid</div>} />
     </Routes>
-  <>)
+  </>
 }
 ```
 
@@ -188,7 +188,7 @@ const User = lazy(() => import("./pages/User"));
 const Home = lazy(() => import("./pages/Home"));
 
 export default function App() {
-  return (<>
+  return <>
     <h1>My Site with Lots of Pages<h1/>
     <Routes>
       <Route path="/users" element={<Users/>} />
@@ -196,7 +196,7 @@ export default function App() {
       <Route path="/" element={<Home/>} />
       <Route path="/about" element={<div>This site was made with Solid</div>} />
     </Routes>
-  <>)
+  </>
 }
 ```
 
