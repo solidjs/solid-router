@@ -79,7 +79,7 @@ export default function App() {
 }
 ```
 
-2. Add each route using the `Route` component, specifying a path and an element to render when the user navigates to that path.
+2. Add each route using the `Route` component, specifying a path and an element or component to render when the user navigates to that path.
 
 ```jsx
 import { Routes, Route } from "solid-app-router"
@@ -91,8 +91,8 @@ export default function App() {
   return <>
     <h1>My Site with Lots of Pages</h1>
     <Routes>
-      <Route path="/users" element={<Users/>} />
-      <Route path="/" element={<Home/>} />
+      <Route path="/users" component={Users} />
+      <Route path="/" component={Home} />
       <Route path="/about" element={<div>This site was made with Solid</div>} />
     </Routes>
   </>
@@ -113,8 +113,8 @@ export default function App() {
   return <>
     <h1>My Site with Lots of Pages</h1>
     <Routes>
-      <Route path="/users" element={<Users/>} />
-      <Route path="/" element={<Home/>} />
+      <Route path="/users" component={Users} />
+      <Route path="/" component={Home} />
       <Route path="/about" element={<div>This site was made with Solid</div>} />
     </Routes>
   </>
@@ -139,8 +139,8 @@ export default function App() {
       <Link href="/">Home</Link>
     </nav>
     <Routes>
-      <Route path="/users" element={<Users/>} />
-      <Route path="/" element={<Home/>} />
+      <Route path="/users" component={Users} />
+      <Route path="/" component={Home} />
       <Route path="/about" element={<div>This site was made with Solid</div>} />
     </Routes>
   </>
@@ -203,9 +203,9 @@ export default function App() {
   return <>
     <h1>My Site with Lots of Pages<h1/>
     <Routes>
-      <Route path="/users" element={<Users/>} />
-      <Route path="/users/:id" element={<User/>} />
-      <Route path="/" element={<Home/>} />
+      <Route path="/users" component={Users} />
+      <Route path="/users/:id" component={User} />
+      <Route path="/" component={Home} />
       <Route path="/about" element={<div>This site was made with Solid</div>} />
     </Routes>
   </>
@@ -246,7 +246,7 @@ Parameters can be specified as optional by adding a question mark to the end of 
 
 ```jsx
 //Matches any path that begins with foo, including foo/, foo/a/, foo/a/b/c
-<Route path='foo/*' element={<Foo/>}/>
+<Route path='foo/*' component={Foo}/>
 ```
 
 If you want to expose the wild part of the path to the component as a parameter, you can name it:
@@ -263,7 +263,7 @@ Routes also support defining multiple paths using an array. This allows a route 
 
 ```jsx
 //Navigating from login to register does not cause the Login component to re-render
-<Route path={["login", "register"]} element={<Login/>}/>
+<Route path={["login", "register"]} component={Login}/>
 ```
 
 
@@ -287,7 +287,7 @@ function UserData({params, location, navigate, data}) {
 }
 
 //Pass it in the route definition
-<Route path="/users/:id" element={<User />} data={UserData} />;
+<Route path="/users/:id" component={User} data={UserData} />;
 ```
 
 When the route is loaded, the data function is called, and the result can be accessed by calling `useRouteData()` in the route component.
@@ -320,18 +320,18 @@ import UserData from "./pages/users/[id].data.js";
 const User = lazy(() => import("/pages/users/[id].js"));
 
 // In the Route definition
-<Route path="/users/:id" element={<User />} data={UserData} />;
+<Route path="/users/:id" component={User} data={UserData} />;
 ```
 
 ## Nested Routes
 The following two route definitions have the same result:
 
 ```jsx
-<Route path="/users/:id" element={<User/>} />
+<Route path="/users/:id" component={User} />
 ```
 ```jsx
 <Route path="/users">
-  <Route path="/:id" element={<User/>} />
+  <Route path="/:id" component={User} />
 </Route>
 ```
 `/users/:id` renders the `<User/>` component, and `/users/` is an empty route.
@@ -340,18 +340,18 @@ Only leaf Route nodes (innermost `Route` components) are given a route. If you w
 
 ```jsx
 //This won't work the way you'd expect
-<Route path="/users" element={<Users/>}>
-  <Route path="/:id" element={<User/>} />
+<Route path="/users" component={Users}>
+  <Route path="/:id" component={User} />
 </Route>
 
 //This works
-<Route path="/users" element={<Users/>} />
-<Route path="/users/:id" element={<User/>} />
+<Route path="/users" component={Users} />
+<Route path="/users/:id" component={User} />
 
 //This also works
 <Route path="/users">
-  <Route path="/" element={<Users/>} />
-  <Route path="/:id" element={<User/>} />
+  <Route path="/" component={Users} />
+  <Route path="/:id" component={User} />
 </Route>
 ```
 
@@ -368,9 +368,9 @@ function PageWrapper () {
   </div>
 }
 
-<Route path="/users" element={<PageWrapper/>}>
-  <Route path="/" element={<Users/>} />
-  <Route path="/:id" element={<User/>} />
+<Route path="/users" component={PageWrapper}>
+  <Route path="/" component={Users}/>
+  <Route path="/:id" component={User} />
 </Route>
 ```
 The routes are still configured the same, but now the route elements will appear inside the parent element where the `<Outlet/>` was declared.
