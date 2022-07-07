@@ -307,7 +307,7 @@ As its only argument, the data function is passed an object that you can use to 
 |-----------|------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
 | params    | object                                         | The route parameters (same value as calling `useParams()` inside the route component)                       |
 | location  | `{ pathname, search, hash, query, state, key}` | An object that you can use to get more information about the path (corresponds to [`useLocation()`](#uselocation))          |
-| navigate | `(to: string, options?: NavigatorOptions) => void`                        | A function that you can call to navigate to a different route instead (corresponds to [`useNavigate()`](#usenavigate))     |
+| navigate | `(to: string, options?: NavigateOptions) => void`                        | A function that you can call to navigate to a different route instead (corresponds to [`useNavigate()`](#usenavigate))     |
 | data      | unknown                                        | The data returned by the [parent's](#nested-routes) data function, if any. (Data will pass through any intermediate nesting.) |
 
 A common pattern is to export the data function that corresponds to a route in a dedicated `route.data.js` file. This way, the data function can be imported without loading anything else.
