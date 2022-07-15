@@ -1,4 +1,19 @@
-import { Accessor, Component, JSX, createResource } from "solid-js";
+import type { Component, JSX, Accessor } from "solid-js";
+import {
+  createComponent,
+  createContext,
+  createMemo,
+  createRenderEffect,
+  createSignal,
+  on,
+  onCleanup,
+  untrack,
+  useContext,
+  useTransition,
+  resetErrorBoundaries
+} from "solid-js";
+import { isServer } from "solid-js/web";
+import { normalizeIntegration } from "./integration";
 import type {
   Branch,
   Location,
@@ -18,33 +33,17 @@ import type {
   SetParams
 } from "./types";
 import {
-  createComponent,
-  createContext,
-  createMemo,
-  createRenderEffect,
-  createSignal,
-  on,
-  onCleanup,
-  resetErrorBoundaries,
-  untrack,
-  useContext,
-  useTransition
-} from "solid-js";
-import {
-  createMatcher,
   createMemoObject,
-  expandOptionals,
   extractSearchParams,
   invariant,
-  joinPaths,
-  mergeSearchString,
   resolvePath,
+  createMatcher,
+  joinPaths,
   scoreRoute,
-  urlDecode
+  mergeSearchString,
+  urlDecode,
+  expandOptionals
 } from "./utils";
-
-import { isServer } from "solid-js/web";
-import { normalizeIntegration } from "./integration";
 
 const MAX_REDIRECTS = 100;
 
