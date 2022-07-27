@@ -1,16 +1,19 @@
 {
-  "name": "solid-app-router",
+  "name": "@solid/router",
   "description": "Universal router for SolidJS",
   "author": "Ryan Carniato",
   "contributors": [
     "Ryan Turnquist"
   ],
   "license": "MIT",
-  "version": "0.4.1",
-  "homepage": "https://github.com/solidjs/solid-app-router#readme",
+  "version": "0.4.2",
+  "homepage": "https://github.com/solidjs/solid-router#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/solidjs/solid-app-router"
+    "url": "https://github.com/solidjs/solid-router"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "type": "module",
   "main": "dist/index.js",

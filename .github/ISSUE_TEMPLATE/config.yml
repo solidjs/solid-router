@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: 🤔 Long question or idea
-    url: https://github.com/solidjs/solid-app-router
+    url: https://github.com/solidjs/solid-router
     about: Ask long-form questions and discuss ideas.
   - name: 💬 Community Chat
     url: https://discord.com/invite/solidjs
