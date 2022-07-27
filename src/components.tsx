@@ -233,7 +233,7 @@ export function NavLink(props: NavLinkProps) {
     <LinkBase
       {...rest}
       to={to()}
-      classList={{ [props.inactiveClass!]: !isActive(), [props.activeClass!]: isActive() }}
+      classList={{ [props.inactiveClass!]: !isActive(), [props.activeClass!]: isActive(), ...rest.classList }}
       aria-current={isActive() ? "page" : undefined}
     />
   );
