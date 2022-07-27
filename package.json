@@ -1,5 +1,5 @@
 {
-  "name": "@solid/router",
+  "name": "@solidjs/router",
   "description": "Universal router for SolidJS",
   "author": "Ryan Carniato",
   "contributors": [
