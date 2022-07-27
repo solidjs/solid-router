@@ -1,17 +1,17 @@
 <p>
-  <img src="https://assets.solidjs.com/banner?project=Router&type=core" alt="Solid App Router" />
+  <img src="https://assets.solidjs.com/banner?project=Router&type=core" alt="Solid Router" />
 </p>
 
 > 0.3.x only works with Solid v1.3.5 or later.
 > `useData` has been renamed to `useRouteData` and no longer takes arguments. Refer to documentation below.
 
-# Solid App Router [![npm Version](https://img.shields.io/npm/v/solid-app-router.svg?style=flat-square)](https://www.npmjs.org/package/solid-app-router)
+# Solid Router [![npm Version](https://img.shields.io/npm/v/solid-app-router.svg?style=flat-square)](https://www.npmjs.org/package/solid-app-router)
 
-A router lets you change your view based on the URL in the browser. This allows your "single-page" application to simulate a traditional multipage site. To use Solid App Router, you specify components called Routes that depend on the value of the URL (the "path"), and the router handles the mechanism of swapping them in and out.
+A router lets you change your view based on the URL in the browser. This allows your "single-page" application to simulate a traditional multipage site. To use Solid Router, you specify components called Routes that depend on the value of the URL (the "path"), and the router handles the mechanism of swapping them in and out.
 
-Solid App Router is a universal router for SolidJS - it works whether you're rendering on the client or on the server. It was inspired by and combines paradigms of React Router and the Ember Router. Routes can be defined directly in your app's template using JSX, but you can also pass your route configuration directly as an object. It also supports nested routing, so navigation can change a part of a component, rather than completely replacing it. 
+Solid Router is a universal router for SolidJS - it works whether you're rendering on the client or on the server. It was inspired by and combines paradigms of React Router and the Ember Router. Routes can be defined directly in your app's template using JSX, but you can also pass your route configuration directly as an object. It also supports nested routing, so navigation can change a part of a component, rather than completely replacing it. 
 
-It supports all of Solid's SSR methods and has Solid's transitions baked in, so use it freely with suspense, resources, and lazy components. Solid App Router also allows you to define a data function that loads parallel to the routes ([render-as-you-fetch](https://epicreact.dev/render-as-you-fetch/)).
+It supports all of Solid's SSR methods and has Solid's transitions baked in, so use it freely with suspense, resources, and lazy components. Solid Router also allows you to define a data function that loads parallel to the routes ([render-as-you-fetch](https://epicreact.dev/render-as-you-fetch/)).
 
 - [Getting Started](#getting-started)
   - [Set Up the Router](#set-up-the-router)
@@ -457,7 +457,7 @@ render(
 ```
 ## Router Primitives
 
-Solid App Router provides a number of primitives that read off the Router and Route context.
+Solid Router provides a number of primitives that read off the Router and Route context.
 
 ### useParams
 
