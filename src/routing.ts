@@ -85,7 +85,8 @@ export const useMatch = (path: () => string) => {
 
 export const useParams = <T extends Params>() => useRoute().params as T;
 
-export const useRouteData = <T>() => useRoute().data as T;
+type MaybeReturnType<T> = T extends (...args: any) => infer R ? R : T;
+export const useRouteData = <T>() => useRoute().data as MaybeReturnType<T>;
 
 export const useSearchParams = <T extends Params>(): [
   T,
