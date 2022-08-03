@@ -44,14 +44,14 @@ export interface RouterIntegration {
   utils?: Partial<RouterUtils>;
 }
 
-export interface RouteDataFuncArgs {
-  data: unknown;
+export interface RouteDataFuncArgs<T = unknown> {
+  data: T extends RouteDataFunc ? ReturnType<T> : T;
   params: Params;
   location: Location;
   navigate: Navigator;
 }
 
-export type RouteDataFunc<T = unknown> = (args: RouteDataFuncArgs) => T;
+export type RouteDataFunc<T = unknown, R = unknown> = (args: RouteDataFuncArgs<T>) => R;
 
 export type RouteDefinition = {
   path: string | string[];
