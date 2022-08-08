@@ -101,7 +101,8 @@ export const Routes = (props: RoutesProps) => {
     on(matches, (nextMatches, prevMatches, prev: RouteContext[] | undefined) =>  {
       let equal = prevMatches && nextMatches.length === prevMatches.length;
       
-      const next: RouteContext[] = [], routeTransitionDuration = 1000;
+      const next: RouteContext[] = [],  
+            routeTransitionDuration = 1000; // Temporary, should come from user
 
       for (let i = 0, len = nextMatches.length; i < len; i++) {
         const prevMatch = prevMatches && prevMatches[i];

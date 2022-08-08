@@ -289,7 +289,7 @@ export function createRouterContext(
     signal: [source, setSource],
     utils = {}
   } = normalizeIntegration(integration);
-console.log(integration);
+
   const parsePath = utils.parsePath || (p => p);
   const renderPath = utils.renderPath || (p => p);
 
