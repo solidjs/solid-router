@@ -1,4 +1,4 @@
-import { Component, JSX } from "solid-js";
+import { Component, JSX, Accessor, Setter } from "solid-js";
 
 export type Params = Record<string, string>;
 
@@ -131,11 +131,18 @@ export interface RouterOutput {
 }
 
 export interface RouterContext {
-  base: RouteContext;
-  out?: RouterOutput;
-  location: Location;
-  navigatorFactory: NavigatorFactory;
-  isRouting: () => boolean;
-  renderPath(path: string): string;
-  parsePath(str: string): string;
+  base                     : RouteContext;
+  out?                     : RouterOutput;
+  location                 : Location;
+  routesOut                : Accessor<RouteContext[]>,
+  setRoutesOut             : Setter<RouteContext[]>,
+  routeIn                  : Accessor<RouteContext | null>,
+  setRouteIn               : Setter<RouteContext | null>,
+  route                    : Accessor<RouteContext | null>,
+  setRoute                 : Setter<RouteContext | null>,
+  routePath                : () => string;
+  navigatorFactory         : NavigatorFactory;
+  isRouting                : () => boolean;
+  renderPath(path: string) : string;
+  parsePath(str: string)   : string;
 }

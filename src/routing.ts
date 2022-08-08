@@ -1,4 +1,4 @@
-import type { Component, JSX, Accessor } from "solid-js";
+import type { Component, JSX, Accessor, Signal } from "solid-js";
 import {
   createComponent,
   createContext,
@@ -73,9 +73,37 @@ export const useHref = (to: () => string | undefined) => {
   });
 };
 
-export const useNavigate = () => useRouter().navigatorFactory();
-export const useLocation = <S = unknown>() => useRouter().location as Location<S>;
-export const useIsRouting = () => useRouter().isRouting;
+export const useIsRouteIn = () => {
+
+  return createMemo(() => {
+    return useRouter().routeIn()?.path() == useRoute()?.path();
+  });
+
+}
+
+export const useIsRouteOut = () => {
+
+  return createMemo(() => {
+    return useRouter().routesOut().filter(
+      e => e.path() == useRoute().path()
+    ).length > 0;
+  });
+
+}
+
+export const useIsRoute = () => {
+
+  return createMemo(() => {
+    return useRouter().route()?.path()  == useRoute()?.path() || 
+          useRouter().routeIn()?.path() == useRoute()?.path();
+  });
+
+}
+
+export const useNavigate     = () => useRouter().navigatorFactory();
+export const useLocation     = <S = unknown>() => useRouter().location as Location<S>;
+export const useIsRouting    = () => useRouter().isRouting;
+export const useRoutePath    = () => useRouter().routePath;
 
 export const useMatch = (path: () => string) => {
   const location = useLocation();
@@ -261,7 +289,7 @@ export function createRouterContext(
     signal: [source, setSource],
     utils = {}
   } = normalizeIntegration(integration);
-
+console.log(integration);
   const parsePath = utils.parsePath || (p => p);
   const renderPath = utils.renderPath || (p => p);
 
@@ -280,10 +308,13 @@ export function createRouterContext(
     setSource({ value: basePath, replace: true, scroll: false });
   }
 
-  const [isRouting, start] = useTransition();
-  const [reference, setReference] = createSignal(source().value);
-  const [state, setState] = createSignal(source().state);
-  const location = createLocation(reference, state);
+  const [isRouting, start]          = useTransition();
+  const [reference, setReference]   = createSignal(source().value);
+  const [state, setState]           = createSignal(source().state);
+  const [routesOut, setRoutesOut]   = createSignal([] as RouteContext[]);
+  const [routeIn,   setRouteIn]     = createSignal()  as Signal<RouteContext | null>;
+  const [route,     setRoute]       = createSignal()  as Signal<RouteContext | null>;
+  const location                    = createLocation(reference, state);
   const referrers: LocationChange[] = [];
 
   const baseRoute: RouteContext = {
@@ -467,8 +498,15 @@ export function createRouterContext(
   }
 
   return {
-    base: baseRoute,
-    out: output,
+    base      : baseRoute,
+    out       : output,
+    routePath : reference,
+    routesOut, 
+    setRoutesOut,
+    routeIn,   
+    setRouteIn,
+    route,     
+    setRoute,
     location,
     isRouting,
     renderPath,

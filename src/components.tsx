@@ -1,7 +1,7 @@
 /*@refresh skip*/
 
 import type { Component, JSX } from "solid-js";
-import { children, createMemo, createRoot, mergeProps, on, Show, splitProps } from "solid-js";
+import { children, createMemo, createRoot, mergeProps, on, Show, splitProps, For } from "solid-js";
 import { isServer } from "solid-js/web";
 import { pathIntegration, staticIntegration } from "./integration";
 import {
@@ -72,9 +72,9 @@ export interface RoutesProps {
 }
 
 export const Routes = (props: RoutesProps) => {
-  const router = useRouter();
+  const router      = useRouter();
   const parentRoute = useRoute();
-  const routeDefs = children(() => props.children) as unknown as () =>
+  const routeDefs   = children(() => props.children) as unknown as () =>
     | RouteDefinition
     | RouteDefinition[];
 
@@ -98,9 +98,11 @@ export const Routes = (props: RoutesProps) => {
   let root: RouteContext | undefined;
 
   const routeStates = createMemo(
-    on(matches, (nextMatches, prevMatches, prev: RouteContext[] | undefined) => {
+    on(matches, (nextMatches, prevMatches, prev: RouteContext[] | undefined) =>  {
       let equal = prevMatches && nextMatches.length === prevMatches.length;
-      const next: RouteContext[] = [];
+      
+      const next: RouteContext[] = [], routeTransitionDuration = 1000;
+
       for (let i = 0, len = nextMatches.length; i < len; i++) {
         const prevMatch = prevMatches && prevMatches[i];
         const nextMatch = nextMatches[i];
@@ -109,6 +111,7 @@ export const Routes = (props: RoutesProps) => {
           next[i] = prev[i];
         } else {
           equal = false;
+
           if (disposers[i]) {
             disposers[i]();
           }
@@ -130,15 +133,60 @@ export const Routes = (props: RoutesProps) => {
       if (prev && equal) {
         return prev;
       }
-      root = next[0];
+
+      if (!isServer && root && routeTransitionDuration > 1000 / 60) {
+        root = next[0];
+
+        router.setRouteIn(root);
+        router.setRoute(null);
+
+        if (prev && prev[0]) {
+          let prevRoot = prev[0];
+
+          router.setRoutesOut([...router.routesOut(), prevRoot]);
+
+          setTimeout(() => {
+
+            if (router.routeIn() == root) {
+              router.setRouteIn(null);
+              router.setRoute(root);
+            }
+
+            const ro  = router.routesOut(), 
+                  roi = ro.indexOf(prevRoot);
+
+            if (roi > -1) {
+              ro.splice(roi, 1);
+              router.setRoutesOut([...ro]);
+            }
+
+          }, routeTransitionDuration);
+
+        }
+        
+      } else {
+        root = next[0];
+        router.setRoute(root);
+      }
+
       return next;
     })
   );
-
+ 
   return (
-    <Show when={routeStates() && root}>
-      {route => <RouteContextObj.Provider value={route}>{route.outlet()}</RouteContextObj.Provider>}
-    </Show>
+    <For each={[router.route(), router.routeIn(), ...router.routesOut()]}>
+      { 
+        route => (
+          <Show when={root && route}>
+            {
+              route => <RouteContextObj.Provider value={route}>
+                {route.outlet()}
+              </RouteContextObj.Provider>
+            }
+          </Show>
+        )
+      }
+    </For>
   );
 };
 
