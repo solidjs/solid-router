@@ -12,7 +12,7 @@ import {
   useTransition,
   resetErrorBoundaries
 } from "solid-js";
-import { isServer } from "solid-js/web";
+import { isServer, delegateEvents } from "solid-js/web";
 import { normalizeIntegration } from "./integration";
 import type {
   Branch,
@@ -462,6 +462,8 @@ export function createRouterContext(
       });
     }
 
+    // ensure delegated events run first
+    delegateEvents(["click"]);
     document.addEventListener("click", handleAnchorClick);
     onCleanup(() => document.removeEventListener("click", handleAnchorClick));
   }
