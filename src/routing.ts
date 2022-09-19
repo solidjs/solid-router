@@ -9,7 +9,7 @@ import {
   onCleanup,
   untrack,
   useContext,
-  useTransition,
+  startTransition,
   resetErrorBoundaries
 } from "solid-js";
 import { isServer, delegateEvents } from "solid-js/web";
@@ -280,7 +280,15 @@ export function createRouterContext(
     setSource({ value: basePath, replace: true, scroll: false });
   }
 
-  const [isRouting, start] = useTransition();
+  const [isRouting, setIsRouting] = createSignal(false);
+  const start = async (callback: () => void) => {
+    setIsRouting(true);
+    try {
+      await startTransition(callback);
+    } finally {
+      setIsRouting(false);
+    }
+  };
   const [reference, setReference] = createSignal(source().value);
   const [state, setState] = createSignal(source().state);
   const location = createLocation(reference, state);
