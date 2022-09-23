@@ -275,7 +275,7 @@ import { lazy } from "solid-js";
 import { Route } from "@solidjs/router";
 import { fetchUser } ... 
 
-const User = lazy(() => import("/pages/users/[id].js"));
+const User = lazy(() => import("./pages/users/[id].js"));
 
 //Data function
 function UserData({params, location, navigate, data}) {
