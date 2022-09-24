@@ -198,7 +198,7 @@ const Home = lazy(() => import("./pages/Home"));
 
 export default function App() {
   return <>
-    <h1>My Site with Lots of Pages<h1/>
+    <h1>My Site with Lots of Pages</h1>
     <Routes>
       <Route path="/users" component={Users} />
       <Route path="/users/:id" component={User} />
