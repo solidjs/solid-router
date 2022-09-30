@@ -83,6 +83,7 @@ export const useMatch = (path: () => string) => {
   return createMemo(() => matcher()(location.pathname));
 };
 
+export const useRouteName = () => createMemo(on(() => useLocation().pathname, () => useRoute().child?.name?.() || useRoute().name?.()));
 export const useParams = <T extends Params>() => useRoute().params as T;
 
 type MaybeReturnType<T> = T extends (...args: any) => infer R ? R : T;
@@ -106,7 +107,7 @@ export function createRoutes(
   base: string = "",
   fallback?: Component
 ): Route[] {
-  const { component, data, children } = routeDef;
+  const { component, data, children, name } = routeDef;
   const isLeaf = !children || (Array.isArray(children) && !children.length);
 
   const shared = {
@@ -122,7 +123,8 @@ export function createRoutes(
     preload: routeDef.component
       ? (component as MaybePreloadableComponent).preload
       : routeDef.preload,
-    data
+    data,
+    name
   };
 
   return asArray(routeDef.path).reduce<Route[]>((acc, path) => {
@@ -488,10 +490,11 @@ export function createRouteContext(
   const { base, location, navigatorFactory } = router;
   const { pattern, element: outlet, preload, data } = match().route;
   const path = createMemo(() => match().path);
+  const name = createMemo(() => match().route.name);
   const params = createMemoObject(() => match().params);
 
   preload && preload();
-
+  
   const route: RouteContext = {
     parent,
     pattern,
@@ -499,6 +502,7 @@ export function createRouteContext(
       return child();
     },
     path,
+    name,
     params,
     data: parent.data,
     outlet,

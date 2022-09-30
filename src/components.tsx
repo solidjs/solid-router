@@ -150,6 +150,7 @@ export const useRoutes = (routes: RouteDefinition | RouteDefinition[], base?: st
 
 export type RouteProps = {
   path: string | string[];
+  name?: string;
   children?: JSX.Element;
   data?: RouteDataFunc;
 } & (

@@ -55,6 +55,7 @@ export type RouteDataFunc<T = unknown, R = unknown> = (args: RouteDataFuncArgs<T
 
 export type RouteDefinition = {
   path: string | string[];
+  name?: string;
   data?: RouteDataFunc;
   children?: RouteDefinition | RouteDefinition[];
 } & (
@@ -92,6 +93,7 @@ export interface Route {
   element: () => JSX.Element;
   preload?: () => void;
   data?: RouteDataFunc;
+  name?: string;
   matcher: (location: string) => PathMatch | null;
 }
 
@@ -108,6 +110,7 @@ export interface RouteContext {
   pattern: string;
   params: Params;
   path: () => string;
+  name?: () => string | undefined;
   outlet: () => JSX.Element;
   resolvePath(to: string): string | undefined;
 }
