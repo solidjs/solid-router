@@ -180,9 +180,7 @@ function getPath ({navigate, location}) {
 }
 
 //Navigating to /redirect will redirect you to the result of getPath
-<Route path="/redirect">
-  <Navigate href={getPath}/>
-</Route>
+<Route path="/redirect" element={<Navigate href={getPath}/>}/>
 ```
 
 ## Dynamic Routes
