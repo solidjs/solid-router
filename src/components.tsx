@@ -35,6 +35,7 @@ declare module "solid-js" {
       state?: string;
       noScroll?: boolean;
       replace?: boolean;
+      link?: boolean;
     }
   }
 }
@@ -137,9 +138,11 @@ export const Routes = (props: RoutesProps) => {
 
   return (
     <Show when={routeStates() && root}>
-      {(
-        (route:any) => <RouteContextObj.Provider value={route}>{route.outlet()}</RouteContextObj.Provider>
-      ) as JSX.FunctionElement}
+      {
+        ((route: any) => (
+          <RouteContextObj.Provider value={route}>{route.outlet()}</RouteContextObj.Provider>
+        )) as JSX.FunctionElement
+      }
     </Show>
   );
 };
@@ -171,78 +174,61 @@ export const Route = (props: RouteProps) => {
       return childRoutes();
     }
   }) as unknown as JSX.Element;
-}
+};
 
 export const Outlet = () => {
   const route = useRoute();
   return (
     <Show when={route.child}>
-      {(
-        (child:any) => <RouteContextObj.Provider value={child}>{child.outlet()}</RouteContextObj.Provider>
-      ) as JSX.FunctionElement}
+      {
+        ((child: any) => (
+          <RouteContextObj.Provider value={child}>{child.outlet()}</RouteContextObj.Provider>
+        )) as JSX.FunctionElement
+      }
     </Show>
   );
 };
 
-interface LinkBaseProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, "state"> {
-  to: string | undefined;
-  state?: unknown;
-}
-
-function LinkBase(props: LinkBaseProps) {
-  const [, rest] = splitProps(props, ["children", "to", "href", "state"]);
-  const href = useHref(() => props.to);
-
-  return (
-    <a {...rest} href={href() || props.href} state={JSON.stringify(props.state)}>
-      {props.children}
-    </a>
-  );
-}
-
-export interface LinkProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, "state"> {
+export interface AnchorProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, "state"> {
   href: string;
   replace?: boolean;
   noScroll?: boolean;
   state?: unknown;
-}
-
-export function Link(props: LinkProps) {
-  const to = useResolvedPath(() => props.href);
-  return <LinkBase {...props} to={to()} />;
-}
-
-export interface NavLinkProps extends LinkProps {
   inactiveClass?: string;
   activeClass?: string;
   end?: boolean;
 }
-
-export function NavLink(props: NavLinkProps) {
+export function A(props: AnchorProps) {
   props = mergeProps({ inactiveClass: "inactive", activeClass: "active" }, props);
-  const [, rest] = splitProps(props, ["activeClass", "inactiveClass", "end"]);
-  const location = useLocation();
+  const [, rest] = splitProps(props, ["href", "state", "activeClass", "inactiveClass", "end"]);
   const to = useResolvedPath(() => props.href);
+  const href = useHref(to);
+  const location = useLocation();
   const isActive = createMemo(() => {
     const to_ = to();
-    if (to_ === undefined) {
-      return false;
-    }
+    if (to_ === undefined) return false;
     const path = to_.split(/[?#]/, 1)[0].toLowerCase();
     const loc = location.pathname.toLowerCase();
     return props.end ? path === loc : loc.startsWith(path);
   });
 
   return (
-    <LinkBase
+    <a
+      link
       {...rest}
-      to={to()}
-      classList={{ [props.inactiveClass!]: !isActive(), [props.activeClass!]: isActive(), ...rest.classList }}
+      href={href() || props.href}
+      state={JSON.stringify(props.state)}
+      classList={{
+        [props.inactiveClass!]: !isActive(),
+        [props.activeClass!]: isActive(),
+        ...rest.classList
+      }}
       aria-current={isActive() ? "page" : undefined}
     />
   );
 }
-
+// deprecated alias exports
+export { A as Link, A as NavLink, AnchorProps as LinkProps, AnchorProps as NavLinkProps };
 export interface NavigateProps {
   href: ((args: { navigate: Navigator; location: Location }) => string) | string;
   state?: unknown;
