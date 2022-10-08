@@ -98,7 +98,7 @@ export default function App() {
 
 3. Lazy-load route components
 
-This way, the `Users` and `Home` components will only be loaded if you're navigating to `/users` or `/home`, respectively.
+This way, the `Users` and `Home` components will only be loaded if you're navigating to `/users` or `/`, respectively.
 
 ```jsx
 import { lazy } from "solid-js";
