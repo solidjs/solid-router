@@ -325,6 +325,9 @@ export function createRouterContext(
   ) {
     // Untrack in case someone navigates in an effect - don't want to track `reference` or route paths
     untrack(() => {
+      if (utils.block && utils.block(to, options)) {
+        return;
+      }
       if (typeof to === "number") {
         if (!to) {
           // A delta of 0 means stay at the current location, so it is ignored

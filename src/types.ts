@@ -116,6 +116,7 @@ export interface RouterUtils {
   renderPath(path: string): string;
   parsePath(str: string): string;
   go(delta: number): void;
+  block(to: string | number, options?: Partial<NavigateOptions>): boolean;
 }
 
 export interface OutputMatch {
