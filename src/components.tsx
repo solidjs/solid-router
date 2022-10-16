@@ -200,7 +200,7 @@ export interface AnchorProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorEle
 }
 export function A(props: AnchorProps) {
   props = mergeProps({ inactiveClass: "inactive", activeClass: "active" }, props);
-  const [, rest] = splitProps(props, ["href", "state", "activeClass", "inactiveClass", "end"]);
+  const [, rest] = splitProps(props, ["href", "state", "class", "activeClass", "inactiveClass", "end"]);
   const to = useResolvedPath(() => props.href);
   const href = useHref(to);
   const location = useLocation();
@@ -219,6 +219,7 @@ export function A(props: AnchorProps) {
       href={href() || props.href}
       state={JSON.stringify(props.state)}
       classList={{
+        ...(props.class && { [props.class]: true }),
         [props.inactiveClass!]: !isActive(),
         [props.activeClass!]: isActive(),
         ...rest.classList
