@@ -102,23 +102,20 @@ export const useSearchParams = <T extends Params>(): [
   return [location.query as T, setSearchParams];
 };
 
-let leaveHandlers: {
+let leaveHandlers = new Set<{
   handler: BeforeLeaveHandler;
   navigate: Navigator;
-}[] = [];
+}>();
 export const useBeforeLeave = (handler: BeforeLeaveHandler) => {
   const h = { handler, navigate: useNavigate() };
-  leaveHandlers.push(h);
-  onCleanup(() => {
-    const idx = leaveHandlers.indexOf(h);
-    idx > -1 && leaveHandlers.splice(idx, 1);
-  });
+  leaveHandlers.add(h);
+  onCleanup(() => leaveHandlers.delete(h));
 };
 
 let skipConfirmLeave = false;
 export function confirmLeave(path: string | number, options?: Partial<NavigateOptions>) {
   if (skipConfirmLeave) return true;
-  let e = {
+  const e = {
     defaultPrevented: false,
     to: { path, options },
     preventDefault: () => ((e.defaultPrevented as boolean) = true)
