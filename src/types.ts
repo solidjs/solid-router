@@ -86,7 +86,7 @@ export interface OutputMatch {
 }
 
 export interface Route {
-  key: unknown,
+  key: unknown;
   originalPath: string;
   pattern: string;
   element: () => JSX.Element;
@@ -138,4 +138,15 @@ export interface RouterContext {
   isRouting: () => boolean;
   renderPath(path: string): string;
   parsePath(str: string): string;
+}
+
+export interface BeforeLeaveEventArgs {
+  readonly defaultPrevented: boolean;
+  to: { path: string | number; options?: Partial<NavigateOptions> };
+  preventDefault(): void;
+  forceRetry(): void
+}
+
+export interface BeforeLeaveHandler {
+  (e: BeforeLeaveEventArgs): void;
 }

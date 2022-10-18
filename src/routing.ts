@@ -15,6 +15,7 @@ import {
 import { isServer, delegateEvents } from "solid-js/web";
 import { normalizeIntegration } from "./integration";
 import type {
+  BeforeLeaveHandler,
   Branch,
   Location,
   LocationChange,
@@ -100,6 +101,42 @@ export const useSearchParams = <T extends Params>(): [
   };
   return [location.query as T, setSearchParams];
 };
+
+let leaveHandlers: {
+  handler: BeforeLeaveHandler;
+  navigate: Navigator;
+}[] = [];
+export const useBeforeLeave = (handler: BeforeLeaveHandler) => {
+  const h = { handler, navigate: useNavigate() };
+  leaveHandlers.push(h);
+  onCleanup(() => {
+    const idx = leaveHandlers.indexOf(h);
+    idx > -1 && leaveHandlers.splice(idx, 1);
+  });
+};
+
+let skipConfirmLeave = false;
+export function confirmLeave(path: string | number, options?: Partial<NavigateOptions>) {
+  if (skipConfirmLeave) return true;
+  let e = {
+    defaultPrevented: false,
+    to: { path, options },
+    preventDefault: () => ((e.defaultPrevented as boolean) = true)
+  };
+  for (const h of leaveHandlers)
+    h.handler({
+      ...e,
+      forceRetry: () => {
+        skipConfirmLeave = true;
+        try {
+          h.navigate(path as string, options);
+        } finally {
+          skipConfirmLeave = false;
+        }
+      }
+    });
+  return !e.defaultPrevented;
+}
 
 export function createRoutes(
   routeDef: RouteDefinition,
@@ -325,6 +362,9 @@ export function createRouterContext(
   ) {
     // Untrack in case someone navigates in an effect - don't want to track `reference` or route paths
     untrack(() => {
+      if (!confirmLeave(to, options)) {
+        return;
+      }
       if (typeof to === "number") {
         if (!to) {
           // A delta of 0 means stay at the current location, so it is ignored
