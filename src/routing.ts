@@ -126,12 +126,12 @@ export function confirmLeave(path: string | number, options?: Partial<NavigateOp
   for (const h of leaveHandlers)
     h.handler({
       ...e,
-      forceRetry: () => {
-        skipConfirmLeave = true;
+      retry: (force?: boolean) => {
+        force && (skipConfirmLeave = true);
         try {
           h.navigate(path as string, options);
         } finally {
-          skipConfirmLeave = false;
+          force && (skipConfirmLeave = false);
         }
       }
     });

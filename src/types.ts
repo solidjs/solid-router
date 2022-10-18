@@ -144,7 +144,7 @@ export interface BeforeLeaveEventArgs {
   readonly defaultPrevented: boolean;
   to: { path: string | number; options?: Partial<NavigateOptions> };
   preventDefault(): void;
-  forceRetry(): void
+  retry(force?: boolean): void
 }
 
 export interface BeforeLeaveHandler {
