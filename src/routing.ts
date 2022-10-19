@@ -325,14 +325,12 @@ export function createRouterContext(
   ) {
     // Untrack in case someone navigates in an effect - don't want to track `reference` or route paths
     untrack(() => {
-      if (utils.block && utils.block(to, options)) {
-        return;
-      }
+      const canLeave = () => !utils.block || !utils.block(reference(), to, options);
       if (typeof to === "number") {
         if (!to) {
           // A delta of 0 means stay at the current location, so it is ignored
         } else if (utils.go) {
-          utils.go(to);
+          canLeave() && utils.go(to);
         } else {
           console.warn("Router integration does not support relative routing");
         }
@@ -367,7 +365,7 @@ export function createRouterContext(
             output.url = resolvedTo;
           }
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
-        } else {
+        } else if (canLeave()) {
           const len = referrers.push({ value: current, replace, scroll, state: state() });
           start(() => {
             setReference(resolvedTo);

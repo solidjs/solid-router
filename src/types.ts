@@ -86,7 +86,7 @@ export interface OutputMatch {
 }
 
 export interface Route {
-  key: unknown,
+  key: unknown;
   originalPath: string;
   pattern: string;
   element: () => JSX.Element;
@@ -116,7 +116,7 @@ export interface RouterUtils {
   renderPath(path: string): string;
   parsePath(str: string): string;
   go(delta: number): void;
-  block(to: string | number, options?: Partial<NavigateOptions>): boolean;
+  block(from: string, to: string | number, options?: Partial<NavigateOptions>): boolean;
 }
 
 export interface OutputMatch {
