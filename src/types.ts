@@ -141,10 +141,12 @@ export interface RouterContext {
 }
 
 export interface BeforeLeaveEventArgs {
+  from: string;
+  to: string | number;
+  options?: Partial<NavigateOptions>;
   readonly defaultPrevented: boolean;
-  to: { path: string | number; options?: Partial<NavigateOptions> };
   preventDefault(): void;
-  retry(force?: boolean): void
+  retry(force?: boolean): void;
 }
 
 export interface BeforeLeaveHandler {

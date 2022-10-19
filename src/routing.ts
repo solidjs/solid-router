@@ -113,11 +113,17 @@ export const useBeforeLeave = (handler: BeforeLeaveHandler) => {
 };
 
 let skipConfirmLeave = false;
-export function confirmLeave(path: string | number, options?: Partial<NavigateOptions>) {
+export function confirmLeave(
+  from: string,
+  to: string | number,
+  options?: Partial<NavigateOptions>
+) {
   if (skipConfirmLeave) return true;
   const e = {
+    from,
+    to,
+    options,
     defaultPrevented: false,
-    to: { path, options },
     preventDefault: () => ((e.defaultPrevented as boolean) = true)
   };
   for (const h of leaveHandlers)
@@ -126,7 +132,7 @@ export function confirmLeave(path: string | number, options?: Partial<NavigateOp
       retry: (force?: boolean) => {
         force && (skipConfirmLeave = true);
         try {
-          h.navigate(path as string, options);
+          h.navigate(to as string, options);
         } finally {
           force && (skipConfirmLeave = false);
         }
@@ -359,14 +365,13 @@ export function createRouterContext(
   ) {
     // Untrack in case someone navigates in an effect - don't want to track `reference` or route paths
     untrack(() => {
-      if (!confirmLeave(to, options)) {
-        return;
-      }
       if (typeof to === "number") {
         if (!to) {
           // A delta of 0 means stay at the current location, so it is ignored
         } else if (utils.go) {
-          utils.go(to);
+          if (confirmLeave(reference(), to, options)) {
+            utils.go(to);
+          }
         } else {
           console.warn("Router integration does not support relative routing");
         }
@@ -401,7 +406,7 @@ export function createRouterContext(
             output.url = resolvedTo;
           }
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
-        } else {
+        } else if (confirmLeave(reference(), to, options)) {
           const len = referrers.push({ value: current, replace, scroll, state: state() });
           start(() => {
             setReference(resolvedTo);
