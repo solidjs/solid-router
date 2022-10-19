@@ -369,9 +369,7 @@ export function createRouterContext(
         if (!to) {
           // A delta of 0 means stay at the current location, so it is ignored
         } else if (utils.go) {
-          if (confirmLeave(reference(), to, options)) {
-            utils.go(to);
-          }
+          confirmLeave(reference(), to, options) && utils.go(to);
         } else {
           console.warn("Router integration does not support relative routing");
         }
