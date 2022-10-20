@@ -116,6 +116,7 @@ export interface RouterUtils {
   renderPath(path: string): string;
   parsePath(str: string): string;
   go(delta: number): void;
+  beforeLeave: BeforeLeaveLifecycle;
 }
 
 export interface OutputMatch {
@@ -138,6 +139,7 @@ export interface RouterContext {
   isRouting: () => boolean;
   renderPath(path: string): string;
   parsePath(str: string): string;
+  beforeLeave: BeforeLeaveLifecycle;
 }
 
 export interface BeforeLeaveEventArgs {
@@ -149,6 +151,12 @@ export interface BeforeLeaveEventArgs {
   retry(force?: boolean): void;
 }
 
-export interface BeforeLeaveHandler {
-  (e: BeforeLeaveEventArgs): void;
+export interface BeforeLeaveListener {
+  listener(e: BeforeLeaveEventArgs): void;
+  navigate: Navigator;
+}
+
+export interface BeforeLeaveLifecycle {
+  subscribe(listener: BeforeLeaveListener): () => void;
+  confirm(from: string, to: string | number, options?: Partial<NavigateOptions>): boolean;
 }

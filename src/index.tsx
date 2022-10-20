@@ -1,5 +1,6 @@
 export * from "./components";
 export * from "./integration";
+export * from "./lifecycle";
 export {
   useRouteData,
   useHref,
@@ -11,7 +12,6 @@ export {
   useResolvedPath,
   useSearchParams,
   useBeforeLeave,
-  confirmLeave
 } from "./routing";
 export { mergeSearchString as _mergeSearchString } from "./utils";
 export type {

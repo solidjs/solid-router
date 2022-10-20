@@ -14,8 +14,9 @@ import {
 } from "solid-js";
 import { isServer, delegateEvents } from "solid-js/web";
 import { normalizeIntegration } from "./integration";
+import { createBeforeLeave } from "./lifecycle";
 import type {
-  BeforeLeaveHandler,
+  BeforeLeaveEventArgs,
   Branch,
   Location,
   LocationChange,
@@ -102,44 +103,10 @@ export const useSearchParams = <T extends Params>(): [
   return [location.query as T, setSearchParams];
 };
 
-let leaveHandlers = new Set<{
-  handler: BeforeLeaveHandler;
-  navigate: Navigator;
-}>();
-export const useBeforeLeave = (handler: BeforeLeaveHandler) => {
-  const h = { handler, navigate: useNavigate() };
-  leaveHandlers.add(h);
-  onCleanup(() => leaveHandlers.delete(h));
+export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
+  const s = useRouter().beforeLeave.subscribe({ listener, navigate: useNavigate() });
+  onCleanup(s);
 };
-
-let skipConfirmLeave = false;
-export function confirmLeave(
-  from: string,
-  to: string | number,
-  options?: Partial<NavigateOptions>
-) {
-  if (skipConfirmLeave) return true;
-  const e = {
-    from,
-    to,
-    options,
-    defaultPrevented: false,
-    preventDefault: () => ((e.defaultPrevented as boolean) = true)
-  };
-  for (const h of leaveHandlers)
-    h.handler({
-      ...e,
-      retry: (force?: boolean) => {
-        force && (skipConfirmLeave = true);
-        try {
-          h.navigate(to as string, options);
-        } finally {
-          force && (skipConfirmLeave = false);
-        }
-      }
-    });
-  return !e.defaultPrevented;
-}
 
 export function createRoutes(
   routeDef: RouteDefinition,
@@ -304,6 +271,7 @@ export function createRouterContext(
 
   const parsePath = utils.parsePath || (p => p);
   const renderPath = utils.renderPath || (p => p);
+  const beforeLeave = utils.beforeLeave || createBeforeLeave();
 
   const basePath = resolvePath("", base);
   const output =
@@ -369,7 +337,7 @@ export function createRouterContext(
         if (!to) {
           // A delta of 0 means stay at the current location, so it is ignored
         } else if (utils.go) {
-          confirmLeave(reference(), to, options) && utils.go(to);
+          beforeLeave.confirm(reference(), to, options) && utils.go(to);
         } else {
           console.warn("Router integration does not support relative routing");
         }
@@ -404,7 +372,7 @@ export function createRouterContext(
             output.url = resolvedTo;
           }
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
-        } else if (confirmLeave(reference(), to, options)) {
+        } else if (beforeLeave.confirm(reference(), to, options)) {
           const len = referrers.push({ value: current, replace, scroll, state: state() });
           start(() => {
             setReference(resolvedTo);
@@ -516,7 +484,8 @@ export function createRouterContext(
     isRouting,
     renderPath,
     parsePath,
-    navigatorFactory
+    navigatorFactory,
+    beforeLeave
   };
 }
 
