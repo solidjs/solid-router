@@ -9,10 +9,9 @@ export function createBeforeLeave(): BeforeLeaveLifecycle {
   }
 
   let ignore = false;
-  function confirm(from: string, to: string | number, options?: Partial<NavigateOptions>) {
+  function confirm(to: string | number, options?: Partial<NavigateOptions>) {
     if (ignore) return true;
     const e = {
-      from,
       to,
       options,
       defaultPrevented: false,
@@ -21,10 +20,11 @@ export function createBeforeLeave(): BeforeLeaveLifecycle {
     for (const l of listeners)
       l.listener({
         ...e,
+        from: l.router.location,
         retry: (force?: boolean) => {
           force && (ignore = true);
           try {
-            l.navigate(to as string, options);
+            l.router.navigatorFactory()(to as string, options);
           } finally {
             force && (ignore = false);
           }

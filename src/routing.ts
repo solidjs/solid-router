@@ -104,7 +104,7 @@ export const useSearchParams = <T extends Params>(): [
 };
 
 export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
-  const s = useRouter().beforeLeave.subscribe({ listener, navigate: useNavigate() });
+  const s = useRouter().beforeLeave.subscribe({ listener, router: useRouter() });
   onCleanup(s);
 };
 
@@ -337,7 +337,7 @@ export function createRouterContext(
         if (!to) {
           // A delta of 0 means stay at the current location, so it is ignored
         } else if (utils.go) {
-          beforeLeave.confirm(reference(), to, options) && utils.go(to);
+          beforeLeave.confirm(to, options) && utils.go(to);
         } else {
           console.warn("Router integration does not support relative routing");
         }
@@ -372,7 +372,7 @@ export function createRouterContext(
             output.url = resolvedTo;
           }
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
-        } else if (beforeLeave.confirm(reference(), to, options)) {
+        } else if (beforeLeave.confirm(resolvedTo, options)) {
           const len = referrers.push({ value: current, replace, scroll, state: state() });
           start(() => {
             setReference(resolvedTo);

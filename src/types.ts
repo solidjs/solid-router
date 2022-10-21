@@ -143,7 +143,7 @@ export interface RouterContext {
 }
 
 export interface BeforeLeaveEventArgs {
-  from: string;
+  from: Location;
   to: string | number;
   options?: Partial<NavigateOptions>;
   readonly defaultPrevented: boolean;
@@ -153,10 +153,10 @@ export interface BeforeLeaveEventArgs {
 
 export interface BeforeLeaveListener {
   listener(e: BeforeLeaveEventArgs): void;
-  navigate: Navigator;
+  router: RouterContext;
 }
 
 export interface BeforeLeaveLifecycle {
   subscribe(listener: BeforeLeaveListener): () => void;
-  confirm(from: string, to: string | number, options?: Partial<NavigateOptions>): boolean;
+  confirm(to: string | number, options?: Partial<NavigateOptions>): boolean;
 }

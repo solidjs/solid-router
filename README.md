@@ -544,7 +544,7 @@ Used to define routes via a config object instead of JSX. See [Config Based Rout
 
 `useBeforeLeave` takes a function that will be called prior to leaving a route.  The function will be called with:
 
-- from (_string_): path prior to `navigate`.
+- from (_Location_): current location (before change).
 - to (_string | number_}: path passed to `navigate`.
 - options (_NavigateOptions_}: options passed to `navigate`.
 - preventDefault (_void function_): call to block the route change.
