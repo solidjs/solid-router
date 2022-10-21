@@ -153,7 +153,8 @@ export interface BeforeLeaveEventArgs {
 
 export interface BeforeLeaveListener {
   listener(e: BeforeLeaveEventArgs): void;
-  router: RouterContext;
+  location: Location
+  navigate: Navigator;
 }
 
 export interface BeforeLeaveLifecycle {

@@ -20,11 +20,11 @@ export function createBeforeLeave(): BeforeLeaveLifecycle {
     for (const l of listeners)
       l.listener({
         ...e,
-        from: l.router.location,
+        from: l.location,
         retry: (force?: boolean) => {
           force && (ignore = true);
           try {
-            l.router.navigatorFactory()(to as string, options);
+            l.navigate(to as string, options);
           } finally {
             force && (ignore = false);
           }

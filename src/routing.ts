@@ -104,7 +104,7 @@ export const useSearchParams = <T extends Params>(): [
 };
 
 export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
-  const s = useRouter().beforeLeave.subscribe({ listener, router: useRouter() });
+  const s = useRouter().beforeLeave.subscribe({ listener, location: useLocation(), navigate: useNavigate()});
   onCleanup(s);
 };
 
