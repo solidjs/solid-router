@@ -5,7 +5,9 @@ const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|\/+$/g;
 
 function normalize(path: string, omitSlash: boolean = false) {
-  const s = path.replace(trimPathRegex, "");
+  const p = path.split("?");
+  p[0] = p[0].replace(trimPathRegex, "");
+  const s = p.join("?");
   return s ? (omitSlash || /^[?#]/.test(s) ? s : "/" + s) : "";
 }
 
