@@ -41,7 +41,7 @@ describe("Router should", () => {
       });
     });
 
-    describe(`contain property 'path' which should`, () => {
+    describe(`contain property 'pathname' which should`, () => {
       test(`be reactive to the path part of the integration signal`, () =>
         createAsyncRoot(resolve => {
           const expected = "/fizz/buzz";
@@ -51,7 +51,6 @@ describe("Router should", () => {
           const { location } = createRouterContext(signal);
           expect(location.pathname).toBe("/foo/bar");
           signal[1]({ value: expected + "?hello=world" });
-
           waitFor(() => signal[0]().value === expected + "?hello=world").then(() => {
             expect(location.pathname).toBe(expected);
             resolve();
@@ -65,14 +64,13 @@ describe("Router should", () => {
           });
           const { location } = createRouterContext(signal);
           const count = createCounter(() => location.pathname);
-
           expect(location.pathname).toBe("/foo/bar");
           signal[1]({ value: "/foo/bar?fizz=buzz" });
           expect(location.pathname).toBe("/foo/bar");
           expect(count()).toBe(0);
         }));
 
-      test.only(`handle URL decoding`, () =>
+      test(`handle URL decoding`, () =>
         createRoot(() => {
           const signal = createSignal<LocationChange>({
             value: "/foo bar+baz"
@@ -80,10 +78,10 @@ describe("Router should", () => {
           const { location } = createRouterContext(signal);
           expect(location.pathname).toBe("/foo bar+baz");
         }));
-    });
+    }); // end of "contain property 'pathname'"
 
-    describe(`contain property 'queryString' which should`, () => {
-      test(`be reactive to the queryString part of the integration signal`, () =>
+    describe(`contain property 'search' which should`, () => {
+      test(`be reactive to the search part of the integration signal`, () =>
         createAsyncRoot(resolve => {
           const expected = "?fizz=buzz";
           const signal = createSignal<LocationChange>({
@@ -114,7 +112,7 @@ describe("Router should", () => {
           expect(count()).toBe(0);
         }));
 
-      test.only(`handle URL decoding`, () =>
+      test(`handle URL decoding`, () =>
         createRoot(() => {
           const signal = createSignal<LocationChange>({
             value: "/foo?hello+world=bar+baz"
@@ -122,10 +120,10 @@ describe("Router should", () => {
           const { location } = createRouterContext(signal);
           expect(location.search).toBe("?hello world=bar baz");
         }));
-    });
+    }); //end of "contain property 'search'"
 
     describe(`contain property 'hash' which should`, () => {
-      test.only(`handle URL decoding`, () =>
+      test(`handle URL decoding`, () =>
         createRoot(() => {
           const signal = createSignal<LocationChange>({
             value: "/foo#bar baz"
@@ -133,7 +131,7 @@ describe("Router should", () => {
           const { location } = createRouterContext(signal);
           expect(location.hash).toBe("#bar baz");
         }));
-    });
+    }); // end of "contain property 'hash'"
 
     describe("have member `query` which should", () => {
       test(`be parsed from location.search`, () => {
@@ -201,8 +199,8 @@ describe("Router should", () => {
             resolve();
           });
         }));
-    });
-  });
+    }); // end of "have member `query`"
+  }); // end "have member `location`"
 
   describe("have member `navigate` which should", () => {
     test(`update the location in the next microtask`, () => {
@@ -330,7 +328,7 @@ describe("Router should", () => {
         expect(pushAlot).toThrow("Too many redirects");
       });
     });
-  });
+  }); // end of "have member `navigate`"
 
   describe("have member `isRouting` which should", () => {
     test.skip("be true when the push or replace causes transition", () => {
