@@ -4,7 +4,7 @@ import type { Params, PathMatch, Route, SetParams } from "./types";
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|\/+$/g;
 
-function normalize(path: string, omitSlash: boolean = false) {
+export function normalizePath(path: string, omitSlash: boolean = false) {
   const s = path.replace(trimPathRegex, "");
   return s ? (omitSlash || /^[?#]/.test(s) ? s : "/" + s) : "";
 }
@@ -13,8 +13,8 @@ export function resolvePath(base: string, path: string, from?: string): string |
   if (hasSchemeRegex.test(path)) {
     return undefined;
   }
-  const basePath = normalize(base);
-  const fromPath = from && normalize(from);
+  const basePath = normalizePath(base);
+  const fromPath = from && normalizePath(from);
   let result = "";
   if (!fromPath || path.startsWith("/")) {
     result = basePath;
@@ -23,7 +23,7 @@ export function resolvePath(base: string, path: string, from?: string): string |
   } else {
     result = fromPath;
   }
-  return (result || "/") + normalize(path, !result);
+  return (result || "/") + normalizePath(path, !result);
 }
 
 export function invariant<T>(value: T | null | undefined, message: string): T {
@@ -34,7 +34,7 @@ export function invariant<T>(value: T | null | undefined, message: string): T {
 }
 
 export function joinPaths(from: string, to: string): string {
-  return normalize(from).replace(/\/*(\*.*)?$/g, "") + normalize(to);
+  return normalizePath(from).replace(/\/*(\*.*)?$/g, "") + normalizePath(to);
 }
 
 export function extractSearchParams(url: URL): Params {

@@ -27,7 +27,7 @@ import type {
   RouteDefinition,
   RouterIntegration
 } from "./types";
-import { joinPaths } from "./utils";
+import { joinPaths, normalizePath } from "./utils";
 
 declare module "solid-js" {
   namespace JSX {
@@ -207,9 +207,9 @@ export function A(props: AnchorProps) {
   const isActive = createMemo(() => {
     const to_ = to();
     if (to_ === undefined) return false;
-    const path = to_.split(/[?#]/, 1)[0].toLowerCase();
-    const loc = location.pathname.toLowerCase();
-    return props.end ? path === loc : loc.startsWith(path);
+    const path = normalizePath(to_.split(/[?#]/, 1)[0]).toLowerCase();
+    const loc = normalizePath(location.pathname).toLowerCase();
+return props.end ? path === loc : loc.startsWith(path);
   });
 
   return (
