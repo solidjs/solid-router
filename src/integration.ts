@@ -14,22 +14,33 @@ function intercept<T>(
   return [get ? () => get(value()) : value, set ? (v: T) => setValue(set(v)) : setValue];
 }
 
-function querySelector<T extends Element>(selector: string) {
-  // Guard against selector being an invalid CSS selector
-  try {
-    return document.querySelector<T>(selector);
-  } catch (e) {
-    return null;
-  }
+function waitForElement(id: string, timeout: number) {
+  return new Promise<Element | null>(resolve => {
+    const el = document.getElementById(id);
+    if (el) {
+      resolve(el);
+    } else {
+      const observer = new MutationObserver(mutations => {
+        const el = document.getElementById(id);
+        if (el) {
+          resolve(el);
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+      setTimeout(() => {
+        observer.disconnect();
+        resolve(null);
+      }, timeout);
+    }
+  });
 }
 
 function scrollToHash(hash: string, fallbackTop?: boolean) {
-  const el = querySelector(`#${hash}`);
-  if (el) {
-    el.scrollIntoView();
-  } else if (fallbackTop) {
-    window.scrollTo(0, 0);
-  }
+  const fallback = () => fallbackTop && window.scrollTo(0, 0);
+  if (hash) {
+    waitForElement(hash, 100).then(el => (el ? el.scrollIntoView() : fallback()));
+  } else fallback();
 }
 
 export function createIntegration(
@@ -86,6 +97,7 @@ export function staticIntegration(obj: LocationChange): RouterIntegration {
 }
 
 export function pathIntegration() {
+  scrollToHash(window.location.hash.slice(1));
   return createIntegration(
     () => ({
       value: window.location.pathname + window.location.search + window.location.hash,
