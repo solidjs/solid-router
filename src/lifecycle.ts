@@ -10,7 +10,7 @@ export function createBeforeLeave(): BeforeLeaveLifecycle {
 
   let ignore = false;
   function confirm(to: string | number, options?: Partial<NavigateOptions>) {
-    if (ignore) return true;
+    if (ignore) return !(ignore = false);
     const e = {
       to,
       options,
@@ -23,11 +23,7 @@ export function createBeforeLeave(): BeforeLeaveLifecycle {
         from: l.location,
         retry: (force?: boolean) => {
           force && (ignore = true);
-          try {
-            l.navigate(to as string, options);
-          } finally {
-            force && (ignore = false);
-          }
+          l.navigate(to as string, options);
         }
       });
     return !e.defaultPrevented;
