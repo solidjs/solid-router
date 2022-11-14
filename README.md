@@ -275,7 +275,7 @@ function UserData({params, location, navigate, data}) {
 
 When the route is loaded, the data function is called, and the result can be accessed by calling `useRouteData()` in the route component.
 
-```jsx
+```jsxhttps://www.youtube.com/watch?v=KMTHMZL2twQ
 //pages/users/[id].js
 import { useRouteData } from '@solidjs/router';
 export default function User() {
@@ -511,6 +511,31 @@ return (
     <MyAwesomeConent />
   </div>
 );
+```
+### Guard
+
+When notLogin(in below) is true that mean it will not do anything but if it is string it will redirect to the string that we get in return.
+
+```js
+const notLogin: Accessor<string | true> = createMemo(() => {
+  if (JSON.parse(JSON.stringify(LoginService.get())).login != false) { return '/' }
+  return true;
+});
+const App: Component = () => {
+  return (
+    <>
+      <Router>
+        <Routes>
+          <Route path='/' component={Public_Layout}>
+            <Route path='' component={HomePage} />
+            <Route path='login/' guard={notLogin} component={Login_Page} />
+            <Route path='register/' guard={notLogin} component={RegisterPage} />
+          </Route>
+        </Routes>
+      </Router>
+    </>
+  );
+};
 ```
 
 ### useRouteData
