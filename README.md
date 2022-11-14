@@ -512,6 +512,28 @@ return (
   </div>
 );
 ```
+### Guard
+
+const notLogin: Accessor<string | true> = createMemo(() => {
+  if (JSON.parse(JSON.stringify(LoginService.get())).login != false) { return '/' }
+  return true;
+});
+const App: Component = () => {
+  return (
+    <>
+      <Router>
+        <Routes>
+          <Route path='/' component={Public_Layout}>
+            <Route path='' component={HomePage} />
+            <Route path='login/' guard={notLogin} component={Login_Page} />
+            <Route path='register/' guard={notLogin} component={RegisterPage} />
+          </Route>
+        </Routes>
+      </Router>
+    </>
+  );
+};
+```js
 
 ### useRouteData
 
