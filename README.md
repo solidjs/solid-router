@@ -513,7 +513,7 @@ return (
 );
 ```
 ### Guard
-
+```js
 const notLogin: Accessor<string | true> = createMemo(() => {
   if (JSON.parse(JSON.stringify(LoginService.get())).login != false) { return '/' }
   return true;
@@ -533,7 +533,7 @@ const App: Component = () => {
     </>
   );
 };
-```js
+```
 
 ### useRouteData
 
