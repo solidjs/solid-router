@@ -1,4 +1,4 @@
-import { Component, JSX } from "solid-js";
+import { Accessor, Component, JSX } from "solid-js";
 
 export type Params = Record<string, string>;
 
@@ -86,7 +86,7 @@ export interface OutputMatch {
 }
 
 export interface Route {
-  key: unknown,
+  key: any,
   originalPath: string;
   pattern: string;
   element: () => JSX.Element;
@@ -95,13 +95,17 @@ export interface Route {
   matcher: (location: string) => PathMatch | null;
 }
 
+export interface key_guard {
+  guard?: Accessor<string | false>
+}
+
 export interface Branch {
   routes: Route[];
   score: number;
   matcher: (location: string) => RouteMatch[] | null;
 }
 
-export interface RouteContext {
+export interface RouteContext extends key_guard {
   parent?: RouteContext;
   child?: RouteContext;
   data?: unknown;

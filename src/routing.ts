@@ -114,11 +114,11 @@ export function createRoutes(
     element: component
       ? () => createComponent(component, {})
       : () => {
-          const { element } = routeDef;
-          return element === undefined && fallback
-            ? createComponent(fallback, {})
-            : (element as JSX.Element);
-        },
+        const { element } = routeDef;
+        return element === undefined && fallback
+          ? createComponent(fallback, {})
+          : (element as JSX.Element);
+      },
     preload: routeDef.component
       ? (component as MaybePreloadableComponent).preload
       : routeDef.preload,
@@ -269,9 +269,9 @@ export function createRouterContext(
   const output =
     isServer && out
       ? (Object.assign(out, {
-          matches: [],
-          url: undefined
-        }) as RouterOutput)
+        matches: [],
+        url: undefined
+      }) as RouterOutput)
       : undefined;
 
   if (basePath === undefined) {
@@ -490,7 +490,8 @@ export function createRouteContext(
   const { pattern, element: outlet, preload, data } = match().route;
   const path = createMemo(() => match().path);
   const params = createMemoObject(() => match().params);
-
+  const guard = match().route.key?.guard;
+  console.log(match().route.key);
   preload && preload();
 
   const route: RouteContext = {
@@ -501,6 +502,7 @@ export function createRouteContext(
     },
     path,
     params,
+    guard:guard,
     data: parent.data,
     outlet,
     resolvePath(to: string) {
