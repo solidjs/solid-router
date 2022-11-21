@@ -98,7 +98,7 @@ export const useSearchParams = <T extends Params>(): [
   const navigate = useNavigate();
   const setSearchParams = (params: SetParams, options?: Partial<NavigateOptions>) => {
     const searchString = untrack(() => mergeSearchString(location.search, params));
-    navigate(location.pathname + searchString, { scroll: false, ...options });
+    navigate(location.pathname + searchString + location.hash, { scroll: false, resolve: false, ...options });
   };
   return [location.query as T, setSearchParams];
 };
