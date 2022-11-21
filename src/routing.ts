@@ -188,8 +188,8 @@ export function createBranches(
       const routes = createRoutes(def, base, fallback);
       for (const route of routes) {
         stack.push(route);
-
-        if (def.children) {
+        const isEmptyArray = Array.isArray(def.children) && def.children.length === 0
+        if (def.children && !isEmptyArray ) {
           createBranches(def.children, route.pattern, fallback, stack, branches);
         } else {
           const branch = createBranch([...stack], branches.length);
