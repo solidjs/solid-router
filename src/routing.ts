@@ -459,7 +459,7 @@ export function createRouterContext(
       )
         return;
 
-      const to = parsePath(pathname + urlDecode(url.search, true) + urlDecode(url.hash));
+      const to = parsePath(url.pathname + url.search + url.hash);
       const state = a.getAttribute("state");
 
       evt.preventDefault();
