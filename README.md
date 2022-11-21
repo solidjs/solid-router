@@ -28,6 +28,7 @@ It supports all of Solid's SSR methods and has Solid's transitions baked in, so 
   - [useRouteData](#useroutedata)
   - [useMatch](#usematch)
   - [useRoutes](#useroutes)
+  - [useBeforeLeave](#usebeforeleave)
 
 ## Getting Started
 
@@ -538,3 +539,32 @@ return <div classList={{ active: Boolean(match()) }} />;
 ### useRoutes
 
 Used to define routes via a config object instead of JSX. See [Config Based Routing](#config-based-routing).
+
+### useBeforeLeave
+
+`useBeforeLeave` takes a function that will be called prior to leaving a route.  The function will be called with:
+
+- from (_Location_): current location (before change).
+- to (_string | number_}: path passed to `navigate`.
+- options (_NavigateOptions_}: options passed to `navigate`.
+- preventDefault (_void function_): call to block the route change.
+- defaultPrevented (_readonly boolean_): true if any previously called leave handlers called preventDefault().
+- retry (_void function_, _force?: boolean_ ): call to retry the same navigation, perhaps after confirming with the user. Pass `true` to skip running the leave handlers again (ie force navigate without confirming).
+
+Example usage:
+```js
+useBeforeLeave((e: BeforeLeaveEventArgs) => {
+  if (form.isDirty && !e.defaultPrevented) {
+    // preventDefault to block immediately and prompt user async
+    e.preventDefault();
+    setTimeout(() => {
+      if (window.confirm("Discard unsaved changes - are you sure?")) {
+        // user wants to proceed anyway so retry with force=true
+        e.retry(true); 
+      }
+    }, 100);
+  }
+});
+```
+
+

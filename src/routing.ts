@@ -14,7 +14,9 @@ import {
 } from "solid-js";
 import { isServer, delegateEvents } from "solid-js/web";
 import { normalizeIntegration } from "./integration";
+import { createBeforeLeave } from "./lifecycle";
 import type {
+  BeforeLeaveEventArgs,
   Branch,
   Location,
   LocationChange,
@@ -99,6 +101,11 @@ export const useSearchParams = <T extends Params>(): [
     navigate(location.pathname + searchString, { scroll: false, ...options });
   };
   return [location.query as T, setSearchParams];
+};
+
+export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
+  const s = useRouter().beforeLeave.subscribe({ listener, location: useLocation(), navigate: useNavigate()});
+  onCleanup(s);
 };
 
 export function createRoutes(
@@ -264,6 +271,7 @@ export function createRouterContext(
 
   const parsePath = utils.parsePath || (p => p);
   const renderPath = utils.renderPath || (p => p);
+  const beforeLeave = utils.beforeLeave || createBeforeLeave();
 
   const basePath = resolvePath("", base);
   const output =
@@ -329,7 +337,7 @@ export function createRouterContext(
         if (!to) {
           // A delta of 0 means stay at the current location, so it is ignored
         } else if (utils.go) {
-          utils.go(to);
+          beforeLeave.confirm(to, options) && utils.go(to);
         } else {
           console.warn("Router integration does not support relative routing");
         }
@@ -364,7 +372,7 @@ export function createRouterContext(
             output.url = resolvedTo;
           }
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
-        } else {
+        } else if (beforeLeave.confirm(resolvedTo, options)) {
           const len = referrers.push({ value: current, replace, scroll, state: state() });
           start(() => {
             setReference(resolvedTo);
@@ -476,7 +484,8 @@ export function createRouterContext(
     isRouting,
     renderPath,
     parsePath,
-    navigatorFactory
+    navigatorFactory,
+    beforeLeave
   };
 }
 

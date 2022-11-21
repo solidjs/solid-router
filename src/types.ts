@@ -86,7 +86,7 @@ export interface OutputMatch {
 }
 
 export interface Route {
-  key: unknown,
+  key: unknown;
   originalPath: string;
   pattern: string;
   element: () => JSX.Element;
@@ -116,6 +116,7 @@ export interface RouterUtils {
   renderPath(path: string): string;
   parsePath(str: string): string;
   go(delta: number): void;
+  beforeLeave: BeforeLeaveLifecycle;
 }
 
 export interface OutputMatch {
@@ -138,4 +139,25 @@ export interface RouterContext {
   isRouting: () => boolean;
   renderPath(path: string): string;
   parsePath(str: string): string;
+  beforeLeave: BeforeLeaveLifecycle;
+}
+
+export interface BeforeLeaveEventArgs {
+  from: Location;
+  to: string | number;
+  options?: Partial<NavigateOptions>;
+  readonly defaultPrevented: boolean;
+  preventDefault(): void;
+  retry(force?: boolean): void;
+}
+
+export interface BeforeLeaveListener {
+  listener(e: BeforeLeaveEventArgs): void;
+  location: Location
+  navigate: Navigator;
+}
+
+export interface BeforeLeaveLifecycle {
+  subscribe(listener: BeforeLeaveListener): () => void;
+  confirm(to: string | number, options?: Partial<NavigateOptions>): boolean;
 }
