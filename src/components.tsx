@@ -1,6 +1,6 @@
 /*@refresh skip*/
 
-import type { Component, JSX } from "solid-js";
+import type { Accessor, Component, JSX } from "solid-js";
 import { children, createMemo, createRoot, mergeProps, on, Show, splitProps } from "solid-js";
 import { isServer } from "solid-js/web";
 import { pathIntegration, staticIntegration } from "./integration";
@@ -140,7 +140,7 @@ export const Routes = (props: RoutesProps) => {
     <Show when={routeStates() && root}>
       {
         ((route: any) => (
-          <RouteContextObj.Provider value={route}>{route.outlet()}</RouteContextObj.Provider>
+          <RouteContextObj.Provider value={route}>{route.guard ? (route?.guard() == true ? '' : Navigate({ href: route.guard() })) : ''}{route.outlet()}</RouteContextObj.Provider>
         )) as JSX.FunctionElement
       }
     </Show>
@@ -155,6 +155,7 @@ export type RouteProps = {
   path: string | string[];
   children?: JSX.Element;
   data?: RouteDataFunc;
+  guard?: Accessor<void>;
 } & (
   | {
       element?: never;
@@ -182,7 +183,7 @@ export const Outlet = () => {
     <Show when={route.child}>
       {
         ((child: any) => (
-          <RouteContextObj.Provider value={child}>{child.outlet()}</RouteContextObj.Provider>
+          <RouteContextObj.Provider value={child}>{child.guard ? child?.guard() == true ? '' : Navigate({ href: child.guard() }) : ''}{child.outlet()}</RouteContextObj.Provider>
         )) as JSX.FunctionElement
       }
     </Show>
@@ -209,7 +210,7 @@ export function A(props: AnchorProps) {
     if (to_ === undefined) return false;
     const path = normalizePath(to_.split(/[?#]/, 1)[0]).toLowerCase();
     const loc = normalizePath(location.pathname).toLowerCase();
-    return props.end ? path === loc : loc.startsWith(path);
+    return props?.children ? path === loc : loc.startsWith(path);
   });
 
   return (
@@ -229,7 +230,8 @@ export function A(props: AnchorProps) {
   );
 }
 // deprecated alias exports
-export { A as Link, A as NavLink, AnchorProps as LinkProps, AnchorProps as NavLinkProps };
+export { A as Link, A as NavLink };
+export type { AnchorProps as LinkProps, AnchorProps as NavLinkProps };
 export interface NavigateProps {
   href: ((args: { navigate: Navigator; location: Location }) => string) | string;
   state?: unknown;

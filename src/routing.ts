@@ -499,7 +499,7 @@ export function createRouteContext(
   const { pattern, element: outlet, preload, data } = match().route;
   const path = createMemo(() => match().path);
   const params = createMemoObject(() => match().params);
-
+  const guard = match().route.key?.guard;
   preload && preload();
 
   const route: RouteContext = {
@@ -510,6 +510,7 @@ export function createRouteContext(
     },
     path,
     params,
+    guard:guard,
     data: parent.data,
     outlet,
     resolvePath(to: string) {
