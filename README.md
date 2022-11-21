@@ -498,6 +498,33 @@ return (
     <button onClick={() => setSearchParams({ page: searchParams.page + 1 })}>Next Page</button>
   </div>
 );
+
+
+```
+### Guard
+
+When notLogin(in below) is true that mean it will not do anything but if it is string it will redirect to the string that we get in return.
+
+```js
+const notLogin: Accessor<string | true> = createMemo(() => {
+  if (JSON.parse(JSON.stringify(LoginService.get())).login != false) { return '/' }
+  return true;
+});
+const App: Component = () => {
+  return (
+    <>
+      <Router>
+        <Routes>
+          <Route path='/' component={Public_Layout}>
+            <Route path='' component={HomePage} />
+            <Route path='login/' guard={notLogin} component={Login_Page} />
+            <Route path='register/' guard={notLogin} component={RegisterPage} />
+          </Route>
+        </Routes>
+      </Router>
+    </>
+  );
+};
 ```
 
 ### useIsRouting
