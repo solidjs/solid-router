@@ -81,8 +81,12 @@ export const useIsRouting = () => useRouter().isRouting;
 
 export const useMatch = (path: () => string) => {
   const location = useLocation();
-  const matcher = createMemo(() => createMatcher(path()));
-  return createMemo(() => matcher()(location.pathname));
+  const matchers = createMemo(() =>
+    expandOptionals(path()).map((path) => createMatcher(path))
+  );
+  return createMemo(() =>
+    matchers().some((matcher) => matcher(location.pathname))
+  );
 };
 
 export const useParams = <T extends Params>() => useRoute().params as T;
@@ -104,7 +108,7 @@ export const useSearchParams = <T extends Params>(): [
 };
 
 export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
-  const s = useRouter().beforeLeave.subscribe({ listener, location: useLocation(), navigate: useNavigate()});
+  const s = useRouter().beforeLeave.subscribe({ listener, location: useLocation(), navigate: useNavigate() });
   onCleanup(s);
 };
 
@@ -121,11 +125,11 @@ export function createRoutes(
     element: component
       ? () => createComponent(component, {})
       : () => {
-          const { element } = routeDef;
-          return element === undefined && fallback
-            ? createComponent(fallback, {})
-            : (element as JSX.Element);
-        },
+        const { element } = routeDef;
+        return element === undefined && fallback
+          ? createComponent(fallback, {})
+          : (element as JSX.Element);
+      },
     preload: routeDef.component
       ? (component as MaybePreloadableComponent).preload
       : routeDef.preload,
@@ -189,7 +193,7 @@ export function createBranches(
       for (const route of routes) {
         stack.push(route);
         const isEmptyArray = Array.isArray(def.children) && def.children.length === 0
-        if (def.children && !isEmptyArray ) {
+        if (def.children && !isEmptyArray) {
           createBranches(def.children, route.pattern, fallback, stack, branches);
         } else {
           const branch = createBranch([...stack], branches.length);
@@ -277,9 +281,9 @@ export function createRouterContext(
   const output =
     isServer && out
       ? (Object.assign(out, {
-          matches: [],
-          url: undefined
-        }) as RouterOutput)
+        matches: [],
+        url: undefined
+      }) as RouterOutput)
       : undefined;
 
   if (basePath === undefined) {
