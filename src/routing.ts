@@ -84,9 +84,12 @@ export const useMatch = (path: () => string) => {
   const matchers = createMemo(() =>
     expandOptionals(path()).map((path) => createMatcher(path))
   );
-  return createMemo(() =>
-    matchers().some((matcher) => matcher(location.pathname))
-  );
+  return createMemo(() => {
+    for (const matcher of matchers()) {
+      const match = matcher(location.pathname)
+      if (match) return match
+    }
+  });
 };
 
 export const useParams = <T extends Params>() => useRoute().params as T;
