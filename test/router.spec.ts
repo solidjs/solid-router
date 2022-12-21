@@ -76,7 +76,7 @@ describe("Router should", () => {
             value: "/foo bar+baz"
           });
           const { location } = createRouterContext(signal);
-          expect(location.pathname).toBe("/foo bar+baz");
+          expect(location.pathname).toBe("/foo%20bar+baz");
         }));
     }); // end of "contain property 'pathname'"
 
@@ -118,7 +118,7 @@ describe("Router should", () => {
             value: "/foo?hello+world=bar+baz"
           });
           const { location } = createRouterContext(signal);
-          expect(location.search).toBe("?hello world=bar baz");
+          expect(location.search).toBe("?hello+world=bar+baz");
         }));
     }); //end of "contain property 'search'"
 
@@ -129,7 +129,7 @@ describe("Router should", () => {
             value: "/foo#bar baz"
           });
           const { location } = createRouterContext(signal);
-          expect(location.hash).toBe("#bar baz");
+          expect(location.hash).toBe("#bar%20baz");
         }));
     }); // end of "contain property 'hash'"
 
