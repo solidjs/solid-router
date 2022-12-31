@@ -65,16 +65,12 @@ export function createMatcher(path: string, partial?: boolean, segmentValidators
     for (let i = 0; i < len; i++) {
       const segment = segments[i];
       const locSegment = locSegments[i];
-      const key = [":", "~"].includes(segment[0]) ? segment.slice(1) : segment;
+      const key = segment[0] === ":" ? segment.slice(1) : segment;
 
-      if (segment[0] === ":") {
+      if (segment[0] === ":" && (segmentValidators === undefined || segmentValidators && segmentValidators[key] === undefined)) {
         match.params[key] = locSegment;
-      } else if (
-        segment[0] === "~" &&
-        segmentValidators &&
-        typeof segmentValidators[key] === "function" &&
-        segmentValidators[key](locSegment)
-      ) {
+      } else if (segment[0] === ":" && segmentValidators &&
+        typeof segmentValidators[key] === "function" && segmentValidators[key](locSegment)) {
         match.params[key] = locSegment;
       } else if (segment.localeCompare(locSegment, undefined, { sensitivity: "base" }) !== 0) {
         return null;

@@ -160,7 +160,7 @@ describe("createRoutes should", () => {
 
     test(`validate segment using validators`, () => {
       const routeDef = {
-        path: "foo/~number/bar/~withHtmlExtension",
+        path: "foo/:number/bar/:withHtmlExtension",
         segmentValidators: {
           number: (v: string) => /^\d+$/.test(v),
           withHtmlExtension: (v: string) => /\.html$/.test(v)

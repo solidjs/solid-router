@@ -208,7 +208,7 @@ This allows for more complex routing descriptions than just checking the presenc
 ```tsx
 import {lazy} from "solid-js";
 import {Routes, Route} from "@solidjs/router"
-import {SegmentValidators} from "./types";
+import type {SegmentValidators} from "./types";
 
 const Users = lazy(() => import("./pages/Users"));
 const User = lazy(() => import("./pages/User"));
@@ -223,19 +223,23 @@ export default function App() {
   return <>
     <h1>My Site with Lots of Pages</h1>
     <Routes>
-      <Route path="/users/~id/~withHtmlExtension" component={User} segmentValidators={validators}/>
+      <Route path="/users/:id/:withHtmlExtension" component={User} segmentValidators={validators}/>
     </Routes>
   </>
 }
 ```
 
-Here the `~` denotes that the segment should be validated against the `id` validator.
+Here, we have added the `segmentValidators` prop. This allows us to validate the `id` and `withHtmlExtension` segments against the functions defined in `validators`.
+If the validation fails, the route will not match.
+
 So in this example:
 
 - `/users/123/contact.html` would match,
 - `/users/123/about.html` would match,
-- `/users/me/contact.html` would not match (`~id` is not a number),
-- `/users/123/contact` would not match (`~withHtmlExtension` is missing `.html`).
+- `/users/me/contact.html` would not match `:id` is not a number,
+- `/users/123/contact` would not match `:withHtmlExtension` is missing `.html`.
+
+---
 
 ```jsx
 //async fetching function

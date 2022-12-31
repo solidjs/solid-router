@@ -147,7 +147,7 @@ describe("createMatcher should", () => {
   });
 
   test("validate each segment with provided validators", () => {
-    const matcher = createMatcher("/~parent/~birthYear", undefined, {
+    const matcher = createMatcher("/:parent/:birthYear", undefined, {
       parent: v => ["dad", "mum"].includes(v),
       birthYear: v => /^\d+$/.test(v)
     });
