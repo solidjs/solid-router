@@ -145,6 +145,36 @@ describe("createMatcher should", () => {
     expect(match!.path).toBe(expected.path);
     expect(match!.params).toEqual(expected.params);
   });
+
+  test("validate each segment with provided validators", () => {
+    const matcher = createMatcher("/~parent/~birthYear", undefined, {
+      parent: v => ["dad", "mum"].includes(v),
+      birthYear: v => /^\d+$/.test(v)
+    });
+
+    const expected1 = { path: "/dad/1943", params: { parent: "dad", birthYear: "1943" } };
+
+    const match1 = matcher("/dad/1943");
+    expect(match1).not.toBe(null);
+    expect(match1!.path).toBe(expected1.path);
+    expect(match1!.params).toEqual(expected1.params);
+
+    const expected2 = { path: "/mum/1954", params: { parent: "mum", birthYear: "1954" } };
+
+    const match2 = matcher("/mum/1954");
+    expect(match2).not.toBe(null);
+    expect(match2!.path).toBe(expected2.path);
+    expect(match2!.params).toEqual(expected2.params);
+
+    const match3 = matcher("/ant/twothousandtwentythree");
+    expect(match3).toBe(null);
+
+    const match4 = matcher("/dad/mum");
+    expect(match4).toBe(null);
+
+    const match5 = matcher("/123/mum");
+    expect(match5).toBe(null);
+  });
 });
 
 describe("joinPaths should", () => {

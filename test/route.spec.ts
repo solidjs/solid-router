@@ -157,6 +157,20 @@ describe("createRoutes should", () => {
         all: "BaR/sOlId"
       });
     });
+
+    test(`validate segment using validators`, () => {
+      const routeDef = {
+        path: "foo/~number/bar/~withHtmlExtension",
+        segmentValidators: {
+          number: (v: string) => /^\d+$/.test(v),
+          withHtmlExtension: (v: string) => /\.html$/.test(v)
+        }
+      };
+      const route = createRoute(routeDef);
+      const { path } = route.matcher("/foo/123/bar/solid.html")!;
+      expect(path).toBe("/foo/123/bar/solid.html");
+    });
+
   });
 
   describe(`expand optional parameters`, () => {

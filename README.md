@@ -200,6 +200,42 @@ The colon indicates that `id` can be any string, and as long as the URL fits tha
 
 You can then access that `id` from within a route component with `useParams`:
 
+---
+
+Each segment of the path can be validated using `SegmentValidator`.
+This allows for more complex routing descriptions than just checking the presence of a segment.
+
+```tsx
+import {lazy} from "solid-js";
+import {Routes, Route} from "@solidjs/router"
+import {SegmentValidators} from "./types";
+
+const Users = lazy(() => import("./pages/Users"));
+const User = lazy(() => import("./pages/User"));
+const Home = lazy(() => import("./pages/Home"));
+
+const validators: SegmentValidators = {
+  id: (v: string) => /^\d+$/.test(v), // only allow numbers
+  withHtmlExtension: (v: string) => /\.html$/.test(v) // We want an `*.html` extension
+}
+
+export default function App() {
+  return <>
+    <h1>My Site with Lots of Pages</h1>
+    <Routes>
+      <Route path="/users/~id/~withHtmlExtension" component={User} segmentValidators={validators}/>
+    </Routes>
+  </>
+}
+```
+
+Here the `~` denotes that the segment should be validated against the `id` validator.
+So in this example:
+
+- `/users/123/contact.html` would match,
+- `/users/123/about.html` would match,
+- `/users/me/contact.html` would not match (`~id` is not a number),
+- `/users/123/contact` would not match (`~withHtmlExtension` is missing `.html`).
 
 ```jsx
 //async fetching function

@@ -55,6 +55,7 @@ export type RouteDataFunc<T = unknown, R = unknown> = (args: RouteDataFuncArgs<T
 
 export type RouteDefinition = {
   path: string | string[];
+  segmentValidators?: SegmentValidators;
   data?: RouteDataFunc;
   children?: RouteDefinition | RouteDefinition[];
 } & (
@@ -68,6 +69,10 @@ export type RouteDefinition = {
       preload?: () => void;
     }
 );
+
+export type ValidatorFunc = (segment: string) => boolean;
+
+export type SegmentValidators = Record<string, ValidatorFunc>;
 
 export interface PathMatch {
   params: Params;
@@ -93,6 +98,7 @@ export interface Route {
   preload?: () => void;
   data?: RouteDataFunc;
   matcher: (location: string) => PathMatch | null;
+  segmentValidators?: SegmentValidators;
 }
 
 export interface Branch {

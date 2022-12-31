@@ -25,7 +25,8 @@ import type {
   RouteContext,
   RouteDataFunc,
   RouteDefinition,
-  RouterIntegration
+  RouterIntegration,
+  SegmentValidators
 } from "./types";
 import { joinPaths, normalizePath } from "./utils";
 
@@ -155,6 +156,7 @@ export type RouteProps = {
   path: string | string[];
   children?: JSX.Element;
   data?: RouteDataFunc;
+  segmentValidators?: SegmentValidators;
 } & (
   | {
       element?: never;

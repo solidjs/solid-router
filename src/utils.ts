@@ -1,5 +1,5 @@
 import { createMemo, getOwner, runWithOwner } from "solid-js";
-import type { Params, PathMatch, Route, SetParams } from "./types";
+import type { Params, PathMatch, Route, SegmentValidators, SetParams } from "./types";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|\/+$/g;
@@ -45,7 +45,7 @@ export function extractSearchParams(url: URL): Params {
   return params;
 }
 
-export function createMatcher(path: string, partial?: boolean) {
+export function createMatcher(path: string, partial?: boolean, segmentValidators?: SegmentValidators) {
   const [pattern, splat] = path.split("/*", 2);
   const segments = pattern.split("/").filter(Boolean);
   const len = segments.length;
@@ -65,9 +65,17 @@ export function createMatcher(path: string, partial?: boolean) {
     for (let i = 0; i < len; i++) {
       const segment = segments[i];
       const locSegment = locSegments[i];
+      const key = [":", "~"].includes(segment[0]) ? segment.slice(1) : segment;
 
       if (segment[0] === ":") {
-        match.params[segment.slice(1)] = locSegment;
+        match.params[key] = locSegment;
+      } else if (
+        segment[0] === "~" &&
+        segmentValidators &&
+        typeof segmentValidators[key] === "function" &&
+        segmentValidators[key](locSegment)
+      ) {
+        match.params[key] = locSegment;
       } else if (segment.localeCompare(locSegment, undefined, { sensitivity: "base" }) !== 0) {
         return null;
       }

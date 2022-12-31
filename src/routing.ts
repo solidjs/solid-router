@@ -32,6 +32,7 @@ import type {
   RouterContext,
   RouterIntegration,
   RouterOutput,
+  SegmentValidators,
   SetParams
 } from "./types";
 import {
@@ -78,10 +79,10 @@ export const useNavigate = () => useRouter().navigatorFactory();
 export const useLocation = <S = unknown>() => useRouter().location as Location<S>;
 export const useIsRouting = () => useRouter().isRouting;
 
-export const useMatch = (path: () => string) => {
+export const useMatch = (path: () => string, segmentValidators?: SegmentValidators) => {
   const location = useLocation();
   const matchers = createMemo(() =>
-    expandOptionals(path()).map((path) => createMatcher(path))
+    expandOptionals(path()).map((path) => createMatcher(path, undefined, segmentValidators))
   );
   return createMemo(() => {
     for (const matcher of matchers()) {
@@ -146,7 +147,7 @@ export function createRoutes(
         ...shared,
         originalPath,
         pattern,
-        matcher: createMatcher(pattern, !isLeaf)
+        matcher: createMatcher(pattern, !isLeaf, routeDef.segmentValidators)
       });
     }
     return acc;
