@@ -53,9 +53,9 @@ export interface RouteDataFuncArgs<T = unknown> {
 
 export type RouteDataFunc<T = unknown, R = unknown> = (args: RouteDataFuncArgs<T>) => R;
 
-export type RouteDefinition = {
-  path: string | string[];
-  segmentValidators?: SegmentValidators;
+export type RouteDefinition<S extends string | string[] = any> = {
+  path: S;
+  matchFilters?: MatchFilters<S>;
   data?: RouteDataFunc;
   children?: RouteDefinition | RouteDefinition[];
 } & (
@@ -70,9 +70,22 @@ export type RouteDefinition = {
     }
 );
 
-export type ValidatorFunc = (segment: string) => boolean;
+export type MatchFilter = string[] | RegExp | ((s: string) => boolean);
 
-export type SegmentValidators = Record<string, ValidatorFunc>;
+export type PathParams<P extends string | readonly string[]> =
+  P extends `${infer Head}/${infer Tail}`
+    ? [...PathParams<Head>, ...PathParams<Tail>]
+    : P extends `:${infer S}?`
+    ? [S]
+    : P extends `:${infer S}`
+    ? [S]
+    : P extends `*${infer S}`
+    ? [S]
+    : [];
+
+export type MatchFilters<P extends string | readonly string[] = any> = P extends string
+  ? { [K in PathParams<P>[number]]?: MatchFilter }
+  : Record<string, MatchFilter>;
 
 export interface PathMatch {
   params: Params;
@@ -98,7 +111,7 @@ export interface Route {
   preload?: () => void;
   data?: RouteDataFunc;
   matcher: (location: string) => PathMatch | null;
-  segmentValidators?: SegmentValidators;
+  matchFilters?: MatchFilters;
 }
 
 export interface Branch {
@@ -159,7 +172,7 @@ export interface BeforeLeaveEventArgs {
 
 export interface BeforeLeaveListener {
   listener(e: BeforeLeaveEventArgs): void;
-  location: Location
+  location: Location;
   navigate: Navigator;
 }
 
