@@ -4,7 +4,7 @@ import { MatchFilters } from "../src/types";
 import { createMatcher } from "../src/utils";
 
 // mock route type
-const Route = <S extends string | readonly string[]>(props: RouteProps<S>) => {};
+const Route = <S extends string>(props: RouteProps<S>) => {};
 
 describe("Type checking on various route definitions", () => {
   test("Does not check implementations", () => {});
@@ -75,13 +75,12 @@ describe("Type checking on various route definitions", () => {
     });
 
     const _multiple = Route({
-      path: ["cars/:id", "vans/:id"],
+      path: ["cars/:id/:plate", "vans/:id"],
       matchFilters: {
         id: /^\d+$/,
-        // TODO @ts-expect-error cannot infer bounded type for array paths
-        something: s => true,
-        // @ts-expect-error but does check MatchFilter
-        else: "invalid"
+        plate: /^\d{2}-\w{3}-\d{2}$/,
+        // @ts-expect-error 'something' is not a parameter in either path
+        something: s => true
       }
     });
 

@@ -152,8 +152,8 @@ export const useRoutes = (routes: RouteDefinition | RouteDefinition[], base?: st
   return () => <Routes base={base}>{routes as any}</Routes>;
 };
 
-export type RouteProps<S extends string | readonly string[]> = {
-  path: S;
+export type RouteProps<S extends string> = {
+  path: S | S[];
   children?: JSX.Element;
   data?: RouteDataFunc;
   matchFilters?: MatchFilters<S>;
@@ -169,7 +169,7 @@ export type RouteProps<S extends string | readonly string[]> = {
     }
 );
 
-export const Route = <S extends string | readonly string[]>(props: RouteProps<S>) => {
+export const Route = <S extends string>(props: RouteProps<S>) => {
   const childRoutes = children(() => props.children);
   return mergeProps(props, {
     get children() {
