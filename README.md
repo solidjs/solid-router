@@ -378,7 +378,7 @@ By default, Solid Router uses `location.pathname` as route path. You can simply 
 ```jsx
 import { Router, hashIntegration } from '@solidjs/router'
 
-<Router source={hashIntegration()}><App></Router>
+<Router source={hashIntegration()}><App /></Router>
 ```
 
 ## Config Based Routing
