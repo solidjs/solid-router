@@ -146,21 +146,44 @@ describe("createMatcher should", () => {
     expect(match!.params).toEqual(expected.params);
   });
 
-  test("validate each segment with provided validators", () => {
+  test("apply matchFilter containing a regular expression", () => {
+    const matcher = createMatcher("/products/:id", undefined, { id: /^\d+$/ });
+
+    const expected = { path: "/products/5", params: { id: "5" } };
+    const match = matcher("products/5");
+    expect(match).not.toBe(null);
+    expect(match!.path).toBe(expected.path);
+    expect(match!.params).toEqual(expected.params);
+
+    const failure = matcher("produts/fifth");
+    expect(failure).toBe(null);
+  });
+
+  test("apply matchFilter containing an array of matches", () => {
+    const matcher = createMatcher("/pets/:pet", undefined, { pet: ["cat", "dog"] });
+    const expected = { path: "/pets/dog", params: { pet: "dog" } };
+    const match = matcher("pets/dog");
+    expect(match).not.toBe(null);
+    expect(match!.path).toBe(expected.path);
+    expect(match!.params).toEqual(expected.params);
+
+    const failure = matcher("pets/shark");
+    expect(failure).toBe(null);
+  });
+
+  test("apply matchFilter containing a predicate function", () => {
     const matcher = createMatcher("/:parent/:birthYear", undefined, {
       parent: v => ["dad", "mum"].includes(v),
       birthYear: v => /^\d+$/.test(v)
     });
 
     const expected1 = { path: "/dad/1943", params: { parent: "dad", birthYear: "1943" } };
-
     const match1 = matcher("/dad/1943");
     expect(match1).not.toBe(null);
     expect(match1!.path).toBe(expected1.path);
     expect(match1!.params).toEqual(expected1.params);
 
     const expected2 = { path: "/mum/1954", params: { parent: "mum", birthYear: "1954" } };
-
     const match2 = matcher("/mum/1954");
     expect(match2).not.toBe(null);
     expect(match2!.path).toBe(expected2.path);
@@ -174,6 +197,21 @@ describe("createMatcher should", () => {
 
     const match5 = matcher("/123/mum");
     expect(match5).toBe(null);
+  });
+
+  test("apply matchFilter to a wildcard parameter", () => {
+    const matcher = createMatcher("/tree/*leaves", undefined, {
+      leaves: /^((left|right)\/)*\d+$/
+    });
+
+    const expected = { path: "/tree", params: { leaves: "left/right/left/left/53" } };
+    const match = matcher("/tree/left/right/left/left/53");
+    expect(match).not.toBe(null);
+    expect(match!.path).toBe(expected.path);
+    expect(match!.params).toEqual(expected.params);
+
+    const failure = matcher("tree/left/up/right/12");
+    expect(failure).toBe(null);
   });
 });
 

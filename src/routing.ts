@@ -21,6 +21,7 @@ import type {
   Location,
   LocationChange,
   LocationChangeSignal,
+  MatchFilters,
   NavigateOptions,
   Navigator,
   Params,
@@ -32,7 +33,6 @@ import type {
   RouterContext,
   RouterIntegration,
   RouterOutput,
-  SegmentValidators,
   SetParams
 } from "./types";
 import {
@@ -79,15 +79,15 @@ export const useNavigate = () => useRouter().navigatorFactory();
 export const useLocation = <S = unknown>() => useRouter().location as Location<S>;
 export const useIsRouting = () => useRouter().isRouting;
 
-export const useMatch = (path: () => string, segmentValidators?: SegmentValidators) => {
+export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFilters<S>) => {
   const location = useLocation();
   const matchers = createMemo(() =>
-    expandOptionals(path()).map((path) => createMatcher(path, undefined, segmentValidators))
+    expandOptionals(path()).map(path => createMatcher(path, undefined, matchFilters))
   );
   return createMemo(() => {
     for (const matcher of matchers()) {
-      const match = matcher(location.pathname)
-      if (match) return match
+      const match = matcher(location.pathname);
+      if (match) return match;
     }
   });
 };
@@ -105,13 +105,21 @@ export const useSearchParams = <T extends Params>(): [
   const navigate = useNavigate();
   const setSearchParams = (params: SetParams, options?: Partial<NavigateOptions>) => {
     const searchString = untrack(() => mergeSearchString(location.search, params));
-    navigate(location.pathname + searchString + location.hash, { scroll: false, resolve: false, ...options });
+    navigate(location.pathname + searchString + location.hash, {
+      scroll: false,
+      resolve: false,
+      ...options
+    });
   };
   return [location.query as T, setSearchParams];
 };
 
 export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
-  const s = useRouter().beforeLeave.subscribe({ listener, location: useLocation(), navigate: useNavigate() });
+  const s = useRouter().beforeLeave.subscribe({
+    listener,
+    location: useLocation(),
+    navigate: useNavigate()
+  });
   onCleanup(s);
 };
 
@@ -128,11 +136,11 @@ export function createRoutes(
     element: component
       ? () => createComponent(component, {})
       : () => {
-        const { element } = routeDef;
-        return element === undefined && fallback
-          ? createComponent(fallback, {})
-          : (element as JSX.Element);
-      },
+          const { element } = routeDef;
+          return element === undefined && fallback
+            ? createComponent(fallback, {})
+            : (element as JSX.Element);
+        },
     preload: routeDef.component
       ? (component as MaybePreloadableComponent).preload
       : routeDef.preload,
@@ -147,7 +155,7 @@ export function createRoutes(
         ...shared,
         originalPath,
         pattern,
-        matcher: createMatcher(pattern, !isLeaf, routeDef.segmentValidators)
+        matcher: createMatcher(pattern, !isLeaf, routeDef.matchFilters)
       });
     }
     return acc;
@@ -195,7 +203,7 @@ export function createBranches(
       const routes = createRoutes(def, base, fallback);
       for (const route of routes) {
         stack.push(route);
-        const isEmptyArray = Array.isArray(def.children) && def.children.length === 0
+        const isEmptyArray = Array.isArray(def.children) && def.children.length === 0;
         if (def.children && !isEmptyArray) {
           createBranches(def.children, route.pattern, fallback, stack, branches);
         } else {
@@ -284,9 +292,9 @@ export function createRouterContext(
   const output =
     isServer && out
       ? (Object.assign(out, {
-        matches: [],
-        url: undefined
-      }) as RouterOutput)
+          matches: [],
+          url: undefined
+        }) as RouterOutput)
       : undefined;
 
   if (basePath === undefined) {

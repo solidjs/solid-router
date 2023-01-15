@@ -1,5 +1,5 @@
 import { createMemo, getOwner, runWithOwner } from "solid-js";
-import type { Params, PathMatch, Route, SegmentValidators, SetParams } from "./types";
+import type { MatchFilter, MatchFilters, Params, PathMatch, Route, SetParams } from "./types";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|\/+$/g;
@@ -45,7 +45,11 @@ export function extractSearchParams(url: URL): Params {
   return params;
 }
 
-export function createMatcher(path: string, partial?: boolean, segmentValidators?: SegmentValidators) {
+export function createMatcher<S extends string>(
+  path: S,
+  partial?: boolean,
+  matchFilters?: MatchFilters<S>
+) {
   const [pattern, splat] = path.split("/*", 2);
   const segments = pattern.split("/").filter(Boolean);
   const len = segments.length;
@@ -62,28 +66,50 @@ export function createMatcher(path: string, partial?: boolean, segmentValidators
       params: {}
     };
 
+    const matchFilter = (s: string) =>
+      matchFilters === undefined ? undefined : (matchFilters as Record<string, MatchFilter>)[s];
+
     for (let i = 0; i < len; i++) {
       const segment = segments[i];
       const locSegment = locSegments[i];
       const key = segment[0] === ":" ? segment.slice(1) : segment;
 
-      if (segment[0] === ":" && (segmentValidators === undefined || segmentValidators && segmentValidators[key] === undefined)) {
+      if (segment[0] === ":" && matchSegment(locSegment, matchFilter(key))) {
         match.params[key] = locSegment;
-      } else if (segment[0] === ":" && segmentValidators &&
-        typeof segmentValidators[key] === "function" && segmentValidators[key](locSegment)) {
-        match.params[key] = locSegment;
-      } else if (segment.localeCompare(locSegment, undefined, { sensitivity: "base" }) !== 0) {
+      } else if (!matchSegment(locSegment, segment)) {
         return null;
       }
       match.path += `/${locSegment}`;
     }
 
     if (splat) {
-      match.params[splat] = lenDiff ? locSegments.slice(-lenDiff).join("/") : "";
+      const remainder = lenDiff ? locSegments.slice(-lenDiff).join("/") : "";
+      if (matchSegment(remainder, matchFilter(splat))) {
+        match.params[splat] = remainder;
+      } else {
+        return null;
+      }
     }
 
     return match;
   };
+}
+
+function matchSegment(input: string, filter?: string | MatchFilter): boolean {
+  const isEqual = (s: string) => s.localeCompare(input, undefined, { sensitivity: "base" }) === 0;
+
+  if (filter === undefined) {
+    return true;
+  } else if (typeof filter === "string") {
+    return isEqual(filter);
+  } else if (typeof filter === "function") {
+    return (filter as Function)(input);
+  } else if (Array.isArray(filter)) {
+    return (filter as string[]).some(isEqual);
+  } else if (filter instanceof RegExp) {
+    return (filter as RegExp).test(input);
+  }
+  return false;
 }
 
 export function scoreRoute(route: Route): number {
