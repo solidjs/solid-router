@@ -43,7 +43,6 @@ import {
   joinPaths,
   scoreRoute,
   mergeSearchString,
-  urlDecode,
   expandOptionals
 } from "./utils";
 
@@ -81,8 +80,15 @@ export const useIsRouting = () => useRouter().isRouting;
 
 export const useMatch = (path: () => string) => {
   const location = useLocation();
-  const matcher = createMemo(() => createMatcher(path()));
-  return createMemo(() => matcher()(location.pathname));
+  const matchers = createMemo(() =>
+    expandOptionals(path()).map((path) => createMatcher(path))
+  );
+  return createMemo(() => {
+    for (const matcher of matchers()) {
+      const match = matcher(location.pathname)
+      if (match) return match
+    }
+  });
 };
 
 export const useParams = <T extends Params>() => useRoute().params as T;
@@ -233,9 +239,9 @@ export function createLocation(path: Accessor<string>, state: Accessor<any>): Lo
     }
   );
 
-  const pathname = createMemo(() => urlDecode(url().pathname));
-  const search = createMemo(() => urlDecode(url().search, true));
-  const hash = createMemo(() => urlDecode(url().hash));
+  const pathname = createMemo(() => url().pathname);
+  const search = createMemo(() => url().search, true);
+  const hash = createMemo(() => url().hash);
   const key = createMemo(() => "");
 
   return {
@@ -452,10 +458,9 @@ export function createRouterContext(
       if (a.hasAttribute("download") || (rel && rel.includes("external"))) return;
 
       const url = new URL(href);
-      const pathname = urlDecode(url.pathname);
       if (
         url.origin !== window.location.origin ||
-        (basePath && pathname && !pathname.toLowerCase().startsWith(basePath.toLowerCase()))
+        (basePath && url.pathname && !url.pathname.toLowerCase().startsWith(basePath.toLowerCase()))
       )
         return;
 

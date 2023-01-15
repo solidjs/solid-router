@@ -45,10 +45,6 @@ export function extractSearchParams(url: URL): Params {
   return params;
 }
 
-export function urlDecode(str: string, isQuery?: boolean) {
-  return decodeURIComponent(isQuery ? str.replace(/\+/g, " ") : str);
-}
-
 export function createMatcher(path: string, partial?: boolean) {
   const [pattern, splat] = path.split("/*", 2);
   const segments = pattern.split("/").filter(Boolean);

@@ -1,6 +1,5 @@
 export * from "./components";
 export * from "./integration";
-export * from "./lifecycle";
 export {
   useRouteData,
   useHref,
@@ -10,8 +9,7 @@ export {
   useNavigate,
   useParams,
   useResolvedPath,
-  useSearchParams,
-  useBeforeLeave,
+  useSearchParams
 } from "./routing";
 export { mergeSearchString as _mergeSearchString } from "./utils";
 export type {
@@ -28,6 +26,5 @@ export type {
   RouterIntegration,
   RouterOutput,
   RouterUtils,
-  SetParams,
-  BeforeLeaveEventArgs
+  SetParams
 } from "./types";
