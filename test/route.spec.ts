@@ -1,4 +1,5 @@
 import { createBranch, createBranches, createRoutes } from "../src/routing";
+import type { RouteDefinition } from "../src";
 
 const createRoute = (...args: Parameters<typeof createRoutes>) => createRoutes(...args)[0];
 
@@ -158,17 +159,18 @@ describe("createRoutes should", () => {
       });
     });
 
-    test(`validate segment using validators`, () => {
-      const routeDef = {
+    test(`validate path using match filters`, () => {
+      const routeDef: RouteDefinition = {
         path: "foo/:number/bar/:withHtmlExtension",
-        segmentValidators: {
+        matchFilters: {
           number: (v: string) => /^\d+$/.test(v),
           withHtmlExtension: (v: string) => /\.html$/.test(v)
         }
       };
       const route = createRoute(routeDef);
-      const { path } = route.matcher("/foo/123/bar/solid.html")!;
-      expect(path).toBe("/foo/123/bar/solid.html");
+      const match = route.matcher("/foo/123/bar/solid.html")!;
+      expect(match).not.toBeNull();
+      expect(match.path).toBe("/foo/123/bar/solid.html");
     });
 
   });
