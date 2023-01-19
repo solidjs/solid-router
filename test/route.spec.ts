@@ -1,4 +1,5 @@
 import { createBranch, createBranches, createRoutes } from "../src/routing";
+import type { RouteDefinition } from "../src";
 
 const createRoute = (...args: Parameters<typeof createRoutes>) => createRoutes(...args)[0];
 
@@ -157,6 +158,21 @@ describe("createRoutes should", () => {
         all: "BaR/sOlId"
       });
     });
+
+    test(`validate path using match filters`, () => {
+      const routeDef: RouteDefinition = {
+        path: "foo/:number/bar/:withHtmlExtension",
+        matchFilters: {
+          number: (v: string) => /^\d+$/.test(v),
+          withHtmlExtension: (v: string) => /\.html$/.test(v)
+        }
+      };
+      const route = createRoute(routeDef);
+      const match = route.matcher("/foo/123/bar/solid.html")!;
+      expect(match).not.toBeNull();
+      expect(match.path).toBe("/foo/123/bar/solid.html");
+    });
+
   });
 
   describe(`expand optional parameters`, () => {

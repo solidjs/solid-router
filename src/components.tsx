@@ -21,6 +21,7 @@ import {
 import type {
   Location,
   LocationChangeSignal,
+  MatchFilters,
   Navigator,
   RouteContext,
   RouteDataFunc,
@@ -151,10 +152,11 @@ export const useRoutes = (routes: RouteDefinition | RouteDefinition[], base?: st
   return () => <Routes base={base}>{routes as any}</Routes>;
 };
 
-export type RouteProps = {
-  path: string | string[];
+export type RouteProps<S extends string> = {
+  path: S | S[];
   children?: JSX.Element;
   data?: RouteDataFunc;
+  matchFilters?: MatchFilters<S>;
 } & (
   | {
       element?: never;
@@ -167,7 +169,7 @@ export type RouteProps = {
     }
 );
 
-export const Route = (props: RouteProps) => {
+export const Route = <S extends string>(props: RouteProps<S>) => {
   const childRoutes = children(() => props.children);
   return mergeProps(props, {
     get children() {
@@ -200,7 +202,14 @@ export interface AnchorProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorEle
 }
 export function A(props: AnchorProps) {
   props = mergeProps({ inactiveClass: "inactive", activeClass: "active" }, props);
-  const [, rest] = splitProps(props, ["href", "state", "class", "activeClass", "inactiveClass", "end"]);
+  const [, rest] = splitProps(props, [
+    "href",
+    "state",
+    "class",
+    "activeClass",
+    "inactiveClass",
+    "end"
+  ]);
   const to = useResolvedPath(() => props.href);
   const href = useHref(to);
   const location = useLocation();

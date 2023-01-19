@@ -6,7 +6,7 @@
 
 A router lets you change your view based on the URL in the browser. This allows your "single-page" application to simulate a traditional multipage site. To use Solid Router, you specify components called Routes that depend on the value of the URL (the "path"), and the router handles the mechanism of swapping them in and out.
 
-Solid Router is a universal router for SolidJS - it works whether you're rendering on the client or on the server. It was inspired by and combines paradigms of React Router and the Ember Router. Routes can be defined directly in your app's template using JSX, but you can also pass your route configuration directly as an object. It also supports nested routing, so navigation can change a part of a component, rather than completely replacing it. 
+Solid Router is a universal router for SolidJS - it works whether you're rendering on the client or on the server. It was inspired by and combines paradigms of React Router and the Ember Router. Routes can be defined directly in your app's template using JSX, but you can also pass your route configuration directly as an object. It also supports nested routing, so navigation can change a part of a component, rather than completely replacing it.
 
 It supports all of Solid's SSR methods and has Solid's transitions baked in, so use it freely with suspense, resources, and lazy components. Solid Router also allows you to define a data function that loads parallel to the routes ([render-as-you-fetch](https://epicreact.dev/render-as-you-fetch/)).
 
@@ -16,8 +16,8 @@ It supports all of Solid's SSR methods and has Solid's transitions baked in, so 
 - [Create Links to Your Routes](#create-links-to-your-routes)
 - [Dynamic Routes](#dynamic-routes)
 - [Data Functions](#data-functions)
-- [Nested Routes](#nested-routes) 
-- [Hash Mode Router](#hash-mode-router) 
+- [Nested Routes](#nested-routes)
+- [Hash Mode Router](#hash-mode-router)
 - [Config Based Routing](#config-based-routing)
 - [Router Primitives](#router-primitives)
   - [useParams](#useparams)
@@ -63,17 +63,16 @@ Solid Router allows you to configure your routes using JSX:
 
 1. Use the `Routes` component to specify where the routes should appear in your app.
 
-
 ```jsx
 import { Routes, Route } from "@solidjs/router"
 
 export default function App() {
   return <>
-    <h1>My Site with Lots of Pages</h1>
+      <h1>My Site with Lots of Pages</h1>
     <Routes>
 
     </Routes>
-  </>
+    </>
 }
 ```
 
@@ -87,13 +86,13 @@ import Users from "./pages/Users"
 
 export default function App() {
   return <>
-    <h1>My Site with Lots of Pages</h1>
-    <Routes>
-      <Route path="/users" component={Users} />
-      <Route path="/" component={Home} />
-      <Route path="/about" element={<div>This site was made with Solid</div>} />
-    </Routes>
-  </>
+      <h1>My Site with Lots of Pages</h1>
+      <Routes>
+        <Route path="/users" component={Users} />
+        <Route path="/" component={Home} />
+        <Route path="/about" element={<div>This site was made with Solid</div>} />
+      </Routes>
+    </>
 }
 ```
 
@@ -109,13 +108,13 @@ const Home = lazy(() => import("./pages/Home"));
 
 export default function App() {
   return <>
-    <h1>My Site with Lots of Pages</h1>
-    <Routes>
-      <Route path="/users" component={Users} />
-      <Route path="/" component={Home} />
-      <Route path="/about" element={<div>This site was made with Solid</div>} />
-    </Routes>
-  </>
+      <h1>My Site with Lots of Pages</h1>
+      <Routes>
+        <Route path="/users" component={Users} />
+        <Route path="/" component={Home} />
+        <Route path="/about" element={<div>This site was made with Solid</div>} />
+      </Routes>
+    </>
 }
 ```
 
@@ -131,17 +130,17 @@ const Home = lazy(() => import("./pages/Home"));
 
 export default function App() {
   return <>
-    <h1>My Site with Lots of Pages</h1>
-    <nav>
-      <A href="/about">About</A>
-      <A href="/">Home</A>
-    </nav>
-    <Routes>
-      <Route path="/users" component={Users} />
-      <Route path="/" component={Home} />
-      <Route path="/about" element={<div>This site was made with Solid</div>} />
-    </Routes>
-  </>
+      <h1>My Site with Lots of Pages</h1>
+      <nav>
+        <A href="/about">About</A>
+        <A href="/">Home</A>
+      </nav>
+      <Routes>
+        <Route path="/users" component={Users} />
+        <Route path="/" component={Home} />
+        <Route path="/about" element={<div>This site was made with Solid</div>} />
+      </Routes>
+    </>
 }
 ```
 
@@ -163,7 +162,7 @@ Solid Router provides a `Navigate` component that works similarly to `A`, but it
 
 ```jsx
 function getPath ({navigate, location}) {
-  //navigate is the result of calling useNavigate(); location is the result of calling useLocation(). 
+  //navigate is the result of calling useNavigate(); location is the result of calling useLocation().
   //You can use those to dynamically determine a path to navigate to
   return "/some-path";
 }
@@ -174,7 +173,7 @@ function getPath ({navigate, location}) {
 
 ## Dynamic Routes
 
-If you don't know the path ahead of time, you might want to treat part of the path as a flexible parameter that is passed on to the component. 
+If you don't know the path ahead of time, you might want to treat part of the path as a flexible parameter that is passed on to the component.
 
 ```jsx
 import { lazy } from "solid-js";
@@ -185,14 +184,14 @@ const Home = lazy(() => import("./pages/Home"));
 
 export default function App() {
   return <>
-    <h1>My Site with Lots of Pages</h1>
-    <Routes>
-      <Route path="/users" component={Users} />
-      <Route path="/users/:id" component={User} />
-      <Route path="/" component={Home} />
-      <Route path="/about" element={<div>This site was made with Solid</div>} />
-    </Routes>
-  </>
+      <h1>My Site with Lots of Pages</h1>
+      <Routes>
+        <Route path="/users" component={Users} />
+        <Route path="/users/:id" component={User} />
+        <Route path="/" component={Home} />
+        <Route path="/about" element={<div>This site was made with Solid</div>} />
+      </Routes>
+    </>
 }
 ```
 
@@ -200,6 +199,48 @@ The colon indicates that `id` can be any string, and as long as the URL fits tha
 
 You can then access that `id` from within a route component with `useParams`:
 
+---
+
+Each path parameter can be validated using a `MatchFilter`.
+This allows for more complex routing descriptions than just checking the presence of a parameter.
+
+```tsx
+import {lazy} from "solid-js";
+import {Routes, Route} from "@solidjs/router"
+import type {SegmentValidators} from "./types";
+
+const Users = lazy(() => import("./pages/Users"));
+const User = lazy(() => import("./pages/User"));
+const Home = lazy(() => import("./pages/Home"));
+
+const filters: MatchFilters = {
+  parent: ['mom', 'dad'], // allow enum values
+  id: /^\d+$/, // only allow numbers
+  withHtmlExtension: (v: string) => v.length > 5 && v.endsWith('.html') // we want an `*.html` extension
+}
+
+export default function App() {
+  return <>
+      <h1>My Site with Lots of Pages</h1>
+      <Routes>
+      <Route path="/users/:parent/:id/:withHtmlExtension" component={User} matchFilters={filters}/>
+      </Routes>
+    </>
+}
+```
+
+Here, we have added the `matchFilters` prop. This allows us to validate the `parent`, `id` and `withHtmlExtension` parameters against the filters defined in `filters`.
+If the validation fails, the route will not match.
+
+So in this example:
+
+- `/users/mom/123/contact.html` would match,
+- `/users/dad/123/about.html` would match,
+- `/users/aunt/123/contact.html` would not match as `:parent` is not 'mom' or 'dad',
+- `/users/mom/me/contact.html` would not match as `:id` is not a number,
+- `/users/dad/123/contact` would not match as `:withHtmlExtension` is missing `.html`.
+
+---
 
 ```jsx
 //async fetching function
@@ -250,12 +291,10 @@ Routes also support defining multiple paths using an array. This allows a route 
 <Route path={["login", "register"]} component={Login}/>
 ```
 
-
 ## Data Functions
 In the [above example](#dynamic-routes), the User component is lazy-loaded and then the data is fetched. With route data functions, we can instead start fetching the data parallel to loading the route, so we can use the data as soon as possible.
 
-To do this, create a function that fetches and returns the data using `createResource`. Then pass that function to the `data` prop of the `Route` component. 
-
+To do this, create a function that fetches and returns the data using `createResource`. Then pass that function to the `data` prop of the `Route` component.
 
 ```js
 import { lazy } from "solid-js";
@@ -299,7 +338,7 @@ A common pattern is to export the data function that corresponds to a route in a
 ```js
 import { lazy } from "solid-js";
 import { Route } from "@solidjs/router";
-import { fetchUser } ... 
+import { fetchUser } ...
 import UserData from "./pages/users/[id].data.js";
 const User = lazy(() => import("/pages/users/[id].js"));
 
@@ -341,15 +380,14 @@ Only leaf Route nodes (innermost `Route` components) are given a route. If you w
 
 You can also take advantage of nesting by adding a parent element with an `<Outlet/>`.
 ```jsx
-
 import { Outlet } from "@solidjs/router";
 
 function PageWrapper () {
   return <div>
-    <h1> We love our users! </h1>
+      <h1> We love our users! </h1>
     <Outlet/>
-    <A href="/">Back Home</A>
-  </div>
+      <A href="/">Back Home</A>
+    </div>
 }
 
 <Route path="/users" component={PageWrapper}>
@@ -369,7 +407,7 @@ You can nest indefinitely - just remember that only leaf nodes will become their
 </Route>
 ```
 
-If you declare a `data` function on a parent and a child, the result of the parent's data function will be passed to the child's data function as the `data` property of the argument, as described in the last section. This works even if it isn't a direct child, because by default every route forwards its parent's data. 
+If you declare a `data` function on a parent and a child, the result of the parent's data function will be passed to the child's data function as the `data` property of the argument, as described in the last section. This works even if it isn't a direct child, because by default every route forwards its parent's data.
 
 ## Hash Mode Router
 
@@ -560,11 +598,9 @@ useBeforeLeave((e: BeforeLeaveEventArgs) => {
     setTimeout(() => {
       if (window.confirm("Discard unsaved changes - are you sure?")) {
         // user wants to proceed anyway so retry with force=true
-        e.retry(true); 
+        e.retry(true);
       }
     }, 100);
   }
 });
 ```
-
-
