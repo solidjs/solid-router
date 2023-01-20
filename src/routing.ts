@@ -507,12 +507,12 @@ export function createRouteContext(
   router: RouterContext,
   parent: RouteContext,
   child: () => RouteContext,
-  match: () => RouteMatch
+  match: () => RouteMatch,
+  params: Params
 ): RouteContext {
   const { base, location, navigatorFactory } = router;
   const { pattern, element: outlet, preload, data } = match().route;
   const path = createMemo(() => match().path);
-  const params = createMemoObject(() => match().params);
 
   preload && preload();
 

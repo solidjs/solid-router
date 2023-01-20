@@ -23,12 +23,13 @@ import type {
   LocationChangeSignal,
   MatchFilters,
   Navigator,
+  Params,
   RouteContext,
   RouteDataFunc,
   RouteDefinition,
   RouterIntegration
 } from "./types";
-import { joinPaths, normalizePath } from "./utils";
+import { joinPaths, normalizePath, createMemoObject } from "./utils";
 
 declare module "solid-js" {
   namespace JSX {
@@ -84,6 +85,14 @@ export const Routes = (props: RoutesProps) => {
     createBranches(routeDefs(), joinPaths(parentRoute.pattern, props.base || ""), Outlet)
   );
   const matches = createMemo(() => getRouteMatches(branches(), router.location.pathname));
+  const params = createMemoObject(() => {
+    const m = matches();
+    const params: Params = {};
+    for (let i = 0; i < m.length; i++) {
+      Object.assign(params, m[i].params);
+    }
+    return params;
+  });
 
   if (router.out) {
     router.out.matches.push(
@@ -121,7 +130,8 @@ export const Routes = (props: RoutesProps) => {
               router,
               next[i - 1] || parentRoute,
               () => routeStates()[i + 1],
-              () => matches()[i]
+              () => matches()[i],
+              params
             );
           });
         }
