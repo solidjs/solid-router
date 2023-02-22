@@ -144,7 +144,7 @@ export default function App() {
 }
 ```
 
-The `<A>` tag also has an `active` class if its href matches the current location, and `inactive` otherwise. **Note:** By default matching includes locations that are descendents (eg. href `/users` matches locations `/users` and `/users/123`), use the boolean `end` prop to prevent matching these. This is particularly useful for links to the root route `/` which would match everything.
+The `<A>` tag also has an `active` class if its href matches the current location, an `exactActive` class if its href matches the current location exactly and `inactive` class otherwise. **Note:** `active` and `exactActive` are mutually exclusive - there is no class merging! By default matching includes locations that are descendents (eg. href `/users` matches locations `/users` and `/users/123`). `exactActive` is particularly useful for links to the root route `/` which would match everything.
 
 
 | prop     | type    | description                                                                                                                                                                              |
@@ -154,7 +154,8 @@ The `<A>` tag also has an `active` class if its href matches the current locatio
 | replace  | boolean | If true, don't add a new entry to the browser history. (By default, the new page will be added to the browser history, so pressing the back button will take you to the previous route.) |
 | state    | unknown | [Push this value](https://developer.mozilla.org/en-US/docs/Web/API/History/pushState) to the history stack when navigating  |                                      |
 | inactiveClass | string  | The class to show when the link is inactive (when the current location doesn't match the link) |
-| activeClass | string | The class to show when the link is active                                                                                                        |
+| activeClass | string | The class to show when the link is active, i.e. the current location _starts with_ `href`                                                                                                       |
+| exactActiveClass | string | The class to show when the link matches the `href` exactly                                                                                                        |
 | end  | boolean | If `true`, only considers the link to be active when the curent location matches the `href` exactly; if `false`, check if the current location _starts with_ `href` |
 
 ### The Navigate Component
