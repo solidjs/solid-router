@@ -144,7 +144,7 @@ export default function App() {
 }
 ```
 
-The `<A>` tag also has an `active` class if its href matches the current location, an `exactActive` class if its href matches the current location exactly and `inactive` class otherwise. **Note:** `active` and `exactActive` are mutually exclusive - there is no class merging! By default matching includes locations that are descendents (eg. href `/users` matches locations `/users` and `/users/123`). `exactActive` is particularly useful for links to the root route `/` which would match everything.
+The `<A>` tag also has an `active` class if its href matches the current location and `inactive` class otherwise. By providing the property `exactActiveClass`, you can opt in to a third state, which is `exactActive` and is set when the href matches the current location exactly.  **Note:** By default matching includes locations that are descendents (eg. href `/users` matches locations `/users` and `/users/123`). If no `exactActiveClass` property was provided, `active` class will be set for both partially and exactly matching routes.
 
 
 | prop     | type    | description                                                                                                                                                                              |
@@ -155,8 +155,8 @@ The `<A>` tag also has an `active` class if its href matches the current locatio
 | state    | unknown | [Push this value](https://developer.mozilla.org/en-US/docs/Web/API/History/pushState) to the history stack when navigating  |                                      |
 | inactiveClass | string  | The class to show when the link is inactive (when the current location doesn't match the link) |
 | activeClass | string | The class to show when the link is active, i.e. the current location _starts with_ `href`                                                                                                       |
-| exactActiveClass | string | The class to show when the link matches the `href` exactly                                                                                                        |
-| end  | boolean | If `true`, only considers the link to be active when the curent location matches the `href` exactly; if `false`, check if the current location _starts with_ `href` |
+| exactActiveClass | string or true | The class to show when the link matches the `href` exactly. If `true`, applies `exactActive` class and enables strict matching - i.e. `activeClass` will not apply for an exact match.
+| end  | boolean | **Deprecated** If `true`, only considers the link to be active when the curent location matches the `href` exactly; if `false`, check if the current location _starts with_  `href` - providing `exactActiveClass` overrides this behavior |                                                                                                    |
 
 ### The Navigate Component
 Solid Router provides a `Navigate` component that works similarly to `A`, but it will _immediately_ navigate to the provided path as soon as the component is rendered. It also uses the `href` prop, but you have the additional option of passing a function to `href` that returns a path to navigate to:

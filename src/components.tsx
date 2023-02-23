@@ -208,14 +208,14 @@ export interface AnchorProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorEle
   state?: unknown;
   inactiveClass?: string;
   activeClass?: string;
-  exactActiveClass?: string;
+  exactActiveClass?: true | string;
   /**
- * @deprecated end property deprecated in favor of 'exactActiveClass'
- */
+   * @deprecated end property deprecated in favor of 'exactActiveClass'
+   */
   end?: boolean;
 }
 export function A(props: AnchorProps) {
-  props = mergeProps({ inactiveClass: "inactive", activeClass: "active", exactActiveClass: 'exactActive' }, props);
+  props = mergeProps({ inactiveClass: "inactive", activeClass: "active" }, props);
   const [, rest] = splitProps(props, [
     "href",
     "state",
@@ -228,14 +228,20 @@ export function A(props: AnchorProps) {
   const to = useResolvedPath(() => props.href);
   const href = useHref(to);
   const location = useLocation();
-  const isActive = createMemo(() => {
+  const matchedHref = createMemo(() => {
     const to_ = to();
     if (to_ === undefined) return [false, false];
     const path = normalizePath(to_.split(/[?#]/, 1)[0]).toLowerCase();
     const loc = normalizePath(location.pathname).toLowerCase();
-    // To be replaced with [loc.startsWith(path), path === loc] when end is patched out
-    return [props.end ? path === loc : loc.startsWith(path), path === loc];
+    return [loc.startsWith(path), path === loc];
   });
+
+  const isLooseActive = createMemo(() => matchedHref()[0])
+  const isExactActive = createMemo(() => matchedHref()[1] && Boolean(props.exactActiveClass))
+
+  // Remove together with `end` property
+  // If end was provided return an exact match, else return loose match (as long as users don't opt in for new behavior)
+  const isActiveDeprecated = createMemo(() => props.end ? matchedHref()[1] : !props.exactActiveClass && isLooseActive())
 
   return (
     <a
@@ -245,12 +251,12 @@ export function A(props: AnchorProps) {
       state={JSON.stringify(props.state)}
       classList={{
         ...(props.class && { [props.class]: true }),
-        [props.inactiveClass!]: !isActive()[0],
-        [props.activeClass!]: isActive()[0] && !isActive()[1],
-        [props.exactActiveClass!]: isActive()[1],
+        [props.inactiveClass!]: !isLooseActive(),
+        [props.activeClass!]: isLooseActive() && !isExactActive() || isActiveDeprecated(),
+        ...(props.exactActiveClass && { [props.exactActiveClass === true ? 'exactActive' : props.exactActiveClass]: isExactActive() }),
         ...rest.classList
       }}
-      aria-current={isActive()[1] ? "page" : undefined}
+      aria-current={isLooseActive() ? "page" : undefined}
     />
   );
 }
