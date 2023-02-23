@@ -236,12 +236,12 @@ export function A(props: AnchorProps) {
     return [loc.startsWith(path), path === loc];
   });
 
-  const isLooseActive = createMemo(() => matchedHref()[0])
-  const isExactActive = createMemo(() => matchedHref()[1] && Boolean(props.exactActiveClass))
+  const isLooseMatch = createMemo(() => matchedHref()[0])
+  const isExactMatch = createMemo(() => matchedHref()[1] && Boolean(props.exactActiveClass))
 
   // Remove together with `end` property
   // If end was provided return an exact match, else return loose match (as long as users don't opt in for new behavior)
-  const isActiveDeprecated = createMemo(() => props.end ? matchedHref()[1] : !props.exactActiveClass && isLooseActive())
+  const isActiveDeprecated = createMemo(() => props.end ? matchedHref()[1] : !props.exactActiveClass && isLooseMatch())
 
   return (
     <a
@@ -251,12 +251,12 @@ export function A(props: AnchorProps) {
       state={JSON.stringify(props.state)}
       classList={{
         ...(props.class && { [props.class]: true }),
-        [props.inactiveClass!]: !isLooseActive(),
-        [props.activeClass!]: isLooseActive() && !isExactActive() || isActiveDeprecated(),
-        ...(props.exactActiveClass && { [props.exactActiveClass === true ? 'exactActive' : props.exactActiveClass]: isExactActive() }),
+        [props.inactiveClass!]: !isLooseMatch(),
+        [props.activeClass!]: isLooseMatch() && !isExactMatch() || isActiveDeprecated(),
+        ...(props.exactActiveClass && { [props.exactActiveClass === true ? 'exactActive' : props.exactActiveClass]: isExactMatch() }),
         ...rest.classList
       }}
-      aria-current={isLooseActive() ? "page" : undefined}
+      aria-current={isLooseMatch() ? "page" : undefined}
     />
   );
 }
