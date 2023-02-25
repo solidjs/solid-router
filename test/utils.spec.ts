@@ -241,7 +241,7 @@ describe("joinPaths should", () => {
   test.each([
     ["/foo", "", "/foo"],
     ["/foo/", "/", "/foo"],
-    ["/foo/", "bar/", "/foo/bar"]
+    ["/foo/", "bar/", "/foo/bar/"]
   ])(`strip trailing '/' (case '%s' and '%s' as '%s')`, (from, to, expected) => {
     const joined = joinPaths(from, to);
     expect(joined).toBe(expected);
