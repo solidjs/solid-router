@@ -533,7 +533,7 @@ const [searchParams, setSearchParams] = useSearchParams();
 return (
   <div>
     <span>Page: {searchParams.page}</span>
-    <button onClick={() => setSearchParams({ page: searchParams.page + 1 })}>Next Page</button>
+    <button onClick={() => setSearchParams({ page: (parseInt(searchParams.page) || 0) + 1 })}>Next Page</button>
   </div>
 );
 ```
