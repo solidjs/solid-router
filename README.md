@@ -18,6 +18,7 @@ It supports all of Solid's SSR methods and has Solid's transitions baked in, so 
 - [Data Functions](#data-functions)
 - [Nested Routes](#nested-routes)
 - [Hash Mode Router](#hash-mode-router)
+- [Hash Mode Router](#memory-mode-router)
 - [Config Based Routing](#config-based-routing)
 - [Router Primitives](#router-primitives)
   - [useParams](#useparams)
@@ -417,6 +418,16 @@ By default, Solid Router uses `location.pathname` as route path. You can simply 
 import { Router, hashIntegration } from '@solidjs/router'
 
 <Router source={hashIntegration()}><App /></Router>
+```
+
+## Memory Mode Router
+
+You can also use memory mode router for testing purpose.
+
+```jsx
+import { Router, memoryIntegration } from '@solidjs/router'
+
+<Router source={memoryIntegration()}><App /></Router>
 ```
 
 ## Config Based Routing
