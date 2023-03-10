@@ -18,7 +18,7 @@ It supports all of Solid's SSR methods and has Solid's transitions baked in, so 
 - [Data Functions](#data-functions)
 - [Nested Routes](#nested-routes)
 - [Hash Mode Router](#hash-mode-router)
-- [Hash Mode Router](#memory-mode-router)
+- [Memory Mode Router](#memory-mode-router)
 - [Config Based Routing](#config-based-routing)
 - [Router Primitives](#router-primitives)
   - [useParams](#useparams)
