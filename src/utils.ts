@@ -2,10 +2,10 @@ import { createMemo, getOwner, runWithOwner } from "solid-js";
 import type { MatchFilter, MatchFilters, Params, PathMatch, Route, SetParams } from "./types";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
-const trimPathRegex = /^\/+|\/+$/g;
+const trimPathRegex = /^\/+|(\/)\/+$/g;
 
 export function normalizePath(path: string, omitSlash: boolean = false) {
-  const s = path.replace(trimPathRegex, "");
+  const s = path.replace(trimPathRegex, "$1");
   return s ? (omitSlash || /^[?#]/.test(s) ? s : "/" + s) : "";
 }
 
