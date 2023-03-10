@@ -72,11 +72,12 @@ export function createMatcher<S extends string>(
     for (let i = 0; i < len; i++) {
       const segment = segments[i];
       const locSegment = locSegments[i];
-      const key = segment[0] === ":" ? segment.slice(1) : segment;
+      const dynamic = segment[0] === ":";
+      const key = dynamic ? segment.slice(1) : segment;
 
-      if (segment[0] === ":" && matchSegment(locSegment, matchFilter(key))) {
+      if (dynamic && matchSegment(locSegment, matchFilter(key))) {
         match.params[key] = locSegment;
-      } else if (!matchSegment(locSegment, segment)) {
+      } else if (dynamic || !matchSegment(locSegment, segment)) {
         return null;
       }
       match.path += `/${locSegment}`;
