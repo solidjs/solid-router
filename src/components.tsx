@@ -148,12 +148,8 @@ export const Routes = (props: RoutesProps) => {
   );
 
   return (
-    <Show when={routeStates() && root}>
-      {
-        ((route: any) => (
-          <RouteContextObj.Provider value={route}>{route.outlet()}</RouteContextObj.Provider>
-        )) as JSX.FunctionElement
-      }
+    <Show when={routeStates() && root} keyed>
+      {route => <RouteContextObj.Provider value={route}>{route.outlet()}</RouteContextObj.Provider>}
     </Show>
   );
 };
