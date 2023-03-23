@@ -154,7 +154,10 @@ export const Routes = (props: RoutesProps) => {
   );
 };
 
-export const useRoutes = (routes: RouteDefinition | RouteDefinition[], base?: string) => {
+export const useRoutes = (
+  routes: RouteDefinition | RouteDefinition[] | Readonly<RouteDefinition[]>,
+  base?: string
+) => {
   return () => <Routes base={base}>{routes as any}</Routes>;
 };
 
