@@ -187,12 +187,8 @@ export const Route = <S extends string>(props: RouteProps<S>) => {
 export const Outlet = () => {
   const route = useRoute();
   return (
-    <Show when={route.child}>
-      {
-        ((child: any) => (
-          <RouteContextObj.Provider value={child}>{child.outlet()}</RouteContextObj.Provider>
-        )) as JSX.FunctionElement
-      }
+    <Show when={route.child} keyed>
+      {child => <RouteContextObj.Provider value={child}>{child.outlet()}</RouteContextObj.Provider>}
     </Show>
   );
 };
