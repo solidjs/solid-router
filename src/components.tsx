@@ -203,6 +203,10 @@ export interface AnchorProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorEle
   state?: unknown;
   inactiveClass?: string;
   activeClass?: string;
+  exactActiveClass?: true | string;
+  /**
+   * @deprecated end property deprecated in favor of 'exactActiveClass'
+   */
   end?: boolean;
 }
 export function A(props: AnchorProps) {
@@ -213,18 +217,26 @@ export function A(props: AnchorProps) {
     "class",
     "activeClass",
     "inactiveClass",
+    "exactActiveClass",
     "end"
   ]);
   const to = useResolvedPath(() => props.href);
   const href = useHref(to);
   const location = useLocation();
-  const isActive = createMemo(() => {
+  const matchedHref = createMemo(() => {
     const to_ = to();
-    if (to_ === undefined) return false;
+    if (to_ === undefined) return [false, false];
     const path = normalizePath(to_.split(/[?#]/, 1)[0]).toLowerCase();
     const loc = normalizePath(location.pathname).toLowerCase();
-    return props.end ? path === loc : loc.startsWith(path);
+    return [loc.startsWith(path), path === loc];
   });
+
+  const isLooseMatch = createMemo(() => matchedHref()[0])
+  const isExactMatch = createMemo(() => matchedHref()[1] && Boolean(props.exactActiveClass))
+
+  // Remove together with `end` property
+  // If end was provided return an exact match, else return loose match (as long as users don't opt in for new behavior)
+  const isActiveDeprecated = createMemo(() => props.end ? matchedHref()[1] : !props.exactActiveClass && isLooseMatch())
 
   return (
     <a
@@ -234,11 +246,12 @@ export function A(props: AnchorProps) {
       state={JSON.stringify(props.state)}
       classList={{
         ...(props.class && { [props.class]: true }),
-        [props.inactiveClass!]: !isActive(),
-        [props.activeClass!]: isActive(),
+        [props.inactiveClass!]: !isLooseMatch(),
+        [props.activeClass!]: isLooseMatch() && !isExactMatch() || isActiveDeprecated(),
+        ...(props.exactActiveClass && { [props.exactActiveClass === true ? 'exactActive' : props.exactActiveClass]: isExactMatch() }),
         ...rest.classList
       }}
-      aria-current={isActive() ? "page" : undefined}
+      aria-current={isLooseMatch() ? "page" : undefined}
     />
   );
 }
