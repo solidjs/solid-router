@@ -45,7 +45,7 @@ export interface RouterIntegration {
 }
 
 export interface RouteDataFuncArgs<T = unknown> {
-  data: T extends RouteDataFunc ? ReturnType<T> : T;
+  data: T extends RouteDataFunc<infer _, infer R> ? R : T;
   params: Params;
   location: Location;
   navigate: Navigator;
