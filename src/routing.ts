@@ -99,12 +99,19 @@ export const useRouteData = <T>() => useRoute().data as MaybeReturnType<T>;
 
 export const useSearchParams = <T extends Params>(): [
   T,
-  (params: SetParams, options?: Partial<NavigateOptions>) => void
+  (params: SetParams | ((params: T) => SetParams), options?: Partial<NavigateOptions>) => void
 ] => {
   const location = useLocation();
   const navigate = useNavigate();
-  const setSearchParams = (params: SetParams, options?: Partial<NavigateOptions>) => {
-    const searchString = untrack(() => mergeSearchString(location.search, params));
+  const setSearchParams = (
+    params: SetParams | ((params: T) => SetParams),
+    options?: Partial<NavigateOptions>
+  ) => {
+    const searchString = untrack(() =>
+      typeof params === "function"
+        ? mergeSearchString("", params({ ...location.query } as T))
+        : mergeSearchString(location.search, params)
+    );
     navigate(location.pathname + searchString + location.hash, {
       scroll: false,
       resolve: false,
