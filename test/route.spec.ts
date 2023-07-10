@@ -172,7 +172,6 @@ describe("createRoutes should", () => {
       expect(match).not.toBeNull();
       expect(match.path).toBe("/foo/123/bar/solid.html");
     });
-
   });
 
   describe(`expand optional parameters`, () => {

@@ -11,7 +11,7 @@ export {
   useParams,
   useResolvedPath,
   useSearchParams,
-  useBeforeLeave,
+  useBeforeLeave
 } from "./routing";
 export { mergeSearchString as _mergeSearchString } from "./utils";
 export type {
