@@ -491,6 +491,49 @@ export function createRouterContext(
     onCleanup(() => document.removeEventListener("click", handleAnchorClick));
   }
 
+  const preloadFactory = () => {
+    const route = useRoute();
+    const branches = route.branches?.();
+
+    return (path: string) => {
+      if (!branches) return;
+
+      const matches = getRouteMatches(branches, path);
+      if (!matches?.length) return;
+
+      for (const match of matches) {
+        const { params, route, path } = match;
+
+        // preload assets
+        if (route.preload) route.preload();
+
+        // preload data
+        if (route.data) {
+          try {
+            const routeContext: RouteContext = {
+              data: route.data,
+              pattern: route.pattern,
+              params,
+              path: () => path,
+              outlet: route.element,
+              resolvePath(to: string) {
+                return resolvePath(baseRoute.path(), to, path);
+              }
+            };
+
+            route.data({
+              data: undefined,
+              params,
+              location,
+              navigate: navigatorFactory(routeContext)
+            });
+          } finally {
+          }
+        }
+      }
+    };
+  };
+
   return {
     base: baseRoute,
     out: output,
@@ -499,7 +542,8 @@ export function createRouterContext(
     renderPath,
     parsePath,
     navigatorFactory,
-    beforeLeave
+    beforeLeave,
+    preloadFactory
   };
 }
 
@@ -508,7 +552,8 @@ export function createRouteContext(
   parent: RouteContext,
   child: () => RouteContext,
   match: () => RouteMatch,
-  params: Params
+  params: Params,
+  branches: Accessor<Branch[]>
 ): RouteContext {
   const { base, location, navigatorFactory } = router;
   const { pattern, element: outlet, preload, data } = match().route;
@@ -526,6 +571,7 @@ export function createRouteContext(
     params,
     data: parent.data,
     outlet,
+    branches,
     resolvePath(to: string) {
       return resolvePath(base.path(), to, path());
     }

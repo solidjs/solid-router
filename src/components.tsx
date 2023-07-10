@@ -131,7 +131,8 @@ export const Routes = (props: RoutesProps) => {
               next[i - 1] || parentRoute,
               () => routeStates()[i + 1],
               () => matches()[i],
-              params
+              params,
+              branches
             );
           });
         }

@@ -1,4 +1,4 @@
-import { Component, JSX } from "solid-js";
+import { Accessor, Component, JSX } from "solid-js";
 
 export type Params = Record<string, string>;
 
@@ -129,6 +129,7 @@ export interface RouteContext {
   path: () => string;
   outlet: () => JSX.Element;
   resolvePath(to: string): string | undefined;
+  branches?: Accessor<Branch[]>;
 }
 
 export interface RouterUtils {
@@ -159,6 +160,7 @@ export interface RouterContext {
   renderPath(path: string): string;
   parsePath(str: string): string;
   beforeLeave: BeforeLeaveLifecycle;
+  preloadFactory: () => (path: string) => void;
 }
 
 export interface BeforeLeaveEventArgs {
