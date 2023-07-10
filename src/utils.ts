@@ -1,4 +1,4 @@
-import { createMemo, getOwner, runWithOwner } from "solid-js";
+import { type JSX, createMemo, getOwner, runWithOwner } from "solid-js";
 import type { MatchFilter, MatchFilters, Params, PathMatch, Route, SetParams } from "./types";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
@@ -184,4 +184,38 @@ export function expandOptionals(pattern: string): string[] {
     (results, expansion) => [...results, ...prefixes.map(p => p + expansion)],
     []
   );
+}
+
+function isFunction<T extends Function = Function>(value: any): value is T {
+  return typeof value === "function";
+}
+
+/** Call a JSX.EventHandlerUnion with the event. */
+function callHandler<T, E extends Event>(
+  event: E & { currentTarget: T; target: Element },
+  handler: JSX.EventHandlerUnion<T, E> | undefined
+) {
+  if (handler) {
+    if (isFunction(handler)) {
+      handler(event);
+    } else {
+      handler[0](handler[1], event);
+    }
+  }
+
+  return event?.defaultPrevented;
+}
+
+/**
+ * Creates a new event handler.
+ * This new handler calls all given handlers in the order given, with the same event.
+ */
+export function composeEventHandlers<T>(
+  handlers: Array<JSX.EventHandlerUnion<T, any> | undefined>
+) {
+  return (event: any) => {
+    for (const handler of handlers) {
+      callHandler(event, handler);
+    }
+  };
 }

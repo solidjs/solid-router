@@ -18,6 +18,7 @@ import { createBeforeLeave } from "./lifecycle";
 import type {
   BeforeLeaveEventArgs,
   Branch,
+  LinkPreloadOpts,
   Location,
   LocationChange,
   LocationChangeSignal,
@@ -277,7 +278,9 @@ export function createRouterContext(
   integration?: RouterIntegration | LocationChangeSignal,
   base: string = "",
   data?: RouteDataFunc,
-  out?: object
+  out?: object,
+  preload?: LinkPreloadOpts["preload"],
+  preloadDelay?: LinkPreloadOpts["preloadDelay"]
 ): RouterContext {
   const {
     signal: [source, setSource],
@@ -543,7 +546,9 @@ export function createRouterContext(
     parsePath,
     navigatorFactory,
     beforeLeave,
-    preloadFactory
+    preloadFactory,
+    preload,
+    preloadDelay
   };
 }
 

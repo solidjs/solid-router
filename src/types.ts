@@ -151,7 +151,7 @@ export interface RouterOutput {
   matches: OutputMatch[][];
 }
 
-export interface RouterContext {
+export interface RouterContext extends LinkPreloadOpts {
   base: RouteContext;
   out?: RouterOutput;
   location: Location;
@@ -181,4 +181,9 @@ export interface BeforeLeaveListener {
 export interface BeforeLeaveLifecycle {
   subscribe(listener: BeforeLeaveListener): () => void;
   confirm(to: string | number, options?: Partial<NavigateOptions>): boolean;
+}
+
+export interface LinkPreloadOpts {
+  preload?: false | "intent";
+  preloadDelay?: number;
 }

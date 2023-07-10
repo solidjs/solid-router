@@ -1,7 +1,16 @@
 /*@refresh skip*/
 
 import type { Component, JSX } from "solid-js";
-import { children, createMemo, createRoot, mergeProps, on, Show, splitProps } from "solid-js";
+import {
+  children,
+  createMemo,
+  createRoot,
+  mergeProps,
+  on,
+  onCleanup,
+  Show,
+  splitProps
+} from "solid-js";
 import { isServer } from "solid-js/web";
 import { pathIntegration, staticIntegration } from "./integration";
 import {
@@ -19,6 +28,7 @@ import {
   useRouter
 } from "./routing";
 import type {
+  LinkPreloadOpts,
   Location,
   LocationChangeSignal,
   MatchFilters,
@@ -29,7 +39,7 @@ import type {
   RouteDefinition,
   RouterIntegration
 } from "./types";
-import { joinPaths, normalizePath, createMemoObject } from "./utils";
+import { joinPaths, normalizePath, createMemoObject, composeEventHandlers } from "./utils";
 
 declare module "solid-js" {
   namespace JSX {
@@ -47,6 +57,8 @@ export type RouterProps = {
   data?: RouteDataFunc;
   children: JSX.Element;
   out?: object;
+  preload?: LinkPreloadOpts["preload"];
+  preloadDelay?: LinkPreloadOpts["preloadDelay"];
 } & (
   | {
       url?: never;
@@ -59,10 +71,10 @@ export type RouterProps = {
 );
 
 export const Router = (props: RouterProps) => {
-  const { source, url, base, data, out } = props;
+  const { source, url, base, data, out, preload, preloadDelay } = props;
   const integration =
     source || (isServer ? staticIntegration({ value: url || "" }) : pathIntegration());
-  const routerState = createRouterContext(integration, base, data, out);
+  const routerState = createRouterContext(integration, base, data, out, preload, preloadDelay);
 
   return (
     <RouterContextObj.Provider value={routerState}>{props.children}</RouterContextObj.Provider>
@@ -197,7 +209,9 @@ export const Outlet = () => {
   );
 };
 
-export interface AnchorProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, "state"> {
+export interface AnchorProps
+  extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, "state">,
+    LinkPreloadOpts {
   href: string;
   replace?: boolean | undefined;
   noScroll?: boolean | undefined;
@@ -207,14 +221,33 @@ export interface AnchorProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorEle
   end?: boolean | undefined;
 }
 export function A(props: AnchorProps) {
-  props = mergeProps({ inactiveClass: "inactive", activeClass: "active" }, props);
+  const router = useRouter();
+  const preloadFn = router.preloadFactory();
+  const defaultPreload = router.preload ?? false;
+  const defaultPreloadDelay = router.preloadDelay ?? 0;
+
+  props = mergeProps(
+    {
+      inactiveClass: "inactive",
+      activeClass: "active",
+      preload: defaultPreload,
+      preloadDelay: defaultPreloadDelay
+    },
+    props
+  );
   const [, rest] = splitProps(props, [
     "href",
     "state",
     "class",
     "activeClass",
     "inactiveClass",
-    "end"
+    "end",
+    "preload",
+    "preloadDelay",
+    "onMouseEnter",
+    "onFocus",
+    "onMouseLeave",
+    "onTouchStart"
   ]);
   const to = useResolvedPath(() => props.href);
   const href = useHref(to);
@@ -225,6 +258,44 @@ export function A(props: AnchorProps) {
     const path = normalizePath(to_.split(/[?#]/, 1)[0]).toLowerCase();
     const loc = normalizePath(location.pathname).toLowerCase();
     return props.end ? path === loc : loc.startsWith(path);
+  });
+
+  let preloadTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  const tryPreload = () => {
+    if (!props.preload || preloadTimeout) return;
+
+    preloadTimeout = setTimeout(() => {
+      preloadTimeout = null;
+      preloadFn(props.href);
+    }, props.preloadDelay);
+  };
+
+  const handleFocus = (e: MouseEvent) => {
+    tryPreload();
+  };
+
+  const handleEnter = () => {
+    tryPreload();
+  };
+
+  const handleTouchStart = () => {
+    if (!props.preload || preloadTimeout) return;
+    // Never delay for touch intention
+    preloadFn(props.href);
+  };
+
+  const handleLeave = (e: MouseEvent) => {
+    if (preloadTimeout) {
+      clearTimeout(preloadTimeout);
+      preloadTimeout = null;
+    }
+  };
+
+  onCleanup(() => {
+    if (preloadTimeout) {
+      clearTimeout(preloadTimeout);
+    }
   });
 
   return (
@@ -240,6 +311,10 @@ export function A(props: AnchorProps) {
         ...rest.classList
       }}
       aria-current={isActive() ? "page" : undefined}
+      onFocus={composeEventHandlers([props.onFocus, handleFocus])}
+      onMouseEnter={composeEventHandlers([props.onMouseEnter, handleEnter])}
+      onMouseLeave={composeEventHandlers([props.onMouseLeave, handleLeave])}
+      onTouchStart={composeEventHandlers([props.onTouchStart, handleTouchStart])}
     />
   );
 }
