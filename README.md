@@ -30,6 +30,7 @@ It supports all of Solid's SSR methods and has Solid's transitions baked in, so 
   - [useMatch](#usematch)
   - [useRoutes](#useroutes)
   - [useBeforeLeave](#usebeforeleave)
+- [SPAs in Deployed Environments](#spas-in-deployed-environments)
 
 ## Getting Started
 
@@ -689,4 +690,27 @@ useBeforeLeave((e: BeforeLeaveEventArgs) => {
     }, 100);
   }
 });
+```
+
+## SPAs in Deployed Environments
+
+When deploying applications that use a client side router that does not rely on Server Side Rendering you need to handle redirects to your index page so that loading from other URLs does not cause your CDN or Hosting to return not found for pages that aren't actually there.
+
+Each provider has a different way of doing this. For example on Netlify you create a `_redirects` file that contains:
+
+```sh
+/*   /index.html   200
+```
+
+On Vercel you add a rewrites section to your `vercel.json`:
+
+```json
+{
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
 ```
