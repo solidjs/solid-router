@@ -218,7 +218,13 @@ export default function App() {
 
 The colon indicates that `id` can be any string, and as long as the URL fits that pattern, the `User` component will show.
 
-You can then access that `id` from within a route component with `useParams`:
+You can then access that `id` from within a route component with `useParams`.
+
+> **Note on Animation/Transitions**:
+> Routes that share the same path match will be treated as the same route. If you want to force re-render you can wrap your component in a keyed `<Show>` like:
+> ```js
+><Show when={params.something} keyed><MyComponent></Show>
+>```
 
 ---
 
