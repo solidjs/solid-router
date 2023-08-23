@@ -32,6 +32,11 @@ function scrollToHash(hash: string, fallbackTop?: boolean) {
   }
 }
 
+/**
+ * Store location history in a local variable.
+ *
+ * (other router integrations "store" state as urls in browser history)
+ */
 export function createMemoryHistory() {
   const entries = ["/"];
   let index = 0;
@@ -75,10 +80,16 @@ export function createMemoryHistory() {
   };
 }
 
+type NotifyLocationChange = (value?: string | LocationChange) => void;
+
+type CreateLocationChangeNotifier = (
+  notify: NotifyLocationChange
+) => /* LocationChangeNotifier: */ () => void;
+
 export function createIntegration(
   get: () => string | LocationChange,
   set: (next: LocationChange) => void,
-  init?: (notify: (value?: string | LocationChange) => void) => () => void,
+  init?: CreateLocationChangeNotifier,
   utils?: Partial<RouterUtils>
 ): RouterIntegration {
   let ignore = false;
