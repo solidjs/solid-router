@@ -239,7 +239,7 @@ export function A(props: ParentProps<AnchorProps>) {
     <a
       link
       {...rest}
-      aria-current={isActive() ? "page" : undefined}
+      {...(isActive() ? {'aria-current': 'page' } : {})}
       class={aProps.class}
       classList={{
         [aProps.inactiveClass]: !isActive(),
