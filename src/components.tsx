@@ -1,7 +1,16 @@
 /*@refresh skip*/
-
-import type { Component, JSX } from "solid-js";
-import { children, createMemo, createRoot, mergeProps, on, Show, splitProps } from "solid-js";
+import {
+  children,
+  createMemo,
+  createRoot,
+  mergeProps,
+  on,
+  Show,
+  splitProps,
+  type Component,
+  type JSX,
+  type ParentProps
+} from "solid-js";
 import { isServer } from "solid-js/web";
 import { pathIntegration, staticIntegration } from "./integration";
 import {
@@ -198,16 +207,16 @@ export const Outlet = () => {
 
 export interface AnchorProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, "state"> {
   href: string;
-  replace?: boolean | undefined;
-  noScroll?: boolean | undefined;
-  state?: unknown | undefined;
-  inactiveClass?: string | undefined;
-  activeClass?: string | undefined;
-  end?: boolean | undefined;
+  replace?: boolean;
+  noScroll?: boolean;
+  state?: unknown;
+  inactiveClass?: string;
+  activeClass?: string;
+  end?: boolean;
 }
-export function A(props: AnchorProps) {
-  props = mergeProps({ inactiveClass: "inactive", activeClass: "active" }, props);
-  const [, rest] = splitProps(props, [
+export function A(props: ParentProps<AnchorProps>) {
+  const aProps = mergeProps({ inactiveClass: "inactive", activeClass: "active" }, props);
+  const [, rest] = splitProps(aProps, [
     "href",
     "state",
     "class",
@@ -215,7 +224,7 @@ export function A(props: AnchorProps) {
     "inactiveClass",
     "end"
   ]);
-  const to = useResolvedPath(() => props.href);
+  const to = useResolvedPath(() => aProps.href);
   const href = useHref(to);
   const location = useLocation();
   const isActive = createMemo(() => {
@@ -223,23 +232,25 @@ export function A(props: AnchorProps) {
     if (to_ === undefined) return false;
     const path = normalizePath(to_.split(/[?#]/, 1)[0]).toLowerCase();
     const loc = normalizePath(location.pathname).toLowerCase();
-    return props.end ? path === loc : loc.startsWith(path);
+    return aProps.end ? path === loc : loc.startsWith(path);
   });
 
   return (
     <a
       link
       {...rest}
-      href={href() || props.href}
-      state={JSON.stringify(props.state)}
+      aria-current={isActive() ? "page" : undefined}
+      class={aProps.class}
       classList={{
-        ...(props.class && { [props.class]: true }),
-        [props.inactiveClass!]: !isActive(),
-        [props.activeClass!]: isActive(),
+        [aProps.inactiveClass]: !isActive(),
+        [aProps.activeClass]: isActive(),
         ...rest.classList
       }}
-      aria-current={isActive() ? "page" : undefined}
-    />
+      href={href() || aProps.href}
+      state={JSON.stringify(aProps.state)}
+    >
+      {props.children}
+    </a>
   );
 }
 // deprecated alias exports
