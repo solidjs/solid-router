@@ -15,6 +15,9 @@ function intercept<T>(
 }
 
 function querySelector<T extends Element>(selector: string) {
+  if (selector === "#") {
+    return null;
+  }
   // Guard against selector being an invalid CSS selector
   try {
     return document.querySelector<T>(selector);
