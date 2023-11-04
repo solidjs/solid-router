@@ -70,7 +70,7 @@ export type RouteDefinition<S extends string | string[] = any> = {
     }
 );
 
-export type MatchFilter = string[] | RegExp | ((s: string) => boolean);
+export type MatchFilter = readonly string[] | RegExp | ((s: string) => boolean);
 
 export type PathParams<P extends string | readonly string[]> =
   P extends `${infer Head}/${infer Tail}`
