@@ -4,6 +4,8 @@
 
 # Solid Router [![npm Version](https://img.shields.io/npm/v/@solidjs/router.svg?style=flat-square)](https://www.npmjs.org/package/@solidjs/router)
 
+#### Note: v0.9.0 requires Solid 1.8.4 or later
+
 A router lets you change your view based on the URL in the browser. This allows your "single-page" application to simulate a traditional multipage site. To use Solid Router, you specify components called Routes that depend on the value of the URL (the "path"), and the router handles the mechanism of swapping them in and out.
 
 Solid Router is a universal router for SolidJS - it works whether you're rendering on the client or on the server. It was inspired by and combines paradigms of React Router and the Ember Router. Routes can be defined directly in your app's template using JSX, but you can also pass your route configuration directly as an object. It also supports nested routing, so navigation can change a part of a component, rather than completely replacing it.

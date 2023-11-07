@@ -2,7 +2,7 @@
 
 import type { Component, JSX } from "solid-js";
 import { children, createMemo, createRoot, mergeProps, on, Show, splitProps } from "solid-js";
-import { isServer } from "solid-js/web";
+import { isServer, getRequestEvent } from "solid-js/web";
 import { pathIntegration, staticIntegration } from "./integration";
 import {
   createBranches,
@@ -59,9 +59,13 @@ export type RouterProps = {
 );
 
 export const Router = (props: RouterProps) => {
+  let e: any;
   const { source, url, base, data, out } = props;
   const integration =
-    source || (isServer ? staticIntegration({ value: url || "" }) : pathIntegration());
+    source ||
+    (isServer
+      ? staticIntegration({ value: url || ((e = getRequestEvent()) && e.request.url) || "" })
+      : pathIntegration());
   const routerState = createRouterContext(integration, base, data, out);
 
   return (

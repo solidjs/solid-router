@@ -1,5 +1,11 @@
 import { Component, JSX } from "solid-js";
 
+declare module "solid-js/web" {
+  interface RequestEvent {
+    response?: Response;
+  }
+}
+
 export type Params = Record<string, string>;
 
 export type SetParams = Record<string, string | number | boolean | null | undefined>;
