@@ -35,6 +35,11 @@ function scrollToHash(hash: string, fallbackTop?: boolean) {
   }
 }
 
+/**
+ * Store location history in a local variable.
+ *
+ * (other router integrations "store" state as urls in browser history)
+ */
 export function createMemoryHistory() {
   const entries = ["/"];
   let index = 0;
@@ -78,10 +83,16 @@ export function createMemoryHistory() {
   };
 }
 
+type NotifyLocationChange = (value?: string | LocationChange) => void;
+
+type CreateLocationChangeNotifier = (
+  notify: NotifyLocationChange
+) => /* LocationChangeNotifier: */ () => void;
+
 export function createIntegration(
   get: () => string | LocationChange,
   set: (next: LocationChange) => void,
-  init?: (notify: (value?: string | LocationChange) => void) => () => void,
+  init?: CreateLocationChangeNotifier,
   utils?: Partial<RouterUtils>
 ): RouterIntegration {
   let ignore = false;
@@ -152,6 +163,68 @@ export function pathIntegration() {
   );
 }
 
+/**
+ * If your Solidjs "app" is really just a "widget" or "micro-frontend" that will be embedded into a larger app,
+ * you can use this router integration to embed your entire url into a *single* search parameter.
+ *
+ * This is done by taking your "app"s normal url, and passing it through `encodeURIComponent` and `decodeURIComponent`.
+ *
+ * If your widget has search params, they will not leak into the parent/host app, and your solid app should not pickup parents search params, unless your Solid code is reading from `window.location`.
+ */
+// This implementation was based on pathIntegration, with many ideas and concepts taken from hashIntegration.
+export function searchParamIntegration(
+  /**
+   * Let's say you are building a chat widget that will be integrated into a larger app.
+   *
+   * You want to pass in a globally unique search param key here, perhaps "supportChatWidgetUrl"
+   */
+  widgetUrlsSearchParamName: string
+) {
+  function getWidgetsUrl(searchParams: URLSearchParams): string {
+    return decodeURIComponent(
+      searchParams.get(widgetUrlsSearchParamName) || encodeURIComponent("/")
+    );
+  }
+
+  const createLocationChangeNotifier: CreateLocationChangeNotifier = notify => {
+    return bindEvent(window, "popstate", () => notify());
+  };
+
+  return createIntegration(
+    () => ({
+      value: getWidgetsUrl(new URLSearchParams(window.location.search)),
+      state: history.state
+    }),
+    ({ value, replace, state }) => {
+      if (replace) {
+        window.history.replaceState(state, "", value);
+      } else {
+        window.history.pushState(state, "", value);
+      }
+      // Because the above `pushState/replaceState` call should never change `window.location.hash`,
+      // this behavior from `pathIntegration` doesn't make sense in the context of `searchParamIntegration`:
+      //   scrollToHash(window.location.hash.slice(1), scroll);
+      // Perhaps when a widget loads, it should run the `el.scrollIntoView` function itself.
+    },
+    /* init */
+    createLocationChangeNotifier,
+    {
+      go: delta => window.history.go(delta),
+      renderPath: path => {
+        const params = new URLSearchParams(window.location.search);
+        params.set(widgetUrlsSearchParamName, encodeURIComponent(path));
+        // Starts with `?` because we don't want to change the path at all
+        // This degrades gracefully if javascript is disabled
+        return `?${params.toString()}`;
+      },
+      parsePath: str => {
+        const url = new URL(str, "https://github.com/");
+        return getWidgetsUrl(url.searchParams);
+      }
+    }
+  );
+}
+
 export function hashIntegration() {
   return createIntegration(
     () => window.location.hash.slice(1),
@@ -170,15 +243,15 @@ export function hashIntegration() {
       go: delta => window.history.go(delta),
       renderPath: path => `#${path}`,
       parsePath: str => {
+        // Get everything after the `#` (by dropping everything before the `#`)
         const to = str.replace(/^.*?#/, "");
-        // Hash-only hrefs like `#foo` from plain anchors will come in as `/#foo` whereas a link to
-        // `/foo` will be `/#/foo`. Check if the to starts with a `/` and if not append it as a hash
-        // to the current path so we can handle these in-page anchors correctly.
         if (!to.startsWith("/")) {
+          // We got an in-page heading link.
+          // Append it to the current path to maintain correct browser behavior.
           const [, path = "/"] = window.location.hash.split("#", 2);
           return `${path}#${to}`;
         }
-        return to;
+        return to; // Normal Solidjs <A> link
       }
     }
   );

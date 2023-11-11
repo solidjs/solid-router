@@ -1,4 +1,28 @@
 import { hashIntegration } from "../src/integration";
+import { searchParamIntegration } from "../src/integration";
+
+describe("query integration should", () => {
+  const widgetUrl = `/add-account?type=dex#/ugh`;
+  const encodedPath = encodeURIComponent(widgetUrl);
+  test.each([
+    ["http://localhost/", "/"], 
+    ["http://localhost//#/practice", "/"],
+    ["http://localhost/base/#/practice", "/"],
+    ["http://localhost/#/practice#some-id", "/"],
+    ["file:///C:/Users/Foo/index.html#/test", "/"],
+    [`http://localhost/?carniatomon=${encodedPath}`, widgetUrl], 
+    [`http://localhost/?carniatomon=${encodedPath}#/practice`, widgetUrl],
+    [`http://localhost/base/?carniatomon=${encodedPath}#/practice`, widgetUrl],
+    [`http://localhost/?carniatomon=${encodedPath}#/practice#some-id`, widgetUrl],
+    [`file:///C:/Users/Foo/index.html?carniatomon=${encodedPath}#/test`, widgetUrl]
+  ])(`parse paths (case '%s' as '%s')`, (urlString, expected) => {
+    const parsed = searchParamIntegration(
+      'carniatomon'
+    ).utils!.parsePath!(urlString);
+    expect(parsed).toBe(expected);
+  });
+});
+
 
 describe("Hash integration should", () => {
   test.each([

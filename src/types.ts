@@ -138,6 +138,7 @@ export interface RouteContext {
 }
 
 export interface RouterUtils {
+  /** This produces the `href` attribute shown in the browser. */
   renderPath(path: string): string;
   parsePath(str: string): string;
   go(delta: number): void;
