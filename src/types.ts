@@ -50,31 +50,24 @@ export interface RouterIntegration {
   utils?: Partial<RouterUtils>;
 }
 
-export interface RouteDataFuncArgs<T = unknown> {
-  data: T extends RouteDataFunc<infer _, infer R> ? R : T;
+export interface RouteLoadFuncArgs {
   params: Params;
   location: Location;
-  navigate: Navigator;
 }
 
-export type RouteDataFunc<T = unknown, R = unknown> = (args: RouteDataFuncArgs<T>) => R;
+export type RouteLoadFunc = (args: RouteLoadFuncArgs) => void;
+
+export interface RouteSectionProps  extends RouteLoadFuncArgs {
+  children?: JSX.Element;
+}
 
 export type RouteDefinition<S extends string | string[] = any> = {
   path: S;
   matchFilters?: MatchFilters<S>;
-  data?: RouteDataFunc;
+  load?: RouteLoadFunc;
   children?: RouteDefinition | RouteDefinition[];
-} & (
-  | {
-      element?: never;
-      component: Component;
-    }
-  | {
-      component?: never;
-      element?: JSX.Element;
-      preload?: () => void;
-    }
-);
+  component?: Component<RouteSectionProps>;
+};
 
 export type MatchFilter = readonly string[] | RegExp | ((s: string) => boolean);
 
@@ -113,9 +106,8 @@ export interface Route {
   key: unknown;
   originalPath: string;
   pattern: string;
-  element: () => JSX.Element;
-  preload?: () => void;
-  data?: RouteDataFunc;
+  component?: (props: RouteSectionProps) => JSX.Element;
+  load?: RouteLoadFunc;
   matcher: (location: string) => PathMatch | null;
   matchFilters?: MatchFilters;
 }
@@ -129,7 +121,6 @@ export interface Branch {
 export interface RouteContext {
   parent?: RouteContext;
   child?: RouteContext;
-  data?: unknown;
   pattern: string;
   params: Params;
   path: () => string;

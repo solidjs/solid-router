@@ -2,7 +2,6 @@ export * from "./components";
 export * from "./integration";
 export * from "./lifecycle";
 export {
-  useRouteData,
   useHref,
   useIsRouting,
   useLocation,
@@ -22,8 +21,8 @@ export type {
   Navigator,
   OutputMatch,
   Params,
-  RouteDataFunc,
-  RouteDataFuncArgs,
+  RouteLoadFunc,
+  RouteLoadFuncArgs,
   RouteDefinition,
   RouterIntegration,
   RouterOutput,

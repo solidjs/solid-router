@@ -27,12 +27,10 @@ import type {
   Params,
   Route,
   RouteContext,
-  RouteDataFunc,
   RouteDefinition,
   RouteMatch,
   RouterContext,
   RouterIntegration,
-  RouterOutput,
   SetParams
 } from "./types";
 import {
@@ -94,9 +92,6 @@ export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFi
 
 export const useParams = <T extends Params>() => useRoute().params as T;
 
-type MaybeReturnType<T> = T extends (...args: any) => infer R ? R : T;
-export const useRouteData = <T>() => useRoute().data as MaybeReturnType<T>;
-
 export const useSearchParams = <T extends Params>(): [
   T,
   (params: SetParams, options?: Partial<NavigateOptions>) => void
@@ -125,28 +120,14 @@ export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
   onCleanup(s);
 };
 
-export function createRoutes(
-  routeDef: RouteDefinition,
-  base: string = "",
-  fallback?: Component
-): Route[] {
-  const { component, data, children } = routeDef;
+export function createRoutes(routeDef: RouteDefinition, base: string = ""): Route[] {
+  const { component, load, children } = routeDef;
   const isLeaf = !children || (Array.isArray(children) && !children.length);
 
   const shared = {
     key: routeDef,
-    element: component
-      ? () => createComponent(component, {})
-      : () => {
-          const { element } = routeDef;
-          return element === undefined && fallback
-            ? createComponent(fallback, {})
-            : (element as JSX.Element);
-        },
-    preload: routeDef.component
-      ? (component as MaybePreloadableComponent).preload
-      : routeDef.preload,
-    data
+    component,
+    load
   };
 
   return asArray(routeDef.path).reduce<Route[]>((acc, path) => {
@@ -193,7 +174,6 @@ function asArray<T>(value: T | T[]): T[] {
 export function createBranches(
   routeDef: RouteDefinition | RouteDefinition[],
   base: string = "",
-  fallback?: Component,
   stack: Route[] = [],
   branches: Branch[] = []
 ): Branch[] {
@@ -202,12 +182,12 @@ export function createBranches(
   for (let i = 0, len = routeDefs.length; i < len; i++) {
     const def = routeDefs[i];
     if (def && typeof def === "object" && def.hasOwnProperty("path")) {
-      const routes = createRoutes(def, base, fallback);
+      const routes = createRoutes(def, base);
       for (const route of routes) {
         stack.push(route);
         const isEmptyArray = Array.isArray(def.children) && def.children.length === 0;
         if (def.children && !isEmptyArray) {
-          createBranches(def.children, route.pattern, fallback, stack, branches);
+          createBranches(def.children, route.pattern, stack, branches);
         } else {
           const branch = createBranch([...stack], branches.length);
           branches.push(branch);
@@ -277,9 +257,8 @@ export function createLocation(path: Accessor<string>, state: Accessor<any>): Lo
 
 export function createRouterContext(
   integration?: RouterIntegration | LocationChangeSignal,
-  base: string = "",
-  data?: RouteDataFunc,
-  out?: object
+  getBranches?: () => Branch[],
+  base: string = ""
 ): RouterContext {
   const {
     signal: [source, setSource],
@@ -291,14 +270,6 @@ export function createRouterContext(
   const beforeLeave = utils.beforeLeave || createBeforeLeave();
 
   const basePath = resolvePath("", base);
-  const output =
-    isServer && out
-      ? (Object.assign(out, {
-          matches: [],
-          url: undefined
-        }) as RouterOutput)
-      : undefined;
-
   if (basePath === undefined) {
     throw new Error(`${basePath} is not a valid base path`);
   } else if (basePath && !source().value) {
@@ -328,20 +299,6 @@ export function createRouterContext(
       return resolvePath(basePath, to);
     }
   };
-
-  if (data) {
-    try {
-      TempRoute = baseRoute;
-      baseRoute.data = data({
-        data: undefined,
-        params: {},
-        location,
-        navigate: navigatorFactory(baseRoute)
-      });
-    } finally {
-      TempRoute = undefined;
-    }
-  }
 
   function navigateFromRoute(
     route: RouteContext,
@@ -385,10 +342,7 @@ export function createRouterContext(
 
       if (resolvedTo !== current || nextState !== state()) {
         if (isServer) {
-          if (output) {
-            output.url = resolvedTo;
-          }
-          const e = getRequestEvent()
+          const e = getRequestEvent();
           e && (e.response = Response.redirect(resolvedTo, 302));
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
         } else if (beforeLeave.confirm(resolvedTo, options)) {
@@ -445,7 +399,13 @@ export function createRouterContext(
   });
 
   if (!isServer) {
-    function handleAnchorClick(evt: MouseEvent) {
+    let preloadTimeout: Record<string, number> = {};
+
+    function isSvg<T extends SVGElement>(el: T | HTMLElement): el is T {
+      return el.namespaceURI === "http://www.w3.org/2000/svg";
+    }
+
+    function handleAnchor(evt: MouseEvent) {
       if (
         evt.defaultPrevented ||
         evt.button !== 0 ||
@@ -460,24 +420,33 @@ export function createRouterContext(
         .composedPath()
         .find(el => el instanceof Node && el.nodeName.toUpperCase() === "A") as
         | HTMLAnchorElement
+        | SVGAElement
         | undefined;
 
-      if (!a || !a.hasAttribute("link")) return;
+      if (!a) return;
 
-      const href = a.href;
-      if (a.target || (!href && !a.hasAttribute("state"))) return;
+      const svg = isSvg(a);
+      const href = svg ? a.href.baseVal : a.href;
+      const target = svg ? a.target.baseVal : a.target;
+      if (target || (!href && !a.hasAttribute("state"))) return;
 
       const rel = (a.getAttribute("rel") || "").split(/\s+/);
       if (a.hasAttribute("download") || (rel && rel.includes("external"))) return;
 
-      const url = new URL(href);
+      const url = svg ? new URL(href, document.baseURI) : new URL(href);
       if (
         url.origin !== window.location.origin ||
         (basePath && url.pathname && !url.pathname.toLowerCase().startsWith(basePath.toLowerCase()))
       )
         return;
-
       const to = parsePath(url.pathname + url.search + url.hash);
+      return [a, to] as const;
+    }
+
+    function handleAnchorClick(evt: Event) {
+      const res = handleAnchor(evt as MouseEvent);
+      if (!res) return;
+      const [a, to] = res;
       const state = a.getAttribute("state");
 
       evt.preventDefault();
@@ -489,15 +458,63 @@ export function createRouterContext(
       });
     }
 
+    function doPreload(a: HTMLAnchorElement | SVGAElement, to: string) {
+      const preload = a.getAttribute("preload") !== "false";
+      const matches = getRouteMatches(getBranches!(), to);
+      for (let match in matches) {
+        const { route, params } = matches[match];
+        route.component &&
+          (route.component as MaybePreloadableComponent).preload &&
+          (route.component as MaybePreloadableComponent).preload!();
+        preload && route.load && route.load({ params, location });
+      }
+    }
+
+    function handleAnchorPreload(evt: Event) {
+      const res = handleAnchor(evt as MouseEvent);
+      if (!res) return;
+      const [a, to] = res;
+      if (!preloadTimeout[to]) doPreload(a, to);
+    }
+
+    function handleAnchorIn(evt: Event) {
+      const res = handleAnchor(evt as MouseEvent);
+      if (!res) return;
+      const [a, to] = res;
+      if (preloadTimeout[to]) return;
+      preloadTimeout[to] = setTimeout(() => {
+        doPreload(a, to);
+        delete preloadTimeout[to];
+      }, 50) as any;
+    }
+    function handleAnchorOut(evt: Event) {
+      const res = handleAnchor(evt as MouseEvent);
+      if (!res) return;
+      const [, to] = res;
+      if (preloadTimeout[to]) {
+        clearTimeout(preloadTimeout[to]);
+        delete preloadTimeout[to];
+      }
+    }
+
     // ensure delegated events run first
-    delegateEvents(["click"]);
+    delegateEvents(["click", "mouseover", "focusin"]);
     document.addEventListener("click", handleAnchorClick);
-    onCleanup(() => document.removeEventListener("click", handleAnchorClick));
+    document.addEventListener("mouseover", handleAnchorIn);
+    document.addEventListener("mouseout", handleAnchorOut);
+    document.addEventListener("focusin", handleAnchorPreload);
+    document.addEventListener("touchstart", handleAnchorPreload);
+    onCleanup(() => {
+      document.removeEventListener("click", handleAnchorClick);
+      document.removeEventListener("mouseover", handleAnchorIn);
+      document.removeEventListener("mouseout", handleAnchorOut);
+      document.removeEventListener("focusin", handleAnchorPreload);
+      document.removeEventListener("touchstart", handleAnchorPreload);
+    });
   }
 
   return {
     base: baseRoute,
-    out: output,
     location,
     isRouting,
     renderPath,
@@ -510,39 +527,38 @@ export function createRouterContext(
 export function createRouteContext(
   router: RouterContext,
   parent: RouteContext,
-  child: () => RouteContext,
+  outlet: () => JSX.Element,
   match: () => RouteMatch,
   params: Params
 ): RouteContext {
-  const { base, location, navigatorFactory } = router;
-  const { pattern, element: outlet, preload, data } = match().route;
+  const { base, location } = router;
+  const { pattern, component, load } = match().route;
   const path = createMemo(() => match().path);
-
-  preload && preload();
 
   const route: RouteContext = {
     parent,
     pattern,
-    get child() {
-      return child();
-    },
     path,
     params,
-    data: parent.data,
-    outlet,
+    outlet: () =>
+      component
+        ? createComponent(component, {
+            params,
+            location,
+            get children() {
+              return outlet();
+            }
+          })
+        : outlet(),
     resolvePath(to: string) {
       return resolvePath(base.path(), to, path());
     }
   };
 
-  if (data) {
-    try {
-      TempRoute = route;
-      route.data = data({ data: parent.data, params, location, navigate: navigatorFactory(route) });
-    } finally {
-      TempRoute = undefined;
-    }
-  }
+  component &&
+    (component as MaybePreloadableComponent).preload &&
+    (component as MaybePreloadableComponent).preload!();
+  load && load({ params, location });
 
   return route;
 }

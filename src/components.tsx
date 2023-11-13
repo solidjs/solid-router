@@ -16,7 +16,6 @@ import {
   useNavigate,
   useResolvedPath,
   useRoute,
-  useRouter
 } from "./routing";
 import type {
   Location,
@@ -25,7 +24,7 @@ import type {
   Navigator,
   Params,
   RouteContext,
-  RouteDataFunc,
+  RouteLoadFunc,
   RouteDefinition,
   RouterIntegration
 } from "./types";
@@ -37,16 +36,14 @@ declare module "solid-js" {
       state?: string;
       noScroll?: boolean;
       replace?: boolean;
-      link?: boolean;
+      preload?: boolean;
     }
   }
 }
 
 export type RouterProps = {
   base?: string;
-  data?: RouteDataFunc;
   children: JSX.Element;
-  out?: object;
 } & (
   | {
       url?: never;
@@ -60,35 +57,22 @@ export type RouterProps = {
 
 export const Router = (props: RouterProps) => {
   let e: any;
-  const { source, url, base, data, out } = props;
+  const { source, url, base } = props;
   const integration =
     source ||
     (isServer
       ? staticIntegration({ value: url || ((e = getRequestEvent()) && e.request.url) || "" })
       : pathIntegration());
-  const routerState = createRouterContext(integration, base, data, out);
 
-  return (
-    <RouterContextObj.Provider value={routerState}>{props.children}</RouterContextObj.Provider>
-  );
-};
-
-export interface RoutesProps {
-  base?: string;
-  children: JSX.Element;
-}
-
-export const Routes = (props: RoutesProps) => {
-  const router = useRouter();
-  const parentRoute = useRoute();
   const routeDefs = children(() => props.children) as unknown as () =>
     | RouteDefinition
     | RouteDefinition[];
 
   const branches = createMemo(() =>
-    createBranches(routeDefs(), joinPaths(parentRoute.pattern, props.base || ""), Outlet)
+    createBranches(routeDefs(), props.base || "")
   );
-  const matches = createMemo(() => getRouteMatches(branches(), router.location.pathname));
+  const routerState = createRouterContext(integration, branches, base);
+  const matches = createMemo(() => getRouteMatches(branches(), routerState.location.pathname));
   const params = createMemoObject(() => {
     const m = matches();
     const params: Params = {};
@@ -97,17 +81,6 @@ export const Routes = (props: RoutesProps) => {
     }
     return params;
   });
-
-  if (router.out) {
-    router.out.matches.push(
-      matches().map(({ route, path, params }) => ({
-        originalPath: route.originalPath,
-        pattern: route.pattern,
-        path,
-        params
-      }))
-    );
-  }
 
   const disposers: (() => void)[] = [];
   let root: RouteContext | undefined;
@@ -131,9 +104,9 @@ export const Routes = (props: RoutesProps) => {
           createRoot(dispose => {
             disposers[i] = dispose;
             next[i] = createRouteContext(
-              router,
-              next[i - 1] || parentRoute,
-              () => routeStates()[i + 1],
+              routerState,
+              next[i - 1] || routerState.base,
+              createOutlet(() => routeStates()[i + 1]),
               () => matches()[i],
               params
             );
@@ -152,35 +125,31 @@ export const Routes = (props: RoutesProps) => {
   );
 
   return (
-    <Show when={routeStates() && root} keyed>
-      {route => <RouteContextObj.Provider value={route}>{route.outlet()}</RouteContextObj.Provider>}
-    </Show>
+    <RouterContextObj.Provider value={routerState}>
+      <Show when={routeStates() && root} keyed>
+        {route => (
+          <RouteContextObj.Provider value={route}>{route.outlet()}</RouteContextObj.Provider>
+        )}
+      </Show>
+    </RouterContextObj.Provider>
   );
 };
 
-export const useRoutes = (
-  routes: RouteDefinition | RouteDefinition[] | Readonly<RouteDefinition[]>,
-  base?: string
-) => {
-  return () => <Routes base={base}>{routes as any}</Routes>;
+const createOutlet = (child: () => RouteContext | undefined) => {
+  return () => (
+    <Show when={child()} keyed>
+      {child => <RouteContextObj.Provider value={child}>{child.outlet()}</RouteContextObj.Provider>}
+    </Show>
+  );
 };
 
 export type RouteProps<S extends string> = {
   path: S | S[];
   children?: JSX.Element;
-  data?: RouteDataFunc;
+  load?: RouteLoadFunc;
   matchFilters?: MatchFilters<S>;
-} & (
-  | {
-      element?: never;
-      component: Component;
-    }
-  | {
-      component?: never;
-      element?: JSX.Element;
-      preload?: () => void;
-    }
-);
+  component?: Component;
+};
 
 export const Route = <S extends string>(props: RouteProps<S>) => {
   const childRoutes = children(() => props.children);
@@ -189,15 +158,6 @@ export const Route = <S extends string>(props: RouteProps<S>) => {
       return childRoutes();
     }
   }) as unknown as JSX.Element;
-};
-
-export const Outlet = () => {
-  const route = useRoute();
-  return (
-    <Show when={route.child} keyed>
-      {child => <RouteContextObj.Provider value={child}>{child.outlet()}</RouteContextObj.Provider>}
-    </Show>
-  );
 };
 
 export interface AnchorProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, "state"> {
@@ -232,7 +192,6 @@ export function A(props: AnchorProps) {
 
   return (
     <a
-      link
       {...rest}
       href={href() || props.href}
       state={JSON.stringify(props.state)}

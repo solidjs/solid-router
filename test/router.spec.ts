@@ -3,12 +3,14 @@ import { createRouterContext } from "../src/routing";
 import type { LocationChange } from "../src/types";
 import { createAsyncRoot, createCounter, waitFor } from "./helpers";
 
+const fakeBranches = () => []
+
 describe("Router should", () => {
   describe("have member `base` which should", () => {
     test(`have a default path when base path is not defined`, () => {
       createRoot(() => {
         const signal = createSignal<LocationChange>({ value: "" });
-        const { base } = createRouterContext(signal, undefined);
+        const { base } = createRouterContext(signal);
         expect(base.path()).toBe("/");
       });
     });
@@ -16,7 +18,7 @@ describe("Router should", () => {
     test(`have a normalized version of the base path when defined`, () => {
       createRoot(() => {
         const signal = createSignal<LocationChange>({ value: "" });
-        const { base } = createRouterContext(signal, "base");
+        const { base } = createRouterContext(signal, fakeBranches, "base");
         expect(base.path()).toBe("/base");
       });
     });
@@ -24,7 +26,7 @@ describe("Router should", () => {
     test(`throw when the base path is invalid`, () => {
       createRoot(() => {
         const signal = createSignal<LocationChange>({ value: "" });
-        expect(() => createRouterContext(signal, "http://example.com")).toThrow();
+        expect(() => createRouterContext(signal, fakeBranches, "http://example.com")).toThrow();
       });
     });
   });
