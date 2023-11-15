@@ -67,16 +67,16 @@ export const Router = (props: RouterProps) => {
       ? staticIntegration({ value: url || ((e = getRequestEvent()) && e.request.url) || "" })
       : pathIntegration());
 
-  const routeDefs = children(() =>
-    props.root
-      ? {
-          component: props.root,
-          children: props.children
-        } as unknown as JSX.Element
-      : props.children
-  ) as unknown as () => RouteDefinition | RouteDefinition[];
+  const routeDefs = children(() => props.children) as unknown as () =>
+    | RouteDefinition
+    | RouteDefinition[];
 
-  const branches = createMemo(() => createBranches(routeDefs(), props.base || ""));
+  const branches = createMemo(() =>
+    createBranches(
+      props.root ? { component: props.root, children: routeDefs() } : routeDefs(),
+      props.base || ""
+    )
+  );
   const routerState = createRouterContext(integration, branches, base);
 
   return (

@@ -63,7 +63,7 @@ export interface RouteSectionProps  extends RouteLoadFuncArgs {
 }
 
 export type RouteDefinition<S extends string | string[] = any> = {
-  path: S;
+  path?: S;
   matchFilters?: MatchFilters<S>;
   load?: RouteLoadFunc;
   children?: RouteDefinition | RouteDefinition[];
