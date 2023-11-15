@@ -41,7 +41,7 @@ function revalidateSignals(set: Set<Signal<any>>, time: number) {
 export function cache<T extends (...args: any) => U | Response, U>(
   fn: T,
   name: string,
-  options: ReconcileOptions
+  options?: ReconcileOptions
 ): T {
   const [store, setStore] = createStore<Record<string, any>>({});
   return ((...args: Parameters<T>) => {

@@ -22,6 +22,7 @@ export type {
   Navigator,
   OutputMatch,
   Params,
+  RouteSectionProps,
   RouteLoadFunc,
   RouteLoadFuncArgs,
   RouteDefinition,
