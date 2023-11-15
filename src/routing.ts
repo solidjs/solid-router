@@ -31,7 +31,8 @@ import type {
   RouteMatch,
   RouterContext,
   RouterIntegration,
-  SetParams
+  SetParams,
+  Submission
 } from "./types";
 import {
   createMemoObject,
@@ -255,6 +256,16 @@ export function createLocation(path: Accessor<string>, state: Accessor<any>): Lo
   };
 }
 
+const actions = new Map<string, Function>();
+export function registerAction(url: string, fn: Function) {
+  actions.set(url, fn);
+}
+
+let intent: "native" | "navigate" | "preload" | undefined;
+export function getIntent() {
+  return intent;
+}
+
 export function createRouterContext(
   integration?: RouterIntegration | LocationChangeSignal,
   getBranches?: () => Branch[],
@@ -268,6 +279,7 @@ export function createRouterContext(
   const parsePath = utils.parsePath || (p => p);
   const renderPath = utils.renderPath || (p => p);
   const beforeLeave = utils.beforeLeave || createBeforeLeave();
+  let submissions: Submission<any, any>[] = [];
 
   const basePath = resolvePath("", base);
   if (basePath === undefined) {
@@ -348,11 +360,13 @@ export function createRouterContext(
         } else if (beforeLeave.confirm(resolvedTo, options)) {
           const len = referrers.push({ value: current, replace, scroll, state: state() });
           start(() => {
+            intent = "navigate"
             setReference(resolvedTo);
             setState(nextState);
             resetErrorBoundaries();
           }).then(() => {
             if (referrers.length === len) {
+              intent = undefined;
               navigateEnd({
                 value: resolvedTo,
                 state: nextState
@@ -391,8 +405,11 @@ export function createRouterContext(
     untrack(() => {
       if (value !== reference()) {
         start(() => {
+          intent = "native";
           setReference(value);
           setState(state);
+        }).then(() => {
+          intent = undefined;
         });
       }
     });
@@ -439,14 +456,14 @@ export function createRouterContext(
         (basePath && url.pathname && !url.pathname.toLowerCase().startsWith(basePath.toLowerCase()))
       )
         return;
-      const to = parsePath(url.pathname + url.search + url.hash);
-      return [a, to] as const;
+      return [a, url] as const;
     }
 
     function handleAnchorClick(evt: Event) {
       const res = handleAnchor(evt as MouseEvent);
       if (!res) return;
-      const [a, to] = res;
+      const [a, url] = res;
+      const to = parsePath(url.pathname + url.search + url.hash);
       const state = a.getAttribute("state");
 
       evt.preventDefault();
@@ -458,9 +475,11 @@ export function createRouterContext(
       });
     }
 
-    function doPreload(a: HTMLAnchorElement | SVGAElement, to: string) {
+    function doPreload(a: HTMLAnchorElement | SVGAElement, path: string) {
       const preload = a.getAttribute("preload") !== "false";
-      const matches = getRouteMatches(getBranches!(), to);
+      const matches = getRouteMatches(getBranches!(), path);
+      const prevIntent = intent;
+      intent = "preload";
       for (let match in matches) {
         const { route, params } = matches[match];
         route.component &&
@@ -468,49 +487,76 @@ export function createRouterContext(
           (route.component as MaybePreloadableComponent).preload!();
         preload && route.load && route.load({ params, location });
       }
+      intent = prevIntent;
     }
 
     function handleAnchorPreload(evt: Event) {
       const res = handleAnchor(evt as MouseEvent);
       if (!res) return;
-      const [a, to] = res;
-      if (!preloadTimeout[to]) doPreload(a, to);
+      const [a, url] = res;
+      if (!preloadTimeout[url.pathname]) doPreload(a, url.pathname);
     }
 
     function handleAnchorIn(evt: Event) {
       const res = handleAnchor(evt as MouseEvent);
       if (!res) return;
-      const [a, to] = res;
-      if (preloadTimeout[to]) return;
-      preloadTimeout[to] = setTimeout(() => {
-        doPreload(a, to);
-        delete preloadTimeout[to];
+      const [a, url] = res;
+      if (preloadTimeout[url.pathname]) return;
+      preloadTimeout[url.pathname] = setTimeout(() => {
+        doPreload(a, url.pathname);
+        delete preloadTimeout[url.pathname];
       }, 50) as any;
     }
+
     function handleAnchorOut(evt: Event) {
       const res = handleAnchor(evt as MouseEvent);
       if (!res) return;
-      const [, to] = res;
-      if (preloadTimeout[to]) {
-        clearTimeout(preloadTimeout[to]);
-        delete preloadTimeout[to];
+      const [, url] = res;
+      if (preloadTimeout[url.pathname]) {
+        clearTimeout(preloadTimeout[url.pathname]);
+        delete preloadTimeout[url.pathname];
       }
     }
 
-    // ensure delegated events run first
-    delegateEvents(["click", "mouseover", "focusin"]);
+    function handleFormSubmit(evt: SubmitEvent) {
+      let actionRef = evt.submitter && evt.submitter.getAttribute("formaction") || (evt.target as any).action
+      if (actionRef && actionRef.startsWith("action:")) {
+        const data = new FormData(evt.target as HTMLFormElement);
+        actions.get(actionRef.slice(7))!(data);
+        evt.preventDefault();
+      }
+    };
+
+    // ensure delegated event run first
+    delegateEvents(["click", "submit"]);
     document.addEventListener("click", handleAnchorClick);
     document.addEventListener("mouseover", handleAnchorIn);
     document.addEventListener("mouseout", handleAnchorOut);
     document.addEventListener("focusin", handleAnchorPreload);
     document.addEventListener("touchstart", handleAnchorPreload);
+    document.addEventListener("submit", handleFormSubmit);
     onCleanup(() => {
       document.removeEventListener("click", handleAnchorClick);
       document.removeEventListener("mouseover", handleAnchorIn);
       document.removeEventListener("mouseout", handleAnchorOut);
       document.removeEventListener("focusin", handleAnchorPreload);
       document.removeEventListener("touchstart", handleAnchorPreload);
+      document.removeEventListener("submit", handleFormSubmit);
     });
+  } else {
+    function initFromFlash<T>(params: Params) {
+      let param = params.form ? JSON.parse(params.form) : null;
+      if (!param || !param.result) {
+        return [];
+      }
+      const input = new Map(param.entries);
+      return [{
+        url: param.url,
+        result: param.error ? new Error(param.result.message) : param.result,
+        input: input as unknown as T
+      } as Submission<T, any>];
+    }
+    submissions = initFromFlash(location.query)
   }
 
   return {
@@ -520,7 +566,8 @@ export function createRouterContext(
     renderPath,
     parsePath,
     navigatorFactory,
-    beforeLeave
+    beforeLeave,
+    submissions: createSignal<Submission<any, any>[]>(submissions)
   };
 }
 

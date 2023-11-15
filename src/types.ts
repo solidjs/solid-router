@@ -1,8 +1,9 @@
-import { Component, JSX } from "solid-js";
+import { Component, JSX, Signal } from "solid-js";
 
 declare module "solid-js/web" {
   interface RequestEvent {
     response?: Response;
+    routerCache?: Map<any, any>;
   }
 }
 
@@ -149,13 +150,13 @@ export interface RouterOutput {
 
 export interface RouterContext {
   base: RouteContext;
-  out?: RouterOutput;
   location: Location;
   navigatorFactory: NavigatorFactory;
   isRouting: () => boolean;
   renderPath(path: string): string;
   parsePath(str: string): string;
   beforeLeave: BeforeLeaveLifecycle;
+  submissions: Signal<Submission<any, any>[]>;
 }
 
 export interface BeforeLeaveEventArgs {
@@ -177,3 +178,12 @@ export interface BeforeLeaveLifecycle {
   subscribe(listener: BeforeLeaveListener): () => void;
   confirm(to: string | number, options?: Partial<NavigateOptions>): boolean;
 }
+
+export type Submission<T, U> = {
+  readonly input: T;
+  readonly result?: U;
+  readonly pending: boolean;
+  readonly url: string;
+  clear: () => void;
+  retry: () => void;
+};

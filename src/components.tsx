@@ -15,7 +15,7 @@ import {
   useLocation,
   useNavigate,
   useResolvedPath,
-  useRoute,
+  useRoute
 } from "./routing";
 import type {
   Location,
@@ -26,7 +26,9 @@ import type {
   RouteContext,
   RouteLoadFunc,
   RouteDefinition,
-  RouterIntegration
+  RouterIntegration,
+  RouterContext,
+  Branch
 } from "./types";
 import { joinPaths, normalizePath, createMemoObject } from "./utils";
 
@@ -68,11 +70,18 @@ export const Router = (props: RouterProps) => {
     | RouteDefinition
     | RouteDefinition[];
 
-  const branches = createMemo(() =>
-    createBranches(routeDefs(), props.base || "")
-  );
+  const branches = createMemo(() => createBranches(routeDefs(), props.base || ""));
   const routerState = createRouterContext(integration, branches, base);
-  const matches = createMemo(() => getRouteMatches(branches(), routerState.location.pathname));
+
+  return (
+    <RouterContextObj.Provider value={routerState}>
+      <Routes routerState={routerState} branches={branches()}/>
+    </RouterContextObj.Provider>
+  );
+};
+
+function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
+  const matches = createMemo(() => getRouteMatches(props.branches, props.routerState.location.pathname));
   const params = createMemoObject(() => {
     const m = matches();
     const params: Params = {};
@@ -81,7 +90,6 @@ export const Router = (props: RouterProps) => {
     }
     return params;
   });
-
   const disposers: (() => void)[] = [];
   let root: RouteContext | undefined;
 
@@ -104,8 +112,8 @@ export const Router = (props: RouterProps) => {
           createRoot(dispose => {
             disposers[i] = dispose;
             next[i] = createRouteContext(
-              routerState,
-              next[i - 1] || routerState.base,
+              props.routerState,
+              next[i - 1] || props.routerState.base,
               createOutlet(() => routeStates()[i + 1]),
               () => matches()[i],
               params
@@ -123,17 +131,12 @@ export const Router = (props: RouterProps) => {
       return next;
     })
   );
-
   return (
-    <RouterContextObj.Provider value={routerState}>
-      <Show when={routeStates() && root} keyed>
-        {route => (
-          <RouteContextObj.Provider value={route}>{route.outlet()}</RouteContextObj.Provider>
-        )}
-      </Show>
-    </RouterContextObj.Provider>
+    <Show when={routeStates() && root} keyed>
+      {route => <RouteContextObj.Provider value={route}>{route.outlet()}</RouteContextObj.Provider>}
+    </Show>
   );
-};
+}
 
 const createOutlet = (child: () => RouteContext | undefined) => {
   return () => (

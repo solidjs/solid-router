@@ -13,6 +13,7 @@ export {
   useBeforeLeave,
 } from "./routing";
 export { mergeSearchString as _mergeSearchString } from "./utils";
+export * from "./data"
 export type {
   Location,
   LocationChange,
