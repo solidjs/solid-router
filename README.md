@@ -74,7 +74,7 @@ render(() => (
   </Router>
 ), document.getElementById("app"));
 ```
-2. Provide a top level layout
+2. Provide a root level layout
 
 This will always be there and won't update on page change. It is the ideal place to put top level navigation and Context Providers
 
@@ -93,11 +93,9 @@ const App = props => (
 )
 
 render(() => (
-  <Router>
-    <Route component={App}>
-      <Route path="/users" component={Users} />
-      <Route path="/" component={Home} />
-    </Route>
+  <Router root={App}>
+    <Route path="/users" component={Users} />
+    <Route path="/" component={Home} />
   </Router>
 ), document.getElementById("app"));
 ```
@@ -122,11 +120,9 @@ const App = props => (
 )
 
 render(() => (
-  <Router>
-    <Route component={App}>
-      <Route path="/users" component={Users} />
-      <Route path="/" component={Home} />
-    </Route>
+  <Router root={App}>
+    <Route path="/users" component={Users} />
+    <Route path="/" component={Home} />
   </Router>
 ), document.getElementById("app"));
 ```
@@ -155,11 +151,9 @@ const App = props => (
 );
 
 render(() => (
-  <Router>
-    <Route component={App}>
-      <Route path="/users" component={Users} />
-      <Route path="/" component={Home} />
-    </Route>
+  <Router root={App}>
+    <Route path="/users" component={Users} />
+    <Route path="/" component={Home} />
   </Router>
 ), document.getElementById("app"));
 ```
@@ -357,7 +351,7 @@ You can nest indefinitely - just remember that only leaf nodes will become their
 ## Data APIs
 
 ### `cache`
-    
+
 To prevent duplicate fetching and to trigger handle refetching we provide a cache api. That takes a function and returns the same function.
 
 ```jsx
@@ -366,9 +360,9 @@ const getUser = cache((id) => {
 }, "users") // used as cache key + serialized arguments
 ```
 It is expected that the arguments to the cache function are serializable.
-    
+
 This cache accomplishes the following:
-    
+
 1. It does just deduping on the server for the lifetime of the request.
 2. It does preload cache in the browser which lasts 10 seconds. When a route is preloaded on hover or when load is called when entering a route it will make sure to dedupe calls.
 3. We have a reactive refetch mechanism based on key. So we can tell routes that aren't new to retrigger on action revalidation.
@@ -378,20 +372,13 @@ This cache can be defined anywhere and then used inside your components with:
 
 ### `createAsync`
 
-This is light wrapper over `createResource`. It is a simpler async primitive where the function tracks like `createMemo` and it expects a promise back that it turns into a Signal. Reading it before it ready causes Suspense/Transitions to trigger.
+This is light wrapper over `createResource` that aims to serve as stand-in for a future primitive we intend to bring to Solid core in 2.0. It is a simpler async primitive where the function tracks like `createMemo` and it expects a promise back that it turns into a Signal. Reading it before it ready causes Suspense/Transitions to trigger.
 
 ```jsx
 const user = createAsync(() => getUser(params.id))
 ```
 
-`cache` API can be used with `createResource` but it must be passed into the tracking argument not the fetcher which means that you can't only pass a single argument as `createResource` defaults to just the fetcher. So to use a cache function with `createResource` you would need to:
-
-```jsx
-const [user] = createResource(
-  () => getUser(params.id),
-  v => v // pass the return promise through
-);
-```
+`createAsync` is designed to only work with cached functions otherwise it will over fetch. If not using `cache`, continue using `createResource` instead.
 
 ### `action`
 
@@ -401,7 +388,7 @@ Actions are data mutations that can trigger invalidations and further routing. A
 const myAction = action(async (data) => {
   await doMutation(data);
   return redirect("/", {
-    invalidate: [getUser, data.id]  
+    invalidate: [getUser, data.id]
   }) // returns a response
 });
 
@@ -422,7 +409,7 @@ const myAction = action(async (args) => {}, "my-action");
 ### `useAction`
 
 Instead of forms you can use actions directly by wrapping them in a `useAction` primitive. This is how we get the router context.
- 
+
 ```jsx
 // in component
 const submit = useAction(myAction)

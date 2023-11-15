@@ -14,8 +14,7 @@ import {
   useHref,
   useLocation,
   useNavigate,
-  useResolvedPath,
-  useRoute
+  useResolvedPath
 } from "./routing";
 import type {
   Location,
@@ -28,9 +27,10 @@ import type {
   RouteDefinition,
   RouterIntegration,
   RouterContext,
-  Branch
+  Branch,
+  RouteSectionProps
 } from "./types";
-import { joinPaths, normalizePath, createMemoObject } from "./utils";
+import { normalizePath, createMemoObject } from "./utils";
 
 declare module "solid-js" {
   namespace JSX {
@@ -45,6 +45,7 @@ declare module "solid-js" {
 
 export type RouterProps = {
   base?: string;
+  root?: Component<RouteSectionProps>;
   children: JSX.Element;
 } & (
   | {
@@ -66,22 +67,29 @@ export const Router = (props: RouterProps) => {
       ? staticIntegration({ value: url || ((e = getRequestEvent()) && e.request.url) || "" })
       : pathIntegration());
 
-  const routeDefs = children(() => props.children) as unknown as () =>
-    | RouteDefinition
-    | RouteDefinition[];
+  const routeDefs = children(() =>
+    props.root
+      ? {
+          component: props.root,
+          children: props.children
+        } as unknown as JSX.Element
+      : props.children
+  ) as unknown as () => RouteDefinition | RouteDefinition[];
 
   const branches = createMemo(() => createBranches(routeDefs(), props.base || ""));
   const routerState = createRouterContext(integration, branches, base);
 
   return (
     <RouterContextObj.Provider value={routerState}>
-      <Routes routerState={routerState} branches={branches()}/>
+      <Routes routerState={routerState} branches={branches()} />
     </RouterContextObj.Provider>
   );
 };
 
 function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
-  const matches = createMemo(() => getRouteMatches(props.branches, props.routerState.location.pathname));
+  const matches = createMemo(() =>
+    getRouteMatches(props.branches, props.routerState.location.pathname)
+  );
   const params = createMemoObject(() => {
     const m = matches();
     const params: Params = {};
@@ -147,7 +155,7 @@ const createOutlet = (child: () => RouteContext | undefined) => {
 };
 
 export type RouteProps<S extends string> = {
-  path: S | S[];
+  path?: S | S[];
   children?: JSX.Element;
   load?: RouteLoadFunc;
   matchFilters?: MatchFilters<S>;

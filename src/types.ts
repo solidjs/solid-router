@@ -107,7 +107,7 @@ export interface Route {
   key: unknown;
   originalPath: string;
   pattern: string;
-  component?: (props: RouteSectionProps) => JSX.Element;
+  component?: Component<RouteSectionProps>;
   load?: RouteLoadFunc;
   matcher: (location: string) => PathMatch | null;
   matchFilters?: MatchFilters;
