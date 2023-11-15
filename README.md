@@ -4,24 +4,23 @@
 
 # Solid Router [![npm Version](https://img.shields.io/npm/v/@solidjs/router.svg?style=flat-square)](https://www.npmjs.org/package/@solidjs/router)
 
-#### Note: v0.9.0 requires Solid 1.8.4 or later
-
 A router lets you change your view based on the URL in the browser. This allows your "single-page" application to simulate a traditional multipage site. To use Solid Router, you specify components called Routes that depend on the value of the URL (the "path"), and the router handles the mechanism of swapping them in and out.
 
 Solid Router is a universal router for SolidJS - it works whether you're rendering on the client or on the server. It was inspired by and combines paradigms of React Router and the Ember Router. Routes can be defined directly in your app's template using JSX, but you can also pass your route configuration directly as an object. It also supports nested routing, so navigation can change a part of a component, rather than completely replacing it.
 
-It supports all of Solid's SSR methods and has Solid's transitions baked in, so use it freely with suspense, resources, and lazy components. Solid Router also allows you to define a data function that loads parallel to the routes ([render-as-you-fetch](https://epicreact.dev/render-as-you-fetch/)).
+It supports all of Solid's SSR methods and has Solid's transitions baked in, so use it freely with suspense, resources, and lazy components. Solid Router also allows you to define a load function that loads parallel to the routes ([render-as-you-fetch](https://epicreact.dev/render-as-you-fetch/)).
 
 - [Getting Started](#getting-started)
   - [Set Up the Router](#set-up-the-router)
   - [Configure Your Routes](#configure-your-routes)
-- [Create Links to Your Routes](#create-links-to-your-routes)
+  - [Create Links to Your Routes](#create-links-to-your-routes)
 - [Dynamic Routes](#dynamic-routes)
-- [Data Functions](#data-functions)
 - [Nested Routes](#nested-routes)
 - [Hash Mode Router](#hash-mode-router)
 - [Memory Mode Router](#memory-mode-router)
+- [Data APIs](#data-apis)
 - [Config Based Routing](#config-based-routing)
+- [Components](#components)
 - [Router Primitives](#router-primitives)
   - [useParams](#useparams)
   - [useNavigate](#usenavigate)
@@ -30,7 +29,6 @@ It supports all of Solid's SSR methods and has Solid's transitions baked in, so 
   - [useIsRouting](#useisrouting)
   - [useRouteData](#useroutedata)
   - [useMatch](#usematch)
-  - [useRoutes](#useroutes)
   - [useBeforeLeave](#usebeforeleave)
 - [SPAs in Deployed Environments](#spas-in-deployed-environments)
 
@@ -42,67 +40,66 @@ It supports all of Solid's SSR methods and has Solid's transitions baked in, so 
 > npm i @solidjs/router
 ```
 
-Install `@solidjs/router`, then wrap your root component with the Router component:
+Install `@solidjs/router`, then start your application by rendering the router component
 
 ```jsx
 import { render } from "solid-js/web";
 import { Router } from "@solidjs/router";
-import App from "./App";
 
 render(
-  () => (
-    <Router>
-      <App />
-    </Router>
-  ),
+  () => <Router />,
   document.getElementById("app")
 );
 ```
 
-This sets up a context so that we can display the routes anywhere in the app.
+This sets up a Router that will match on the url to display the desired page
 
 ### Configure Your Routes
 
 Solid Router allows you to configure your routes using JSX:
 
-1. Use the `Routes` component to specify where the routes should appear in your app.
+1. Add each route to a `<Router>` using the `Route` component, specifying a path and an element or component to render when the user navigates to that path.
 
 ```jsx
-import { Routes, Route } from "@solidjs/router";
-
-export default function App() {
-  return (
-    <>
-      <h1>My Site with Lots of Pages</h1>
-      <Routes></Routes>
-    </>
-  );
-}
-```
-
-2. Add each route using the `Route` component, specifying a path and an element or component to render when the user navigates to that path.
-
-```jsx
-import { Routes, Route } from "@solidjs/router";
+import { render } from "solid-js/web";
+import { Router, Route } from "@solidjs/router";
 
 import Home from "./pages/Home";
 import Users from "./pages/Users";
 
-export default function App() {
-  return (
-    <>
-      <h1>My Site with Lots of Pages</h1>
-      <Routes>
-        <Route path="/users" component={Users} />
-        <Route path="/" component={Home} />
-        <Route
-          path="/about"
-          element={<div>This site was made with Solid</div>}
-        />
-      </Routes>
-    </>
-  );
-}
+render(() => (
+  <Router>
+    <Route path="/users" component={Users} />
+    <Route path="/" component={Home} />
+  </Router>
+), document.getElementById("app"));
+```
+2. Provide a top level layout
+
+This will always be there and won't update on page change. It is the ideal place to put top level navigation and Context Providers
+
+```jsx
+import { render } from "solid-js/web";
+import { Router, Route } from "@solidjs/router";
+
+import Home from "./pages/Home";
+import Users from "./pages/Users";
+
+const App = props => (
+  <>
+    <h1>My Site with lots of pages</h1>
+    {props.children}
+  </>
+)
+
+render(() => (
+  <Router>
+    <Route component={App}>
+      <Route path="/users" component={Users} />
+      <Route path="/" component={Home} />
+    </Route>
+  </Router>
+), document.getElementById("app"));
 ```
 
 3. Lazy-load route components
@@ -111,83 +108,60 @@ This way, the `Users` and `Home` components will only be loaded if you're naviga
 
 ```jsx
 import { lazy } from "solid-js";
-import { Routes, Route } from "@solidjs/router";
+import { render } from "solid-js/web";
+import { Router, Route } from "@solidjs/router";
+
 const Users = lazy(() => import("./pages/Users"));
 const Home = lazy(() => import("./pages/Home"));
 
-export default function App() {
-  return (
-    <>
-      <h1>My Site with Lots of Pages</h1>
-      <Routes>
-        <Route path="/users" component={Users} />
-        <Route path="/" component={Home} />
-        <Route
-          path="/about"
-          element={<div>This site was made with Solid</div>}
-        />
-      </Routes>
-    </>
-  );
-}
+const App = props => (
+  <>
+    <h1>My Site with lots of pages</h1>
+    {props.children}
+  </>
+)
+
+render(() => (
+  <Router>
+    <Route component={App}>
+      <Route path="/users" component={Users} />
+      <Route path="/" component={Home} />
+    </Route>
+  </Router>
+), document.getElementById("app"));
 ```
 
-## Create Links to Your Routes
+### Create Links to Your Routes
 
-Use the `A` component to create an anchor tag that takes you to a route:
+Use an anchor tag that takes you to a route:
 
 ```jsx
 import { lazy } from "solid-js";
-import { Routes, Route, A } from "@solidjs/router";
+import { render } from "solid-js/web";
+import { Router, Route } from "@solidjs/router";
+
 const Users = lazy(() => import("./pages/Users"));
 const Home = lazy(() => import("./pages/Home"));
 
-export default function App() {
-  return (
-    <>
-      <h1>My Site with Lots of Pages</h1>
-      <nav>
-        <A href="/about">About</A>
-        <A href="/">Home</A>
-      </nav>
-      <Routes>
-        <Route path="/users" component={Users} />
-        <Route path="/" component={Home} />
-        <Route
-          path="/about"
-          element={<div>This site was made with Solid</div>}
-        />
-      </Routes>
-    </>
-  );
-}
-```
+const App = props => (
+  <>
+    <nav>
+      <a href="/about">About</a>
+      <a href="/">Home</a>
+    </nav>
+    <h1>My Site with lots of pages</h1>
+    {props.children}
+  </>
+);
 
-The `<A>` tag also has an `active` class if its href matches the current location, and `inactive` otherwise. **Note:** By default matching includes locations that are descendents (eg. href `/users` matches locations `/users` and `/users/123`), use the boolean `end` prop to prevent matching these. This is particularly useful for links to the root route `/` which would match everything.
-
-| prop          |  type   | description                                                                                                                                                                              |
-| ------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| href          | string  | The path of the route to navigate to. This will be resolved relative to the route that the link is in, but you can preface it with `/` to refer back to the root.                        |
-| noScroll      | boolean | If true, turn off the default behavior of scrolling to the top of the new page                                                                                                           |
-| replace       | boolean | If true, don't add a new entry to the browser history. (By default, the new page will be added to the browser history, so pressing the back button will take you to the previous route.) |
-| state         | unknown | [Push this value](https://developer.mozilla.org/en-US/docs/Web/API/History/pushState) to the history stack when navigating                                                               |
-| inactiveClass | string  | The class to show when the link is inactive (when the current location doesn't match the link)                                                                                           |
-| activeClass   | string  | The class to show when the link is active                                                                                                                                                |
-| end           | boolean | If `true`, only considers the link to be active when the curent location matches the `href` exactly; if `false`, check if the current location _starts with_ `href`                      |
-
-### The Navigate Component
-
-Solid Router provides a `Navigate` component that works similarly to `A`, but it will _immediately_ navigate to the provided path as soon as the component is rendered. It also uses the `href` prop, but you have the additional option of passing a function to `href` that returns a path to navigate to:
-
-```jsx
-function getPath({ navigate, location }) {
-  // navigate is the result of calling useNavigate(); location is the result of calling useLocation().
-  // You can use those to dynamically determine a path to navigate to
-  return "/some-path";
-}
-
-// Navigating to /redirect will redirect you to the result of getPath
-<Route path="/redirect" element={<Navigate href={getPath} />} />;
+render(() => (
+  <Router>
+    <Route component={App}>
+      <Route path="/users" component={Users} />
+      <Route path="/" component={Home} />
+    </Route>
+  </Router>
+), document.getElementById("app"));
 ```
 
 ## Dynamic Routes
@@ -196,52 +170,43 @@ If you don't know the path ahead of time, you might want to treat part of the pa
 
 ```jsx
 import { lazy } from "solid-js";
-import { Routes, Route } from "@solidjs/router";
+import { render } from "solid-js/web";
+import { Router, Route } from "@solidjs/router";
+
 const Users = lazy(() => import("./pages/Users"));
 const User = lazy(() => import("./pages/User"));
 const Home = lazy(() => import("./pages/Home"));
 
-export default function App() {
-  return (
-    <>
-      <h1>My Site with Lots of Pages</h1>
-      <Routes>
-        <Route path="/users" component={Users} />
-        <Route path="/users/:id" component={User} />
-        <Route path="/" component={Home} />
-        <Route
-          path="/about"
-          element={<div>This site was made with Solid</div>}
-        />
-      </Routes>
-    </>
-  );
-}
+render(() => (
+  <Router>
+    <Route path="/users" component={Users} />
+    <Route path="/users/:id" component={User} />
+    <Route path="/" component={Home} />
+  </Router>
+ ), document.getElementById("app"));
 ```
 
 The colon indicates that `id` can be any string, and as long as the URL fits that pattern, the `User` component will show.
 
 You can then access that `id` from within a route component with `useParams`.
 
-> **Note on Animation/Transitions**:
-> Routes that share the same path match will be treated as the same route. If you want to force re-render you can wrap your component in a keyed `<Show>` like:
-> ```js
-><Show when={params.something} keyed><MyComponent></Show>
->```
-
+**Note on Animation/Transitions**:
+Routes that share the same path match will be treated as the same route. If you want to force re-render you can wrap your component in a keyed `<Show>` like:
+```jsx
+<Show when={params.something} keyed><MyComponent></Show>
+```
 ---
 
 Each path parameter can be validated using a `MatchFilter`.
 This allows for more complex routing descriptions than just checking the presence of a parameter.
 
-```tsx
+```jsx
 import { lazy } from "solid-js";
-import { Routes, Route } from "@solidjs/router";
+import { render } from "solid-js/web";
+import { Router, Route } from "@solidjs/router";
 import type { SegmentValidators } from "./types";
 
-const Users = lazy(() => import("./pages/Users"));
 const User = lazy(() => import("./pages/User"));
-const Home = lazy(() => import("./pages/Home"));
 
 const filters: MatchFilters = {
   parent: ["mom", "dad"], // allow enum values
@@ -249,20 +214,15 @@ const filters: MatchFilters = {
   withHtmlExtension: (v: string) => v.length > 5 && v.endsWith(".html"), // we want an `*.html` extension
 };
 
-export default function App() {
-  return (
-    <>
-      <h1>My Site with Lots of Pages</h1>
-      <Routes>
-        <Route
-          path="/users/:parent/:id/:withHtmlExtension"
-          component={User}
-          matchFilters={filters}
-        />
-      </Routes>
-    </>
-  );
-}
+render(() => (
+  <Router>
+    <Route
+      path="/users/:parent/:id/:withHtmlExtension"
+      component={User}
+      matchFilters={filters}
+    />
+  </Router>
+), document.getElementById("app"));
 ```
 
 Here, we have added the `matchFilters` prop. This allows us to validate the `parent`, `id` and `withHtmlExtension` parameters against the filters defined in `filters`.
@@ -278,26 +238,13 @@ So in this example:
 
 ---
 
-```jsx
-// async fetching function
-import { fetchUser } ...
-
-export default function User () {
-  const params = useParams();
-
-  const [userData] = createResource(() => params.id, fetchUser);
-
-  return <A href={userData.twitter}>{userData.name}</A>
-}
-```
-
 ### Optional Parameters
 
 Parameters can be specified as optional by adding a question mark to the end of the parameter name:
 
 ```jsx
 // Matches stories and stories/123 but not stories/123/comments
-<Route path="/stories/:id?" element={<Stories />} />
+<Route path="/stories/:id?" component={Stories} />
 ```
 
 ### Wildcard Routes
@@ -312,7 +259,7 @@ Parameters can be specified as optional by adding a question mark to the end of 
 If you want to expose the wild part of the path to the component as a parameter, you can name it:
 
 ```jsx
-<Route path="foo/*any" element={<div>{useParams().any}</div>} />
+<Route path="foo/*any" component={Foo} />
 ```
 
 Note that the wildcard token must be the last part of the path; `foo/*any/bar` won't create any routes.
@@ -324,63 +271,6 @@ Routes also support defining multiple paths using an array. This allows a route 
 ```jsx
 // Navigating from login to register does not cause the Login component to re-render
 <Route path={["login", "register"]} component={Login} />
-```
-
-## Data Functions
-
-In the [above example](#dynamic-routes), the User component is lazy-loaded and then the data is fetched. With route data functions, we can instead start fetching the data parallel to loading the route, so we can use the data as soon as possible.
-
-To do this, create a function that fetches and returns the data using `createResource`. Then pass that function to the `data` prop of the `Route` component.
-
-```js
-import { lazy } from "solid-js";
-import { Route } from "@solidjs/router";
-import { fetchUser } ...
-
-const User = lazy(() => import("./pages/users/[id].js"));
-
-// Data function
-function UserData({params, location, navigate, data}) {
-  const [user] = createResource(() => params.id, fetchUser);
-  return user;
-}
-
-// Pass it in the route definition
-<Route path="/users/:id" component={User} data={UserData} />;
-```
-
-When the route is loaded, the data function is called, and the result can be accessed by calling `useRouteData()` in the route component.
-
-```jsx
-// pages/users/[id].js
-import { useRouteData } from "@solidjs/router";
-
-export default function User() {
-  const user = useRouteData();
-  return <h1>{user().name}</h1>;
-}
-```
-
-As its only argument, the data function is passed an object that you can use to access route information:
-
-| key      | type                                              | description                                                                                                                   |
-| -------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| params   | object                                            | The route parameters (same value as calling `useParams()` inside the route component)                                         |
-| location | `{ pathname, search, hash, query, state, key}`    | An object that you can use to get more information about the path (corresponds to [`useLocation()`](#uselocation))            |
-| navigate | `(to: string, options?: NavigateOptions) => void` | A function that you can call to navigate to a different route instead (corresponds to [`useNavigate()`](#usenavigate))        |
-| data     | unknown                                           | The data returned by the [parent's](#nested-routes) data function, if any. (Data will pass through any intermediate nesting.) |
-
-A common pattern is to export the data function that corresponds to a route in a dedicated `route.data.js` file. This way, the data function can be imported without loading anything else.
-
-```js
-import { lazy } from "solid-js";
-import { Route } from "@solidjs/router";
-import { fetchUser } ...
-import UserData from "./pages/users/[id].data.js";
-const User = lazy(() => import("/pages/users/[id].js"));
-
-// In the Route definition
-<Route path="/users/:id" component={User} data={UserData} />;
 ```
 
 ## Nested Routes
@@ -418,16 +308,14 @@ Only leaf Route nodes (innermost `Route` components) are given a route. If you w
 </Route>
 ```
 
-You can also take advantage of nesting by adding a parent element with an `<Outlet/>`.
+You can also take advantage of nesting by using `props.children` passed to the route component.
 
 ```jsx
-import { Outlet } from "@solidjs/router";
-
-function PageWrapper() {
+function PageWrapper(props) {
   return (
     <div>
       <h1> We love our users! </h1>
-      <Outlet />
+      {props.children}
       <A href="/">Back Home</A>
     </div>
   );
@@ -439,66 +327,189 @@ function PageWrapper() {
 </Route>;
 ```
 
-The routes are still configured the same, but now the route elements will appear inside the parent element where the `<Outlet/>` was declared.
+The routes are still configured the same, but now the route elements will appear inside the parent element where the `props.children` was declared.
 
 You can nest indefinitely - just remember that only leaf nodes will become their own routes. In this example, the only route created is `/layer1/layer2`, and it appears as three nested divs.
 
 ```jsx
 <Route
   path="/"
-  element={
+  component={(props) =>
     <div>
-      Onion starts here <Outlet />
+      Onion starts here {props.children}
     </div>
   }
 >
   <Route
     path="layer1"
-    element={
+    component={(props) =>
       <div>
-        Another layer <Outlet />
+        Another layer {props.children}
       </div>
     }
   >
-    <Route path="layer2" element={<div>Innermost layer</div>}></Route>
+    <Route path="layer2"
+      component={() => <div>Innermost layer</div>}>           </Route>
   </Route>
 </Route>
 ```
 
-If you declare a `data` function on a parent and a child, the result of the parent's data function will be passed to the child's data function as the `data` property of the argument, as described in the last section. This works even if it isn't a direct child, because by default every route forwards its parent's data.
+## Data APIs
 
-## Hash Mode Router
-
-By default, Solid Router uses `location.pathname` as route path. You can simply switch to hash mode through the `source` property on `<Router>` component.
+### `cache`
+    
+To prevent duplicate fetching and to trigger handle refetching we provide a cache api. That takes a function and returns the same function.
 
 ```jsx
-import { Router, hashIntegration } from "@solidjs/router";
+const getUser = cache((id) => {
+  return (await fetch(`/api/users${id}`)).json()
+}, "users") // used as cache key + serialized arguments
+```
+It is expected that the arguments to the cache function are serializable.
+    
+This cache accomplishes the following:
+    
+1. It does just deduping on the server for the lifetime of the request.
+2. It does preload cache in the browser which lasts 10 seconds. When a route is preloaded on hover or when load is called when entering a route it will make sure to dedupe calls.
+3. We have a reactive refetch mechanism based on key. So we can tell routes that aren't new to retrigger on action revalidation.
+4. It will serve as a back/forward cache for browser navigation up to 5 mins. Any user based navigation or link click bypasses it. Revalidation or new fetch updates the cache.
 
-<Router source={hashIntegration()}>
-  <App />
-</Router>;
+This cache can be defined anywhere and then used inside your components with:
+
+### `createAsync`
+
+This is light wrapper over `createResource`. It is a simpler async primitive where the function tracks like `createMemo` and it expects a promise back that it turns into a Signal. Reading it before it ready causes Suspense/Transitions to trigger.
+
+```jsx
+const user = createAsync(() => getUser(params.id))
 ```
 
-## Memory Mode Router
-
-You can also use memory mode router for testing purpose.
+`cache` API can be used with `createResource` but it must be passed into the tracking argument not the fetcher which means that you can't only pass a single argument as `createResource` defaults to just the fetcher. So to use a cache function with `createResource` you would need to:
 
 ```jsx
-import { Router, memoryIntegration } from "@solidjs/router";
+const [user] = createResource(
+  () => getUser(params.id),
+  v => v // pass the return promise through
+);
+```
 
-<Router source={memoryIntegration()}>
-  <App />
-</Router>;
+### `action`
+
+Actions are data mutations that can trigger invalidations and further routing. A list of prebuilt response builders can be found below(TODO).
+```jsx
+// anywhere
+const myAction = action(async (data) => {
+  await doMutation(data);
+  return redirect("/", {
+    invalidate: [getUser, data.id]  
+  }) // returns a response
+});
+
+// in component
+<form action={myAction} />
+
+//or
+<button type="submit" formaction={myAction}></button>
+```
+
+#### Notes of `<form>` implementation and SSR
+This requires stable references as you can only serialize a string as an attribute, and across SSR they'd need to match. The solution is providing a unique name.
+
+```jsx
+const myAction = action(async (args) => {}, "my-action");
+```
+
+### `useAction`
+
+Instead of forms you can use actions directly by wrapping them in a `useAction` primitive. This is how we get the router context.
+ 
+```jsx
+// in component
+const submit = useAction(myAction)
+submit(...args)
+```
+
+The outside of a form context you can use custom data instead of formData, and these helpers preserve types.
+
+### `useSubmission`/`useSubmissions`
+
+Are used to injecting the optimistic updates while actions are in flight. They either return a single Submission(latest) or all that match with an optional filter function.
+
+```jsx
+type Submission<T, U> = {
+  input: T;
+  result: U;
+  error: any;
+  pending: boolean
+  clear: () => {}
+  retry: () => {}
+}
+
+const submissions = useSubmissions(action, (input) => filter(input));
+const submission = useSubmission(action, (input) => filter(input));
+```
+
+### Load Functions
+
+Even with the cache API it is possible that we have waterfalls both with view logic and with lazy loaded code. With load functions, we can instead start fetching the data parallel to loading the route, so we can use the data as soon as possible.
+
+To do this, we can call our cache function in the load function.
+
+```js
+import { lazy } from "solid-js";
+import { Route } from "@solidjs/router";
+import { getUser } from ... // the cache function
+
+const User = lazy(() => import("./pages/users/[id].js"));
+
+// load function
+function loadUser({params, location}) {
+  void getUser(params.id)
+}
+
+// Pass it in the route definition
+<Route path="/users/:id" component={User} load={loadUser} />;
+```
+
+The load function is called when the Route is loaded or eagerly when links are hovered. Inside your page component you 
+
+```jsx
+// pages/users/[id].js
+import { getUser } from ... // the cache function
+    
+export default function User(props) {
+  const user = createAsync(() => getUser(props.params.id));
+  return <h1>{user().name}</h1>;
+}
+```
+
+As its only argument, the load function is passed an object that you can use to access route information:
+
+| key      | type                                              | description                                                                                                                   |
+| -------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| params   | object                                            | The route parameters (same value as calling `useParams()` inside the route component)                                         |
+| location | `{ pathname, search, hash, query, state, key}`    | An object that you can use to get more information about the path (corresponds to [`useLocation()`](#uselocation))        |
+
+A common pattern is to export the preload function and data wrappers that corresponds to a route in a dedicated `route.data.js` file. This way, the data function can be imported without loading anything else.
+
+```js
+import { lazy } from "solid-js";
+import { Route } from "@solidjs/router";
+import loadUser from "./pages/users/[id].data.js";
+const User = lazy(() => import("/pages/users/[id].js"));
+
+// In the Route definition
+<Route path="/users/:id" component={User} load={loadUser} />;
 ```
 
 ## Config Based Routing
 
-You don't have to use JSX to set up your routes; you can pass an object directly with `useRoutes`:
+You don't have to use JSX to set up your routes; you can pass an object:
 
 ```jsx
 import { lazy } from "solid-js";
 import { render } from "solid-js/web";
-import { Router, useRoutes, A } from "@solidjs/router";
+import { Router } from "@solidjs/router";
 
 const routes = [
   {
@@ -533,31 +544,74 @@ const routes = [
   },
 ];
 
-function App() {
-  const Routes = useRoutes(routes);
-  return (
-    <>
-      <h1>Awesome Site</h1>
-      <A class="nav" href="/">
-        Home
-      </A>
-      <A class="nav" href="/users">
-        Users
-      </A>
-      <Routes />
-    </>
-  );
-}
-
-render(
-  () => (
-    <Router>
-      <App />
-    </Router>
-  ),
+render(() =>
+  <Router>{routes}</Router>,
   document.getElementById("app")
 );
 ```
+
+## Alternative Routers
+
+### Hash Mode Router
+
+By default, Solid Router uses `location.pathname` as route path. You can simply switch to hash mode through the `source` property on `<Router>` component.
+
+```jsx
+import { Router, hashIntegration } from "@solidjs/router";
+
+<Router source={hashIntegration()} />;
+```
+
+### Memory Mode Router
+
+You can also use memory mode router for testing purpose.
+
+```jsx
+import { Router, memoryIntegration } from "@solidjs/router";
+
+<Router source={memoryIntegration()} />;
+```
+
+## Components
+
+### `<A>`
+
+Like the `<a>` tag but supports relative paths and active class styling.
+
+The `<A>` tag has an `active` class if its href matches the current location, and `inactive` otherwise. **Note:** By default matching includes locations that are descendents (eg. href `/users` matches locations `/users` and `/users/123`), use the boolean `end` prop to prevent matching these. This is particularly useful for links to the root route `/` which would match everything.
+
+| prop          |  type   | description                                                                                                                                                                              |
+| ------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| href          | string  | The path of the route to navigate to. This will be resolved relative to the route that the link is in, but you can preface it with `/` to refer back to the root.                        |
+| noScroll      | boolean | If true, turn off the default behavior of scrolling to the top of the new page                                                                                                           |
+| replace       | boolean | If true, don't add a new entry to the browser history. (By default, the new page will be added to the browser history, so pressing the back button will take you to the previous route.) |
+| state         | unknown | [Push this value](https://developer.mozilla.org/en-US/docs/Web/API/History/pushState) to the history stack when navigating                                                               |
+| inactiveClass | string  | The class to show when the link is inactive (when the current location doesn't match the link)                                                                                           |
+| activeClass   | string  | The class to show when the link is active                                                                                                                                                |
+| end           | boolean | If `true`, only considers the link to be active when the curent location matches the `href` exactly; if `false`, check if the current location _starts with_ `href`                      |
+
+### `<Navigate />`
+
+Solid Router provides a `Navigate` component that works similarly to `A`, but it will _immediately_ navigate to the provided path as soon as the component is rendered. It also uses the `href` prop, but you have the additional option of passing a function to `href` that returns a path to navigate to:
+
+```jsx
+function getPath({ navigate, location }) {
+  // navigate is the result of calling useNavigate(); location is the result of calling useLocation().
+  // You can use those to dynamically determine a path to navigate to
+  return "/some-path";
+}
+
+// Navigating to /redirect will redirect you to the result of getPath
+<Route path="/redirect" component={() => <Navigate href={getPath} />} />;
+```
+
+### `<Route>`
+
+The Component for defining Routes:
+
+| prop | type | description |
+|-|-|-|
+|TODO
 
 ## Router Primitives
 
@@ -640,18 +694,6 @@ return (
 );
 ```
 
-### useRouteData
-
-Retrieves the return value from the data function.
-
-> In previous versions you could use numbers to access parent data. This is no longer supported. Instead the data functions themselves receive the parent data that you can expose through the specific nested routes data.
-
-```js
-const user = useRouteData();
-
-return <h1>{user().name}</h1>;
-```
-
 ### useMatch
 
 `useMatch` takes an accessor that returns the path and creates a Memo that returns match information if the current path matches the provided path. Useful for determining if a given path matches the current route.
@@ -661,10 +703,6 @@ const match = useMatch(() => props.href);
 
 return <div classList={{ active: Boolean(match()) }} />;
 ```
-
-### useRoutes
-
-Used to define routes via a config object instead of JSX. See [Config Based Routing](#config-based-routing).
 
 ### useBeforeLeave
 
@@ -693,6 +731,24 @@ useBeforeLeave((e: BeforeLeaveEventArgs) => {
   }
 });
 ```
+
+## Migrations from 0.8.x
+
+v0.9.0 brings some big changes to support the future of routing including Islands/Partial Hydration hybrid solutions. Most notably there is no Context API available in non-hydrating parts of the application.
+
+The biggest changes are around removed APIs that need to be replaced.
+
+### `<Outlet>`, `<Routes>`, `useRoutes`
+
+This is no longer used and instead will use `props.children` passed from into the page components for outlets. Nested Routes inherently cause waterfalls and are Outlets in a sense themselves. We do not want to encourage the pattern and if you must do it you can always nest `<Routers>` with appropriate base path.
+
+## `element` prop removed from `Route`
+
+Related without Outlet component it has to be passed in manually. At which point the `element` prop has less value. Removing the second way to define route components to reduce confusion and edge cases.
+
+### `data` functions & `useRouteData`
+
+These have been replaced by a load mechanism. This  allows link hover preloads (as the load function can be run as much as wanted without worry about reactivity). It support deduping/cache APIs which give more control over how things are cached. It also addresses TS issues with getting the right types in the Component without `typeof` checks. 
 
 ## SPAs in Deployed Environments
 
