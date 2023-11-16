@@ -1,4 +1,4 @@
-import type { Component, JSX, Accessor } from "solid-js";
+import { Component, JSX, Accessor, sharedConfig } from "solid-js";
 import {
   createComponent,
   createContext,
@@ -621,7 +621,7 @@ export function createRouteContext(
   component &&
     (component as MaybePreloadableComponent).preload &&
     (component as MaybePreloadableComponent).preload!();
-  load && load({ params, location });
+  (isServer || !sharedConfig.context) && load && load({ params, location });
 
   return route;
 }
