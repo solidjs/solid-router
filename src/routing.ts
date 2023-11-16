@@ -235,7 +235,7 @@ export function createLocation(path: Accessor<string>, state: Accessor<any>): Lo
   const pathname = createMemo(() => url().pathname);
   const search = createMemo(() => url().search, true);
   const hash = createMemo(() => url().hash);
-  const key = createMemo(() => "");
+  const key = () => "";
 
   return {
     get pathname() {
@@ -361,7 +361,7 @@ export function createRouterContext(
         } else if (beforeLeave.confirm(resolvedTo, options)) {
           const len = referrers.push({ value: current, replace, scroll, state: state() });
           start(() => {
-            intent = "navigate"
+            intent = "navigate";
             setReference(resolvedTo);
             setState(nextState);
             resetErrorBoundaries();
@@ -476,9 +476,9 @@ export function createRouterContext(
       });
     }
 
-    function doPreload(a: HTMLAnchorElement | SVGAElement, path: string) {
+    function doPreload(a: HTMLAnchorElement | SVGAElement, url: URL) {
       const preload = a.getAttribute("preload") !== "false";
-      const matches = getRouteMatches(getBranches!(), path);
+      const matches = getRouteMatches(getBranches!(), url.pathname);
       const prevIntent = intent;
       intent = "preload";
       for (let match in matches) {
@@ -486,7 +486,19 @@ export function createRouterContext(
         route.component &&
           (route.component as MaybePreloadableComponent).preload &&
           (route.component as MaybePreloadableComponent).preload!();
-        preload && route.load && route.load({ params, location });
+        preload &&
+          route.load &&
+          route.load({
+            params,
+            location: {
+              pathname: url.pathname,
+              search: url.search,
+              hash: url.hash,
+              query: extractSearchParams(url),
+              state: null,
+              key: ""
+            }
+          });
       }
       intent = prevIntent;
     }
@@ -495,7 +507,7 @@ export function createRouterContext(
       const res = handleAnchor(evt as MouseEvent);
       if (!res) return;
       const [a, url] = res;
-      if (!preloadTimeout[url.pathname]) doPreload(a, url.pathname);
+      if (!preloadTimeout[url.pathname]) doPreload(a, url);
     }
 
     function handleAnchorIn(evt: Event) {
@@ -504,7 +516,7 @@ export function createRouterContext(
       const [a, url] = res;
       if (preloadTimeout[url.pathname]) return;
       preloadTimeout[url.pathname] = setTimeout(() => {
-        doPreload(a, url.pathname);
+        doPreload(a, url);
         delete preloadTimeout[url.pathname];
       }, 50) as any;
     }
@@ -520,13 +532,14 @@ export function createRouterContext(
     }
 
     function handleFormSubmit(evt: SubmitEvent) {
-      let actionRef = evt.submitter && evt.submitter.getAttribute("formaction") || (evt.target as any).action
+      let actionRef =
+        (evt.submitter && evt.submitter.getAttribute("formaction")) || (evt.target as any).action;
       if (actionRef && actionRef.startsWith("action:")) {
         const data = new FormData(evt.target as HTMLFormElement);
         actions.get(actionRef.slice(7))!(data);
         evt.preventDefault();
       }
-    };
+    }
 
     // ensure delegated event run first
     delegateEvents(["click", "submit"]);
@@ -551,13 +564,15 @@ export function createRouterContext(
         return [];
       }
       const input = new Map(param.entries);
-      return [{
-        url: param.url,
-        result: param.error ? new Error(param.result.message) : param.result,
-        input: input as unknown as T
-      } as Submission<T, any>];
+      return [
+        {
+          url: param.url,
+          result: param.error ? new Error(param.result.message) : param.result,
+          input: input as unknown as T
+        } as Submission<T, any>
+      ];
     }
-    submissions = initFromFlash(location.query)
+    submissions = initFromFlash(location.query);
   }
 
   return {
