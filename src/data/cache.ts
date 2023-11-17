@@ -76,7 +76,16 @@ export function cache<T extends (...args: any) => U | Response, U>(
       }
       return cached[1];
     }
-    let res = fn(...(args as any));
+    let res =
+      !isServer && sharedConfig.context && sharedConfig.load
+        ? sharedConfig.load(key) // hydrating
+        : fn(...(args as any));
+
+    // serialize on server
+    if (isServer && sharedConfig.context && !(sharedConfig.context as any).noHydrate) {
+      sharedConfig.context && (sharedConfig.context as any).serialize(key, res);
+    }
+
     if (intent !== "preload") {
       res =
         "then" in (res as Promise<U>)
@@ -111,6 +120,7 @@ export function cache<T extends (...args: any) => U | Response, U>(
         if (navigate) isServer ? handleRedirect(v) : setTimeout(() => handleRedirect(v), 0);
         return;
       }
+      if (isServer) return v;
       setStore(key, reconcile(v, options));
       return store[key];
     }

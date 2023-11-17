@@ -1,4 +1,4 @@
-import { Component, JSX, Accessor, sharedConfig } from "solid-js";
+import { Component, JSX, Accessor } from "solid-js";
 import {
   createComponent,
   createContext,
@@ -18,6 +18,7 @@ import { createBeforeLeave } from "./lifecycle";
 import type {
   BeforeLeaveEventArgs,
   Branch,
+  Intent,
   Location,
   LocationChange,
   LocationChangeSignal,
@@ -262,7 +263,7 @@ export function registerAction(url: string, fn: Function) {
   actions.set(url, fn);
 }
 
-let intent: "native" | "navigate" | "preload" | undefined;
+let intent: Intent | undefined;
 export function getIntent() {
   return intent;
 }
@@ -497,7 +498,8 @@ export function createRouterContext(
               query: extractSearchParams(url),
               state: null,
               key: ""
-            }
+            },
+            intent
           });
       }
       intent = prevIntent;
@@ -518,7 +520,7 @@ export function createRouterContext(
       preloadTimeout[url.pathname] = setTimeout(() => {
         doPreload(a, url);
         delete preloadTimeout[url.pathname];
-      }, 50) as any;
+      }, 200) as any;
     }
 
     function handleAnchorOut(evt: Event) {
@@ -621,7 +623,7 @@ export function createRouteContext(
   component &&
     (component as MaybePreloadableComponent).preload &&
     (component as MaybePreloadableComponent).preload!();
-  (isServer || !sharedConfig.context) && load && load({ params, location });
+  load && load({ params, location, intent: intent || "navigate" });
 
   return route;
 }

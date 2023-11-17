@@ -372,13 +372,11 @@ This cache can be defined anywhere and then used inside your components with:
 
 ### `createAsync`
 
-This is light wrapper over `createResource` that aims to serve as stand-in for a future primitive we intend to bring to Solid core in 2.0. It is a simpler async primitive where the function tracks like `createMemo` and it expects a promise back that it turns into a Signal. Reading it before it ready causes Suspense/Transitions to trigger.
+This is light wrapper over `createResource` that aims to serve as stand-in for a future primitive we intend to bring to Solid core in 2.0. It is a simpler async primitive where the function tracks like `createMemo` and it expects a promise back that it turns into a Signal. Reading it before it is ready causes Suspense/Transitions to trigger.
 
 ```jsx
 const user = createAsync(() => getUser(params.id))
 ```
-
-`createAsync` is designed to only work with cached functions otherwise it will over fetch. If not using `cache`, continue using `createResource` instead.
 
 ### `action`
 

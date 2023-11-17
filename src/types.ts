@@ -51,14 +51,18 @@ export interface RouterIntegration {
   utils?: Partial<RouterUtils>;
 }
 
+export type Intent = "native" | "navigate" | "preload";
 export interface RouteLoadFuncArgs {
   params: Params;
   location: Location;
+  intent: Intent;
 }
 
 export type RouteLoadFunc = (args: RouteLoadFuncArgs) => void;
 
-export interface RouteSectionProps  extends RouteLoadFuncArgs {
+export interface RouteSectionProps {
+  params: Params;
+  location: Location;
   children?: JSX.Element;
 }
 
