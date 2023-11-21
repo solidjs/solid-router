@@ -314,6 +314,17 @@ export function createRouterContext(
     }
   };
 
+  const router: RouterContext = {
+    base: baseRoute,
+    location,
+    isRouting,
+    renderPath,
+    parsePath,
+    navigatorFactory,
+    beforeLeave,
+    submissions: createSignal<Submission<any, any>[]>(submissions)
+  }
+
   function navigateFromRoute(
     route: RouteContext,
     to: string | number,
@@ -539,7 +550,7 @@ export function createRouterContext(
         (evt.submitter && evt.submitter.getAttribute("formaction")) || (evt.target as any).action;
       if (actionRef && actionRef.startsWith("action:")) {
         const data = new FormData(evt.target as HTMLFormElement);
-        actions.get(actionRef.slice(7))!(data);
+        actions.get(actionRef)!.call(router, data);
         evt.preventDefault();
       }
     }
@@ -578,16 +589,7 @@ export function createRouterContext(
     submissions = initFromFlash(location.query);
   }
 
-  return {
-    base: baseRoute,
-    location,
-    isRouting,
-    renderPath,
-    parsePath,
-    navigatorFactory,
-    beforeLeave,
-    submissions: createSignal<Submission<any, any>[]>(submissions)
-  };
+  return router;
 }
 
 export function createRouteContext(

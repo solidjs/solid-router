@@ -62,6 +62,11 @@ export function action<T, U = void>(fn: (args: T) => Promise<U>, name?: string):
     const [result, setResult] = createSignal<{ data?: U }>();
     let submission: Submission<T, U>;
     const router = this;
+    async function handler(res: any) {
+      const data = await handleResponse(res as any, router.navigatorFactory());
+        data ? setResult({ data }) : submission.clear();
+        return data;
+    }
     router.submissions[1](s => [
       ...s,
       (submission = {
@@ -79,28 +84,15 @@ export function action<T, U = void>(fn: (args: T) => Promise<U>, name?: string):
         retry() {
           setResult(undefined);
           const p = fn(variables);
-          p.then(async data => {
-            const keys = handleResponse(data as any, router.navigatorFactory());
-            await revalidate(keys);
-            data ? setResult({ data }) : submission.clear();
-            return data;
-          }).catch(error => {
-            setResult({ data: error });
-          });
+          p.then(handler, handler);
           return p;
         }
       })
     ]);
-    p.then(async data => {
-      const keys = handleResponse(data as any, router.navigatorFactory());
-      await revalidate(keys);
-      data ? setResult({ data }) : submission.clear();
-      return data;
-    }).catch(error => {
-      setResult({ data: error });
-    });
+    p.then(handler, handler);
     return p;
   }
+
   const url =
     (fn as any).url || (name && `action:${name}`) || (!isServer ? `action:${fn.name}` : "");
   mutate.toString = () => {
@@ -111,7 +103,8 @@ export function action<T, U = void>(fn: (args: T) => Promise<U>, name?: string):
   return mutate;
 }
 
-function handleResponse(response: Response, navigate: Navigator) {
+async function handleResponse(response: Response, navigate: Navigator) {
+  let data: any;
   if (response instanceof Response && redirectStatusCodes.has(response.status)) {
     const locationUrl = response.headers.get("Location") || "/";
     if (locationUrl.startsWith("http")) {
@@ -119,7 +112,8 @@ function handleResponse(response: Response, navigate: Navigator) {
     } else {
       navigate(locationUrl);
     }
-  }
-  // return keys
-  return;
+  } else data = response;
+  // TODO: handle keys
+  await revalidate();
+  return data;
 }
