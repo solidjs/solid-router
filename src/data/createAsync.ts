@@ -3,8 +3,19 @@
  */
 import { type Accessor, createResource, sharedConfig } from "solid-js";
 import { isServer } from "solid-js/web";
+export function createAsync<T>(fn: () => Promise<T>, options: {
+  name?: string;
+  initialValue: T;
+  deferStream?: boolean;
+}): Accessor<T>
 export function createAsync<T>(fn: () => Promise<T>, options?: {
   name?: string;
+  initialValue?: T;
+  deferStream?: boolean;
+}): Accessor<T | undefined>
+export function createAsync<T>(fn: () => Promise<T>, options?: {
+  name?: string;
+  initialValue?: T;
   deferStream?: boolean;
 }): Accessor<T | undefined> {
   const [resource] = createResource(
