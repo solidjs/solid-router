@@ -59,7 +59,7 @@ export function useAction<T, U>(action: Action<T, U>) {
 export function action<T, U = void>(fn: (args: T) => Promise<U>, name?: string): Action<T, U> {
   function mutate(this: RouterContext, variables: T) {
     const p = fn(variables);
-    const [result, setResult] = createSignal<{ data?: U; }>();
+    const [result, setResult] = createSignal<{ data?: U }>();
     let submission: Submission<T, U>;
     const router = this;
     router.submissions[1](s => [
@@ -101,7 +101,8 @@ export function action<T, U = void>(fn: (args: T) => Promise<U>, name?: string):
     });
     return p;
   }
-  const url = (fn as any).url || `action:${name}` || !isServer ? `action:${fn.name}` : "";
+  const url =
+    (fn as any).url || (name && `action:${name}`) || (!isServer ? `action:${fn.name}` : "");
   mutate.toString = () => {
     if (!url) throw new Error("Client Actions need explicit names if server rendered");
     return url;
@@ -110,11 +111,7 @@ export function action<T, U = void>(fn: (args: T) => Promise<U>, name?: string):
   return mutate;
 }
 
-
-function handleResponse(
-  response: Response,
-  navigate: Navigator,
-) {
+function handleResponse(response: Response, navigate: Navigator) {
   if (response instanceof Response && redirectStatusCodes.has(response.status)) {
     const locationUrl = response.headers.get("Location") || "/";
     if (locationUrl.startsWith("http")) {

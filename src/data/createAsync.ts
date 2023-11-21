@@ -3,10 +3,14 @@
  */
 import { type Accessor, createResource, sharedConfig } from "solid-js";
 import { isServer } from "solid-js/web";
-export function createAsync<T>(fn: () => Promise<T>): Accessor<T | undefined> {
+export function createAsync<T>(fn: () => Promise<T>, options?: {
+  name?: string;
+  deferStream?: boolean;
+}): Accessor<T | undefined> {
   const [resource] = createResource(
     () => subFetch(fn),
-    v => v
+    v => v,
+    options
   );
   return () => resource();
 }

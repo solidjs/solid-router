@@ -64,7 +64,7 @@ export const Router = (props: RouterProps) => {
   const integration =
     source ||
     (isServer
-      ? staticIntegration({ value: url || ((e = getRequestEvent()) && e.request.url) || "" })
+      ? staticIntegration({ value: url || ((e = getRequestEvent()) && getPath(e.request.url)) || "" })
       : pathIntegration());
 
   const routeDefs = children(() => props.children) as unknown as () =>
@@ -85,6 +85,11 @@ export const Router = (props: RouterProps) => {
     </RouterContextObj.Provider>
   );
 };
+
+function getPath(url: string) {
+  const u = new URL(url);
+  return u.pathname + u.search;
+}
 
 function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
   const matches = createMemo(() =>

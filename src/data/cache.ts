@@ -67,7 +67,7 @@ export function cache<T extends (...args: any) => U | Response, U>(
         cached[0] = now;
         cached[1] =
           "then" in (cached[1] as Promise<U>)
-            ? (cached[1] as Promise<U>).then(handleResponse)
+            ? (cached[1] as Promise<U>).then(handleResponse, handleResponse)
             : handleResponse(cached[1]);
         cached[2] = intent;
       }
@@ -89,7 +89,7 @@ export function cache<T extends (...args: any) => U | Response, U>(
     if (intent !== "preload") {
       res =
         "then" in (res as Promise<U>)
-          ? (res as Promise<U>).then(handleResponse)
+          ? (res as Promise<U>).then(handleResponse, handleResponse)
           : handleResponse(res);
     }
     if (cached) {
@@ -103,23 +103,23 @@ export function cache<T extends (...args: any) => U | Response, U>(
     } else cache.set(key, (cached = [now, res, intent, new Set(version! ? [version] : [])]));
     return res;
 
-    function handleRedirect(response: Response) {
-      startTransition(() => {
-        let url = response.headers.get(LocationHeader);
-        if (url && url.startsWith("/")) {
-          navigate!(url, {
-            replace: true
-          });
-        } else if (!isServer && url) {
-          window.location.href = url;
-        }
-      });
-    }
     function handleResponse(v: U | Response) {
       if (v instanceof Response && redirectStatusCodes.has(v.status)) {
-        if (navigate) isServer ? handleRedirect(v) : setTimeout(() => handleRedirect(v), 0);
+        if (navigate) {
+          startTransition(() => {
+            let url = v.headers.get(LocationHeader);
+            if (url && url.startsWith("/")) {
+              navigate!(url, {
+                replace: true
+              });
+            } else if (!isServer && url) {
+              window.location.href = url;
+            }
+          });
+        }
         return;
       }
+      if (v instanceof Error) throw v;
       if (isServer) return v;
       setStore(key, reconcile(v, options));
       return store[key];
