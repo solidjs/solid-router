@@ -1,11 +1,11 @@
-import { $TRACK, createMemo, createSignal } from "solid-js";
+import { $TRACK, createMemo, createSignal, JSX } from "solid-js";
 import { isServer } from "solid-js/web";
 import { registerAction, useRouter } from "../routing";
 import { RouterContext, Submission, Navigator } from "../types";
 import { redirectStatusCodes } from "../utils";
 import { revalidate } from "./cache";
 
-export type Action<T, U> = (vars: T) => Promise<U>;
+export type Action<T, U> = ((vars: T) => Promise<U>) & JSX.SerializableAttributeValue;
 
 export function useSubmissions<T, U>(
   fn: Action<T, U>,
@@ -100,7 +100,7 @@ export function action<T, U = void>(fn: (args: T) => Promise<U>, name?: string):
     return url;
   };
   if (!isServer) registerAction(url, mutate);
-  return mutate;
+  return mutate as Action<T, U>;
 }
 
 async function handleResponse(response: Response, navigate: Navigator) {
