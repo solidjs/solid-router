@@ -65,13 +65,11 @@ export function cache<T extends (...args: any) => U | Response, U>(
       version! && cached[3].add(version);
       if (cached[2] === "preload" && intent !== "preload") {
         cached[0] = now;
-        cached[1] =
-          "then" in (cached[1] as Promise<U>)
-            ? (cached[1] as Promise<U>).then(handleResponse, handleResponse)
-            : handleResponse(cached[1]);
-        cached[2] = intent;
       }
       if (!isServer && intent === "navigate") {
+        "then" in (cached[1] as Promise<U>)
+          ? (cached[1] as Promise<U>).then(handleResponse(false), handleResponse(true))
+          : handleResponse(false)(cached[1]);
         startTransition(() => revalidateSignals(cached[3], cached[0])); // update version
       }
       return cached[1];
@@ -87,10 +85,9 @@ export function cache<T extends (...args: any) => U | Response, U>(
     }
 
     if (intent !== "preload") {
-      res =
-        "then" in (res as Promise<U>)
-          ? (res as Promise<U>).then(handleResponse, handleResponse)
-          : handleResponse(res);
+      "then" in (res as Promise<U>)
+        ? (res as Promise<U>).then(handleResponse(false), handleResponse(true))
+        : handleResponse(false)(res);
     }
     if (cached) {
       cached[0] = now;
@@ -103,26 +100,28 @@ export function cache<T extends (...args: any) => U | Response, U>(
     } else cache.set(key, (cached = [now, res, intent, new Set(version! ? [version] : [])]));
     return res;
 
-    function handleResponse(v: U | Response) {
-      if (v instanceof Response && redirectStatusCodes.has(v.status)) {
-        if (navigate) {
-          startTransition(() => {
-            let url = v.headers.get(LocationHeader);
-            if (url && url.startsWith("/")) {
-              navigate!(url, {
-                replace: true
-              });
-            } else if (!isServer && url) {
-              window.location.href = url;
-            }
-          });
+    function handleResponse(error: boolean) {
+      return (v: U | Response) => {
+        if (v instanceof Response && redirectStatusCodes.has(v.status)) {
+          if (navigate) {
+            startTransition(() => {
+              let url = v.headers.get(LocationHeader);
+              if (url && url.startsWith("/")) {
+                navigate!(url, {
+                  replace: true
+                });
+              } else if (!isServer && url) {
+                window.location.href = url;
+              }
+            });
+          }
+          return;
         }
-        return;
-      }
-      if (v instanceof Error) throw v;
-      if (isServer) return v;
-      setStore(key, reconcile(v, options));
-      return store[key];
+        if (error) throw error;
+        if (isServer) return v;
+        setStore(key, reconcile(v, options));
+        return store[key];
+      };
     }
   }) as T;
 }
