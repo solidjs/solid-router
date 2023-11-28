@@ -45,6 +45,7 @@ declare module "solid-js" {
 
 export type RouterProps = {
   base?: string;
+  actionBase?: string;
   root?: Component<RouteSectionProps>;
   children: JSX.Element;
 } & (
@@ -60,11 +61,13 @@ export type RouterProps = {
 
 export const Router = (props: RouterProps) => {
   let e: any;
-  const { source, url, base } = props;
+  const { source, url, base, actionBase } = props;
   const integration =
     source ||
     (isServer
-      ? staticIntegration({ value: url || ((e = getRequestEvent()) && getPath(e.request.url)) || "" })
+      ? staticIntegration({
+          value: url || ((e = getRequestEvent()) && getPath(e.request.url)) || ""
+        })
       : pathIntegration());
 
   const routeDefs = children(() => props.children) as unknown as () =>
@@ -77,7 +80,7 @@ export const Router = (props: RouterProps) => {
       props.base || ""
     )
   );
-  const routerState = createRouterContext(integration, branches, base);
+  const routerState = createRouterContext(integration, branches, { base, actionBase });
 
   return (
     <RouterContextObj.Provider value={routerState}>

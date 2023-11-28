@@ -271,7 +271,7 @@ export function getIntent() {
 export function createRouterContext(
   integration?: RouterIntegration | LocationChangeSignal,
   getBranches?: () => Branch[],
-  base: string = ""
+  options: { base?: string, actionBase?: string } = {}
 ): RouterContext {
   const {
     signal: [source, setSource],
@@ -283,7 +283,8 @@ export function createRouterContext(
   const beforeLeave = utils.beforeLeave || createBeforeLeave();
   let submissions: Submission<any, any>[] = [];
 
-  const basePath = resolvePath("", base);
+  const basePath = resolvePath("", options.base || "");
+  const actionBase = options.actionBase || "/_server";
   if (basePath === undefined) {
     throw new Error(`${basePath} is not a valid base path`);
   } else if (basePath && !source().value) {
@@ -323,7 +324,7 @@ export function createRouterContext(
     navigatorFactory,
     beforeLeave,
     submissions: createSignal<Submission<any, any>[]>(submissions)
-  }
+  };
 
   function navigateFromRoute(
     route: RouteContext,
@@ -548,10 +549,17 @@ export function createRouterContext(
     function handleFormSubmit(evt: SubmitEvent) {
       let actionRef =
         (evt.submitter && evt.submitter.getAttribute("formaction")) || (evt.target as any).action;
-      if (actionRef && actionRef.startsWith("action:")) {
-        const data = new FormData(evt.target as HTMLFormElement);
-        actions.get(actionRef)!.call(router, data);
+      if (!actionRef) return;
+      if (!actionRef.startsWith("action:")) {
+        const url = new URL(actionRef);
+        actionRef = parsePath(url.pathname + url.search);
+        if (!actionRef.startsWith(actionBase)) return;
+      }
+      const handler = actions.get(actionRef);
+      if (handler) {
         evt.preventDefault();
+        const data = new FormData(evt.target as HTMLFormElement);
+        handler.call(router, data);
       }
     }
 

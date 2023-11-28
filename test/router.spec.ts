@@ -18,7 +18,7 @@ describe("Router should", () => {
     test(`have a normalized version of the base path when defined`, () => {
       createRoot(() => {
         const signal = createSignal<LocationChange>({ value: "" });
-        const { base } = createRouterContext(signal, fakeBranches, "base");
+        const { base } = createRouterContext(signal, fakeBranches, { base: "base" });
         expect(base.path()).toBe("/base");
       });
     });
@@ -26,7 +26,7 @@ describe("Router should", () => {
     test(`throw when the base path is invalid`, () => {
       createRoot(() => {
         const signal = createSignal<LocationChange>({ value: "" });
-        expect(() => createRouterContext(signal, fakeBranches, "http://example.com")).toThrow();
+        expect(() => createRouterContext(signal, fakeBranches, { base: "http://example.com" })).toThrow();
       });
     });
   });
