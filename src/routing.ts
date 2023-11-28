@@ -271,7 +271,7 @@ export function getIntent() {
 export function createRouterContext(
   integration?: RouterIntegration | LocationChangeSignal,
   getBranches?: () => Branch[],
-  options: { base?: string, actionBase?: string } = {}
+  options: { base?: string; actionBase?: string } = {}
 ): RouterContext {
   const {
     signal: [source, setSource],
@@ -281,7 +281,6 @@ export function createRouterContext(
   const parsePath = utils.parsePath || (p => p);
   const renderPath = utils.renderPath || (p => p);
   const beforeLeave = utils.beforeLeave || createBeforeLeave();
-  let submissions: Submission<any, any>[] = [];
 
   const basePath = resolvePath("", options.base || "");
   const actionBase = options.actionBase || "/_server";
@@ -323,7 +322,7 @@ export function createRouterContext(
     parsePath,
     navigatorFactory,
     beforeLeave,
-    submissions: createSignal<Submission<any, any>[]>(submissions)
+    submissions: createSignal<Submission<any, any>[]>(initFromFlash(location.query))
   };
 
   function navigateFromRoute(
@@ -412,6 +411,19 @@ export function createRouterContext(
       }
       referrers.length = 0;
     }
+  }
+
+  function initFromFlash<T>(params: Params) {
+    let param = params.form ? JSON.parse(params.form) : null;
+    if (!param || !param.result) return [];
+    const input = new Map(param.entries);
+    return [
+      {
+        url: param.url,
+        result: param.error ? new Error(param.result.message) : param.result,
+        input: input as unknown as T
+      } as Submission<T, any>
+    ];
   }
 
   createRenderEffect(() => {
@@ -579,24 +591,7 @@ export function createRouterContext(
       document.removeEventListener("touchstart", handleAnchorPreload);
       document.removeEventListener("submit", handleFormSubmit);
     });
-  } else {
-    function initFromFlash<T>(params: Params) {
-      let param = params.form ? JSON.parse(params.form) : null;
-      if (!param || !param.result) {
-        return [];
-      }
-      const input = new Map(param.entries);
-      return [
-        {
-          url: param.url,
-          result: param.error ? new Error(param.result.message) : param.result,
-          input: input as unknown as T
-        } as Submission<T, any>
-      ];
-    }
-    submissions = initFromFlash(location.query);
   }
-
   return router;
 }
 
