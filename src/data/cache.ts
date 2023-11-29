@@ -66,13 +66,14 @@ export function cache<T extends (...args: any) => U | Response, U>(
       if (cached[2] === "preload" && intent !== "preload") {
         cached[0] = now;
       }
+      let res = cached[1];
       if (!isServer && intent === "navigate") {
-        "then" in (cached[1] as Promise<U>)
+        res = "then" in (cached[1] as Promise<U>)
           ? (cached[1] as Promise<U>).then(handleResponse(false), handleResponse(true))
           : handleResponse(false)(cached[1]);
         startTransition(() => revalidateSignals(cached[3], cached[0])); // update version
       }
-      return cached[1];
+      return res;
     }
     let res =
       !isServer && sharedConfig.context && sharedConfig.load
@@ -84,11 +85,6 @@ export function cache<T extends (...args: any) => U | Response, U>(
       sharedConfig.context && (sharedConfig.context as any).serialize(key, res);
     }
 
-    if (intent !== "preload") {
-      "then" in (res as Promise<U>)
-        ? (res as Promise<U>).then(handleResponse(false), handleResponse(true))
-        : handleResponse(false)(res);
-    }
     if (cached) {
       cached[0] = now;
       cached[1] = res;
@@ -98,6 +94,11 @@ export function cache<T extends (...args: any) => U | Response, U>(
         startTransition(() => revalidateSignals(cached[3], cached[0])); // update version
       }
     } else cache.set(key, (cached = [now, res, intent, new Set(version! ? [version] : [])]));
+    if (intent !== "preload") {
+      res = "then" in (res as Promise<U>)
+        ? (res as Promise<U>).then(handleResponse(false), handleResponse(true))
+        : handleResponse(false)(res);
+    }
     return res;
 
     function handleResponse(error: boolean) {
