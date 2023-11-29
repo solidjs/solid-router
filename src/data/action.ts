@@ -31,22 +31,22 @@ export function useSubmission<T, U>(
   const submissions = useSubmissions(fn, filter);
   return {
     get clear() {
-      return submissions[0]?.clear;
+      return submissions[submissions.length - 1]?.clear;
     },
     get retry() {
-      return submissions[0]?.retry;
+      return submissions[submissions.length - 1]?.retry;
     },
     get url() {
-      return submissions[0]?.url;
+      return submissions[submissions.length - 1]?.url;
     },
     get input() {
-      return submissions[0]?.input;
+      return submissions[submissions.length - 1]?.input;
     },
     get result() {
-      return submissions[0]?.result;
+      return submissions[submissions.length - 1]?.result;
     },
     get pending() {
-      return submissions[0]?.pending;
+      return submissions[submissions.length - 1]?.pending;
     }
   };
 }
