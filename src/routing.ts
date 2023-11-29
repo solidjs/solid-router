@@ -420,7 +420,7 @@ export function createRouterContext(
     return [
       {
         url: param.url,
-        result: param.error ? new Error(param.result.message) : param.result,
+        result: param.error ? new Error(param.result) : param.result,
         input: input as unknown as T
       } as Submission<T, any>
     ];
