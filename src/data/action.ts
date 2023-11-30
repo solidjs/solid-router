@@ -32,7 +32,7 @@ export function useSubmission<T, U>(
   const submissions = useSubmissions(fn, filter);
   return new Proxy({}, {
     get(_, property) {
-      submissions[submissions.length -1]?.[property as keyof Submission<T, U>];
+      return submissions[submissions.length -1]?.[property as keyof Submission<T, U>];
     }
   }) as Submission<T, U>;
 }
