@@ -1,6 +1,6 @@
 import type { JSX } from "solid-js";
 import { setupNativeEvents } from "../data/events";
-import type { RouterProps } from "./components";
+import type { BaseRouterProps } from "./components";
 import { createRouter, scrollToHash, bindEvent } from "./createRouter";
 
 export function hashParser(str: string) {
@@ -15,7 +15,9 @@ export function hashParser(str: string) {
   return to;
 }
 
-export function HashRouter(props: RouterProps): JSX.Element {
+export type HashRouterProps = BaseRouterProps;
+
+export function HashRouter(props: HashRouterProps): JSX.Element {
   return createRouter({
     get: () => window.location.hash.slice(1),
     set({ value, replace, scroll, state }) {

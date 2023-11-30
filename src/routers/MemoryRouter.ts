@@ -1,9 +1,11 @@
 import { createRouter, scrollToHash } from "./createRouter";
 import type { LocationChange } from "../types";
-import type { RouterProps } from "./components";
+import type { BaseRouterProps } from "./components";
 import type { JSX } from "solid-js";
 
-export function MemoryRouter(props: RouterProps): JSX.Element {
+export type MemoryRouterProps = BaseRouterProps;
+
+export function MemoryRouter(props: MemoryRouterProps): JSX.Element {
   const entries = ["/"];
   let index = 0;
   const listeners: ((value: string) => void)[] = [];

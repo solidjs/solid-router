@@ -2,10 +2,12 @@ import { isServer } from "solid-js/web";
 import { createRouter, scrollToHash, bindEvent } from "./createRouter";
 import { StaticRouter } from "./StaticRouter";
 import { setupNativeEvents } from "../data/events";
-import type { RouterProps } from "./components";
+import type { BaseRouterProps } from "./components";
 import type { JSX } from "solid-js";
 
-export function Router(props: RouterProps & { url?: string }): JSX.Element {
+export type RouterProps = BaseRouterProps & { url?: string };
+
+export function Router(props: RouterProps): JSX.Element {
   if (isServer) return StaticRouter(props);
   return createRouter({
     get: () => ({

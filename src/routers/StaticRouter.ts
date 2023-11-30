@@ -1,5 +1,5 @@
 import { getRequestEvent } from "solid-js/web";
-import { type RouterProps, createRouterComponent } from "./components";
+import { type BaseRouterProps, createRouterComponent } from "./components";
 import type { JSX } from "solid-js";
 
 function getPath(url: string) {
@@ -7,7 +7,9 @@ function getPath(url: string) {
   return u.pathname + u.search;
 }
 
-export function StaticRouter(props: RouterProps & { url?: string }): JSX.Element {
+export type StaticRouterProps = BaseRouterProps & { url?: string };
+
+export function StaticRouter(props: StaticRouterProps): JSX.Element {
   let e;
   const obj = {
     value: props.url || ((e = getRequestEvent()) && getPath(e.request.url)) || ""

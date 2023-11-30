@@ -23,14 +23,14 @@ import type {
 } from "../types";
 import { createMemoObject } from "../utils";
 
-export type RouterProps = {
+export type BaseRouterProps = {
   base?: string;
   actionBase?: string;
   root?: Component<RouteSectionProps>;
   children?: JSX.Element;
 };
 
-export const createRouterComponent = (router: RouterIntegration) => (props: RouterProps) => {
+export const createRouterComponent = (router: RouterIntegration) => (props: BaseRouterProps) => {
   const { base, actionBase } = props;
   const routeDefs = children(() => props.children) as unknown as () =>
     | RouteDefinition
