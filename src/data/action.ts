@@ -1,11 +1,12 @@
 import { $TRACK, createMemo, createSignal, JSX } from "solid-js";
 import { isServer } from "solid-js/web";
-import { registerAction, useRouter } from "../routing";
+import { useRouter } from "../routing";
 import { RouterContext, Submission, Navigator } from "../types";
 import { redirectStatusCodes } from "../utils";
 import { revalidate } from "./cache";
 
 export type Action<T, U> = ((vars: T) => Promise<U>) & JSX.SerializableAttributeValue;
+export const actions = /* #__PURE__ */new Map<string, Function>();
 
 export function useSubmissions<T, U>(
   fn: Action<T, U>,
@@ -29,26 +30,11 @@ export function useSubmission<T, U>(
   filter?: (arg: T) => boolean
 ): Submission<T, U> {
   const submissions = useSubmissions(fn, filter);
-  return {
-    get clear() {
-      return submissions[submissions.length - 1]?.clear;
-    },
-    get retry() {
-      return submissions[submissions.length - 1]?.retry;
-    },
-    get url() {
-      return submissions[submissions.length - 1]?.url;
-    },
-    get input() {
-      return submissions[submissions.length - 1]?.input;
-    },
-    get result() {
-      return submissions[submissions.length - 1]?.result;
-    },
-    get pending() {
-      return submissions[submissions.length - 1]?.pending;
+  return new Proxy({}, {
+    get(_, property) {
+      submissions[submissions.length -1]?.[property as keyof Submission<T, U>];
     }
-  };
+  }) as Submission<T, U>;
 }
 
 export function useAction<T, U>(action: Action<T, U>) {
@@ -99,7 +85,7 @@ export function action<T, U = void>(fn: (args: T) => Promise<U>, name?: string):
     if (!url) throw new Error("Client Actions need explicit names if server rendered");
     return url;
   };
-  if (!isServer) registerAction(url, mutate);
+  if (!isServer) actions.set(url, mutate);
   return mutate as Action<T, U>;
 }
 

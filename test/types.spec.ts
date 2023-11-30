@@ -1,4 +1,4 @@
-import { RouteProps } from "../src/components";
+import { RouteProps } from "../src/routers/components";
 import { useMatch } from "../src/routing";
 import { MatchFilters } from "../src/types";
 import { createMatcher } from "../src/utils";

@@ -1,4 +1,4 @@
-import { Component, JSX, Signal } from "solid-js";
+import type { Component, JSX, Signal } from "solid-js";
 
 declare module "solid-js/web" {
   interface RequestEvent {
@@ -43,11 +43,9 @@ export interface LocationChange<S = unknown> {
   scroll?: boolean;
   state?: S;
 }
-
-export type LocationChangeSignal = [() => LocationChange, (next: LocationChange) => void];
-
 export interface RouterIntegration {
-  signal: LocationChangeSignal;
+  signal: Signal<LocationChange>;
+  create?: (router: RouterContext) => void;
   utils?: Partial<RouterUtils>;
 }
 
@@ -154,12 +152,14 @@ export interface RouterOutput {
 
 export interface RouterContext {
   base: RouteContext;
+  actionBase: string;
   location: Location;
   navigatorFactory: NavigatorFactory;
   isRouting: () => boolean;
   renderPath(path: string): string;
   parsePath(str: string): string;
   beforeLeave: BeforeLeaveLifecycle;
+  preloadRoute: (url: URL, preloadData: boolean) => void;
   submissions: Signal<Submission<any, any>[]>;
 }
 
@@ -191,3 +191,7 @@ export type Submission<T, U> = {
   clear: () => void;
   retry: () => void;
 };
+
+export interface MaybePreloadableComponent extends Component {
+  preload?: () => void;
+}

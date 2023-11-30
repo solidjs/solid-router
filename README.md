@@ -456,12 +456,12 @@ function loadUser({params, location}) {
 <Route path="/users/:id" component={User} load={loadUser} />;
 ```
 
-The load function is called when the Route is loaded or eagerly when links are hovered. Inside your page component you 
+The load function is called when the Route is loaded or eagerly when links are hovered. Inside your page component you:
 
 ```jsx
 // pages/users/[id].js
 import { getUser } from ... // the cache function
-    
+
 export default function User(props) {
   const user = createAsync(() => getUser(props.params.id));
   return <h1>{user().name}</h1>;
@@ -542,9 +542,9 @@ render(() =>
 By default, Solid Router uses `location.pathname` as route path. You can simply switch to hash mode through the `source` property on `<Router>` component.
 
 ```jsx
-import { Router, hashIntegration } from "@solidjs/router";
+import { HashRouter } from "@solidjs/router";
 
-<Router source={hashIntegration()} />;
+<HashRouter />;
 ```
 
 ### Memory Mode Router
@@ -552,10 +552,22 @@ import { Router, hashIntegration } from "@solidjs/router";
 You can also use memory mode router for testing purpose.
 
 ```jsx
-import { Router, memoryIntegration } from "@solidjs/router";
+import { MemoryRouter } from "@solidjs/router";
 
-<Router source={memoryIntegration()} />;
+<MemoryRouter />;
 ```
+
+### SSR Routing
+
+For SSR you can use the static router directly or the browser Router defaults to it on the server, just pass in the url.
+
+```jsx
+import { isServer } from "solid-js/web";
+import { Router } from "@solidjs/router";
+
+<Router url={isServer ? req.url : ""} />;
+```
+
 
 ## Components
 

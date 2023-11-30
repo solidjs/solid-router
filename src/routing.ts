@@ -1,4 +1,4 @@
-import { Component, JSX, Accessor } from "solid-js";
+import { JSX, Accessor } from "solid-js";
 import {
   createComponent,
   createContext,
@@ -12,8 +12,7 @@ import {
   startTransition,
   resetErrorBoundaries
 } from "solid-js";
-import { isServer, delegateEvents, getRequestEvent } from "solid-js/web";
-import { normalizeIntegration } from "./integration";
+import { isServer, getRequestEvent } from "solid-js/web";
 import { createBeforeLeave } from "./lifecycle";
 import type {
   BeforeLeaveEventArgs,
@@ -21,8 +20,8 @@ import type {
   Intent,
   Location,
   LocationChange,
-  LocationChangeSignal,
   MatchFilters,
+  MaybePreloadableComponent,
   NavigateOptions,
   Navigator,
   Params,
@@ -48,10 +47,6 @@ import {
 } from "./utils";
 
 const MAX_REDIRECTS = 100;
-
-interface MaybePreloadableComponent extends Component {
-  preload?: () => void;
-}
 
 export const RouterContextObj = createContext<RouterContext>();
 export const RouteContextObj = createContext<RouteContext>();
@@ -258,32 +253,26 @@ export function createLocation(path: Accessor<string>, state: Accessor<any>): Lo
   };
 }
 
-const actions = new Map<string, Function>();
-export function registerAction(url: string, fn: Function) {
-  actions.set(url, fn);
-}
-
 let intent: Intent | undefined;
 export function getIntent() {
   return intent;
 }
 
 export function createRouterContext(
-  integration?: RouterIntegration | LocationChangeSignal,
+  integration: RouterIntegration,
   getBranches?: () => Branch[],
-  options: { base?: string; actionBase?: string } = {}
+  options: { base?: string, actionBase?: string } = {}
 ): RouterContext {
   const {
     signal: [source, setSource],
     utils = {}
-  } = normalizeIntegration(integration);
+  } = integration;
 
   const parsePath = utils.parsePath || (p => p);
   const renderPath = utils.renderPath || (p => p);
   const beforeLeave = utils.beforeLeave || createBeforeLeave();
 
   const basePath = resolvePath("", options.base || "");
-  const actionBase = options.actionBase || "/_server";
   if (basePath === undefined) {
     throw new Error(`${basePath} is not a valid base path`);
   } else if (basePath && !source().value) {
@@ -303,6 +292,7 @@ export function createRouterContext(
   const [state, setState] = createSignal(source().state);
   const location = createLocation(reference, state);
   const referrers: LocationChange[] = [];
+  const submissions = createSignal<Submission<any, any>[]>(initFromFlash(location.query))
 
   const baseRoute: RouteContext = {
     pattern: basePath,
@@ -314,15 +304,35 @@ export function createRouterContext(
     }
   };
 
-  const router: RouterContext = {
+  createRenderEffect(() => {
+    const { value, state } = source();
+    // Untrack this whole block so `start` doesn't cause Solid's Listener to be preserved
+    untrack(() => {
+      if (value !== reference()) {
+        start(() => {
+          intent = "native";
+          setReference(value);
+          setState(state);
+          resetErrorBoundaries();
+          submissions[1]([])
+        }).then(() => {
+          intent = undefined;
+        });
+      }
+    });
+  });
+
+  return {
     base: baseRoute,
+    actionBase: options.actionBase || "/_server",
     location,
     isRouting,
     renderPath,
     parsePath,
     navigatorFactory,
     beforeLeave,
-    submissions: createSignal<Submission<any, any>[]>(initFromFlash(location.query))
+    preloadRoute,
+    submissions
   };
 
   function navigateFromRoute(
@@ -378,6 +388,7 @@ export function createRouterContext(
             setReference(resolvedTo);
             setState(nextState);
             resetErrorBoundaries();
+            submissions[1]([])
           }).then(() => {
             if (referrers.length === len) {
               intent = undefined;
@@ -413,6 +424,33 @@ export function createRouterContext(
     }
   }
 
+  function preloadRoute(url: URL, preloadData: boolean) {
+    const matches = getRouteMatches(getBranches!(), url.pathname);
+    const prevIntent = intent;
+    intent = "preload";
+    for (let match in matches) {
+      const { route, params } = matches[match];
+      route.component &&
+        (route.component as MaybePreloadableComponent).preload &&
+        (route.component as MaybePreloadableComponent).preload!();
+      preloadData &&
+        route.load &&
+        route.load({
+          params,
+          location: {
+            pathname: url.pathname,
+            search: url.search,
+            hash: url.hash,
+            query: extractSearchParams(url),
+            state: null,
+            key: ""
+          },
+          intent: "preload"
+        });
+    }
+    intent = prevIntent;
+  }
+
   function initFromFlash<T>(params: Params) {
     let param = params.form ? JSON.parse(params.form) : null;
     if (!param || !param.result) return [];
@@ -425,174 +463,6 @@ export function createRouterContext(
       } as Submission<T, any>
     ];
   }
-
-  createRenderEffect(() => {
-    const { value, state } = source();
-    // Untrack this whole block so `start` doesn't cause Solid's Listener to be preserved
-    untrack(() => {
-      if (value !== reference()) {
-        start(() => {
-          intent = "native";
-          setReference(value);
-          setState(state);
-        }).then(() => {
-          intent = undefined;
-        });
-      }
-    });
-  });
-
-  if (!isServer) {
-    let preloadTimeout: Record<string, number> = {};
-
-    function isSvg<T extends SVGElement>(el: T | HTMLElement): el is T {
-      return el.namespaceURI === "http://www.w3.org/2000/svg";
-    }
-
-    function handleAnchor(evt: MouseEvent) {
-      if (
-        evt.defaultPrevented ||
-        evt.button !== 0 ||
-        evt.metaKey ||
-        evt.altKey ||
-        evt.ctrlKey ||
-        evt.shiftKey
-      )
-        return;
-
-      const a = evt
-        .composedPath()
-        .find(el => el instanceof Node && el.nodeName.toUpperCase() === "A") as
-        | HTMLAnchorElement
-        | SVGAElement
-        | undefined;
-
-      if (!a) return;
-
-      const svg = isSvg(a);
-      const href = svg ? a.href.baseVal : a.href;
-      const target = svg ? a.target.baseVal : a.target;
-      if (target || (!href && !a.hasAttribute("state"))) return;
-
-      const rel = (a.getAttribute("rel") || "").split(/\s+/);
-      if (a.hasAttribute("download") || (rel && rel.includes("external"))) return;
-
-      const url = svg ? new URL(href, document.baseURI) : new URL(href);
-      if (
-        url.origin !== window.location.origin ||
-        (basePath && url.pathname && !url.pathname.toLowerCase().startsWith(basePath.toLowerCase()))
-      )
-        return;
-      return [a, url] as const;
-    }
-
-    function handleAnchorClick(evt: Event) {
-      const res = handleAnchor(evt as MouseEvent);
-      if (!res) return;
-      const [a, url] = res;
-      const to = parsePath(url.pathname + url.search + url.hash);
-      const state = a.getAttribute("state");
-
-      evt.preventDefault();
-      navigateFromRoute(baseRoute, to, {
-        resolve: false,
-        replace: a.hasAttribute("replace"),
-        scroll: !a.hasAttribute("noscroll"),
-        state: state && JSON.parse(state)
-      });
-    }
-
-    function doPreload(a: HTMLAnchorElement | SVGAElement, url: URL) {
-      const preload = a.getAttribute("preload") !== "false";
-      const matches = getRouteMatches(getBranches!(), url.pathname);
-      const prevIntent = intent;
-      intent = "preload";
-      for (let match in matches) {
-        const { route, params } = matches[match];
-        route.component &&
-          (route.component as MaybePreloadableComponent).preload &&
-          (route.component as MaybePreloadableComponent).preload!();
-        preload &&
-          route.load &&
-          route.load({
-            params,
-            location: {
-              pathname: url.pathname,
-              search: url.search,
-              hash: url.hash,
-              query: extractSearchParams(url),
-              state: null,
-              key: ""
-            },
-            intent
-          });
-      }
-      intent = prevIntent;
-    }
-
-    function handleAnchorPreload(evt: Event) {
-      const res = handleAnchor(evt as MouseEvent);
-      if (!res) return;
-      const [a, url] = res;
-      if (!preloadTimeout[url.pathname]) doPreload(a, url);
-    }
-
-    function handleAnchorIn(evt: Event) {
-      const res = handleAnchor(evt as MouseEvent);
-      if (!res) return;
-      const [a, url] = res;
-      if (preloadTimeout[url.pathname]) return;
-      preloadTimeout[url.pathname] = setTimeout(() => {
-        doPreload(a, url);
-        delete preloadTimeout[url.pathname];
-      }, 200) as any;
-    }
-
-    function handleAnchorOut(evt: Event) {
-      const res = handleAnchor(evt as MouseEvent);
-      if (!res) return;
-      const [, url] = res;
-      if (preloadTimeout[url.pathname]) {
-        clearTimeout(preloadTimeout[url.pathname]);
-        delete preloadTimeout[url.pathname];
-      }
-    }
-
-    function handleFormSubmit(evt: SubmitEvent) {
-      let actionRef =
-        (evt.submitter && evt.submitter.getAttribute("formaction")) || (evt.target as any).action;
-      if (!actionRef) return;
-      if (!actionRef.startsWith("action:")) {
-        const url = new URL(actionRef);
-        actionRef = parsePath(url.pathname + url.search);
-        if (!actionRef.startsWith(actionBase)) return;
-      }
-      const handler = actions.get(actionRef);
-      if (handler) {
-        evt.preventDefault();
-        const data = new FormData(evt.target as HTMLFormElement);
-        handler.call(router, data);
-      }
-    }
-
-    // ensure delegated event run first
-    delegateEvents(["click", "submit"]);
-    document.addEventListener("click", handleAnchorClick);
-    document.addEventListener("mouseover", handleAnchorIn);
-    document.addEventListener("mouseout", handleAnchorOut);
-    document.addEventListener("focusin", handleAnchorPreload);
-    document.addEventListener("touchstart", handleAnchorPreload);
-    document.addEventListener("submit", handleFormSubmit);
-    onCleanup(() => {
-      document.removeEventListener("click", handleAnchorClick);
-      document.removeEventListener("mouseover", handleAnchorIn);
-      document.removeEventListener("mouseout", handleAnchorOut);
-      document.removeEventListener("focusin", handleAnchorPreload);
-      document.removeEventListener("touchstart", handleAnchorPreload);
-      document.removeEventListener("submit", handleFormSubmit);
-    });
-  }
-  return router;
 }
 
 export function createRouteContext(

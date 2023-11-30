@@ -1,5 +1,5 @@
+export * from "./routers";
 export * from "./components";
-export * from "./integration";
 export * from "./lifecycle";
 export {
   useHref,
@@ -17,7 +17,6 @@ export * from "./data"
 export type {
   Location,
   LocationChange,
-  LocationChangeSignal,
   NavigateOptions,
   Navigator,
   OutputMatch,
