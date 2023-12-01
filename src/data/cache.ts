@@ -53,8 +53,8 @@ function revalidateSignals(set: Set<Signal<number>>, time: number) {
 }
 
 export type CachedFunction<T extends (...args: any) => U | Response, U> = T & {
-  key: (...args: Parameters<T>) => string;
-  name: string;
+  keyFor: (...args: Parameters<T>) => string;
+  key: string;
 };
 
 export function cache<T extends (...args: any) => U | Response, U>(
@@ -146,8 +146,8 @@ export function cache<T extends (...args: any) => U | Response, U>(
       };
     }
   }) as CachedFunction<T, U>;
-  cachedFn.key = (...args: Parameters<T>) => name + hashKey(args);
-  cachedFn.name = name;
+  cachedFn.keyFor = (...args: Parameters<T>) => name + hashKey(args);
+  cachedFn.key = name;
   return cachedFn;
 }
 
