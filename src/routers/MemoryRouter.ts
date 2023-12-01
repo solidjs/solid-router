@@ -3,9 +3,14 @@ import type { LocationChange } from "../types";
 import type { BaseRouterProps } from "./components";
 import type { JSX } from "solid-js";
 
-export type MemoryRouterProps = BaseRouterProps;
+export type MemoryHistory = {
+  get: () => string;
+  set: (change: LocationChange) => void;
+  go: (delta: number) => void;
+  listen: (listener: (value: string) => void) => () => void;
+};
 
-export function MemoryRouter(props: MemoryRouterProps): JSX.Element {
+export function createMemoryHistory() {
   const entries = ["/"];
   let index = 0;
   const listeners: ((value: string) => void)[] = [];
@@ -18,9 +23,9 @@ export function MemoryRouter(props: MemoryRouterProps): JSX.Element {
     listeners.forEach(listener => listener(value));
   };
 
-  return createRouter({
+  return {
     get: () => entries[index],
-    set({ value, scroll, replace }: LocationChange) {
+    set: ({ value, scroll, replace }: LocationChange) => {
       if (replace) {
         entries[index] = value;
       } else {
@@ -31,15 +36,34 @@ export function MemoryRouter(props: MemoryRouterProps): JSX.Element {
         scrollToHash(value.split("#")[1] || "", true);
       }
     },
-    init(listener: (value: string) => void) {
+    back: () => {
+      go(-1);
+    },
+    forward: () => {
+      go(1);
+    },
+    go,
+    listen: (listener: (value: string) => void) => {
       listeners.push(listener);
       return () => {
         const index = listeners.indexOf(listener);
         listeners.splice(index, 1);
       };
-    },
+    }
+  };
+}
+
+export type MemoryRouterProps = BaseRouterProps & { history?: MemoryHistory };
+
+export function MemoryRouter(props: MemoryRouterProps): JSX.Element {
+  const memoryHistory = props.history || createMemoryHistory();
+
+  return createRouter({
+    get: memoryHistory.get,
+    set: memoryHistory.set,
+    init: memoryHistory.listen,
     utils: {
-      go
+      go: memoryHistory.go
     }
   })(props);
 }
