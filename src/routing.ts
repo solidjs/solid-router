@@ -499,7 +499,7 @@ export function createRouteContext(
   component &&
     (component as MaybePreloadableComponent).preload &&
     (component as MaybePreloadableComponent).preload!();
-  load && load({ params, location, intent: intent || "navigate" });
+  load && load({ params, location, intent: intent || "initial" });
 
   return route;
 }

@@ -49,7 +49,7 @@ export interface RouterIntegration {
   utils?: Partial<RouterUtils>;
 }
 
-export type Intent = "native" | "navigate" | "preload";
+export type Intent = "initial" | "native" | "navigate" | "preload";
 export interface RouteLoadFuncArgs {
   params: Params;
   location: Location;
