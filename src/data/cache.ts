@@ -13,7 +13,20 @@ import { redirectStatusCodes } from "../utils";
 
 const LocationHeader = "Location";
 const PRELOAD_TIMEOUT = 5000;
-let cacheMap = new Map<any, any>();
+const CACHE_TIMEOUT = 180000;
+let cacheMap = new Map<string, [number, any, string, Set<Signal<number>>]>();
+
+// cleanup forward/back cache
+if (!isServer) {
+  setInterval(() => {
+    const now = Date.now();
+    for (let [k, v] of cacheMap.entries()) {
+      if (!v[3].size && now - v[0] > CACHE_TIMEOUT) {
+        cacheMap.delete(k);
+      }
+    }
+  }, 300000);
+}
 
 function getCache() {
   if (!isServer) return cacheMap;
@@ -21,36 +34,42 @@ function getCache() {
   return (req as any).routerCache || ((req as any).routerCache = new Map());
 }
 
-export function revalidate(key?: string | any[] | void) {
+export function revalidate(key?: string | string[] | void) {
+  key && !Array.isArray(key) && (key = [key]);
   return startTransition(() => {
     const now = Date.now();
     for (let k of cacheMap.keys()) {
-      if (key === undefined || k === key) {
-        const set: Set<Signal<any>> = cacheMap.get(k)[3];
-        revalidateSignals(set, now);
-        cacheMap.delete(k);
+      if (key === undefined || matchKey(k, key as string[])) {
+        const entry = cacheMap.get(k)!;
+        entry[0] = 0; //force cache miss
+        revalidateSignals(entry[3], now); // retrigger live signals
       }
     }
   });
 }
 
-function revalidateSignals(set: Set<Signal<any>>, time: number) {
+function revalidateSignals(set: Set<Signal<number>>, time: number) {
   for (let s of set) s[1](time);
 }
+
+export type CachedFunction<T extends (...args: any) => U | Response, U> = T & {
+  key: (...args: Parameters<T>) => string;
+  name: string;
+};
 
 export function cache<T extends (...args: any) => U | Response, U>(
   fn: T,
   name: string,
   options?: ReconcileOptions
-): T {
+): CachedFunction<T, U> {
   const [store, setStore] = createStore<Record<string, any>>({});
-  return ((...args: Parameters<T>) => {
+  const cachedFn = ((...args: Parameters<T>) => {
     const cache = getCache();
     const intent = getIntent();
     const owner = getOwner();
     const navigate = owner ? useNavigate() : undefined;
     const now = Date.now();
-    const key = name + (args.length ? ":" + args.join(":") : "");
+    const key = name + hashKey(args);
     let cached = cache.get(key);
     let version: Signal<number>;
     if (owner) {
@@ -68,9 +87,10 @@ export function cache<T extends (...args: any) => U | Response, U>(
       }
       let res = cached[1];
       if (!isServer && intent === "navigate") {
-        res = "then" in (cached[1] as Promise<U>)
-          ? (cached[1] as Promise<U>).then(handleResponse(false), handleResponse(true))
-          : handleResponse(false)(cached[1]);
+        res =
+          "then" in (cached[1] as Promise<U>)
+            ? (cached[1] as Promise<U>).then(handleResponse(false), handleResponse(true))
+            : handleResponse(false)(cached[1]);
         startTransition(() => revalidateSignals(cached[3], cached[0])); // update version
       }
       return res;
@@ -95,9 +115,10 @@ export function cache<T extends (...args: any) => U | Response, U>(
       }
     } else cache.set(key, (cached = [now, res, intent, new Set(version! ? [version] : [])]));
     if (intent !== "preload") {
-      res = "then" in (res as Promise<U>)
-        ? (res as Promise<U>).then(handleResponse(false), handleResponse(true))
-        : handleResponse(false)(res);
+      res =
+        "then" in (res as Promise<U>)
+          ? (res as Promise<U>).then(handleResponse(false), handleResponse(true))
+          : handleResponse(false)(res);
     }
     return res;
 
@@ -124,5 +145,39 @@ export function cache<T extends (...args: any) => U | Response, U>(
         return store[key];
       };
     }
-  }) as T;
+  }) as CachedFunction<T, U>;
+  cachedFn.key = (...args: Parameters<T>) => name + hashKey(args);
+  cachedFn.name = name;
+  return cachedFn;
+}
+
+function matchKey(key: string, keys: string[]) {
+  for (let k of keys) {
+    if (key.startsWith(k)) return true;
+  }
+  return false;
+}
+
+// Modified from the amazing Tanstack Query library (MIT)
+// https://github.com/TanStack/query/blob/main/packages/query-core/src/utils.ts#L168
+function hashKey<T extends Array<any>>(args: T): string {
+  return JSON.stringify(args, (_, val) =>
+    isPlainObject(val)
+      ? Object.keys(val)
+          .sort()
+          .reduce((result, key) => {
+            result[key] = val[key];
+            return result;
+          }, {} as any)
+      : val
+  );
+}
+
+function isPlainObject(obj: object) {
+  let proto;
+  return (
+    obj != null &&
+    typeof obj === "object" &&
+    (!(proto = Object.getPrototypeOf(obj)) || proto === Object.prototype)
+  );
 }

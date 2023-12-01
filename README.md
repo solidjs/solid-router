@@ -382,12 +382,13 @@ const user = createAsync(() => getUser(params.id))
 
 Actions are data mutations that can trigger invalidations and further routing. A list of prebuilt response builders can be found below(TODO).
 ```jsx
+import { action, revalidate, redirect } from "@solidjs/router"
+
 // anywhere
 const myAction = action(async (data) => {
   await doMutation(data);
-  return redirect("/", {
-    invalidate: [getUser, data.id]
-  }) // returns a response
+  revalidate(getUser.key(data.id));
+  throw redirect("/"); // throw a response to do a redirect
 });
 
 // in component

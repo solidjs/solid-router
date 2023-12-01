@@ -1,6 +1,4 @@
 /*@refresh skip*/
-"use client";
-
 import type { JSX } from "solid-js";
 import { createMemo, mergeProps, splitProps } from "solid-js";
 import {

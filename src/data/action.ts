@@ -6,7 +6,7 @@ import { redirectStatusCodes } from "../utils";
 import { revalidate } from "./cache";
 
 export type Action<T, U> = ((vars: T) => Promise<U>) & JSX.SerializableAttributeValue;
-export const actions = /* #__PURE__ */new Map<string, Function>();
+export const actions = /* #__PURE__ */ new Map<string, Function>();
 
 export function useSubmissions<T, U>(
   fn: Action<T, U>,
@@ -30,11 +30,14 @@ export function useSubmission<T, U>(
   filter?: (arg: T) => boolean
 ): Submission<T, U> {
   const submissions = useSubmissions(fn, filter);
-  return new Proxy({}, {
-    get(_, property) {
-      return submissions[submissions.length -1]?.[property as keyof Submission<T, U>];
+  return new Proxy(
+    {},
+    {
+      get(_, property) {
+        return submissions[submissions.length - 1]?.[property as keyof Submission<T, U>];
+      }
     }
-  }) as Submission<T, U>;
+  ) as Submission<T, U>;
 }
 
 export function useAction<T, U>(action: Action<T, U>) {
@@ -50,8 +53,8 @@ export function action<T, U = void>(fn: (args: T) => Promise<U>, name?: string):
     const router = this;
     async function handler(res: any) {
       const data = await handleResponse(res as any, router.navigatorFactory());
-        data ? setResult({ data }) : submission.clear();
-        return data;
+      data ? setResult({ data }) : submission.clear();
+      return data;
     }
     router.submissions[1](s => [
       ...s,
@@ -91,12 +94,15 @@ export function action<T, U = void>(fn: (args: T) => Promise<U>, name?: string):
 
 async function handleResponse(response: Response, navigate: Navigator) {
   let data: any;
-  if (response instanceof Response && redirectStatusCodes.has(response.status)) {
-    const locationUrl = response.headers.get("Location") || "/";
-    if (locationUrl.startsWith("http")) {
-      window.location.href = locationUrl;
-    } else {
-      navigate(locationUrl);
+  let keys: string[] | undefined;
+  if (response instanceof Response) {
+    if (redirectStatusCodes.has(response.status)) {
+      const locationUrl = response.headers.get("Location") || "/";
+      if (locationUrl.startsWith("http")) {
+        window.location.href = locationUrl;
+      } else {
+        navigate(locationUrl);
+      }
     }
   } else data = response;
   // TODO: handle keys
