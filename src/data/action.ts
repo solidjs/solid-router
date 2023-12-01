@@ -96,6 +96,10 @@ async function handleResponse(response: Response, navigate: Navigator) {
   let data: any;
   let keys: string[] | undefined;
   if (response instanceof Response) {
+    if (response.headers.has("X-Revalidate")) {
+      keys = response.headers.get("X-Revalidate")!.split(",");
+    }
+    if ((response as any).customBody) data = await (response as any).customBody()
     if (redirectStatusCodes.has(response.status)) {
       const locationUrl = response.headers.get("Location") || "/";
       if (locationUrl.startsWith("http")) {
@@ -105,7 +109,6 @@ async function handleResponse(response: Response, navigate: Navigator) {
       }
     }
   } else data = response;
-  // TODO: handle keys
-  await revalidate();
+  await revalidate(keys);
   return data;
 }

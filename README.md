@@ -387,8 +387,7 @@ import { action, revalidate, redirect } from "@solidjs/router"
 // anywhere
 const myAction = action(async (data) => {
   await doMutation(data);
-  revalidate(getUser.key(data.id));
-  throw redirect("/"); // throw a response to do a redirect
+  throw redirect("/", { revalidate: getUser.keyFor(data.id) }); // throw a response to do a redirect
 });
 
 // in component
