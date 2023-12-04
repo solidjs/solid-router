@@ -69,7 +69,8 @@ export function setupNativeEvents(router: RouterContext) {
     const res = handleAnchor(evt as MouseEvent);
     if (!res) return;
     const [a, url] = res;
-    if (!preloadTimeout[url.pathname]) router.preloadRoute(url, a.getAttribute("preload") !== "false");
+    if (!preloadTimeout[url.pathname])
+      router.preloadRoute(url, a.getAttribute("preload") !== "false");
   }
 
   function handleAnchorIn(evt: Event) {
@@ -95,7 +96,9 @@ export function setupNativeEvents(router: RouterContext) {
 
   function handleFormSubmit(evt: SubmitEvent) {
     let actionRef =
-      (evt.submitter && (evt.submitter as (HTMLButtonElement | HTMLInputElement)).formAction) || (evt.target as any).action;
+      evt.submitter && evt.submitter.hasAttribute("formaction")
+        ? (evt.submitter as HTMLButtonElement | HTMLInputElement).formAction
+        : (evt.target as any).action;
     if (!actionRef) return;
     if (!actionRef.startsWith("action:")) {
       const url = new URL(actionRef);
