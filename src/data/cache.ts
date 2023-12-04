@@ -160,7 +160,7 @@ function matchKey(key: string, keys: string[]) {
 
 // Modified from the amazing Tanstack Query library (MIT)
 // https://github.com/TanStack/query/blob/main/packages/query-core/src/utils.ts#L168
-function hashKey<T extends Array<any>>(args: T): string {
+export function hashKey<T extends Array<any>>(args: T): string {
   return JSON.stringify(args, (_, val) =>
     isPlainObject(val)
       ? Object.keys(val)

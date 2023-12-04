@@ -95,7 +95,7 @@ export function setupNativeEvents(router: RouterContext) {
 
   function handleFormSubmit(evt: SubmitEvent) {
     let actionRef =
-      (evt.submitter && evt.submitter.getAttribute("formaction")) || (evt.target as any).action;
+      (evt.submitter && (evt.submitter as (HTMLButtonElement | HTMLInputElement)).formAction) || (evt.target as any).action;
     if (!actionRef) return;
     if (!actionRef.startsWith("action:")) {
       const url = new URL(actionRef);
