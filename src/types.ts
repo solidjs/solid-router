@@ -4,6 +4,7 @@ declare module "solid-js/web" {
   interface RequestEvent {
     response?: Response;
     routerCache?: Map<any, any>;
+    initialSubmission?: Submission<any, any>;
   }
 }
 

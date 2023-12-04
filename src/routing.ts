@@ -292,7 +292,7 @@ export function createRouterContext(
   const [state, setState] = createSignal(source().state);
   const location = createLocation(reference, state);
   const referrers: LocationChange[] = [];
-  const submissions = createSignal<Submission<any, any>[]>(initFromFlash(location.query))
+  const submissions = createSignal<Submission<any, any>[]>(isServer ? initFromFlash() : [])
 
   const baseRoute: RouteContext = {
     pattern: basePath,
@@ -451,17 +451,9 @@ export function createRouterContext(
     intent = prevIntent;
   }
 
-  function initFromFlash<T>(params: Params) {
-    let param = params.form ? JSON.parse(params.form) : null;
-    if (!param || !param.result) return [];
-    const input = new Map(param.entries);
-    return [
-      {
-        url: param.url,
-        result: param.error ? new Error(param.result) : param.result,
-        input: input as unknown as T
-      } as Submission<T, any>
-    ];
+  function initFromFlash() {
+    const e = getRequestEvent();
+    return e && e.initialSubmission ? [e.initialSubmission] : [];
   }
 }
 
