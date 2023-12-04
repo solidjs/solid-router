@@ -105,7 +105,7 @@ function toAction<T extends Array<any>, U>(fn: Function, url: string): Action<T,
     }
     const uri = new URL(url, "http://sar");
     uri.searchParams.set("args", hashKey(args));
-    return toAction<B, U>(newFn as any, uri.toString());
+    return toAction<B, U>(newFn as any, uri.pathname + uri.search);
   };
   (fn as any).url = url;
   if (!isServer) {
