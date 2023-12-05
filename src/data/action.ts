@@ -5,11 +5,23 @@ import { RouterContext, Submission, Navigator } from "../types";
 import { redirectStatusCodes } from "../utils";
 import { hashKey, revalidate } from "./cache";
 
-export type Action<T extends Array<any>, U> = ((...vars: T) => Promise<U>) &
-  JSX.SerializableAttributeValue & {
-    url: string;
-    with<A extends any[], B extends any[]>(this: (this: any, ...args: [...A, ...B]) => U, ...args: A): Action<B, U>;
-  };
+export type Action<T extends Array<any>, U> = T extends [FormData] | []
+  ? ((...vars: T) => Promise<U>) &
+      JSX.SerializableAttributeValue & {
+        url: string;
+        with<A extends any[], B extends any[]>(
+          this: (this: any, ...args: [...A, ...B]) => U,
+          ...args: A
+        ): Action<B, U>;
+      }
+  : ((...vars: T) => Promise<U>) & {
+      url: string;
+      with<A extends any[], B extends any[]>(
+        this: (this: any, ...args: [...A, ...B]) => U,
+        ...args: A
+      ): Action<B, U>;
+    };
+
 export const actions = /* #__PURE__ */ new Map<string, Action<any, any>>();
 
 export function useSubmissions<T extends Array<any>, U>(
@@ -99,10 +111,13 @@ function toAction<T extends Array<any>, U>(fn: Function, url: string): Action<T,
     if (!url) throw new Error("Client Actions need explicit names if server rendered");
     return url;
   };
-  (fn as any).with = function<A extends any[], B extends any[]>(this: (...args: [...A, ...B]) => U, ...args: A) {
-    const newFn = function(this: RouterContext, ...passedArgs: B): U  {
+  (fn as any).with = function <A extends any[], B extends any[]>(
+    this: (...args: [...A, ...B]) => U,
+    ...args: A
+  ) {
+    const newFn = function (this: RouterContext, ...passedArgs: B): U {
       return fn.call(this, ...args, ...passedArgs);
-    }
+    };
     const uri = new URL(url, "http://sar");
     uri.searchParams.set("args", hashKey(args));
     return toAction<B, U>(newFn as any, uri.pathname + uri.search);
