@@ -5,6 +5,7 @@ declare module "solid-js/web" {
     response?: Response;
     routerCache?: Map<any, any>;
     initialSubmission?: Submission<any, any>;
+    serverOnly?: boolean;
   }
 }
 

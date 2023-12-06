@@ -31,6 +31,7 @@ if (!isServer) {
 function getCache() {
   if (!isServer) return cacheMap;
   const req = getRequestEvent() || sharedConfig.context!;
+  if (!req) throw new Error("Cannot find cache context");
   return (req as any).routerCache || ((req as any).routerCache = new Map());
 }
 
@@ -101,8 +102,9 @@ export function cache<T extends (...args: any) => U | Response, U>(
         : fn(...(args as any));
 
     // serialize on server
-    if (isServer && sharedConfig.context && !(sharedConfig.context as any).noHydrate) {
-      sharedConfig.context && (sharedConfig.context as any).serialize(key, res);
+    if (isServer && (sharedConfig.context && !(sharedConfig.context as any).noHydrate)) {
+      const e = getRequestEvent();
+      (!e || !e.serverOnly) && (sharedConfig.context as any).serialize(key, res);
     }
 
     if (cached) {
@@ -149,7 +151,26 @@ export function cache<T extends (...args: any) => U | Response, U>(
   cachedFn.keyFor = (...args: Parameters<T>) => name + hashKey(args);
   cachedFn.key = name;
   return cachedFn;
-}
+};
+
+cache.set = (key: string, value: any) => {
+  const cache = getCache();
+  const now = Date.now();
+  let cached = cache.get(key);
+  let version: Signal<number>;
+  if (getOwner()) {
+    version = createSignal(now, {
+      equals: (p, v) => v - p < 50 // margin of error
+    });
+    onCleanup(() => cached[3].delete(version));
+  }
+  if (cached) {
+    cached[0] = now;
+    cached[1] = value;
+    cached[2] = "preload";
+    version! && cached[3].add(version);
+  } else cache.set(key, (cached = [now, value, , new Set(version! ? [version] : [])]));
+};
 
 function matchKey(key: string, keys: string[]) {
   for (let k of keys) {
