@@ -376,7 +376,9 @@ getUser.key // returns "users"
 getUser.keyFor(id) // returns "users[5]"
 ```
 
-This cache can be defined anywhere and then used inside your components with:
+You can revalidate the cache using the `revalidate` method or you can set `revalidate` keys on your response from your actions. If you pass the whole key it will invalidate all the entries for the cache (ie "users" in the example above). You can also invalidate a single entry by using `keyFor`.
+
+`cache`` can be defined anywhere and then used inside your components with:
 
 ### `createAsync`
 
@@ -390,7 +392,7 @@ Using `cache` in `createResource` directly won't work properly as the fetcher is
 
 ### `action`
 
-Actions are data mutations that can trigger invalidations and further routing. A list of prebuilt response builders can be found below(TODO).
+Actions are data mutations that can trigger invalidations and further routing. A list of prebuilt response helpers can be found below.
 ```jsx
 import { action, revalidate, redirect } from "@solidjs/router"
 
@@ -450,7 +452,7 @@ const submit = useAction(myAction)
 submit(...args)
 ```
 
-The outside of a form context you can use custom data instead of formData, and these helpers preserve types.
+The outside of a form context you can use custom data instead of formData, and these helpers preserve types. However, even when used with server functions (in projects like SolidStart) this requires client side javascript and is not Progressive Enhancible like forms are.
 
 ### `useSubmission`/`useSubmissions`
 
@@ -468,6 +470,36 @@ type Submission<T, U> = {
 
 const submissions = useSubmissions(action, (input) => filter(input));
 const submission = useSubmission(action, (input) => filter(input));
+```
+
+### Response Helpers
+
+These are used to communicate router navigations from cache/actions, and can include invalidation hints. Generally these are thrown to not interfere the with the types and make it clear that function ends execution at that point.
+
+#### `redirect(path, options)`
+
+Redirects to the next route
+```js
+const getUser = cache(() => {
+  const user = await api.getCurrentUser()
+  if (!user) throw redirect("/login");
+  return user;
+})
+```
+
+#### `reload(options)`
+
+Reloads the data on the current page
+```js
+const getTodo = cache(async (id: number) => {
+  const todo = await fetchTodo(id);
+  return todo;
+}, "todo")
+
+const updateTodo = action(async (todo: Todo) => {
+  await updateTodo(todo.id, todo);
+  reload({ revalidate: getTodo.keyFor(id) })
+})
 ```
 
 ### Load Functions
