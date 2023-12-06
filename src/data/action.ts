@@ -5,22 +5,16 @@ import { RouterContext, Submission, Navigator } from "../types";
 import { redirectStatusCodes } from "../utils";
 import { hashKey, revalidate } from "./cache";
 
-export type Action<T extends Array<any>, U> = T extends [FormData] | []
-  ? ((...vars: T) => Promise<U>) &
-      JSX.SerializableAttributeValue & {
-        url: string;
-        with<A extends any[], B extends any[]>(
-          this: (this: any, ...args: [...A, ...B]) => U,
-          ...args: A
-        ): Action<B, U>;
-      }
-  : ((...vars: T) => Promise<U>) & {
-      url: string;
-      with<A extends any[], B extends any[]>(
-        this: (this: any, ...args: [...A, ...B]) => U,
-        ...args: A
-      ): Action<B, U>;
-    };
+export type Action<T extends Array<any>, U> = (T extends [FormData] | []
+  ? JSX.SerializableAttributeValue
+  : unknown) &
+  ((...vars: T) => Promise<U>) & {
+    url: string;
+    with<A extends any[], B extends any[]>(
+      this: (this: any, ...args: [...A, ...B]) => U,
+      ...args: A
+    ): Action<B, U>;
+  };
 
 export const actions = /* #__PURE__ */ new Map<string, Action<any, any>>();
 
