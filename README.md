@@ -820,7 +820,7 @@ The biggest changes are around removed APIs that need to be replaced.
 
 ### `<Outlet>`, `<Routes>`, `useRoutes`
 
-This is no longer used and instead will use `props.children` passed from into the page components for outlets. Nested Routes inherently cause waterfalls and are Outlets in a sense themselves. We do not want to encourage the pattern and if you must do it you can always nest `<Routers>` with appropriate base path.
+This is no longer used and instead will use `props.children` passed from into the page components for outlets. This keeps the outlet directly passed from its page and avoids oddness of trying to use context across Islands boundaries. Nested `<Routes>` components inherently cause waterfalls and are `<Outlets>` themselves so they have the same concerns. We do not want to encourage the pattern and if you must do it you can always nest `<Router>`s with appropriate base path.
 
 ## `element` prop removed from `Route`
 
