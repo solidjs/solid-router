@@ -368,6 +368,14 @@ This cache accomplishes the following:
 3. We have a reactive refetch mechanism based on key. So we can tell routes that aren't new to retrigger on action revalidation.
 4. It will serve as a back/forward cache for browser navigation up to 5 mins. Any user based navigation or link click bypasses it. Revalidation or new fetch updates the cache.
 
+Cached function has a few useful methods for getting the key that are useful for invalidation.
+```ts
+let id = 5;
+
+getUser.key // returns "users"
+getUser.keyFor(id) // returns "users[5]"
+```
+
 This cache can be defined anywhere and then used inside your components with:
 
 ### `createAsync`
@@ -377,6 +385,8 @@ This is light wrapper over `createResource` that aims to serve as stand-in for a
 ```jsx
 const user = createAsync(() => getUser(params.id))
 ```
+
+Using `cache` in `createResource` directly won't work properly as the fetcher is not reactive and it won't invalidate properly.
 
 ### `action`
 
@@ -391,10 +401,36 @@ const myAction = action(async (data) => {
 });
 
 // in component
-<form action={myAction} />
+<form action={myAction} method="post" />
 
 //or
 <button type="submit" formaction={myAction}></button>
+```
+
+Actions only work with post requests, so make sure to put `method="post"` on your form.
+
+Sometimes it might be easier to deal with typed data instead of `FormData` and adding additional hidden fields. For that reason Actions have a with method. That works similar to `bind` which applies the arguments in order.
+
+Picture an action that deletes Todo Item:
+
+```js
+const deleteTodo = action(async (formData: FormData) => {
+  const id = Number(formData.get("id"))
+  await api.deleteTodo(id)
+})
+
+<form action={deleteUser} method="post">
+  <input type="hidden" name="id" value={todo.id} />
+  <button type="submit">Delete</button>
+</form>
+```
+Instead with `with` you can write this:
+```js
+const deleteUser = action(api.deleteUser)
+
+<form action={deleteUser.with(todo.id)} method="post">
+  <button type="submit">Delete</button>
+</form>
 ```
 
 #### Notes of `<form>` implementation and SSR
@@ -571,9 +607,22 @@ import { Router } from "@solidjs/router";
 
 ## Components
 
+### `<Router>`
+
+This is the main Router component for the browser.
+
+| prop | type | description |
+|-----|----|----|
+| children | `JSX.Element` or `RouteDefinition[]` | The route definitions |
+| root | Component | Top level layout comoponent |
+| base | string | Base url to use for matching routes |
+| actionBase | string | Root url for server actions, default: `/_server` |
+| preload | boolean | Enables/disables preloads globally, default: `true` |
+| explicitLinks | boolean | Disables all anchors being intercepted and instead requires `<A>`. default: `false` |
+
 ### `<A>`
 
-Like the `<a>` tag but supports relative paths and active class styling.
+Like the `<a>` tag but supports relative paths and active class styling (requires client side JavaScript).
 
 The `<A>` tag has an `active` class if its href matches the current location, and `inactive` otherwise. **Note:** By default matching includes locations that are descendents (eg. href `/users` matches locations `/users` and `/users/123`), use the boolean `end` prop to prevent matching these. This is particularly useful for links to the root route `/` which would match everything.
 
@@ -729,9 +778,9 @@ useBeforeLeave((e: BeforeLeaveEventArgs) => {
 });
 ```
 
-## Migrations from 0.8.x
+## Migrations from 0.9.x
 
-v0.9.0 brings some big changes to support the future of routing including Islands/Partial Hydration hybrid solutions. Most notably there is no Context API available in non-hydrating parts of the application.
+v0.10.0 brings some big changes to support the future of routing including Islands/Partial Hydration hybrid solutions. Most notably there is no Context API available in non-hydrating parts of the application.
 
 The biggest changes are around removed APIs that need to be replaced.
 
@@ -745,7 +794,7 @@ Related without Outlet component it has to be passed in manually. At which point
 
 ### `data` functions & `useRouteData`
 
-These have been replaced by a load mechanism. This  allows link hover preloads (as the load function can be run as much as wanted without worry about reactivity). It support deduping/cache APIs which give more control over how things are cached. It also addresses TS issues with getting the right types in the Component without `typeof` checks. 
+These have been replaced by a load mechanism. This  allows link hover preloads (as the load function can be run as much as wanted without worry about reactivity). It support deduping/cache APIs which give more control over how things are cached. It also addresses TS issues with getting the right types in the Component without `typeof` checks.
 
 ## SPAs in Deployed Environments
 

@@ -154,7 +154,6 @@ export interface RouterOutput {
 
 export interface RouterContext {
   base: RouteContext;
-  actionBase: string;
   location: Location;
   navigatorFactory: NavigatorFactory;
   isRouting: () => boolean;

@@ -5,7 +5,7 @@ import { setupNativeEvents } from "../data/events";
 import type { BaseRouterProps } from "./components";
 import type { JSX } from "solid-js";
 
-export type RouterProps = BaseRouterProps & { url?: string };
+export type RouterProps = BaseRouterProps & { url?: string, actionBase?: string, explicitLinks?: boolean, preload?: boolean };
 
 export function Router(props: RouterProps): JSX.Element {
   if (isServer) return StaticRouter(props);
@@ -23,7 +23,7 @@ export function Router(props: RouterProps): JSX.Element {
       scrollToHash(window.location.hash.slice(1), scroll);
     },
     init: notify => bindEvent(window, "popstate", () => notify()),
-    create: setupNativeEvents,
+    create: setupNativeEvents(props.preload, props.explicitLinks, props.actionBase),
     utils: {
       go: delta => window.history.go(delta)
     }

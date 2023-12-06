@@ -20,6 +20,7 @@ declare module "solid-js" {
       noScroll?: boolean;
       replace?: boolean;
       preload?: boolean;
+      link?: boolean;
     }
   }
 }
@@ -65,6 +66,7 @@ export function A(props: AnchorProps) {
         [props.activeClass!]: isActive(),
         ...rest.classList
       }}
+      link
       aria-current={isActive() ? "page" : undefined}
     />
   );

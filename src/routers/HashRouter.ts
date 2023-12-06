@@ -15,7 +15,7 @@ export function hashParser(str: string) {
   return to;
 }
 
-export type HashRouterProps = BaseRouterProps;
+export type HashRouterProps = BaseRouterProps & { actionBase?: string, explicitLinks?: boolean, preload?: boolean };
 
 export function HashRouter(props: HashRouterProps): JSX.Element {
   return createRouter({
@@ -31,7 +31,7 @@ export function HashRouter(props: HashRouterProps): JSX.Element {
       scrollToHash(hash, scroll);
     },
     init: notify => bindEvent(window, "hashchange", () => notify()),
-    create: setupNativeEvents,
+    create: setupNativeEvents(props.preload, props.explicitLinks, props.actionBase),
     utils: {
       go: delta => window.history.go(delta),
       renderPath: path => `#${path}`,

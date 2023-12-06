@@ -261,7 +261,7 @@ export function getIntent() {
 export function createRouterContext(
   integration: RouterIntegration,
   getBranches?: () => Branch[],
-  options: { base?: string, actionBase?: string } = {}
+  options: { base?: string } = {}
 ): RouterContext {
   const {
     signal: [source, setSource],
@@ -324,7 +324,6 @@ export function createRouterContext(
 
   return {
     base: baseRoute,
-    actionBase: options.actionBase || "/_server",
     location,
     isRouting,
     renderPath,
