@@ -1,9 +1,16 @@
-import { $TRACK, createMemo, createSignal, JSX, onCleanup, getOwner } from "solid-js";
+import {
+  $TRACK,
+  createMemo,
+  createSignal,
+  JSX,
+  onCleanup,
+  getOwner,
+} from "solid-js";
 import { isServer } from "solid-js/web";
 import { useRouter } from "../routing";
 import { RouterContext, Submission, Navigator } from "../types";
 import { redirectStatusCodes } from "../utils";
-import { hashKey, revalidate } from "./cache";
+import { cacheKeyOp, hashKey, revalidate } from "./cache";
 
 export type Action<T extends Array<any>, U> = (T extends [FormData] | []
   ? JSX.SerializableAttributeValue
@@ -138,6 +145,8 @@ async function handleResponse(response: Response, navigate: Navigator) {
   if (response instanceof Response) {
     if (response.headers.has("X-Revalidate")) {
       keys = response.headers.get("X-Revalidate")!.split(",");
+      // invalidate
+      cacheKeyOp(keys, entry => (entry[0] = 0));
     }
     if ((response as any).customBody) data = await (response as any).customBody();
     if (redirectStatusCodes.has(response.status)) {
@@ -149,6 +158,7 @@ async function handleResponse(response: Response, navigate: Navigator) {
       }
     }
   } else data = response;
-  await revalidate(keys);
+  // trigger revalidation
+  await revalidate(keys, false);
   return data;
 }

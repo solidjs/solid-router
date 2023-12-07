@@ -14,7 +14,8 @@ import { redirectStatusCodes } from "../utils";
 const LocationHeader = "Location";
 const PRELOAD_TIMEOUT = 5000;
 const CACHE_TIMEOUT = 180000;
-let cacheMap = new Map<string, [number, any, string, Set<Signal<number>>]>();
+type CacheEntry = [number, any, string, Set<Signal<number>>];
+let cacheMap = new Map<string, CacheEntry>();
 
 // cleanup forward/back cache
 if (!isServer) {
@@ -35,18 +36,21 @@ function getCache() {
   return (req as any).routerCache || ((req as any).routerCache = new Map());
 }
 
-export function revalidate(key?: string | string[] | void) {
-  key && !Array.isArray(key) && (key = [key]);
+export function revalidate(key?: string | string[] | void, force = true) {
   return startTransition(() => {
     const now = Date.now();
-    for (let k of cacheMap.keys()) {
-      if (key === undefined || matchKey(k, key as string[])) {
-        const entry = cacheMap.get(k)!;
-        entry[0] = 0; //force cache miss
-        revalidateSignals(entry[3], now); // retrigger live signals
-      }
-    }
+    cacheKeyOp(key, entry => {
+      force && (entry[0] = 0); //force cache miss
+      revalidateSignals(entry[3], now); // retrigger live signals
+    });
   });
+}
+
+export function cacheKeyOp(key: string | string[] | void, fn: (cacheEntry: CacheEntry) => void) {
+  key && !Array.isArray(key) && (key = [key]);
+  for (let k of cacheMap.keys()) {
+    if (key === undefined || matchKey(k, key as string[])) fn(cacheMap.get(k)!);
+  }
 }
 
 function revalidateSignals(set: Set<Signal<number>>, time: number) {
@@ -102,7 +106,7 @@ export function cache<T extends (...args: any) => U | Response, U>(
         : fn(...(args as any));
 
     // serialize on server
-    if (isServer && (sharedConfig.context && !(sharedConfig.context as any).noHydrate)) {
+    if (isServer && sharedConfig.context && !(sharedConfig.context as any).noHydrate) {
       const e = getRequestEvent();
       (!e || !e.serverOnly) && (sharedConfig.context as any).serialize(key, res);
     }
@@ -151,7 +155,7 @@ export function cache<T extends (...args: any) => U | Response, U>(
   cachedFn.keyFor = (...args: Parameters<T>) => name + hashKey(args);
   cachedFn.key = name;
   return cachedFn;
-};
+}
 
 cache.set = (key: string, value: any) => {
   const cache = getCache();
