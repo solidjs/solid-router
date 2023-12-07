@@ -380,7 +380,7 @@ getUser.keyFor(id) // returns "users[5]"
 
 You can revalidate the cache using the `revalidate` method or you can set `revalidate` keys on your response from your actions. If you pass the whole key it will invalidate all the entries for the cache (ie "users" in the example above). You can also invalidate a single entry by using `keyFor`.
 
-`cache`` can be defined anywhere and then used inside your components with:
+`cache` can be defined anywhere and then used inside your components with:
 
 ### `createAsync`
 
