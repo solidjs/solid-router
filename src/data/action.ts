@@ -96,7 +96,9 @@ export function action<T extends Array<any>, U = void>(
   }
 
   const url: string =
-    (fn as any).url || (name && `action:${name}`) || (!isServer ? `action:${fn.name}` : "");
+    (fn as any).url ||
+    (name && `action:${name}`) ||
+    (!isServer ? `action:${hashString(fn.toString())}` : "");
   return toAction(mutate, url);
 }
 
@@ -114,7 +116,10 @@ function toAction<T extends Array<any>, U>(fn: Function, url: string): Action<T,
     };
     const uri = new URL(url, "http://sar");
     uri.searchParams.set("args", hashKey(args));
-    return toAction<B, U>(newFn as any, uri.pathname + uri.search);
+    return toAction<B, U>(
+      newFn as any,
+      (uri.protocol === "action:" ? uri.protocol : "") + uri.pathname + uri.search
+    );
   };
   (fn as any).url = url;
   if (!isServer) {
@@ -123,6 +128,9 @@ function toAction<T extends Array<any>, U>(fn: Function, url: string): Action<T,
   }
   return fn as Action<T, U>;
 }
+
+const hashString = (s: string) =>
+  s.split("").reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0);
 
 async function handleResponse(response: Response, navigate: Navigator) {
   let data: any;
