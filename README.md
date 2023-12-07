@@ -648,7 +648,7 @@ This is the main Router component for the browser.
 | prop | type | description |
 |-----|----|----|
 | children | `JSX.Element` or `RouteDefinition[]` | The route definitions |
-| root | Component | Top level layout comoponent |
+| root | Component | Top level layout component |
 | base | string | Base url to use for matching routes |
 | actionBase | string | Root url for server actions, default: `/_server` |
 | preload | boolean | Enables/disables preloads globally, default: `true` |
@@ -691,7 +691,11 @@ The Component for defining Routes:
 
 | prop | type | description |
 |-|-|-|
-|TODO
+| path | string | Path partial for defining the route segment |
+| component | `Component` | Component that will be rendered for the matched segment |
+| matchFilters | `MatchFilters` | Additional constraints for matching against the route |
+| children | `JSX.Element` | Nested `<Route>` definitions |
+| load | `RouteLoadFunc` | Function called during preload or when the route is navigated to. |
 
 ## Router Primitives
 
