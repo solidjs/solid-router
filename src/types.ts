@@ -1,8 +1,11 @@
-import { Component, JSX } from "solid-js";
+import type { Component, JSX, Signal } from "solid-js";
 
 declare module "solid-js/web" {
   interface RequestEvent {
     response?: Response;
+    routerCache?: Map<any, any>;
+    initialSubmission?: Submission<any, any>;
+    serverOnly?: boolean;
   }
 }
 
@@ -42,39 +45,34 @@ export interface LocationChange<S = unknown> {
   scroll?: boolean;
   state?: S;
 }
-
-export type LocationChangeSignal = [() => LocationChange, (next: LocationChange) => void];
-
 export interface RouterIntegration {
-  signal: LocationChangeSignal;
+  signal: Signal<LocationChange>;
+  create?: (router: RouterContext) => void;
   utils?: Partial<RouterUtils>;
 }
 
-export interface RouteDataFuncArgs<T = unknown> {
-  data: T extends RouteDataFunc<infer _, infer R> ? R : T;
+export type Intent = "initial" | "native" | "navigate" | "preload";
+export interface RouteLoadFuncArgs {
   params: Params;
   location: Location;
-  navigate: Navigator;
+  intent: Intent;
 }
 
-export type RouteDataFunc<T = unknown, R = unknown> = (args: RouteDataFuncArgs<T>) => R;
+export type RouteLoadFunc = (args: RouteLoadFuncArgs) => void;
+
+export interface RouteSectionProps {
+  params: Params;
+  location: Location;
+  children?: JSX.Element;
+}
 
 export type RouteDefinition<S extends string | string[] = any> = {
-  path: S;
+  path?: S;
   matchFilters?: MatchFilters<S>;
-  data?: RouteDataFunc;
+  load?: RouteLoadFunc;
   children?: RouteDefinition | RouteDefinition[];
-} & (
-  | {
-      element?: never;
-      component: Component;
-    }
-  | {
-      component?: never;
-      element?: JSX.Element;
-      preload?: () => void;
-    }
-);
+  component?: Component<RouteSectionProps>;
+};
 
 export type MatchFilter = readonly string[] | RegExp | ((s: string) => boolean);
 
@@ -113,9 +111,8 @@ export interface Route {
   key: unknown;
   originalPath: string;
   pattern: string;
-  element: () => JSX.Element;
-  preload?: () => void;
-  data?: RouteDataFunc;
+  component?: Component<RouteSectionProps>;
+  load?: RouteLoadFunc;
   matcher: (location: string) => PathMatch | null;
   matchFilters?: MatchFilters;
 }
@@ -129,7 +126,6 @@ export interface Branch {
 export interface RouteContext {
   parent?: RouteContext;
   child?: RouteContext;
-  data?: unknown;
   pattern: string;
   params: Params;
   path: () => string;
@@ -158,13 +154,14 @@ export interface RouterOutput {
 
 export interface RouterContext {
   base: RouteContext;
-  out?: RouterOutput;
   location: Location;
   navigatorFactory: NavigatorFactory;
   isRouting: () => boolean;
   renderPath(path: string): string;
   parsePath(str: string): string;
   beforeLeave: BeforeLeaveLifecycle;
+  preloadRoute: (url: URL, preloadData: boolean) => void;
+  submissions: Signal<Submission<any, any>[]>;
 }
 
 export interface BeforeLeaveEventArgs {
@@ -185,4 +182,17 @@ export interface BeforeLeaveListener {
 export interface BeforeLeaveLifecycle {
   subscribe(listener: BeforeLeaveListener): () => void;
   confirm(to: string | number, options?: Partial<NavigateOptions>): boolean;
+}
+
+export type Submission<T, U> = {
+  readonly input: T;
+  readonly result?: U;
+  readonly pending: boolean;
+  readonly url: string;
+  clear: () => void;
+  retry: () => void;
+};
+
+export interface MaybePreloadableComponent extends Component {
+  preload?: () => void;
 }

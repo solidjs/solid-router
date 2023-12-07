@@ -1,4 +1,4 @@
-import type { Component, JSX, Accessor } from "solid-js";
+import { JSX, Accessor } from "solid-js";
 import {
   createComponent,
   createContext,
@@ -12,28 +12,27 @@ import {
   startTransition,
   resetErrorBoundaries
 } from "solid-js";
-import { isServer, delegateEvents, getRequestEvent } from "solid-js/web";
-import { normalizeIntegration } from "./integration";
+import { isServer, getRequestEvent } from "solid-js/web";
 import { createBeforeLeave } from "./lifecycle";
 import type {
   BeforeLeaveEventArgs,
   Branch,
+  Intent,
   Location,
   LocationChange,
-  LocationChangeSignal,
   MatchFilters,
+  MaybePreloadableComponent,
   NavigateOptions,
   Navigator,
   Params,
   Route,
   RouteContext,
-  RouteDataFunc,
   RouteDefinition,
   RouteMatch,
   RouterContext,
   RouterIntegration,
-  RouterOutput,
-  SetParams
+  SetParams,
+  Submission
 } from "./types";
 import {
   createMemoObject,
@@ -48,10 +47,6 @@ import {
 } from "./utils";
 
 const MAX_REDIRECTS = 100;
-
-interface MaybePreloadableComponent extends Component {
-  preload?: () => void;
-}
 
 export const RouterContextObj = createContext<RouterContext>();
 export const RouteContextObj = createContext<RouteContext>();
@@ -94,9 +89,6 @@ export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFi
 
 export const useParams = <T extends Params>() => useRoute().params as T;
 
-type MaybeReturnType<T> = T extends (...args: any) => infer R ? R : T;
-export const useRouteData = <T>() => useRoute().data as MaybeReturnType<T>;
-
 export const useSearchParams = <T extends Params>(): [
   T,
   (params: SetParams, options?: Partial<NavigateOptions>) => void
@@ -125,28 +117,14 @@ export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
   onCleanup(s);
 };
 
-export function createRoutes(
-  routeDef: RouteDefinition,
-  base: string = "",
-  fallback?: Component
-): Route[] {
-  const { component, data, children } = routeDef;
+export function createRoutes(routeDef: RouteDefinition, base: string = ""): Route[] {
+  const { component, load, children } = routeDef;
   const isLeaf = !children || (Array.isArray(children) && !children.length);
 
   const shared = {
     key: routeDef,
-    element: component
-      ? () => createComponent(component, {})
-      : () => {
-          const { element } = routeDef;
-          return element === undefined && fallback
-            ? createComponent(fallback, {})
-            : (element as JSX.Element);
-        },
-    preload: routeDef.component
-      ? (component as MaybePreloadableComponent).preload
-      : routeDef.preload,
-    data
+    component,
+    load
   };
 
   return asArray(routeDef.path).reduce<Route[]>((acc, path) => {
@@ -193,7 +171,6 @@ function asArray<T>(value: T | T[]): T[] {
 export function createBranches(
   routeDef: RouteDefinition | RouteDefinition[],
   base: string = "",
-  fallback?: Component,
   stack: Route[] = [],
   branches: Branch[] = []
 ): Branch[] {
@@ -201,13 +178,14 @@ export function createBranches(
 
   for (let i = 0, len = routeDefs.length; i < len; i++) {
     const def = routeDefs[i];
-    if (def && typeof def === "object" && def.hasOwnProperty("path")) {
-      const routes = createRoutes(def, base, fallback);
+    if (def && typeof def === "object") {
+      if (!def.hasOwnProperty("path")) def.path = "";
+      const routes = createRoutes(def, base);
       for (const route of routes) {
         stack.push(route);
         const isEmptyArray = Array.isArray(def.children) && def.children.length === 0;
         if (def.children && !isEmptyArray) {
-          createBranches(def.children, route.pattern, fallback, stack, branches);
+          createBranches(def.children, route.pattern, stack, branches);
         } else {
           const branch = createBranch([...stack], branches.length);
           branches.push(branch);
@@ -253,7 +231,7 @@ export function createLocation(path: Accessor<string>, state: Accessor<any>): Lo
   const pathname = createMemo(() => url().pathname);
   const search = createMemo(() => url().search, true);
   const hash = createMemo(() => url().hash);
-  const key = createMemo(() => "");
+  const key = () => "";
 
   return {
     get pathname() {
@@ -275,30 +253,26 @@ export function createLocation(path: Accessor<string>, state: Accessor<any>): Lo
   };
 }
 
+let intent: Intent | undefined;
+export function getIntent() {
+  return intent;
+}
+
 export function createRouterContext(
-  integration?: RouterIntegration | LocationChangeSignal,
-  base: string = "",
-  data?: RouteDataFunc,
-  out?: object
+  integration: RouterIntegration,
+  getBranches?: () => Branch[],
+  options: { base?: string } = {}
 ): RouterContext {
   const {
     signal: [source, setSource],
     utils = {}
-  } = normalizeIntegration(integration);
+  } = integration;
 
   const parsePath = utils.parsePath || (p => p);
   const renderPath = utils.renderPath || (p => p);
   const beforeLeave = utils.beforeLeave || createBeforeLeave();
 
-  const basePath = resolvePath("", base);
-  const output =
-    isServer && out
-      ? (Object.assign(out, {
-          matches: [],
-          url: undefined
-        }) as RouterOutput)
-      : undefined;
-
+  const basePath = resolvePath("", options.base || "");
   if (basePath === undefined) {
     throw new Error(`${basePath} is not a valid base path`);
   } else if (basePath && !source().value) {
@@ -318,6 +292,7 @@ export function createRouterContext(
   const [state, setState] = createSignal(source().state);
   const location = createLocation(reference, state);
   const referrers: LocationChange[] = [];
+  const submissions = createSignal<Submission<any, any>[]>(isServer ? initFromFlash() : [])
 
   const baseRoute: RouteContext = {
     pattern: basePath,
@@ -329,19 +304,35 @@ export function createRouterContext(
     }
   };
 
-  if (data) {
-    try {
-      TempRoute = baseRoute;
-      baseRoute.data = data({
-        data: undefined,
-        params: {},
-        location,
-        navigate: navigatorFactory(baseRoute)
-      });
-    } finally {
-      TempRoute = undefined;
-    }
-  }
+  createRenderEffect(() => {
+    const { value, state } = source();
+    // Untrack this whole block so `start` doesn't cause Solid's Listener to be preserved
+    untrack(() => {
+      if (value !== reference()) {
+        start(() => {
+          intent = "native";
+          setReference(value);
+          setState(state);
+          resetErrorBoundaries();
+          submissions[1]([])
+        }).then(() => {
+          intent = undefined;
+        });
+      }
+    });
+  });
+
+  return {
+    base: baseRoute,
+    location,
+    isRouting,
+    renderPath,
+    parsePath,
+    navigatorFactory,
+    beforeLeave,
+    preloadRoute,
+    submissions
+  };
 
   function navigateFromRoute(
     route: RouteContext,
@@ -385,20 +376,21 @@ export function createRouterContext(
 
       if (resolvedTo !== current || nextState !== state()) {
         if (isServer) {
-          if (output) {
-            output.url = resolvedTo;
-          }
-          const e = getRequestEvent()
-          e && (e.response = Response.redirect(resolvedTo, 302));
+          const e = getRequestEvent();
+          e &&
+            (e.response = new Response(null, { status: 302, headers: { Location: resolvedTo } }));
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
         } else if (beforeLeave.confirm(resolvedTo, options)) {
           const len = referrers.push({ value: current, replace, scroll, state: state() });
           start(() => {
+            intent = "navigate";
             setReference(resolvedTo);
             setState(nextState);
             resetErrorBoundaries();
+            submissions[1]([])
           }).then(() => {
             if (referrers.length === len) {
+              intent = undefined;
               navigateEnd({
                 value: resolvedTo,
                 state: nextState
@@ -431,118 +423,74 @@ export function createRouterContext(
     }
   }
 
-  createRenderEffect(() => {
-    const { value, state } = source();
-    // Untrack this whole block so `start` doesn't cause Solid's Listener to be preserved
-    untrack(() => {
-      if (value !== reference()) {
-        start(() => {
-          setReference(value);
-          setState(state);
+  function preloadRoute(url: URL, preloadData: boolean) {
+    const matches = getRouteMatches(getBranches!(), url.pathname);
+    const prevIntent = intent;
+    intent = "preload";
+    for (let match in matches) {
+      const { route, params } = matches[match];
+      route.component &&
+        (route.component as MaybePreloadableComponent).preload &&
+        (route.component as MaybePreloadableComponent).preload!();
+      preloadData &&
+        route.load &&
+        route.load({
+          params,
+          location: {
+            pathname: url.pathname,
+            search: url.search,
+            hash: url.hash,
+            query: extractSearchParams(url),
+            state: null,
+            key: ""
+          },
+          intent: "preload"
         });
-      }
-    });
-  });
-
-  if (!isServer) {
-    function handleAnchorClick(evt: MouseEvent) {
-      if (
-        evt.defaultPrevented ||
-        evt.button !== 0 ||
-        evt.metaKey ||
-        evt.altKey ||
-        evt.ctrlKey ||
-        evt.shiftKey
-      )
-        return;
-
-      const a = evt
-        .composedPath()
-        .find(el => el instanceof Node && el.nodeName.toUpperCase() === "A") as
-        | HTMLAnchorElement
-        | undefined;
-
-      if (!a || !a.hasAttribute("link")) return;
-
-      const href = a.href;
-      if (a.target || (!href && !a.hasAttribute("state"))) return;
-
-      const rel = (a.getAttribute("rel") || "").split(/\s+/);
-      if (a.hasAttribute("download") || (rel && rel.includes("external"))) return;
-
-      const url = new URL(href);
-      if (
-        url.origin !== window.location.origin ||
-        (basePath && url.pathname && !url.pathname.toLowerCase().startsWith(basePath.toLowerCase()))
-      )
-        return;
-
-      const to = parsePath(url.pathname + url.search + url.hash);
-      const state = a.getAttribute("state");
-
-      evt.preventDefault();
-      navigateFromRoute(baseRoute, to, {
-        resolve: false,
-        replace: a.hasAttribute("replace"),
-        scroll: !a.hasAttribute("noscroll"),
-        state: state && JSON.parse(state)
-      });
     }
-
-    // ensure delegated events run first
-    delegateEvents(["click"]);
-    document.addEventListener("click", handleAnchorClick);
-    onCleanup(() => document.removeEventListener("click", handleAnchorClick));
+    intent = prevIntent;
   }
 
-  return {
-    base: baseRoute,
-    out: output,
-    location,
-    isRouting,
-    renderPath,
-    parsePath,
-    navigatorFactory,
-    beforeLeave
-  };
+  function initFromFlash() {
+    const e = getRequestEvent();
+    return e && e.initialSubmission ? [e.initialSubmission] : [];
+  }
 }
 
 export function createRouteContext(
   router: RouterContext,
   parent: RouteContext,
-  child: () => RouteContext,
+  outlet: () => JSX.Element,
   match: () => RouteMatch,
   params: Params
 ): RouteContext {
-  const { base, location, navigatorFactory } = router;
-  const { pattern, element: outlet, preload, data } = match().route;
+  const { base, location } = router;
+  const { pattern, component, load } = match().route;
   const path = createMemo(() => match().path);
-
-  preload && preload();
 
   const route: RouteContext = {
     parent,
     pattern,
-    get child() {
-      return child();
-    },
     path,
     params,
-    data: parent.data,
-    outlet,
+    outlet: () =>
+      component
+        ? createComponent(component, {
+            params,
+            location,
+            get children() {
+              return outlet();
+            }
+          })
+        : outlet(),
     resolvePath(to: string) {
       return resolvePath(base.path(), to, path());
     }
   };
 
-  if (data) {
-    try {
-      TempRoute = route;
-      route.data = data({ data: parent.data, params, location, navigate: navigatorFactory(route) });
-    } finally {
-      TempRoute = undefined;
-    }
-  }
+  component &&
+    (component as MaybePreloadableComponent).preload &&
+    (component as MaybePreloadableComponent).preload!();
+  load && load({ params, location, intent: intent || "initial" });
 
   return route;
 }
