@@ -1,11 +1,4 @@
-import {
-  $TRACK,
-  createMemo,
-  createSignal,
-  JSX,
-  onCleanup,
-  getOwner,
-} from "solid-js";
+import { $TRACK, createMemo, createSignal, JSX, onCleanup, getOwner } from "solid-js";
 import { isServer } from "solid-js/web";
 import { useRouter } from "../routing";
 import { RouterContext, Submission, Navigator } from "../types";
@@ -143,11 +136,8 @@ async function handleResponse(response: Response, navigate: Navigator) {
   let data: any;
   let keys: string[] | undefined;
   if (response instanceof Response) {
-    if (response.headers.has("X-Revalidate")) {
+    if (response.headers.has("X-Revalidate"))
       keys = response.headers.get("X-Revalidate")!.split(",");
-      // invalidate
-      cacheKeyOp(keys, entry => (entry[0] = 0));
-    }
     if ((response as any).customBody) data = await (response as any).customBody();
     if (redirectStatusCodes.has(response.status)) {
       const locationUrl = response.headers.get("Location") || "/";
@@ -158,6 +148,8 @@ async function handleResponse(response: Response, navigate: Navigator) {
       }
     }
   } else data = response;
+  // invalidate
+  cacheKeyOp(keys, entry => (entry[0] = 0));
   // trigger revalidation
   await revalidate(keys, false);
   return data;
