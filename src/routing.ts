@@ -388,8 +388,9 @@ export function createRouterContext(
           if (output) {
             output.url = resolvedTo;
           }
-          const e = getRequestEvent()
-          e && (e.response = Response.redirect(resolvedTo, 302));
+          const e = getRequestEvent();
+          e &&
+            (e.response = new Response(null, { status: 302, headers: { Location: resolvedTo } }));
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
         } else if (beforeLeave.confirm(resolvedTo, options)) {
           const len = referrers.push({ value: current, replace, scroll, state: state() });
