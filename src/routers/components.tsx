@@ -26,12 +26,12 @@ import { createMemoObject } from "../utils";
 export type BaseRouterProps = {
   base?: string;
   root?: Component<RouteSectionProps>;
-  children?: JSX.Element;
+  children?: JSX.Element | RouteDefinition | RouteDefinition[];
 };
 
 export const createRouterComponent = (router: RouterIntegration) => (props: BaseRouterProps) => {
   const { base } = props;
-  const routeDefs = children(() => props.children) as unknown as () =>
+  const routeDefs = children(() => props.children as JSX.Element) as unknown as () =>
     | RouteDefinition
     | RouteDefinition[];
 
