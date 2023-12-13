@@ -58,20 +58,21 @@ export interface RouteLoadFuncArgs {
   intent: Intent;
 }
 
-export type RouteLoadFunc = (args: RouteLoadFuncArgs) => void;
+export type RouteLoadFunc<T = unknown> = (args: RouteLoadFuncArgs) => T;
 
-export interface RouteSectionProps {
+export interface RouteSectionProps<T = unknown> {
   params: Params;
   location: Location;
+  data?: T;
   children?: JSX.Element;
 }
 
-export type RouteDefinition<S extends string | string[] = any> = {
+export type RouteDefinition<S extends string | string[] = any, T = unknown> = {
   path?: S;
   matchFilters?: MatchFilters<S>;
-  load?: RouteLoadFunc;
+  load?: RouteLoadFunc<T>;
   children?: RouteDefinition | RouteDefinition[];
-  component?: Component<RouteSectionProps>;
+  component?: Component<RouteSectionProps<T>>;
 };
 
 export type MatchFilter = readonly string[] | RegExp | ((s: string) => boolean);

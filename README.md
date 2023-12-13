@@ -350,7 +350,51 @@ You can nest indefinitely - just remember that only leaf nodes will become their
 </Route>
 ```
 
+## Load Functions
+
+Even with smart caches it is possible that we have waterfalls both with view logic and with lazy loaded code. With load functions, we can instead start fetching the data parallel to loading the route, so we can use the data as soon as possible. The load function is called when the Route is loaded or eagerly when links are hovered.
+
+As its only argument, the load function is passed an object that you can use to access route information:
+
+```js
+import { lazy } from "solid-js";
+import { Route } from "@solidjs/router";
+
+const User = lazy(() => import("./pages/users/[id].js"));
+
+// load function
+function loadUser({params, location}) {
+  // do loading
+}
+
+// Pass it in the route definition
+<Route path="/users/:id" component={User} load={loadUser} />;
+```
+
+| key      | type                                              | description                                                                                                                   |
+| -------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| params   | object                                            | The route parameters (same value as calling `useParams()` inside the route component)                                         |
+| location | `{ pathname, search, hash, query, state, key}`    | An object that you can use to get more information about the path (corresponds to [`useLocation()`](#uselocation))        |
+| intent | `"initial" | "navigate" | "native" | "preload"` | Indicates why this function is being called. |
+
+A common pattern is to export the load function and data wrappers that corresponds to a route in a dedicated `route.data.js` file. This way, the data function can be imported without loading anything else.
+
+```js
+import { lazy } from "solid-js";
+import { Route } from "@solidjs/router";
+import loadUser from "./pages/users/[id].data.js";
+const User = lazy(() => import("/pages/users/[id].js"));
+
+// In the Route definition
+<Route path="/users/:id" component={User} load={loadUser} />;
+```
+
+The return value of the `load` function is passed to the page component when called at anytime other than `"preload"`, so you can initialize things in there, or alternatively use our new Data APIs:
+
+
 ## Data APIs
+
+Keep in mind these are completely optional. To use but showcase the power of our load mechanism.
 
 ### `cache`
 
@@ -369,6 +413,36 @@ This cache accomplishes the following:
 2. It does preload cache in the browser which lasts 10 seconds. When a route is preloaded on hover or when load is called when entering a route it will make sure to dedupe calls.
 3. We have a reactive refetch mechanism based on key. So we can tell routes that aren't new to retrigger on action revalidation.
 4. It will serve as a back/forward cache for browser navigation up to 5 mins. Any user based navigation or link click bypasses it. Revalidation or new fetch updates the cache.
+
+Using it with load function might look like:
+
+```js
+import { lazy } from "solid-js";
+import { Route } from "@solidjs/router";
+import { getUser } from ... // the cache function
+
+const User = lazy(() => import("./pages/users/[id].js"));
+
+// load function
+function loadUser({params, location}) {
+  void getUser(params.id)
+}
+
+// Pass it in the route definition
+<Route path="/users/:id" component={User} load={loadUser} />;
+```
+
+Inside your page component you:
+
+```jsx
+// pages/users/[id].js
+import { getUser } from ... // the cache function
+
+export default function User(props) {
+  const user = createAsync(() => getUser(props.params.id));
+  return <h1>{user().name}</h1>;
+}
+```
 
 Cached function has a few useful methods for getting the key that are useful for invalidation.
 ```ts
@@ -502,59 +576,6 @@ const updateTodo = action(async (todo: Todo) => {
   await updateTodo(todo.id, todo);
   reload({ revalidate: getTodo.keyFor(id) })
 })
-```
-
-### Load Functions
-
-Even with the cache API it is possible that we have waterfalls both with view logic and with lazy loaded code. With load functions, we can instead start fetching the data parallel to loading the route, so we can use the data as soon as possible.
-
-To do this, we can call our cache function in the load function.
-
-```js
-import { lazy } from "solid-js";
-import { Route } from "@solidjs/router";
-import { getUser } from ... // the cache function
-
-const User = lazy(() => import("./pages/users/[id].js"));
-
-// load function
-function loadUser({params, location}) {
-  void getUser(params.id)
-}
-
-// Pass it in the route definition
-<Route path="/users/:id" component={User} load={loadUser} />;
-```
-
-The load function is called when the Route is loaded or eagerly when links are hovered. Inside your page component you:
-
-```jsx
-// pages/users/[id].js
-import { getUser } from ... // the cache function
-
-export default function User(props) {
-  const user = createAsync(() => getUser(props.params.id));
-  return <h1>{user().name}</h1>;
-}
-```
-
-As its only argument, the load function is passed an object that you can use to access route information:
-
-| key      | type                                              | description                                                                                                                   |
-| -------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| params   | object                                            | The route parameters (same value as calling `useParams()` inside the route component)                                         |
-| location | `{ pathname, search, hash, query, state, key}`    | An object that you can use to get more information about the path (corresponds to [`useLocation()`](#uselocation))        |
-
-A common pattern is to export the preload function and data wrappers that corresponds to a route in a dedicated `route.data.js` file. This way, the data function can be imported without loading anything else.
-
-```js
-import { lazy } from "solid-js";
-import { Route } from "@solidjs/router";
-import loadUser from "./pages/users/[id].data.js";
-const User = lazy(() => import("/pages/users/[id].js"));
-
-// In the Route definition
-<Route path="/users/:id" component={User} load={loadUser} />;
 ```
 
 ## Config Based Routing
@@ -833,6 +854,41 @@ Related without Outlet component it has to be passed in manually. At which point
 ### `data` functions & `useRouteData`
 
 These have been replaced by a load mechanism. This  allows link hover preloads (as the load function can be run as much as wanted without worry about reactivity). It support deduping/cache APIs which give more control over how things are cached. It also addresses TS issues with getting the right types in the Component without `typeof` checks.
+
+That being said you can reproduce the old pattern largely by turning off preloads at the router level and then injecting your own Context:
+
+```js
+import { lazy } from "solid-js";
+import { Route } from "@solidjs/router";
+
+const User = lazy(() => import("./pages/users/[id].js"));
+
+// load function
+function loadUser({params, location}) {
+  const [user] = createResource(() => params.id, fetchUser);
+  return user;
+}
+
+// Pass it in the route definition
+<Router preload={false}>
+  <Route path="/users/:id" component={User} load={loadUser} />
+</Router>
+```
+
+And then in your component taking the page props and putting them in a Context.
+```js
+function User(props) {
+  <UserContext.Provider value={props.data}>
+    {/* my component content  */}
+  </UserContext.Provider>
+}
+
+// Somewhere else
+function UserDetails() {
+  const user = useContext(UserContext)
+  // render stuff
+}
+```
 
 ## SPAs in Deployed Environments
 

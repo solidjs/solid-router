@@ -467,6 +467,11 @@ export function createRouteContext(
   const { pattern, component, load } = match().route;
   const path = createMemo(() => match().path);
 
+  component &&
+    (component as MaybePreloadableComponent).preload &&
+    (component as MaybePreloadableComponent).preload!();
+  const data = load ? load({ params, location, intent: intent || "initial" }) : undefined
+
   const route: RouteContext = {
     parent,
     pattern,
@@ -477,6 +482,7 @@ export function createRouteContext(
         ? createComponent(component, {
             params,
             location,
+            data,
             get children() {
               return outlet();
             }
@@ -486,11 +492,6 @@ export function createRouteContext(
       return resolvePath(base.path(), to, path());
     }
   };
-
-  component &&
-    (component as MaybePreloadableComponent).preload &&
-    (component as MaybePreloadableComponent).preload!();
-  load && load({ params, location, intent: intent || "initial" });
 
   return route;
 }
