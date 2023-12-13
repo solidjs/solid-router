@@ -497,7 +497,7 @@ const deleteTodo = action(async (formData: FormData) => {
   await api.deleteTodo(id)
 })
 
-<form action={deleteUser} method="post">
+<form action={deleteTodo} method="post">
   <input type="hidden" name="id" value={todo.id} />
   <button type="submit">Delete</button>
 </form>
