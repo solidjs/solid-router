@@ -504,9 +504,9 @@ const deleteTodo = action(async (formData: FormData) => {
 ```
 Instead with `with` you can write this:
 ```js
-const deleteUser = action(api.deleteUser)
+const deleteUser = action(api.deleteTodo)
 
-<form action={deleteUser.with(todo.id)} method="post">
+<form action={deleteTodo.with(todo.id)} method="post">
   <button type="submit">Delete</button>
 </form>
 ```
