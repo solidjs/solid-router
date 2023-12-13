@@ -375,7 +375,8 @@ function loadUser({params, location}) {
 | -------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | params   | object                                            | The route parameters (same value as calling `useParams()` inside the route component)                                         |
 | location | `{ pathname, search, hash, query, state, key}`    | An object that you can use to get more information about the path (corresponds to [`useLocation()`](#uselocation))        |
-| intent | `"initial" | "navigate" | "native" | "preload"` | Indicates why this function is being called. |
+| intent | `"initial", "navigate", "native", "preload"` | Indicates why this function is being called. <ul><li>"initial" - the route is being initially shown (ie page load)</li><li>"native" - navigate originated from the browser (eg back/forward)</li><li>"navigate" - navigate originated from the router (eg call to navigate or anchor clicked)</li><li>"preload" - not navigating, just preloading (eg link hover)</li></ul> |
+
 
 A common pattern is to export the load function and data wrappers that corresponds to a route in a dedicated `route.data.js` file. This way, the data function can be imported without loading anything else.
 
