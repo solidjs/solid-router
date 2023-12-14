@@ -3,6 +3,7 @@ import type { Component, JSX, Signal } from "solid-js";
 declare module "solid-js/web" {
   interface RequestEvent {
     response?: Response;
+    routerMatches?: OutputMatch[][];
     routerCache?: Map<any, any>;
     initialSubmission?: Submission<any, any>;
     serverOnly?: boolean;

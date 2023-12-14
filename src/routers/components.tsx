@@ -1,6 +1,7 @@
 /*@refresh skip*/
 
 import type { Component, JSX } from "solid-js";
+import { getRequestEvent, isServer } from "solid-js/web";
 import { children, createMemo, createRoot, mergeProps, on, Show } from "solid-js";
 import {
   createBranches,
@@ -55,6 +56,19 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
   const matches = createMemo(() =>
     getRouteMatches(props.branches, props.routerState.location.pathname)
   );
+
+  if (isServer) {
+    const e = getRequestEvent();
+    e &&
+      (e.routerMatches || (e.routerMatches = [])).push(
+        matches().map(({ route, path, params }) => ({
+          originalPath: route.originalPath,
+          pattern: route.pattern,
+          path,
+          params
+        }))
+      );
+  }
   const params = createMemoObject(() => {
     const m = matches();
     const params: Params = {};
