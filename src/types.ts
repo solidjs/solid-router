@@ -104,10 +104,11 @@ export interface RouteMatch extends PathMatch {
 }
 
 export interface OutputMatch {
-  originalPath: string;
-  pattern: string;
   path: string;
+  pattern: string;
+  match: string;
   params: Params;
+  metadata?: Record<string, any>;
 }
 
 export interface Route {
@@ -142,18 +143,6 @@ export interface RouterUtils {
   parsePath(str: string): string;
   go(delta: number): void;
   beforeLeave: BeforeLeaveLifecycle;
-}
-
-export interface OutputMatch {
-  originalPath: string;
-  pattern: string;
-  path: string;
-  params: Params;
-}
-
-export interface RouterOutput {
-  url?: string;
-  matches: OutputMatch[][];
 }
 
 export interface RouterContext {

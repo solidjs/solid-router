@@ -62,9 +62,9 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
     e &&
       (e.routerMatches || (e.routerMatches = [])).push(
         matches().map(({ route, path, params }) => ({
-          originalPath: route.originalPath,
+          path: route.originalPath,
           pattern: route.pattern,
-          path,
+          match: path,
           params,
           metadata: route.metadata
         }))

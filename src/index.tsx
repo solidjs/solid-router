@@ -26,7 +26,6 @@ export type {
   RouteLoadFuncArgs,
   RouteDefinition,
   RouterIntegration,
-  RouterOutput,
   RouterUtils,
   SetParams,
   BeforeLeaveEventArgs
