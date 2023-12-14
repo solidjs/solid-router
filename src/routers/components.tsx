@@ -65,7 +65,8 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
           originalPath: route.originalPath,
           pattern: route.pattern,
           path,
-          params
+          params,
+          metadata: route.metadata
         }))
       );
   }
@@ -139,6 +140,7 @@ export type RouteProps<S extends string> = {
   load?: RouteLoadFunc;
   matchFilters?: MatchFilters<S>;
   component?: Component;
+  metadata?: Record<string, any>;
 };
 
 export const Route = <S extends string>(props: RouteProps<S>) => {

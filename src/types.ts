@@ -74,6 +74,7 @@ export type RouteDefinition<S extends string | string[] = any, T = unknown> = {
   load?: RouteLoadFunc<T>;
   children?: RouteDefinition | RouteDefinition[];
   component?: Component<RouteSectionProps<T>>;
+  metadata?: Record<string, any>;
 };
 
 export type MatchFilter = readonly string[] | RegExp | ((s: string) => boolean);
@@ -117,6 +118,7 @@ export interface Route {
   load?: RouteLoadFunc;
   matcher: (location: string) => PathMatch | null;
   matchFilters?: MatchFilters;
+  metadata?: Record<string, any>;
 }
 
 export interface Branch {
