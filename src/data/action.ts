@@ -108,7 +108,7 @@ function toAction<T extends Array<any>, U>(fn: Function, url: string): Action<T,
     return url;
   };
   (fn as any).with = function <A extends any[], B extends any[]>(
-    this: (...args: [...A, ...B]) => U,
+    this: (...args: [...A, ...B]) => Promise<U>,
     ...args: A
   ) {
     const newFn = function (this: RouterContext, ...passedArgs: B): U {
