@@ -11,7 +11,7 @@ export type Action<T extends Array<any>, U> = (T extends [FormData] | []
   ((...vars: T) => Promise<U>) & {
     url: string;
     with<A extends any[], B extends any[]>(
-      this: (this: any, ...args: [...A, ...B]) => U,
+      this: (this: any, ...args: [...A, ...B]) => Promise<U>,
       ...args: A
     ): Action<B, U>;
   };

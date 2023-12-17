@@ -48,8 +48,8 @@ devDependencies:
     specifier: ^0.2.0
     version: 0.2.0(@babel/core@7.18.13)(babel-preset-solid@1.8.6)
   solid-js:
-    specifier: ^1.8.6
-    version: 1.8.6
+    specifier: ^1.8.7
+    version: 1.8.7
   typescript:
     specifier: ^5.2.2
     version: 5.2.2
@@ -3723,8 +3723,8 @@ packages:
       randombytes: 2.1.0
     dev: true
 
-  /seroval@0.14.1:
-    resolution: {integrity: sha512-ZlC9y1KVDhZFdEHLYZup1RjKDutyX1tt3ffOauqRbRURa2vRr2NU/bHuVEuNEqR3zE2uCU3WM6LqH6Oinc3tWg==}
+  /seroval@0.15.1:
+    resolution: {integrity: sha512-OPVtf0qmeC7RW+ScVX+7aOS+xoIM7pWcZ0jOWg2aTZigCydgRB04adfteBRbecZnnrO1WuGQ+C3tLeBBzX2zSQ==}
     engines: {node: '>=10'}
     dev: true
 
@@ -3771,11 +3771,11 @@ packages:
       - supports-color
     dev: true
 
-  /solid-js@1.8.6:
-    resolution: {integrity: sha512-yiH6ZfBBZ3xj/aU/PBpVKB+8r8WWp100NGF7k/Z0IrK9Y8Lv0jwvFiJY1cHdc6Tj7GqXArKnMBabM0m1k+LzkA==}
+  /solid-js@1.8.7:
+    resolution: {integrity: sha512-9dzrSVieh2zj3SnJ02II6xZkonR6c+j/91b7XZUNcC6xSaldlqjjGh98F1fk5cRJ8ZTkzqF5fPIWDxEOs6QZXA==}
     dependencies:
       csstype: 3.1.2
-      seroval: 0.14.1
+      seroval: 0.15.1
     dev: true
 
   /source-map-support@0.5.13:
