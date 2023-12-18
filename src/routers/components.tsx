@@ -134,12 +134,12 @@ const createOutlet = (child: () => RouteContext | undefined) => {
   );
 };
 
-export type RouteProps<S extends string> = {
+export type RouteProps<S extends string, T=unknown> = {
   path?: S | S[];
   children?: JSX.Element;
-  load?: RouteLoadFunc;
+  load?: RouteLoadFunc<T>;
   matchFilters?: MatchFilters<S>;
-  component?: Component;
+  component?: Component<RouteSectionProps<T>>;
   metadata?: Record<string, any>;
 };
 
