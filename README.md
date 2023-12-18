@@ -102,7 +102,35 @@ render(() => (
 ), document.getElementById("app"));
 ```
 
-3. Lazy-load route components
+3. Create a CatchAll Route (404 page)
+
+We can create catchall routes for pages not found at any nested level of the router. We use `*` and optionally the name of a parameter to retrieve the rest of the path.
+
+```jsx
+import { render } from "solid-js/web";
+import { Router, Route } from "@solidjs/router";
+
+import Home from "./pages/Home";
+import Users from "./pages/Users";
+import NotFound from "./pages/404";
+
+const App = props => (
+  <>
+    <h1>My Site with lots of pages</h1>
+    {props.children}
+  </>
+)
+
+render(() => (
+  <Router root={App}>
+    <Route path="/users" component={Users} />
+    <Route path="/" component={Home} />
+    <Route path="*404" component={NotFound} />
+  </Router>
+), document.getElementById("app"));
+```
+
+4. Lazy-load route components
 
 This way, the `Users` and `Home` components will only be loaded if you're navigating to `/users` or `/`, respectively.
 
