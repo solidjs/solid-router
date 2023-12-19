@@ -176,6 +176,8 @@ cache.set = (key: string, value: any) => {
   } else cache.set(key, (cached = [now, value, , new Set(version! ? [version] : [])]));
 };
 
+cache.clear = () => getCache().clear();
+
 function matchKey(key: string, keys: string[]) {
   for (let k of keys) {
     if (key.startsWith(k)) return true;
