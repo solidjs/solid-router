@@ -697,7 +697,7 @@ This is the main Router component for the browser.
 
 | prop | type | description |
 |-----|----|----|
-| children | `JSX.Element` or `RouteDefinition[]` | The route definitions |
+| children | `JSX.Element`, `RouteDefinition`, or `RouteDefinition[]` | The route definitions |
 | root | Component | Top level layout component |
 | base | string | Base url to use for matching routes |
 | actionBase | string | Root url for server actions, default: `/_server` |
