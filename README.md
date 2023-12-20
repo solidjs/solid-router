@@ -609,7 +609,7 @@ const updateTodo = action(async (todo: Todo) => {
 
 ## Config Based Routing
 
-You don't have to use JSX to set up your routes; you can pass an object:
+You don't have to use JSX to set up your routes; you can pass an array of route definitions:
 
 ```jsx
 import { lazy } from "solid-js";
@@ -653,6 +653,21 @@ render(() =>
   <Router>{routes}</Router>,
   document.getElementById("app")
 );
+```
+
+Also you can pass a single route definition object for a single route:
+
+```jsx
+import { lazy } from "solid-js";
+import { render } from "solid-js/web";
+import { Router } from "@solidjs/router";
+
+const route = {
+  path: "/",
+  component: lazy(() => import("/pages/index.js"))
+};
+
+render(() => <Router>{route}</Router>, document.getElementById("app"));
 ```
 
 ## Alternative Routers
