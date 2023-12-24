@@ -50,7 +50,7 @@ import { Router } from "@solidjs/router";
 
 render(
   () => <Router />,
-  document.getElementById("app")
+  document.getElementById("root")
 );
 ```
 
@@ -74,7 +74,7 @@ render(() => (
     <Route path="/users" component={Users} />
     <Route path="/" component={Home} />
   </Router>
-), document.getElementById("app"));
+), document.getElementById("root"));
 ```
 2. Provide a root level layout
 
@@ -99,7 +99,7 @@ render(() => (
     <Route path="/users" component={Users} />
     <Route path="/" component={Home} />
   </Router>
-), document.getElementById("app"));
+), document.getElementById("root"));
 ```
 
 3. Create a CatchAll Route (404 page)
@@ -127,7 +127,7 @@ render(() => (
     <Route path="/" component={Home} />
     <Route path="*404" component={NotFound} />
   </Router>
-), document.getElementById("app"));
+), document.getElementById("root"));
 ```
 
 4. Lazy-load route components
@@ -154,7 +154,7 @@ render(() => (
     <Route path="/users" component={Users} />
     <Route path="/" component={Home} />
   </Router>
-), document.getElementById("app"));
+), document.getElementById("root"));
 ```
 
 ### Create Links to Your Routes
@@ -185,7 +185,7 @@ render(() => (
     <Route path="/users" component={Users} />
     <Route path="/" component={Home} />
   </Router>
-), document.getElementById("app"));
+), document.getElementById("root"));
 ```
 
 ## Dynamic Routes
@@ -207,7 +207,7 @@ render(() => (
     <Route path="/users/:id" component={User} />
     <Route path="/" component={Home} />
   </Router>
- ), document.getElementById("app"));
+ ), document.getElementById("root"));
 ```
 
 The colon indicates that `id` can be any string, and as long as the URL fits that pattern, the `User` component will show.
@@ -246,7 +246,7 @@ render(() => (
       matchFilters={filters}
     />
   </Router>
-), document.getElementById("app"));
+), document.getElementById("root"));
 ```
 
 Here, we have added the `matchFilters` prop. This allows us to validate the `parent`, `id` and `withHtmlExtension` parameters against the filters defined in `filters`.
@@ -651,7 +651,7 @@ const routes = [
 
 render(() =>
   <Router>{routes}</Router>,
-  document.getElementById("app")
+  document.getElementById("root")
 );
 ```
 
