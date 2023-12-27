@@ -7,6 +7,7 @@ declare module "solid-js/web" {
     routerCache?: Map<any, any>;
     initialSubmission?: Submission<any, any>;
     serverOnly?: boolean;
+    context: any
   }
 }
 
@@ -81,14 +82,14 @@ export type MatchFilter = readonly string[] | RegExp | ((s: string) => boolean);
 
 export type PathParams<P extends string | readonly string[]> =
   P extends `${infer Head}/${infer Tail}`
-    ? [...PathParams<Head>, ...PathParams<Tail>]
-    : P extends `:${infer S}?`
-    ? [S]
-    : P extends `:${infer S}`
-    ? [S]
-    : P extends `*${infer S}`
-    ? [S]
-    : [];
+  ? [...PathParams<Head>, ...PathParams<Tail>]
+  : P extends `:${infer S}?`
+  ? [S]
+  : P extends `:${infer S}`
+  ? [S]
+  : P extends `*${infer S}`
+  ? [S]
+  : [];
 
 export type MatchFilters<P extends string | readonly string[] = any> = P extends string
   ? { [K in PathParams<P>[number]]?: MatchFilter }

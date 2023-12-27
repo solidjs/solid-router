@@ -57,6 +57,15 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
     getRouteMatches(props.branches, props.routerState.location.pathname)
   );
 
+  const params = createMemoObject(() => {
+    const m = matches();
+    const params: Params = {};
+    for (let i = 0; i < m.length; i++) {
+      Object.assign(params, m[i].params);
+    }
+    return params;
+  });
+
   if (isServer) {
     const e = getRequestEvent();
     e &&
@@ -69,15 +78,10 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
           metadata: route.metadata
         }))
       );
+
+    e && (e.context.params = params);
   }
-  const params = createMemoObject(() => {
-    const m = matches();
-    const params: Params = {};
-    for (let i = 0; i < m.length; i++) {
-      Object.assign(params, m[i].params);
-    }
-    return params;
-  });
+
   const disposers: (() => void)[] = [];
   let root: RouteContext | undefined;
 
@@ -134,7 +138,7 @@ const createOutlet = (child: () => RouteContext | undefined) => {
   );
 };
 
-export type RouteProps<S extends string, T=unknown> = {
+export type RouteProps<S extends string, T = unknown> = {
   path?: S | S[];
   children?: JSX.Element;
   load?: RouteLoadFunc<T>;
