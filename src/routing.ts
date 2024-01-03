@@ -90,7 +90,7 @@ export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFi
 export const useParams = <T extends Params>() => useRoute().params as T;
 
 export const useSearchParams = <T extends Params>(): [
-  T,
+  Partial<T>,
   (params: SetParams, options?: Partial<NavigateOptions>) => void
 ] => {
   const location = useLocation();
@@ -105,7 +105,7 @@ export const useSearchParams = <T extends Params>(): [
       ...options
     });
   };
-  return [location.query as T, setSearchParams];
+  return [location.query as Partial<T>, setSearchParams];
 };
 
 export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
