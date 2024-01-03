@@ -609,7 +609,7 @@ const updateTodo = action(async (todo: Todo) => {
 
 ## Config Based Routing
 
-You don't have to use JSX to set up your routes; you can pass an object:
+You don't have to use JSX to set up your routes; you can pass an array of route definitions:
 
 ```jsx
 import { lazy } from "solid-js";
@@ -655,6 +655,21 @@ render(() =>
 );
 ```
 
+Also you can pass a single route definition object for a single route:
+
+```jsx
+import { lazy } from "solid-js";
+import { render } from "solid-js/web";
+import { Router } from "@solidjs/router";
+
+const route = {
+  path: "/",
+  component: lazy(() => import("/pages/index.js"))
+};
+
+render(() => <Router>{route}</Router>, document.getElementById("app"));
+```
+
 ## Alternative Routers
 
 ### Hash Mode Router
@@ -697,7 +712,7 @@ This is the main Router component for the browser.
 
 | prop | type | description |
 |-----|----|----|
-| children | `JSX.Element` or `RouteDefinition[]` | The route definitions |
+| children | `JSX.Element`, `RouteDefinition`, or `RouteDefinition[]` | The route definitions |
 | root | Component | Top level layout component |
 | base | string | Base url to use for matching routes |
 | actionBase | string | Root url for server actions, default: `/_server` |
