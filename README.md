@@ -889,7 +889,7 @@ The biggest changes are around removed APIs that need to be replaced.
 
 ### `<Outlet>`, `<Routes>`, `useRoutes`
 
-This is no longer used and instead will use `props.children` passed from into the page components for outlets. This keeps the outlet directly passed from its page and avoids oddness of trying to use context across Islands boundaries. Nested `<Routes>` components inherently cause waterfalls and are `<Outlets>` themselves so they have the same concerns. We do not want to encourage the pattern and if you must do it you can always nest `<Router>`s with appropriate base path.
+This is no longer used and instead will use `props.children` passed from into the page components for outlets. This keeps the outlet directly passed from its page and avoids oddness of trying to use context across Islands boundaries. Nested `<Routes>` components inherently cause waterfalls and are `<Outlets>` themselves so they have the same concerns.
 
 Keep in mind no `<Routes>` means the `<Router>` API is different. The `<Router>` acts as the `<Routes>` component and its children can only be `<Route>` components. Your top-level layout should go in the root prop of the router [as shown above](#configure-your-routes)
 
