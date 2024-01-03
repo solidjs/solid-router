@@ -143,7 +143,7 @@ export type RouteProps<S extends string, T=unknown> = {
   metadata?: Record<string, any>;
 };
 
-export const Route = <S extends string>(props: RouteProps<S>) => {
+export const Route = <S extends string, T = unknown>(props: RouteProps<S, T>) => {
   const childRoutes = children(() => props.children);
   return mergeProps(props, {
     get children() {
