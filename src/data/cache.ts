@@ -91,12 +91,12 @@ export function cache<T extends (...args: any) => U | Response, U>(
         cached[0] = now;
       }
       let res = cached[1];
-      if (!isServer && intent === "navigate") {
+      if (!isServer && intent !== "preload") {
         res =
           "then" in (cached[1] as Promise<U>)
             ? (cached[1] as Promise<U>).then(handleResponse(false), handleResponse(true))
             : handleResponse(false)(cached[1]);
-        startTransition(() => revalidateSignals(cached[3], cached[0])); // update version
+        intent === "navigate" && startTransition(() => revalidateSignals(cached[3], cached[0])); // update version
       }
       return res;
     }
