@@ -23,7 +23,7 @@ export function createBeforeLeave(): BeforeLeaveLifecycle {
         from: l.location,
         retry: (force?: boolean) => {
           force && (ignore = true);
-          l.navigate(to as string, options);
+          l.navigate(to as string, {...options, resolve: false});
         }
       });
     return !e.defaultPrevented;
