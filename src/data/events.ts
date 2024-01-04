@@ -101,7 +101,7 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
           ? (evt.submitter as HTMLButtonElement | HTMLInputElement).formAction
           : (evt.target as any).action;
       if (!actionRef) return;
-      if (!actionRef.startsWith("https://action:")) {
+      if (!actionRef.startsWith("https://action/")) {
         const url = new URL(actionRef);
         actionRef = router.parsePath(url.pathname + url.search);
         if (!actionRef.startsWith(actionBase)) return;
