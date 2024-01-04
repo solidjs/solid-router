@@ -26,6 +26,9 @@ import { createMemoObject } from "../utils";
 
 export type BaseRouterProps = {
   base?: string;
+  /**
+   * A component that wraps the content of every route.
+   */
   root?: Component<RouteSectionProps>;
   children?: JSX.Element | RouteDefinition | RouteDefinition[];
 };
