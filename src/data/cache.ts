@@ -145,7 +145,7 @@ export function cache<T extends (...args: any) => U | Response, U>(
           }
           return;
         }
-        if (error) throw error;
+        if (error) throw v;
         if (isServer) return v;
         setStore(key, reconcile(v, options));
         return store[key];
