@@ -97,8 +97,8 @@ export function action<T extends Array<any>, U = void>(
 
   const url: string =
     (fn as any).url ||
-    (name && `action:${name}`) ||
-    (!isServer ? `action:${hashString(fn.toString())}` : "");
+    (name && `https://action/${name}`) ||
+    (!isServer ? `https://action/${hashString(fn.toString())}` : "");
   return toAction(mutate, url);
 }
 
@@ -118,7 +118,7 @@ function toAction<T extends Array<any>, U>(fn: Function, url: string): Action<T,
     uri.searchParams.set("args", hashKey(args));
     return toAction<B, U>(
       newFn as any,
-      (uri.protocol === "action:" ? uri.protocol : "") + uri.pathname + uri.search
+      (uri.protocol === "https://action/" ? uri.protocol : "") + uri.pathname + uri.search
     );
   };
   (fn as any).url = url;

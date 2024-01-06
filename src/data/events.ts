@@ -31,7 +31,7 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
         | SVGAElement
         | undefined;
 
-      if (!a || (explicitLinks && !a.getAttribute("link")) ) return;
+      if (!a || (explicitLinks && !a.getAttribute("link"))) return;
 
       const svg = isSvg(a);
       const href = svg ? a.href.baseVal : a.href;
@@ -101,7 +101,7 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
           ? (evt.submitter as HTMLButtonElement | HTMLInputElement).formAction
           : (evt.target as any).action;
       if (!actionRef) return;
-      if (!actionRef.startsWith("action:")) {
+      if (!actionRef.startsWith("https://action/")) {
         const url = new URL(actionRef);
         actionRef = router.parsePath(url.pathname + url.search);
         if (!actionRef.startsWith(actionBase)) return;
