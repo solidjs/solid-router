@@ -112,6 +112,11 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
       if (handler) {
         evt.preventDefault();
         const data = new FormData(evt.target as HTMLFormElement);
+        if (evt.submitter && (evt.submitter as HTMLButtonElement | HTMLInputElement).name)
+          data.append(
+            (evt.submitter as HTMLButtonElement | HTMLInputElement).name,
+            (evt.submitter as HTMLButtonElement | HTMLInputElement).value
+          );
         handler.call(router, data);
       }
     }
