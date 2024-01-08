@@ -118,7 +118,7 @@ function toAction<T extends Array<any>, U>(fn: Function, url: string): Action<T,
     uri.searchParams.set("args", hashKey(args));
     return toAction<B, U>(
       newFn as any,
-      (uri.protocol === "https://action/" ? uri.protocol : "") + uri.pathname + uri.search
+      (uri.origin === "https://action" ? uri.origin : "") + uri.pathname + uri.search
     );
   };
   (fn as any).url = url;
