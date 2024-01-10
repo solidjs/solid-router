@@ -77,7 +77,7 @@ export function cache<T extends (...args: any) => U | Response, U>(
     const key = name + hashKey(args);
     let cached = cache.get(key);
     let version: Signal<number>;
-    if (owner) {
+    if (owner && !isServer) {
       version = createSignal(now, {
         equals: (p, v) => v - p < 50 // margin of error
       });
@@ -91,12 +91,12 @@ export function cache<T extends (...args: any) => U | Response, U>(
         cached[0] = now;
       }
       let res = cached[1];
-      if (!isServer && intent !== "preload") {
+      if (intent !== "preload") {
         res =
           "then" in (cached[1] as Promise<U>)
             ? (cached[1] as Promise<U>).then(handleResponse(false), handleResponse(true))
             : handleResponse(false)(cached[1]);
-        intent === "navigate" && startTransition(() => revalidateSignals(cached[3], cached[0])); // update version
+        !isServer && intent === "navigate" && startTransition(() => revalidateSignals(cached[3], cached[0])); // update version
       }
       return res;
     }
