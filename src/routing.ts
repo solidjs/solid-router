@@ -131,7 +131,10 @@ export function createRoutes(routeDef: RouteDefinition, base: string = ""): Rout
   return asArray(routeDef.path).reduce<Route[]>((acc, path) => {
     for (const originalPath of expandOptionals(path)) {
       const path = joinPaths(base, originalPath);
-      const pattern = isLeaf ? path : path.split("/*", 1)[0];
+      let pattern = isLeaf ? path : path.split("/*", 1)[0];
+      pattern = pattern.split("/").map((s: string) => {
+        return (s.startsWith(':') || s.startsWith('*')) ? s : encodeURIComponent(s)
+      }).join("/");
       acc.push({
         ...shared,
         originalPath,
@@ -180,13 +183,7 @@ export function createBranches(
   for (let i = 0, len = routeDefs.length; i < len; i++) {
     const def = routeDefs[i];
     if (def && typeof def === "object") {
-      if (!def.hasOwnProperty("path")) {
-        def.path = "";
-      } else {
-        def.path = def.path.split("/").map((s: string) => {
-          return (s.startsWith(':') || s.startsWith('*')) ? s : encodeURIComponent(s)
-        }).join("/");
-      }
+      if (!def.hasOwnProperty("path")) def.path = "";
       const routes = createRoutes(def, base);
       for (const route of routes) {
         stack.push(route);
