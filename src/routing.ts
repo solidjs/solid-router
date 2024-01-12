@@ -180,7 +180,13 @@ export function createBranches(
   for (let i = 0, len = routeDefs.length; i < len; i++) {
     const def = routeDefs[i];
     if (def && typeof def === "object") {
-      if (!def.hasOwnProperty("path")) def.path = "";
+      if (!def.hasOwnProperty("path")) {
+        def.path = "";
+      } else {
+        def.path = def.path.split("/").map((s: string) => {
+          return (s.startsWith(':') || s.startsWith('*')) ? s : encodeURIComponent(s)
+        }).join("/");
+      }
       const routes = createRoutes(def, base);
       for (const route of routes) {
         stack.push(route);

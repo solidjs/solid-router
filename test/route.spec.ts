@@ -526,4 +526,34 @@ describe("createBranches should", () => {
     expect(scores[2]).toBeGreaterThan(scores[3]);
     expect(scores[3]).toBeGreaterThan(scores[4]);
   });
+
+  test(`encode path components`, () => {
+    const branches = createBranches({
+      path: "root",
+      children: [
+        {
+          path: "foo/ほげ/ふが/bar"
+        }
+      ]
+    });
+
+    const branchPaths = branches.map(b => b.routes[b.routes.length - 1].pattern);
+
+    expect(branchPaths).toEqual(["/root/foo/%E3%81%BB%E3%81%92/%E3%81%B5%E3%81%8C/bar"]);
+  });
+
+  test(`not encode parameters or named splats`, () => {
+    const branches = createBranches({
+      path: "root",
+      children: [
+        {
+          path: "ほげ/:ふが/*ぴよ"
+        }
+      ]
+    });
+
+    const branchPaths = branches.map(b => b.routes[b.routes.length - 1].pattern);
+
+    expect(branchPaths).toEqual(["/root/%E3%81%BB%E3%81%92/:ふが/*ぴよ"]);
+  });
 });
