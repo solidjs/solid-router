@@ -99,7 +99,7 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
       let actionRef =
         evt.submitter && evt.submitter.hasAttribute("formaction")
           ? (evt.submitter as HTMLButtonElement | HTMLInputElement).formAction
-          : (evt.target as any).action;
+          : (evt.target as any).getAttribute('action');
       if (!actionRef) return;
       if (!actionRef.startsWith("https://action/")) {
         const url = new URL(actionRef);
