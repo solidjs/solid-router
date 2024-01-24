@@ -32,7 +32,7 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
         | SVGAElement
         | undefined;
 
-      if (!a || (explicitLinks && !a.getAttribute("link"))) return;
+      if (!a || (explicitLinks && !a.hasAttribute("link"))) return;
 
       const svg = isSvg(a);
       const href = svg ? a.href.baseVal : a.href;
