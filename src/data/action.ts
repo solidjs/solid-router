@@ -2,7 +2,7 @@ import { $TRACK, createMemo, createSignal, JSX, onCleanup, getOwner } from "soli
 import { isServer } from "solid-js/web";
 import { useRouter } from "../routing";
 import { RouterContext, Submission, Navigator } from "../types";
-import { redirectStatusCodes } from "../utils";
+import { redirectStatusCodes, mockBase } from "../utils";
 import { cacheKeyOp, hashKey, revalidate } from "./cache";
 
 export type Action<T extends Array<any>, U> = (T extends [FormData] | []
@@ -114,7 +114,7 @@ function toAction<T extends Array<any>, U>(fn: Function, url: string): Action<T,
     const newFn = function (this: RouterContext, ...passedArgs: B): U {
       return fn.call(this, ...args, ...passedArgs);
     };
-    const uri = new URL(url, "http://sar");
+    const uri = new URL(url, mockBase);
     uri.searchParams.set("args", hashKey(args));
     return toAction<B, U>(
       newFn as any,

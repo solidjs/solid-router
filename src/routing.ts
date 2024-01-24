@@ -35,6 +35,7 @@ import type {
   Submission
 } from "./types";
 import {
+  mockBase,
   createMemoObject,
   extractSearchParams,
   invariant,
@@ -215,7 +216,7 @@ export function getRouteMatches(branches: Branch[], location: string): RouteMatc
 }
 
 export function createLocation(path: Accessor<string>, state: Accessor<any>): Location {
-  const origin = new URL("http://sar");
+  const origin = new URL(mockBase);
   const url = createMemo<URL>(
     prev => {
       const path_ = path();

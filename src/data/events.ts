@@ -2,6 +2,7 @@ import { delegateEvents } from "solid-js/web";
 import { onCleanup } from "solid-js";
 import type { RouterContext } from "../types";
 import { actions } from "./action";
+import { mockBase } from "../utils";
 
 export function setupNativeEvents(preload = true, explicitLinks = false, actionBase = "/_server") {
   return (router: RouterContext) => {
@@ -98,11 +99,12 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
     function handleFormSubmit(evt: SubmitEvent) {
       let actionRef =
         evt.submitter && evt.submitter.hasAttribute("formaction")
-          ? (evt.submitter as HTMLButtonElement | HTMLInputElement).formAction
+          ? evt.submitter.getAttribute("formaction")
           : (evt.target as HTMLElement).getAttribute("action");
       if (!actionRef) return;
       if (!actionRef.startsWith("https://action/")) {
-        const url = new URL(actionRef);
+        // normalize server actions
+        const url = new URL(actionRef, mockBase);
         actionRef = router.parsePath(url.pathname + url.search);
         if (!actionRef.startsWith(actionBase)) return;
       }
