@@ -68,6 +68,8 @@ export function cache<T extends (...args: any) => U | Response, U>(
   options?: ReconcileOptions
 ): CachedFunction<T, U> {
   const [store, setStore] = createStore<Record<string, any>>({});
+  // prioritize GET for server functions
+  if ((fn as any).GET) fn = (fn as any).GET;
   const cachedFn = ((...args: Parameters<T>) => {
     const cache = getCache();
     const intent = getIntent();
@@ -96,7 +98,9 @@ export function cache<T extends (...args: any) => U | Response, U>(
           "then" in (cached[1] as Promise<U>)
             ? (cached[1] as Promise<U>).then(handleResponse(false), handleResponse(true))
             : handleResponse(false)(cached[1]);
-        !isServer && intent === "navigate" && startTransition(() => revalidateSignals(cached[3], cached[0])); // update version
+        !isServer &&
+          intent === "navigate" &&
+          startTransition(() => revalidateSignals(cached[3], cached[0])); // update version
       }
       return res;
     }
@@ -129,21 +133,24 @@ export function cache<T extends (...args: any) => U | Response, U>(
     return res;
 
     function handleResponse(error: boolean) {
-      return (v: U | Response) => {
-        if (v instanceof Response && redirectStatusCodes.has(v.status)) {
-          if (navigate) {
-            startTransition(() => {
-              let url = v.headers.get(LocationHeader);
-              if (url && url.startsWith("/")) {
-                navigate!(url, {
-                  replace: true
-                });
-              } else if (!isServer && url) {
-                window.location.href = url;
-              }
-            });
+      return async (v: U | Response) => {
+        if (v instanceof Response) {
+          if (redirectStatusCodes.has(v.status)) {
+            if (navigate) {
+              startTransition(() => {
+                let url = (v as Response).headers.get(LocationHeader);
+                if (url && url.startsWith("/")) {
+                  navigate!(url, {
+                    replace: true
+                  });
+                } else if (!isServer && url) {
+                  window.location.href = url;
+                }
+              });
+            }
+            return;
           }
-          return;
+          if ((v as any).customBody) v = await (v as any).customBody();
         }
         if (error) throw v;
         if (isServer) return v;
