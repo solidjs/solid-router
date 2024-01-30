@@ -1,5 +1,6 @@
 import {
   createSignal,
+  getListener,
   getOwner,
   onCleanup,
   sharedConfig,
@@ -10,11 +11,12 @@ import { createStore, reconcile, type ReconcileOptions } from "solid-js/store";
 import { getRequestEvent, isServer } from "solid-js/web";
 import { useNavigate, getIntent } from "../routing";
 import { redirectStatusCodes } from "../utils";
+import { Intent } from "../types";
 
 const LocationHeader = "Location";
 const PRELOAD_TIMEOUT = 5000;
 const CACHE_TIMEOUT = 180000;
-type CacheEntry = [number, any, string, Set<Signal<number>>];
+type CacheEntry = [number, any, Intent | undefined, Signal<number> & { count: number }];
 let cacheMap = new Map<string, CacheEntry>();
 
 // cleanup forward/back cache
@@ -22,7 +24,7 @@ if (!isServer) {
   setInterval(() => {
     const now = Date.now();
     for (let [k, v] of cacheMap.entries()) {
-      if (!v[3].size && now - v[0] > CACHE_TIMEOUT) {
+      if (!v[3].count && now - v[0] > CACHE_TIMEOUT) {
         cacheMap.delete(k);
       }
     }
@@ -41,7 +43,7 @@ export function revalidate(key?: string | string[] | void, force = true) {
     const now = Date.now();
     cacheKeyOp(key, entry => {
       force && (entry[0] = 0); //force cache miss
-      revalidateSignals(entry[3], now); // retrigger live signals
+      entry[3][1](now); // retrigger live signals
     });
   });
 }
@@ -51,10 +53,6 @@ export function cacheKeyOp(key: string | string[] | void, fn: (cacheEntry: Cache
   for (let k of cacheMap.keys()) {
     if (key === undefined || matchKey(k, key as string[])) fn(cacheMap.get(k)!);
   }
-}
-
-function revalidateSignals(set: Set<Signal<number>>, time: number) {
-  for (let s of set) s[1](time);
 }
 
 export type CachedFunction<T extends (...args: any) => U | Response, U> = T & {
@@ -77,18 +75,24 @@ export function cache<T extends (...args: any) => U | Response, U>(
     const navigate = owner ? useNavigate() : undefined;
     const now = Date.now();
     const key = name + hashKey(args);
-    let cached = cache.get(key);
-    let version: Signal<number>;
-    if (owner && !isServer) {
-      version = createSignal(now, {
-        equals: (p, v) => v - p < 50 // margin of error
-      });
-      onCleanup(() => cached[3].delete(version));
-      version[0](); // track it;
+    let cached = cache.get(key) as CacheEntry;
+    let tracking;
+    if (getListener() && !isServer) {
+      tracking = true;
+      onCleanup(() => cached[3].count--);
     }
 
-    if (cached && (isServer || intent === "native" || Date.now() - cached[0] < PRELOAD_TIMEOUT)) {
-      version! && cached[3].add(version);
+    if (
+      cached &&
+      (isServer ||
+        intent === "native" ||
+        (cache[0] && cache[3].size) ||
+        Date.now() - cached[0] < PRELOAD_TIMEOUT)
+    ) {
+      if (tracking) {
+        cached[3].count++;
+        cached[3][0](); // track
+      }
       if (cached[2] === "preload" && intent !== "preload") {
         cached[0] = now;
       }
@@ -98,9 +102,7 @@ export function cache<T extends (...args: any) => U | Response, U>(
           "then" in (cached[1] as Promise<U>)
             ? (cached[1] as Promise<U>).then(handleResponse(false), handleResponse(true))
             : handleResponse(false)(cached[1]);
-        !isServer &&
-          intent === "navigate" &&
-          startTransition(() => revalidateSignals(cached[3], cached[0])); // update version
+        !isServer && intent === "navigate" && startTransition(() => cached[3][1](cached[0])); // update version
       }
       return res;
     }
@@ -119,11 +121,18 @@ export function cache<T extends (...args: any) => U | Response, U>(
       cached[0] = now;
       cached[1] = res;
       cached[2] = intent;
-      version! && cached[3].add(version);
-      if (!isServer && intent === "navigate") {
-        startTransition(() => revalidateSignals(cached[3], cached[0])); // update version
-      }
-    } else cache.set(key, (cached = [now, res, intent, new Set(version! ? [version] : [])]));
+      !isServer && intent === "navigate" && startTransition(() => cached[3][1](cached[0])); // update version
+    } else {
+      cache.set(
+        key,
+        (cached = [now, res, intent, createSignal(now) as Signal<number> & { count: number }])
+      );
+      cached[3].count = 0;
+    }
+    if (tracking) {
+      cached[3].count++;
+      cached[3][0](); // track
+    }
     if (intent !== "preload") {
       res =
         "then" in (res as Promise<U>)
@@ -168,19 +177,17 @@ cache.set = (key: string, value: any) => {
   const cache = getCache();
   const now = Date.now();
   let cached = cache.get(key);
-  let version: Signal<number>;
-  if (getOwner()) {
-    version = createSignal(now, {
-      equals: (p, v) => v - p < 50 // margin of error
-    });
-    onCleanup(() => cached[3].delete(version));
-  }
   if (cached) {
     cached[0] = now;
     cached[1] = value;
     cached[2] = "preload";
-    version! && cached[3].add(version);
-  } else cache.set(key, (cached = [now, value, , new Set(version! ? [version] : [])]));
+  } else {
+    cache.set(
+      key,
+      (cached = [now, value, , createSignal(now) as Signal<number> & { count: number }])
+    );
+    cached[3].count = 0;
+  }
 };
 
 cache.clear = () => getCache().clear();
