@@ -565,13 +565,13 @@ Are used to injecting the optimistic updates while actions are in flight. They e
 
 ```jsx
 type Submission<T, U> = {
-  input: T;
-  result: U;
-  error: any;
-  pending: boolean
-  clear: () => {}
-  retry: () => {}
-}
+  readonly input: T;
+  readonly result?: U;
+  readonly pending: boolean;
+  readonly url: string;
+  clear: () => void;
+  retry: () => void;
+};
 
 const submissions = useSubmissions(action, (input) => filter(input));
 const submission = useSubmission(action, (input) => filter(input));
@@ -721,7 +721,7 @@ This is the main Router component for the browser.
 
 ### `<A>`
 
-Like the `<a>` tag but supports relative paths and active class styling (requires client side JavaScript).
+Like the `<a>` tag but supports automatic apply of base path + relative paths and active class styling (requires client side JavaScript).
 
 The `<A>` tag has an `active` class if its href matches the current location, and `inactive` otherwise. **Note:** By default matching includes locations that are descendents (eg. href `/users` matches locations `/users` and `/users/123`), use the boolean `end` prop to prevent matching these. This is particularly useful for links to the root route `/` which would match everything.
 
