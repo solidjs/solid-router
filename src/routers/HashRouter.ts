@@ -2,6 +2,7 @@ import type { JSX } from "solid-js";
 import { setupNativeEvents } from "../data/events";
 import type { BaseRouterProps } from "./components";
 import { createRouter, scrollToHash, bindEvent } from "./createRouter";
+import { createBeforeLeave, keepDepth, notifyIfNotBlocked, saveCurrentDepth } from "../lifecycle";
 
 export function hashParser(str: string) {
   const to = str.replace(/^.*?#/, "");
@@ -18,24 +19,33 @@ export function hashParser(str: string) {
 export type HashRouterProps = BaseRouterProps & { actionBase?: string, explicitLinks?: boolean, preload?: boolean };
 
 export function HashRouter(props: HashRouterProps): JSX.Element {
+  const getSource = () => window.location.hash.slice(1);
+  const beforeLeave = createBeforeLeave();
   return createRouter({
-    get: () => window.location.hash.slice(1),
+    get: getSource,
     set({ value, replace, scroll, state }) {
       if (replace) {
-        window.history.replaceState(state, "", "#" + value);
+        window.history.replaceState(keepDepth(state), "", "#" + value);
       } else {
         window.location.hash = value;
       }
       const hashIndex = value.indexOf("#");
       const hash = hashIndex >= 0 ? value.slice(hashIndex + 1) : "";
       scrollToHash(hash, scroll);
+      saveCurrentDepth();
     },
-    init: notify => bindEvent(window, "hashchange", () => notify()),
+    init: notify => bindEvent(window, "hashchange",
+        notifyIfNotBlocked(
+          notify,
+          delta => !beforeLeave.confirm(delta && delta < 0 ? delta : getSource())
+        )
+      ),
     create: setupNativeEvents(props.preload, props.explicitLinks, props.actionBase),
     utils: {
       go: delta => window.history.go(delta),
       renderPath: path => `#${path}`,
-      parsePath: hashParser
+      parsePath: hashParser,
+      beforeLeave
     }
   })(props);
 }
