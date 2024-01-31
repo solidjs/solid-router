@@ -11,12 +11,11 @@ import { createStore, reconcile, type ReconcileOptions } from "solid-js/store";
 import { getRequestEvent, isServer } from "solid-js/web";
 import { useNavigate, getIntent } from "../routing";
 import { redirectStatusCodes } from "../utils";
-import { Intent } from "../types";
+import { CacheEntry } from "../types";
 
 const LocationHeader = "Location";
 const PRELOAD_TIMEOUT = 5000;
 const CACHE_TIMEOUT = 180000;
-type CacheEntry = [number, any, Intent | undefined, Signal<number> & { count: number }];
 let cacheMap = new Map<string, CacheEntry>();
 
 // cleanup forward/back cache
@@ -33,9 +32,9 @@ if (!isServer) {
 
 function getCache() {
   if (!isServer) return cacheMap;
-  const req = getRequestEvent() || sharedConfig.context!;
+  const req = getRequestEvent();
   if (!req) throw new Error("Cannot find cache context");
-  return (req as any).routerCache || ((req as any).routerCache = new Map());
+  return (req.router || (req.router = {})).cache || (req.router.cache = new Map());
 }
 
 export function revalidate(key?: string | string[] | void, force = true) {
@@ -86,7 +85,7 @@ export function cache<T extends (...args: any) => U | Response, U>(
       cached &&
       (isServer ||
         intent === "native" ||
-        (cache[0] && cache[3].size) ||
+        (cached[0] && cached[3].count) ||
         Date.now() - cached[0] < PRELOAD_TIMEOUT)
     ) {
       if (tracking) {

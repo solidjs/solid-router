@@ -2,10 +2,16 @@ import type { Component, JSX, Signal } from "solid-js";
 
 declare module "solid-js/web" {
   interface RequestEvent {
-    response?: Response;
-    routerMatches?: OutputMatch[][];
-    routerCache?: Map<any, any>;
-    initialSubmission?: Submission<any, any>;
+    response?: {
+      status?: number;
+      statusText?: string;
+      headers: Headers
+    };
+    router? : {
+      matches?: OutputMatch[];
+      cache?: Map<string, CacheEntry>;
+      submission?: Submission<any, any>;
+    }
     serverOnly?: boolean;
   }
 }
@@ -189,3 +195,5 @@ export type Submission<T, U> = {
 export interface MaybePreloadableComponent extends Component {
   preload?: () => void;
 }
+
+export type CacheEntry = [number, any, Intent | undefined, Signal<number> & { count: number }];

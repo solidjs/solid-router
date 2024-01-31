@@ -133,9 +133,12 @@ export function createRoutes(routeDef: RouteDefinition, base: string = ""): Rout
     for (const originalPath of expandOptionals(path)) {
       const path = joinPaths(base, originalPath);
       let pattern = isLeaf ? path : path.split("/*", 1)[0];
-      pattern = pattern.split("/").map((s: string) => {
-        return (s.startsWith(':') || s.startsWith('*')) ? s : encodeURIComponent(s)
-      }).join("/");
+      pattern = pattern
+        .split("/")
+        .map((s: string) => {
+          return s.startsWith(":") || s.startsWith("*") ? s : encodeURIComponent(s);
+        })
+        .join("/");
       acc.push({
         ...shared,
         originalPath,
@@ -297,7 +300,7 @@ export function createRouterContext(
   const [state, setState] = createSignal(source().state);
   const location = createLocation(reference, state);
   const referrers: LocationChange[] = [];
-  const submissions = createSignal<Submission<any, any>[]>(isServer ? initFromFlash() : [])
+  const submissions = createSignal<Submission<any, any>[]>(isServer ? initFromFlash() : []);
 
   const baseRoute: RouteContext = {
     pattern: basePath,
@@ -319,7 +322,7 @@ export function createRouterContext(
           setReference(value);
           setState(state);
           resetErrorBoundaries();
-          submissions[1]([])
+          submissions[1]([]);
         }).then(() => {
           intent = undefined;
         });
@@ -382,8 +385,7 @@ export function createRouterContext(
       if (resolvedTo !== current || nextState !== state()) {
         if (isServer) {
           const e = getRequestEvent();
-          e &&
-            (e.response = new Response(null, { status: 302, headers: { Location: resolvedTo } }));
+          e && (e.response = { status: 302, headers: new Headers({ Location: resolvedTo }) });
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
         } else if (beforeLeave.confirm(resolvedTo, options)) {
           const len = referrers.push({ value: current, replace, scroll, state: state() });
@@ -392,7 +394,7 @@ export function createRouterContext(
             setReference(resolvedTo);
             setState(nextState);
             resetErrorBoundaries();
-            submissions[1]([])
+            submissions[1]([]);
           }).then(() => {
             if (referrers.length === len) {
               intent = undefined;
@@ -457,7 +459,7 @@ export function createRouterContext(
 
   function initFromFlash() {
     const e = getRequestEvent();
-    return e && e.initialSubmission ? [e.initialSubmission] : [];
+    return e && e.router && e.router.submission ? [e.router.submission] : [];
   }
 }
 
@@ -475,7 +477,7 @@ export function createRouteContext(
   component &&
     (component as MaybePreloadableComponent).preload &&
     (component as MaybePreloadableComponent).preload!();
-  const data = load ? load({ params, location, intent: intent || "initial" }) : undefined
+  const data = load ? load({ params, location, intent: intent || "initial" }) : undefined;
 
   const route: RouteContext = {
     parent,
