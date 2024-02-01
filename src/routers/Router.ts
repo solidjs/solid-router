@@ -1,10 +1,10 @@
 import { isServer } from "solid-js/web";
-import { createRouter, scrollToHash, bindEvent } from "./createRouter";
-import { StaticRouter } from "./StaticRouter";
-import { setupNativeEvents } from "../data/events";
-import type { BaseRouterProps } from "./components";
+import { createRouter, scrollToHash, bindEvent } from "./createRouter.js";
+import { StaticRouter } from "./StaticRouter.js";
+import { setupNativeEvents } from "../data/events.js";
+import type { BaseRouterProps } from "./components.jsx";
 import type { JSX } from "solid-js";
-import { createBeforeLeave, keepDepth, notifyIfNotBlocked, saveCurrentDepth } from "../lifecycle";
+import { createBeforeLeave, keepDepth, notifyIfNotBlocked, saveCurrentDepth } from "../lifecycle.js";
 
 export type RouterProps = BaseRouterProps & { url?: string, actionBase?: string, explicitLinks?: boolean, preload?: boolean };
 

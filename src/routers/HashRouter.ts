@@ -1,8 +1,8 @@
 import type { JSX } from "solid-js";
-import { setupNativeEvents } from "../data/events";
-import type { BaseRouterProps } from "./components";
-import { createRouter, scrollToHash, bindEvent } from "./createRouter";
-import { createBeforeLeave, keepDepth, notifyIfNotBlocked, saveCurrentDepth } from "../lifecycle";
+import { setupNativeEvents } from "../data/events.js";
+import type { BaseRouterProps } from "./components.js";
+import { createRouter, scrollToHash, bindEvent } from "./createRouter.js";
+import { createBeforeLeave, keepDepth, notifyIfNotBlocked, saveCurrentDepth } from "../lifecycle.js";
 
 export function hashParser(str: string) {
   const to = str.replace(/^.*?#/, "");

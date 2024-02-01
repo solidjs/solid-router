@@ -1,7 +1,7 @@
 import { createRoot, createSignal } from "solid-js";
-import { createRouterContext } from "../src/routing";
-import type { LocationChange } from "../src/types";
-import { createAsyncRoot, createCounter, waitFor } from "./helpers";
+import { createRouterContext } from "../src/routing.js";
+import type { LocationChange } from "../src/types.js";
+import { createAsyncRoot, createCounter, waitFor } from "./helpers.js";
 
 const fakeBranches = () => []
 

@@ -10,7 +10,7 @@ import {
   getRouteMatches,
   RouteContextObj,
   RouterContextObj
-} from "../routing";
+} from "../routing.js";
 import type {
   MatchFilters,
   Params,
@@ -21,8 +21,8 @@ import type {
   RouterContext,
   Branch,
   RouteSectionProps
-} from "../types";
-import { createMemoObject } from "../utils";
+} from "../types.ts";
+import { createMemoObject } from "../utils.js";
 
 export type BaseRouterProps = {
   base?: string;

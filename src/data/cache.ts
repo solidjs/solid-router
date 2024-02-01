@@ -9,9 +9,9 @@ import {
 } from "solid-js";
 import { createStore, reconcile, type ReconcileOptions } from "solid-js/store";
 import { getRequestEvent, isServer } from "solid-js/web";
-import { useNavigate, getIntent } from "../routing";
-import { redirectStatusCodes } from "../utils";
-import { CacheEntry } from "../types";
+import { useNavigate, getIntent } from "../routing.js";
+import { redirectStatusCodes } from "../utils.js";
+import { CacheEntry } from "../types.js";
 
 const LocationHeader = "Location";
 const PRELOAD_TIMEOUT = 5000;

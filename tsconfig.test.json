@@ -1,9 +1,9 @@
 {
-    "extends": "./tsconfig.json",
-    "compilerOptions": {
-      "noEmit": true
-    },
-    "include": ["test"],
-    "exclude": ["node_modules"]
-  }
-  
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["test"],
+  "exclude": ["node_modules"]
+}

@@ -1,6 +1,6 @@
 import { Signal, createSignal, onCleanup } from "solid-js";
-import type { LocationChange, RouterContext, RouterUtils } from "../types";
-import { createRouterComponent } from "./components";
+import type { LocationChange, RouterContext, RouterUtils } from "../types.ts";
+import { createRouterComponent } from "./components.jsx";
 
 function intercept<T>(
   [value, setValue]: [() => T, (v: T) => void],

@@ -1,5 +1,5 @@
 import { isServer } from "solid-js/web";
-import { BeforeLeaveLifecycle, BeforeLeaveListener, LocationChange, NavigateOptions } from "./types";
+import { BeforeLeaveLifecycle, BeforeLeaveListener, LocationChange, NavigateOptions } from "./types.js";
 
 export function createBeforeLeave(): BeforeLeaveLifecycle {
   let listeners = new Set<BeforeLeaveListener>();

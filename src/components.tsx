@@ -6,12 +6,12 @@ import {
   useLocation,
   useNavigate,
   useResolvedPath
-} from "./routing";
+} from "./routing.js";
 import type {
   Location,
   Navigator
-} from "./types";
-import { normalizePath } from "./utils";
+} from "./types.js";
+import { normalizePath } from "./utils.js";
 
 declare module "solid-js" {
   namespace JSX {

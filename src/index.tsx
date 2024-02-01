@@ -1,6 +1,6 @@
-export * from "./routers";
-export * from "./components";
-export * from "./lifecycle";
+export * from "./routers/index.js";
+export * from "./components.jsx";
+export * from "./lifecycle.js";
 export {
   useHref,
   useIsRouting,
@@ -11,9 +11,9 @@ export {
   useResolvedPath,
   useSearchParams,
   useBeforeLeave,
-} from "./routing";
-export { mergeSearchString as _mergeSearchString } from "./utils";
-export * from "./data"
+} from "./routing.js";
+export { mergeSearchString as _mergeSearchString } from "./utils.js";
+export * from "./data/index.js";
 export type {
   Location,
   LocationChange,
@@ -29,4 +29,4 @@ export type {
   RouterUtils,
   SetParams,
   BeforeLeaveEventArgs
-} from "./types";
+} from "./types.js";

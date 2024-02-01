@@ -13,7 +13,7 @@ import {
   resetErrorBoundaries
 } from "solid-js";
 import { isServer, getRequestEvent } from "solid-js/web";
-import { createBeforeLeave } from "./lifecycle";
+import { createBeforeLeave } from "./lifecycle.js";
 import type {
   BeforeLeaveEventArgs,
   Branch,
@@ -33,7 +33,7 @@ import type {
   RouterIntegration,
   SetParams,
   Submission
-} from "./types";
+} from "./types.js";
 import {
   mockBase,
   createMemoObject,
@@ -45,7 +45,7 @@ import {
   scoreRoute,
   mergeSearchString,
   expandOptionals
-} from "./utils";
+} from "./utils.js";
 
 const MAX_REDIRECTS = 100;
 
