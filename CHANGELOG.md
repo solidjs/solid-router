@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 0.11.2
+
+### Patch Changes
+
+- fab3cc0: fix renderToString for cache fns
+
 ## 0.11.1
 
 ### Patch Changes
