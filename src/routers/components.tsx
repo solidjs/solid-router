@@ -69,7 +69,7 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
           pattern: route.pattern,
           match: path,
           params,
-          metadata: route.metadata
+          info: route.info
         }))));
   }
   const params = createMemoObject(() => {
@@ -142,7 +142,7 @@ export type RouteProps<S extends string, T = unknown> = {
   load?: RouteLoadFunc<T>;
   matchFilters?: MatchFilters<S>;
   component?: Component<RouteSectionProps<T>>;
-  metadata?: Record<string, any>;
+  info?: Record<string, any>;
 };
 
 export const Route = <S extends string, T = unknown>(props: RouteProps<S, T>) => {

@@ -119,14 +119,14 @@ export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
 };
 
 export function createRoutes(routeDef: RouteDefinition, base: string = ""): Route[] {
-  const { component, load, children, metadata } = routeDef;
+  const { component, load, children, info } = routeDef;
   const isLeaf = !children || (Array.isArray(children) && !children.length);
 
   const shared = {
     key: routeDef,
     component,
     load,
-    metadata
+    info
   };
 
   return asArray(routeDef.path).reduce<Route[]>((acc, path) => {
