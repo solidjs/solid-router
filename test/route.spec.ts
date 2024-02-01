@@ -1,5 +1,6 @@
-import { createBranch, createBranches, createRoutes } from "../src/routing";
-import type { RouteDefinition } from "../src";
+import { vi } from 'vitest'
+import { createBranch, createBranches, createRoutes } from "../src/routing.js";
+import type { RouteDefinition } from "../src/index.js";
 
 const createRoute = (...args: Parameters<typeof createRoutes>) => createRoutes(...args)[0];
 
@@ -371,7 +372,7 @@ describe("createBranch should", () => {
             path: "foo/:id/bar/:name"
           })
         ]);
-        const spy = jest.spyOn(branch.routes[0], "matcher");
+        const spy = vi.spyOn(branch.routes[0], "matcher");
         const location = "/foo/123/bar";
         const match = branch.matcher(location);
         expect(match).toBeNull();

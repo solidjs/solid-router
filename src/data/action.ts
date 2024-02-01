@@ -1,9 +1,9 @@
 import { $TRACK, createMemo, createSignal, JSX, onCleanup, getOwner } from "solid-js";
 import { isServer } from "solid-js/web";
-import { useRouter } from "../routing";
-import { RouterContext, Submission, Navigator } from "../types";
-import { redirectStatusCodes, mockBase } from "../utils";
-import { cacheKeyOp, hashKey, revalidate } from "./cache";
+import { useRouter } from "../routing.js";
+import { RouterContext, Submission, Navigator } from "../types.js";
+import { redirectStatusCodes, mockBase } from "../utils.js";
+import { cacheKeyOp, hashKey, revalidate } from "./cache.js";
 
 export type Action<T extends Array<any>, U> = (T extends [FormData] | []
   ? JSX.SerializableAttributeValue

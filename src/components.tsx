@@ -6,12 +6,12 @@ import {
   useLocation,
   useNavigate,
   useResolvedPath
-} from "./routing";
+} from "./routing.js";
 import type {
   Location,
   Navigator
-} from "./types";
-import { normalizePath } from "./utils";
+} from "./types.js";
+import { normalizePath } from "./utils.js";
 
 declare module "solid-js" {
   namespace JSX {
@@ -49,10 +49,10 @@ export function A(props: AnchorProps) {
   const location = useLocation();
   const isActive = createMemo(() => {
     const to_ = to();
-    if (to_ === undefined) return false;
+    if (to_ === undefined) return [false, false];
     const path = normalizePath(to_.split(/[?#]/, 1)[0]).toLowerCase();
     const loc = normalizePath(location.pathname).toLowerCase();
-    return props.end ? path === loc : loc.startsWith(path);
+    return [props.end ? path === loc : loc.startsWith(path), path === loc];
   });
 
   return (
@@ -62,12 +62,12 @@ export function A(props: AnchorProps) {
       state={JSON.stringify(props.state)}
       classList={{
         ...(props.class && { [props.class]: true }),
-        [props.inactiveClass!]: !isActive(),
-        [props.activeClass!]: isActive(),
+        [props.inactiveClass!]: !isActive()[0],
+        [props.activeClass!]: isActive()[0],
         ...rest.classList
       }}
       link
-      aria-current={isActive() ? "page" : undefined}
+      aria-current={isActive()[1] ? "page" : undefined}
     />
   );
 }

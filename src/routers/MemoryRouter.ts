@@ -1,6 +1,6 @@
-import { createRouter, scrollToHash } from "./createRouter";
-import type { LocationChange } from "../types";
-import type { BaseRouterProps } from "./components";
+import { createRouter, scrollToHash } from "./createRouter.js";
+import type { LocationChange } from "../types.js";
+import type { BaseRouterProps } from "./components.jsx";
 import type { JSX } from "solid-js";
 
 export type MemoryHistory = {

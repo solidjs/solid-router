@@ -1,5 +1,5 @@
 import { createMemo, getOwner, runWithOwner } from "solid-js";
-import type { MatchFilter, MatchFilters, Params, PathMatch, Route, SetParams } from "./types";
+import type { MatchFilter, MatchFilters, Params, PathMatch, Route, SetParams } from "./types.ts";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|(\/)\/+$/g;
