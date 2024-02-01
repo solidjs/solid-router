@@ -39,6 +39,7 @@
   "devDependencies": {
     "@babel/core": "^7.23.9",
     "@babel/preset-typescript": "^7.23.3",
+    "@changesets/cli": "^2.27.1",
     "@rollup/plugin-babel": "6.0.4",
     "@rollup/plugin-node-resolve": "15.2.3",
     "@rollup/plugin-terser": "0.4.4",
