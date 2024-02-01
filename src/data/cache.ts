@@ -106,12 +106,17 @@ export function cache<T extends (...args: any) => U | Response, U>(
       return res;
     }
     let res =
-      !isServer && sharedConfig.context && sharedConfig.load
-        ? sharedConfig.load(key) // hydrating
+      !isServer && sharedConfig.context && sharedConfig.has!(key)
+        ? sharedConfig.load!(key) // hydrating
         : fn(...(args as any));
 
     // serialize on server
-    if (isServer && sharedConfig.context && !(sharedConfig.context as any).noHydrate) {
+    if (
+      isServer &&
+      sharedConfig.context &&
+      (sharedConfig.context as any).async &&
+      !(sharedConfig.context as any).noHydrate
+    ) {
       const e = getRequestEvent();
       (!e || !e.serverOnly) && (sharedConfig.context as any).serialize(key, res);
     }
