@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 0.11.3
+
+### Patch Changes
+
+- 9cc1a85: update response types to be always present
+
 ## 0.11.2
 
 ### Patch Changes
