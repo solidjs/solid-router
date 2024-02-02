@@ -2,7 +2,7 @@ import type { Component, JSX, Signal } from "solid-js";
 
 declare module "solid-js/web" {
   interface RequestEvent {
-    response?: {
+    response: {
       status?: number;
       statusText?: string;
       headers: Headers
