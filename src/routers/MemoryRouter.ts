@@ -1,4 +1,5 @@
 import { createRouter, scrollToHash } from "./createRouter.js";
+import { setupNativeEvents } from "../data/events.js";
 import type { LocationChange } from "../types.js";
 import type { BaseRouterProps } from "./components.jsx";
 import type { JSX } from "solid-js";
@@ -62,6 +63,7 @@ export function MemoryRouter(props: MemoryRouterProps): JSX.Element {
     get: memoryHistory.get,
     set: memoryHistory.set,
     init: memoryHistory.listen,
+    create: setupNativeEvents(),
     utils: {
       go: memoryHistory.go
     }
