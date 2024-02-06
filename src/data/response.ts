@@ -1,4 +1,4 @@
-export type RouterResponseInit = ResponseInit & { revalidate?: string | string[] };
+export type RouterResponseInit = Omit<ResponseInit, "body"> & { revalidate?: string | string[] };
 
 export function redirect(url: string, init: number | RouterResponseInit = 302) {
   let responseInit: ResponseInit;
@@ -24,21 +24,25 @@ export function redirect(url: string, init: number | RouterResponseInit = 302) {
   return response as never;
 }
 
-export function reload(init: RouterResponseInit) {
+export function reload(init: RouterResponseInit = {}) {
   const { revalidate, ...responseInit } = init;
+  const headers = new Headers(responseInit.headers);
+  revalidate && headers.set("X-Revalidate", revalidate.toString());
+
   return new Response(null, {
     ...responseInit,
-    ...(revalidate
-      ? { headers: new Headers(responseInit.headers).set("X-Revalidate", revalidate.toString()) }
-      : {})
+    headers
   }) as never;
 }
 
-export function json<T>(data: T, init?: Omit<ResponseInit, "body">) {
-  const headers = new Headers((init || {}).headers);
+export function json<T>(data: T, init: RouterResponseInit = {}) {
+  const { revalidate, ...responseInit } = init;
+  const headers = new Headers(responseInit.headers);
+  revalidate && headers.set("X-Revalidate", revalidate.toString());
   headers.set("Content-Type", "application/json");
+
   const response = new Response(JSON.stringify(data), {
-    ...init,
+    ...responseInit,
     headers
   });
   (response as any).customBody = () => data;
