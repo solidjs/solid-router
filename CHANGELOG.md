@@ -1,5 +1,12 @@
 # @solidjs/router
 
+## 0.11.4
+
+### Patch Changes
+
+- d67ccbb: single flight mutations
+- 76724af: pass revalidate through `json` helper
+
 ## 0.11.3
 
 ### Patch Changes
