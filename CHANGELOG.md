@@ -1,5 +1,13 @@
 # @solidjs/router
 
+## 0.11.5
+
+### Patch Changes
+
+- 0413594: fix memory router no native events
+- 97d387b: add `rootLoad`
+- 5a94e7d: fix Router types, make singleFlight optional
+
 ## 0.11.4
 
 ### Patch Changes
