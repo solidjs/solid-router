@@ -31,7 +31,7 @@ export type BaseRouterProps = {
    */
   root?: Component<RouteSectionProps>;
   rootLoad?: RouteLoadFunc;
-  singleFlight: boolean;
+  singleFlight?: boolean;
   children?: JSX.Element | RouteDefinition | RouteDefinition[];
 };
 
