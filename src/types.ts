@@ -11,6 +11,9 @@ declare module "solid-js/web" {
       matches?: OutputMatch[];
       cache?: Map<string, CacheEntry>;
       submission?: Submission<any, any>;
+      dataOnly?: boolean | string[];
+      data?: Record<string, any>;
+      previousUrl?: string;
     }
     serverOnly?: boolean;
   }
@@ -160,6 +163,7 @@ export interface RouterContext {
   parsePath(str: string): string;
   beforeLeave: BeforeLeaveLifecycle;
   preloadRoute: (url: URL, preloadData: boolean) => void;
+  singleFlight: boolean;
   submissions: Signal<Submission<any, any>[]>;
 }
 

@@ -10,7 +10,6 @@ import {
 import { createStore, reconcile, type ReconcileOptions } from "solid-js/store";
 import { getRequestEvent, isServer } from "solid-js/web";
 import { useNavigate, getIntent } from "../routing.js";
-import { redirectStatusCodes } from "../utils.js";
 import { CacheEntry } from "../types.js";
 
 const LocationHeader = "Location";
@@ -76,6 +75,20 @@ export function cache<T extends (...args: any) => U | Response, U>(
     const key = name + hashKey(args);
     let cached = cache.get(key) as CacheEntry;
     let tracking;
+    if (isServer) {
+      const e = getRequestEvent();
+      if (e) {
+        const dataOnly = (e.router || (e.router = {})).dataOnly;
+        if (dataOnly) {
+          const data = e && (e.router.data || (e.router.data = {}));
+          if (data && key in data) return data[key];
+          if (Array.isArray(dataOnly) && !dataOnly.includes(key)) {
+            data[key] = undefined;
+            return Promise.resolve();
+          }
+        }
+      }
+    }
     if (getListener() && !isServer) {
       tracking = true;
       onCleanup(() => cached[3].count--);
@@ -118,6 +131,7 @@ export function cache<T extends (...args: any) => U | Response, U>(
       !(sharedConfig.context as any).noHydrate
     ) {
       const e = getRequestEvent();
+      e && e.router!.dataOnly && (e.router!.data![key] = res);
       (!e || !e.serverOnly) && (sharedConfig.context as any).serialize(key, res);
     }
 
@@ -148,7 +162,7 @@ export function cache<T extends (...args: any) => U | Response, U>(
     function handleResponse(error: boolean) {
       return async (v: U | Response) => {
         if (v instanceof Response) {
-          if (redirectStatusCodes.has(v.status)) {
+          if (v.headers.has("Location")) {
             if (navigate) {
               startTransition(() => {
                 let url = (v as Response).headers.get(LocationHeader);

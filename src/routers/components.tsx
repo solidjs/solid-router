@@ -1,7 +1,7 @@
 /*@refresh skip*/
 
 import type { Component, JSX } from "solid-js";
-import { getRequestEvent, isServer } from "solid-js/web";
+import { type RequestEvent, getRequestEvent, isServer } from "solid-js/web";
 import { children, createMemo, createRoot, mergeProps, on, Show } from "solid-js";
 import {
   createBranches,
@@ -21,8 +21,8 @@ import type {
   RouterContext,
   Branch,
   RouteSectionProps
-} from "../types.ts";
-import { createMemoObject } from "../utils.js";
+} from "../types.js";
+import { createMemoObject, extractSearchParams } from "../utils.js";
 
 export type BaseRouterProps = {
   base?: string;
@@ -30,6 +30,8 @@ export type BaseRouterProps = {
    * A component that wraps the content of every route.
    */
   root?: Component<RouteSectionProps>;
+  rootLoad?: RouteLoadFunc;
+  singleFlight: boolean;
   children?: JSX.Element | RouteDefinition | RouteDefinition[];
 };
 
@@ -45,7 +47,7 @@ export const createRouterComponent = (router: RouterIntegration) => (props: Base
       props.base || ""
     )
   );
-  const routerState = createRouterContext(router, branches, { base });
+  const routerState = createRouterContext(router, branches, { base, singleFlight: props.singleFlight });
   router.create && router.create(routerState);
 
   return (
@@ -62,6 +64,10 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
 
   if (isServer) {
     const e = getRequestEvent();
+    if (e && e.router && e.router.dataOnly) {
+      dataOnly(e, props.branches);
+      return;
+    }
     e &&
       ((e.router || (e.router = {})).matches ||
         (e.router.matches = matches().map(({ route, path, params }) => ({
@@ -153,3 +159,30 @@ export const Route = <S extends string, T = unknown>(props: RouteProps<S, T>) =>
     }
   }) as unknown as JSX.Element;
 };
+
+// for data only mode with single flight mutations
+function dataOnly(event: RequestEvent, branches: Branch[]) {
+  const url = new URL(event.request.url);
+  const prevMatches = getRouteMatches(
+    branches,
+    new URL(event.router!.previousUrl || event.request.url).pathname
+  );
+  const matches = getRouteMatches(branches, url.pathname);
+  for (let match = 0; match < matches.length; match++) {
+    if (!prevMatches[match] || matches[match].route !== prevMatches[match].route) event.router!.dataOnly = true;
+    const { route, params } = matches[match];
+    route.load &&
+      route.load({
+        params,
+        location: {
+          pathname: url.pathname,
+          search: url.search,
+          hash: url.hash,
+          query: extractSearchParams(url),
+          state: null,
+          key: ""
+        },
+        intent: "preload"
+      });
+  }
+}

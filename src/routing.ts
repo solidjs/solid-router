@@ -269,7 +269,7 @@ export function getIntent() {
 export function createRouterContext(
   integration: RouterIntegration,
   getBranches?: () => Branch[],
-  options: { base?: string } = {}
+  options: { base?: string, singleFlight?: boolean } = {}
 ): RouterContext {
   const {
     signal: [source, setSource],
@@ -339,6 +339,7 @@ export function createRouterContext(
     navigatorFactory,
     beforeLeave,
     preloadRoute,
+    singleFlight: options.singleFlight === undefined ? true : options.singleFlight,
     submissions
   };
 

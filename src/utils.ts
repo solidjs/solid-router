@@ -4,7 +4,6 @@ import type { MatchFilter, MatchFilters, Params, PathMatch, Route, SetParams } f
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|(\/)\/+$/g;
 export const mockBase = "http://sr"
-export const redirectStatusCodes = new Set([204, 301, 302, 303, 307, 308]);
 
 export function normalizePath(path: string, omitSlash: boolean = false) {
   const s = path.replace(trimPathRegex, "$1");

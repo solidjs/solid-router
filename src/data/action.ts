@@ -2,8 +2,8 @@ import { $TRACK, createMemo, createSignal, JSX, onCleanup, getOwner } from "soli
 import { isServer } from "solid-js/web";
 import { useRouter } from "../routing.js";
 import { RouterContext, Submission, Navigator } from "../types.js";
-import { redirectStatusCodes, mockBase } from "../utils.js";
-import { cacheKeyOp, hashKey, revalidate } from "./cache.js";
+import { mockBase } from "../utils.js";
+import { cacheKeyOp, hashKey, revalidate, cache } from "./cache.js";
 
 export type Action<T extends Array<any>, U> = (T extends [FormData] | []
   ? JSX.SerializableAttributeValue
@@ -60,10 +60,14 @@ export function action<T extends Array<any>, U = void>(
   name?: string
 ): Action<T, U> {
   function mutate(this: RouterContext, ...variables: T) {
-    const p = fn(...variables);
+    const router = this;
+    const p = (
+      router.singleFlight && (fn as any).withOptions
+        ? (fn as any).withOptions({ headers: { "X-Single-Flight": "true" } })
+        : fn
+    )(...variables);
     const [result, setResult] = createSignal<{ data?: U }>();
     let submission: Submission<T, U>;
-    const router = this;
     async function handler(res: any) {
       const data = await handleResponse(res as any, router.navigatorFactory());
       data ? setResult({ data }) : submission.clear();
@@ -135,11 +139,24 @@ const hashString = (s: string) =>
 async function handleResponse(response: Response, navigate: Navigator) {
   let data: any;
   let keys: string[] | undefined;
+  let invalidateKeys: string[] | undefined;
   if (response instanceof Response) {
     if (response.headers.has("X-Revalidate"))
-      keys = response.headers.get("X-Revalidate")!.split(",");
-    if ((response as any).customBody) data = await (response as any).customBody();
-    if (redirectStatusCodes.has(response.status)) {
+      keys = invalidateKeys = response.headers.get("X-Revalidate")!.split(",");
+    if ((response as any).customBody) {
+      data = await (response as any).customBody();
+      if (response.headers.has("X-Single-Flight")) {
+        keys || (keys = []);
+        invalidateKeys || (invalidateKeys = []);
+        Object.keys(data).forEach(key => {
+          if (key === "_$value") return;
+          keys!.push(key);
+          cache.set(key, data[key]);
+        });
+        data = data._$value;
+      }
+    }
+    if (response.headers.has("Location")) {
       const locationUrl = response.headers.get("Location") || "/";
       if (locationUrl.startsWith("http")) {
         window.location.href = locationUrl;
@@ -149,7 +166,7 @@ async function handleResponse(response: Response, navigate: Navigator) {
     }
   } else data = response;
   // invalidate
-  cacheKeyOp(keys, entry => (entry[0] = 0));
+  cacheKeyOp(invalidateKeys, entry => (entry[0] = 0));
   // trigger revalidation
   await revalidate(keys, false);
   return data;
