@@ -43,7 +43,7 @@ export const createRouterComponent = (router: RouterIntegration) => (props: Base
 
   const branches = createMemo(() =>
     createBranches(
-      props.root ? { component: props.root, children: routeDefs() } : routeDefs(),
+      props.root ? { component: props.root, load: props.rootLoad, children: routeDefs() } : routeDefs(),
       props.base || ""
     )
   );
