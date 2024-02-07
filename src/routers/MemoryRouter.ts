@@ -54,7 +54,7 @@ export function createMemoryHistory() {
   };
 }
 
-export type MemoryRouterProps = BaseRouterProps & { history?: MemoryHistory };
+export type MemoryRouterProps = BaseRouterProps & { history?: MemoryHistory, actionBase?: string, explicitLinks?: boolean, preload?: boolean };
 
 export function MemoryRouter(props: MemoryRouterProps): JSX.Element {
   const memoryHistory = props.history || createMemoryHistory();
@@ -63,7 +63,7 @@ export function MemoryRouter(props: MemoryRouterProps): JSX.Element {
     get: memoryHistory.get,
     set: memoryHistory.set,
     init: memoryHistory.listen,
-    create: setupNativeEvents(),
+    create: setupNativeEvents(props.preload, props.explicitLinks, props.actionBase),
     utils: {
       go: memoryHistory.go
     }
