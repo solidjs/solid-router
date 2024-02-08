@@ -674,7 +674,7 @@ render(() => <Router>{route}</Router>, document.getElementById("app"));
 
 ### Hash Mode Router
 
-By default, Solid Router uses `location.pathname` as route path. You can simply switch to hash mode through the `source` property on `<Router>` component.
+By default, Solid Router uses `location.pathname` as route path. You can simply switch to hash mode through using `<HashRouter>`.
 
 ```jsx
 import { HashRouter } from "@solidjs/router";
