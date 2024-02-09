@@ -29,7 +29,6 @@ It supports all of Solid's SSR methods and has Solid's transitions baked in, so 
   - [useLocation](#uselocation)
   - [useSearchParams](#usesearchparams)
   - [useIsRouting](#useisrouting)
-  - [useRouteData](#useroutedata)
   - [useMatch](#usematch)
   - [useBeforeLeave](#usebeforeleave)
 - [SPAs in Deployed Environments](#spas-in-deployed-environments)
