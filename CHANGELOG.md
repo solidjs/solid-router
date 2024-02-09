@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 0.12.0
+
+### Minor Changes
+
+- 17ea145: add createAsyncStorage, prev argument, remove store from cache
+
 ## 0.11.5
 
 ### Patch Changes
