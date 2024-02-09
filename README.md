@@ -489,7 +489,7 @@ You can revalidate the cache using the `revalidate` method or you can set `reval
 This is light wrapper over `createResource` that aims to serve as stand-in for a future primitive we intend to bring to Solid core in 2.0. It is a simpler async primitive where the function tracks like `createMemo` and it expects a promise back that it turns into a Signal. Reading it before it is ready causes Suspense/Transitions to trigger.
 
 ```jsx
-const user = createAsync(() => getUser(params.id))
+const user = createAsync((currentValue) => getUser(params.id))
 ```
 
 Using `cache` in `createResource` directly won't work properly as the fetcher is not reactive and it won't invalidate properly.

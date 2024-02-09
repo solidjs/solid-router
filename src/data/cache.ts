@@ -7,7 +7,6 @@ import {
   type Signal,
   startTransition
 } from "solid-js";
-import { createStore, reconcile, type ReconcileOptions } from "solid-js/store";
 import { getRequestEvent, isServer } from "solid-js/web";
 import { useNavigate, getIntent } from "../routing.js";
 import { CacheEntry } from "../types.js";
@@ -53,17 +52,15 @@ export function cacheKeyOp(key: string | string[] | void, fn: (cacheEntry: Cache
   }
 }
 
-export type CachedFunction<T extends (...args: any) => U | Response, U> = T & {
-  keyFor: (...args: Parameters<T>) => string;
+export type CachedFunction<T extends (...args: any) => any> = T extends (...args: infer A) => infer R ? ([] extends A ? (...args: never[]) => R : T) & {
+  keyFor: (...args: A) => string;
   key: string;
-};
+} : never;
 
-export function cache<T extends (...args: any) => U | Response, U>(
+export function cache<T extends (...args: any) => any>(
   fn: T,
   name: string,
-  options?: ReconcileOptions
-): CachedFunction<T, U> {
-  const [store, setStore] = createStore<Record<string, any>>({});
+): CachedFunction<T> {
   // prioritize GET for server functions
   if ((fn as any).GET) fn = (fn as any).GET;
   const cachedFn = ((...args: Parameters<T>) => {
@@ -111,8 +108,8 @@ export function cache<T extends (...args: any) => U | Response, U>(
       let res = cached[1];
       if (intent !== "preload") {
         res =
-          "then" in (cached[1] as Promise<U>)
-            ? (cached[1] as Promise<U>).then(handleResponse(false), handleResponse(true))
+          "then" in (cached[1])
+            ? (cached[1]).then(handleResponse(false), handleResponse(true))
             : handleResponse(false)(cached[1]);
         !isServer && intent === "navigate" && startTransition(() => cached[3][1](cached[0])); // update version
       }
@@ -153,14 +150,14 @@ export function cache<T extends (...args: any) => U | Response, U>(
     }
     if (intent !== "preload") {
       res =
-        "then" in (res as Promise<U>)
-          ? (res as Promise<U>).then(handleResponse(false), handleResponse(true))
+        "then" in (res)
+          ? (res).then(handleResponse(false), handleResponse(true))
           : handleResponse(false)(res);
     }
     return res;
 
     function handleResponse(error: boolean) {
-      return async (v: U | Response) => {
+      return async (v: any | Response) => {
         if (v instanceof Response) {
           if (v.headers.has("Location")) {
             if (navigate) {
@@ -180,12 +177,10 @@ export function cache<T extends (...args: any) => U | Response, U>(
           if ((v as any).customBody) v = await (v as any).customBody();
         }
         if (error) throw v;
-        if (isServer) return v;
-        setStore(key, reconcile(v, options));
-        return store[key];
+        return v;
       };
     }
-  }) as CachedFunction<T, U>;
+  }) as CachedFunction<T>;
   cachedFn.keyFor = (...args: Parameters<T>) => name + hashKey(args);
   cachedFn.key = name;
   return cachedFn;
