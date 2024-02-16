@@ -1,8 +1,8 @@
 /*@refresh skip*/
 
-import type { Component, JSX } from "solid-js";
+import type { Component, JSX, Owner } from "solid-js";
 import { type RequestEvent, getRequestEvent, isServer } from "solid-js/web";
-import { children, createMemo, createRoot, mergeProps, on, Show } from "solid-js";
+import { children, createMemo, createRoot, getOwner, mergeProps, on, Show } from "solid-js";
 import {
   createBranches,
   createRouteContext,
@@ -47,11 +47,13 @@ export const createRouterComponent = (router: RouterIntegration) => (props: Base
       props.base || ""
     )
   );
-  const routerState = createRouterContext(router, branches, { base, singleFlight: props.singleFlight });
+  let context: Owner;
+  const routerState = createRouterContext(router, () => context, branches, { base, singleFlight: props.singleFlight });
   router.create && router.create(routerState);
 
   return (
     <RouterContextObj.Provider value={routerState}>
+      {(context = getOwner()!) && null}
       <Routes routerState={routerState} branches={branches()} />
     </RouterContextObj.Provider>
   );

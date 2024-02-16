@@ -4,6 +4,7 @@ import type { LocationChange } from "../src/types.js";
 import { createAsyncRoot, createCounter, waitFor } from "./helpers.js";
 
 const fakeBranches = () => []
+const fakeContext = () => ({})
 
 describe("Router should", () => {
   describe("have member `base` which should", () => {
@@ -18,7 +19,7 @@ describe("Router should", () => {
     test(`have a normalized version of the base path when defined`, () => {
       createRoot(() => {
         const signal = createSignal<LocationChange>({ value: "" });
-        const { base } = createRouterContext({ signal }, fakeBranches, { base: "base" });
+        const { base } = createRouterContext({ signal }, fakeContext, fakeBranches, { base: "base" });
         expect(base.path()).toBe("/base");
       });
     });
@@ -26,7 +27,7 @@ describe("Router should", () => {
     test(`throw when the base path is invalid`, () => {
       createRoot(() => {
         const signal = createSignal<LocationChange>({ value: "" });
-        expect(() => createRouterContext({ signal }, fakeBranches, { base: "http://example.com" })).toThrow();
+        expect(() => createRouterContext({ signal }, fakeContext, fakeBranches, { base: "http://example.com" })).toThrow();
       });
     });
   });

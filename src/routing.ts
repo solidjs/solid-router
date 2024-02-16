@@ -268,6 +268,7 @@ export function getIntent() {
 
 export function createRouterContext(
   integration: RouterIntegration,
+  getContext?: () => any,
   getBranches?: () => Branch[],
   options: { base?: string, singleFlight?: boolean } = {}
 ): RouterContext {
@@ -329,8 +330,6 @@ export function createRouterContext(
       }
     });
   });
-
-  const owner = getOwner();
 
   return {
     base: baseRoute,
@@ -445,7 +444,7 @@ export function createRouterContext(
       const { load } = route;
       preloadData &&
         load &&
-        runWithOwner(owner, () =>
+        runWithOwner(getContext!(), () =>
           load({
             params,
             location: {
