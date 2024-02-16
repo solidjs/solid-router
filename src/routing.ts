@@ -1,4 +1,4 @@
-import { JSX, Accessor } from "solid-js";
+import { JSX, Accessor, getOwner, runWithOwner } from "solid-js";
 import {
   createComponent,
   createContext,
@@ -330,6 +330,8 @@ export function createRouterContext(
     });
   });
 
+  const owner = getOwner();
+
   return {
     base: baseRoute,
     location,
@@ -440,20 +442,23 @@ export function createRouterContext(
       route.component &&
         (route.component as MaybePreloadableComponent).preload &&
         (route.component as MaybePreloadableComponent).preload!();
+      const { load } = route;
       preloadData &&
-        route.load &&
-        route.load({
-          params,
-          location: {
-            pathname: url.pathname,
-            search: url.search,
-            hash: url.hash,
-            query: extractSearchParams(url),
-            state: null,
-            key: ""
-          },
-          intent: "preload"
-        });
+        load &&
+        runWithOwner(owner, () =>
+          load({
+            params,
+            location: {
+              pathname: url.pathname,
+              search: url.search,
+              hash: url.hash,
+              query: extractSearchParams(url),
+              state: null,
+              key: ""
+            },
+            intent: "preload"
+          })
+        );
     }
     intent = prevIntent;
   }
