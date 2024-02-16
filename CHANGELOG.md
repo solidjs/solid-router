@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 0.12.2
+
+### Patch Changes
+
+- 5e8cbdb: apply the right owner (who's aware of the router)
+
 ## 0.12.1
 
 ### Patch Changes
