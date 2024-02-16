@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 0.12.3
+
+### Patch Changes
+
+- 02c6e7a: action to return fully processed response
+
 ## 0.12.2
 
 ### Patch Changes
