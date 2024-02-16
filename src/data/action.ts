@@ -90,13 +90,11 @@ export function action<T extends Array<any>, U = void>(
         retry() {
           setResult(undefined);
           const p = fn(...variables);
-          p.then(handler, handler);
-          return p;
+          return p.then(handler, handler);
         }
       })
     ]);
-    p.then(handler, handler);
-    return p;
+    return p.then(handler, handler);
   }
 
   const url: string =
