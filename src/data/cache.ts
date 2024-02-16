@@ -52,15 +52,16 @@ export function cacheKeyOp(key: string | string[] | void, fn: (cacheEntry: Cache
   }
 }
 
-export type CachedFunction<T extends (...args: any) => any> = T extends (...args: infer A) => infer R ? ([] extends A ? (...args: never[]) => R : T) & {
-  keyFor: (...args: A) => string;
-  key: string;
-} : never;
+export type CachedFunction<T extends (...args: any) => any> = T extends (
+  ...args: infer A
+) => infer R
+  ? ([] extends A ? (...args: never[]) => R : T) & {
+      keyFor: (...args: A) => string;
+      key: string;
+    }
+  : never;
 
-export function cache<T extends (...args: any) => any>(
-  fn: T,
-  name: string,
-): CachedFunction<T> {
+export function cache<T extends (...args: any) => any>(fn: T, name: string): CachedFunction<T> {
   // prioritize GET for server functions
   if ((fn as any).GET) fn = (fn as any).GET;
   const cachedFn = ((...args: Parameters<T>) => {
@@ -108,8 +109,8 @@ export function cache<T extends (...args: any) => any>(
       let res = cached[1];
       if (intent !== "preload") {
         res =
-          "then" in (cached[1])
-            ? (cached[1]).then(handleResponse(false), handleResponse(true))
+          "then" in cached[1]
+            ? cached[1].then(handleResponse(false), handleResponse(true))
             : handleResponse(false)(cached[1]);
         !isServer && intent === "navigate" && startTransition(() => cached[3][1](cached[0])); // update version
       }
@@ -119,18 +120,6 @@ export function cache<T extends (...args: any) => any>(
       !isServer && sharedConfig.context && sharedConfig.has!(key)
         ? sharedConfig.load!(key) // hydrating
         : fn(...(args as any));
-
-    // serialize on server
-    if (
-      isServer &&
-      sharedConfig.context &&
-      (sharedConfig.context as any).async &&
-      !(sharedConfig.context as any).noHydrate
-    ) {
-      const e = getRequestEvent();
-      e && e.router!.dataOnly && (e.router!.data![key] = res);
-      (!e || !e.serverOnly) && (sharedConfig.context as any).serialize(key, res);
-    }
 
     if (cached) {
       cached[0] = now;
@@ -148,11 +137,26 @@ export function cache<T extends (...args: any) => any>(
       cached[3].count++;
       cached[3][0](); // track
     }
+    if (isServer) {
+      const e = getRequestEvent();
+      e && e.router!.dataOnly && (e.router!.data![key] = res);
+      return res;
+    }
     if (intent !== "preload") {
       res =
-        "then" in (res)
-          ? (res).then(handleResponse(false), handleResponse(true))
+        "then" in res
+          ? res.then(handleResponse(false), handleResponse(true))
           : handleResponse(false)(res);
+    }
+    // serialize on server
+    if (
+      isServer &&
+      sharedConfig.context &&
+      (sharedConfig.context as any).async &&
+      !(sharedConfig.context as any).noHydrate
+    ) {
+      const e = getRequestEvent();
+      (!e || !e.serverOnly) && (sharedConfig.context as any).serialize(key, res);
     }
     return res;
 
