@@ -1,5 +1,12 @@
 # @solidjs/router
 
+## 0.12.1
+
+### Patch Changes
+
+- 6d0be9e: fix cache serialization to match returned value
+- 052d385: Run load functions with owner & context of `Router` component.
+
 ## 0.12.0
 
 ### Minor Changes
