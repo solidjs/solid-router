@@ -139,8 +139,7 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
     }
     if (isServer) {
       const e = getRequestEvent();
-      e && e.router!.dataOnly && (e.router!.data![key] = res);
-      return res;
+      if (e && e.router!.dataOnly) return (e.router!.data![key] = res);
     }
     if (intent !== "preload") {
       res =
