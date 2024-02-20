@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 0.12.4
+
+### Patch Changes
+
+- 533b7a0: fix unintended early return in cache during server render
+
 ## 0.12.3
 
 ### Patch Changes
