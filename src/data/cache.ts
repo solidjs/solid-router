@@ -94,9 +94,10 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
 
     if (
       cached &&
+      cached[0] &&
       (isServer ||
         intent === "native" ||
-        (cached[0] && cached[3].count) ||
+        cached[3].count ||
         Date.now() - cached[0] < PRELOAD_TIMEOUT)
     ) {
       if (tracking) {
