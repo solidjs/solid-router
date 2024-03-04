@@ -53,7 +53,7 @@ export const RouterContextObj = createContext<RouterContext>();
 export const RouteContextObj = createContext<RouteContext>();
 
 export const useRouter = () =>
-  invariant(useContext(RouterContextObj), "Make sure your app is wrapped in a <Router />");
+  invariant(useContext(RouterContextObj), "<A> and 'use' router primitives can be only used inside a Route.");
 
 let TempRoute: RouteContext | undefined;
 export const useRoute = () => TempRoute || useContext(RouteContextObj) || useRouter().base;
