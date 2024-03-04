@@ -1,5 +1,13 @@
 # @solidjs/router
 
+## 0.12.5
+
+### Patch Changes
+
+- fdefceb: fix #388 reference to element prop
+- ffbd35a: fix #389 update router context error message
+- bceb358: fix backcache storing invalidated values
+
 ## 0.12.4
 
 ### Patch Changes
