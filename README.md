@@ -59,7 +59,7 @@ This sets up a Router that will match on the url to display the desired page
 
 Solid Router allows you to configure your routes using JSX:
 
-1. Add each route to a `<Router>` using the `Route` component, specifying a path and an element or component to render when the user navigates to that path.
+1. Add each route to a `<Router>` using the `Route` component, specifying a path and a component to render when the user navigates to that path.
 
 ```jsx
 import { render } from "solid-js/web";
