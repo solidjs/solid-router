@@ -53,7 +53,10 @@ export const RouterContextObj = createContext<RouterContext>();
 export const RouteContextObj = createContext<RouteContext>();
 
 export const useRouter = () =>
-  invariant(useContext(RouterContextObj), "<A> and 'use' router primitives can be only used inside a Route.");
+  invariant(
+    useContext(RouterContextObj),
+    "<A> and 'use' router primitives can be only used inside a Route."
+  );
 
 let TempRoute: RouteContext | undefined;
 export const useRoute = () => TempRoute || useContext(RouteContextObj) || useRouter().base;
@@ -270,7 +273,7 @@ export function createRouterContext(
   integration: RouterIntegration,
   getContext?: () => any,
   getBranches?: () => Branch[],
-  options: { base?: string, singleFlight?: boolean } = {}
+  options: { base?: string; singleFlight?: boolean } = {}
 ): RouterContext {
   const {
     signal: [source, setSource],
@@ -464,7 +467,9 @@ export function createRouterContext(
 
   function initFromFlash() {
     const e = getRequestEvent();
-    return e && e.router && e.router.submission ? [e.router.submission] : [];
+    return (e && e.router && e.router.submission
+      ? [e.router.submission]
+      : []) as Array<Submission<any, any>>;
   }
 }
 

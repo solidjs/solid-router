@@ -10,7 +10,11 @@ declare module "solid-js/web" {
     router? : {
       matches?: OutputMatch[];
       cache?: Map<string, CacheEntry>;
-      submission?: Submission<any, any>;
+      submission?: {
+        input: any;
+        result?: any;
+        url: string;
+      };
       dataOnly?: boolean | string[];
       data?: Record<string, any>;
       previousUrl?: string;
