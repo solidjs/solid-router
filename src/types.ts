@@ -12,7 +12,7 @@ declare module "solid-js/web" {
       cache?: Map<string, CacheEntry>;
       submission?: {
         input: any;
-        result?: any;
+        result: any;
         url: string;
       };
       dataOnly?: boolean | string[];
@@ -194,6 +194,7 @@ export interface BeforeLeaveLifecycle {
 export type Submission<T, U> = {
   readonly input: T;
   readonly result?: U;
+  readonly error: any;
   readonly pending: boolean;
   readonly url: string;
   clear: () => void;

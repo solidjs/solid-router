@@ -119,7 +119,7 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
             (evt.submitter as HTMLButtonElement | HTMLInputElement).name,
             (evt.submitter as HTMLButtonElement | HTMLInputElement).value
           );
-        handler.call(router, data);
+        handler.call({ r: router, f: evt.target }, data);
       }
     }
 

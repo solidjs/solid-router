@@ -51,27 +51,32 @@ export function useSubmission<T extends Array<any>, U>(
 }
 
 export function useAction<T extends Array<any>, U>(action: Action<T, U>) {
-  const router = useRouter();
-  return (...args: Parameters<Action<T, U>>) => action.apply(router, args);
+  const r = useRouter();
+  return (...args: Parameters<Action<T, U>>) => action.apply({r}, args);
 }
 
 export function action<T extends Array<any>, U = void>(
   fn: (...args: T) => Promise<U>,
   name?: string
 ): Action<T, U> {
-  function mutate(this: RouterContext, ...variables: T) {
-    const router = this;
+  function mutate(this: { r: RouterContext, f?: HTMLFormElement }, ...variables: T) {
+    const router = this.r;
+    const form = this.f;
     const p = (
       router.singleFlight && (fn as any).withOptions
         ? (fn as any).withOptions({ headers: { "X-Single-Flight": "true" } })
         : fn
     )(...variables);
-    const [result, setResult] = createSignal<{ data?: U }>();
+    const [result, setResult] = createSignal<{ data?: U, error?: any }>();
     let submission: Submission<T, U>;
-    async function handler(res: any) {
-      const data = await handleResponse(res as any, router.navigatorFactory());
-      data ? setResult({ data }) : submission.clear();
-      return data;
+    function handler(error?: boolean) {
+      return async (res: any) => {
+        const result = await handleResponse(res, error, router.navigatorFactory());
+        if (!result) return submission.clear();
+        setResult(result);
+        if (result.error && !form) throw result.error;
+        return result.data;
+      };
     }
     router.submissions[1](s => [
       ...s,
@@ -80,6 +85,9 @@ export function action<T extends Array<any>, U = void>(
         url,
         get result() {
           return result()?.data;
+        },
+        get error() {
+          return result()?.error;
         },
         get pending() {
           return !result();
@@ -90,11 +98,11 @@ export function action<T extends Array<any>, U = void>(
         retry() {
           setResult(undefined);
           const p = fn(...variables);
-          return p.then(handler, handler);
+          return p.then(handler(), handler(true));
         }
       })
     ]);
-    return p.then(handler, handler);
+    return p.then(handler(), handler(true));
   }
 
   const url: string =
@@ -134,7 +142,7 @@ function toAction<T extends Array<any>, U>(fn: Function, url: string): Action<T,
 const hashString = (s: string) =>
   s.split("").reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0);
 
-async function handleResponse(response: Response, navigate: Navigator) {
+async function handleResponse(response: unknown, error: boolean | undefined, navigate: Navigator) {
   let data: any;
   let keys: string[] | undefined;
   let invalidateKeys: string[] | undefined;
@@ -162,10 +170,11 @@ async function handleResponse(response: Response, navigate: Navigator) {
         navigate(locationUrl);
       }
     }
-  } else data = response;
+  } else if (error) return { error: response };
+  else data = response;
   // invalidate
   cacheKeyOp(invalidateKeys, entry => (entry[0] = 0));
   // trigger revalidation
   await revalidate(keys, false);
-  return data;
+  return data != null ? { data } : undefined;
 }
