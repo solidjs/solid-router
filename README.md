@@ -494,6 +494,14 @@ const user = createAsync((currentValue) => getUser(params.id))
 
 Using `cache` in `createResource` directly won't work properly as the fetcher is not reactive and it won't invalidate properly.
 
+### `createAsyncStore`
+
+Similar to `createAsync` except it uses a deeply reactive store. Perfect for applying fine-grained changes to large model data that updates.
+
+```jsx
+const todos = createAsyncStore(() => getTodos());
+```
+
 ### `action`
 
 Actions are data mutations that can trigger invalidations and further routing. A list of prebuilt response helpers can be found below.
