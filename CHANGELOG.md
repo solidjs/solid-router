@@ -1,5 +1,16 @@
 # @solidjs/router
 
+## 0.13.0
+
+### Minor Changes
+
+- 7b1597b: Add errors to actions
+
+### Patch Changes
+
+- 83e827d: minimum types for submission flash
+- 6df4a7a: push root/rootLoad outside of route matching
+
 ## 0.12.5
 
 ### Patch Changes
