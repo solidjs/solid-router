@@ -2,7 +2,16 @@
 
 import type { Component, JSX, Owner } from "solid-js";
 import { type RequestEvent, getRequestEvent, isServer } from "solid-js/web";
-import { children, createMemo, createRoot, getOwner, mergeProps, on, Show } from "solid-js";
+import {
+  children,
+  createMemo,
+  createRoot,
+  getOwner,
+  mergeProps,
+  on,
+  Show,
+  untrack
+} from "solid-js";
 import {
   createBranches,
   createRouteContext,
@@ -20,9 +29,10 @@ import type {
   RouterIntegration,
   RouterContext,
   Branch,
-  RouteSectionProps
+  RouteSectionProps,
+  Location
 } from "../types.js";
-import { createMemoObject, extractSearchParams } from "../utils.js";
+import { createMemoObject } from "../utils.js";
 
 export type BaseRouterProps = {
   base?: string;
@@ -41,23 +51,45 @@ export const createRouterComponent = (router: RouterIntegration) => (props: Base
     | RouteDefinition
     | RouteDefinition[];
 
-  const branches = createMemo(() =>
-    createBranches(
-      props.root ? { component: props.root, load: props.rootLoad, children: routeDefs() } : routeDefs(),
-      props.base || ""
-    )
-  );
+  const branches = createMemo(() => createBranches(routeDefs(), props.base || ""));
   let context: Owner;
-  const routerState = createRouterContext(router, () => context, branches, { base, singleFlight: props.singleFlight });
+  const routerState = createRouterContext(router, () => context, branches, {
+    base,
+    singleFlight: props.singleFlight
+  });
+  const location = routerState.location;
   router.create && router.create(routerState);
 
   return (
     <RouterContextObj.Provider value={routerState}>
-      {(context = getOwner()!) && null}
-      <Routes routerState={routerState} branches={branches()} />
+      <Root location={location} root={props.root} load={props.rootLoad}>
+        {(context = getOwner()!) && null}
+        <Routes routerState={routerState} branches={branches()} />
+      </Root>
     </RouterContextObj.Provider>
   );
 };
+
+function Root(props: {
+  location: Location<unknown>;
+  root?: Component<RouteSectionProps>;
+  load?: RouteLoadFunc;
+  children: JSX.Element;
+}) {
+  const location = props.location;
+  const data = createMemo(
+    () => props.load && untrack(() => props.load!({ params: {}, location, intent: "preload" }))
+  );
+  return (
+    <Show when={props.root} keyed fallback={props.children}>
+      {Root => (
+        <Root params={{}} location={location} data={data()}>
+          {props.children}
+        </Root>
+      )}
+    </Show>
+  );
+}
 
 function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
   const matches = createMemo(() =>
@@ -67,7 +99,7 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
   if (isServer) {
     const e = getRequestEvent();
     if (e && e.router && e.router.dataOnly) {
-      dataOnly(e, props.branches);
+      dataOnly(e, props.routerState, props.branches);
       return;
     }
     e &&
@@ -129,11 +161,7 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
       return next;
     })
   );
-  return (
-    <Show when={routeStates() && root} keyed>
-      {route => <RouteContextObj.Provider value={route}>{route.outlet()}</RouteContextObj.Provider>}
-    </Show>
-  );
+  return createOutlet(() => routeStates() && root)();
 }
 
 const createOutlet = (child: () => RouteContext | undefined) => {
@@ -163,7 +191,7 @@ export const Route = <S extends string, T = unknown>(props: RouteProps<S, T>) =>
 };
 
 // for data only mode with single flight mutations
-function dataOnly(event: RequestEvent, branches: Branch[]) {
+function dataOnly(event: RequestEvent, routerState: RouterContext, branches: Branch[]) {
   const url = new URL(event.request.url);
   const prevMatches = getRouteMatches(
     branches,
@@ -171,19 +199,13 @@ function dataOnly(event: RequestEvent, branches: Branch[]) {
   );
   const matches = getRouteMatches(branches, url.pathname);
   for (let match = 0; match < matches.length; match++) {
-    if (!prevMatches[match] || matches[match].route !== prevMatches[match].route) event.router!.dataOnly = true;
+    if (!prevMatches[match] || matches[match].route !== prevMatches[match].route)
+      event.router!.dataOnly = true;
     const { route, params } = matches[match];
     route.load &&
       route.load({
         params,
-        location: {
-          pathname: url.pathname,
-          search: url.search,
-          hash: url.hash,
-          query: extractSearchParams(url),
-          state: null,
-          key: ""
-        },
+        location: routerState.location,
         intent: "preload"
       });
   }
