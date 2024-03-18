@@ -1,4 +1,4 @@
-import { JSX, Accessor, getOwner, runWithOwner } from "solid-js";
+import { JSX, Accessor, runWithOwner } from "solid-js";
 import {
   createComponent,
   createContext,
@@ -91,7 +91,7 @@ export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFi
   });
 };
 
-export const useParams = <T extends Params>() => useRoute().params as T;
+export const useParams = <T extends Params>() => useRouter().params as T;
 
 export const useSearchParams = <T extends Params>(): [
   Partial<T>,
@@ -271,8 +271,8 @@ export function getIntent() {
 
 export function createRouterContext(
   integration: RouterIntegration,
+  branches: () => Branch[],
   getContext?: () => any,
-  getBranches?: () => Branch[],
   options: { base?: string; singleFlight?: boolean } = {}
 ): RouterContext {
   const {
@@ -306,9 +306,19 @@ export function createRouterContext(
   const referrers: LocationChange[] = [];
   const submissions = createSignal<Submission<any, any>[]>(isServer ? initFromFlash() : []);
 
+  const matches = createMemo(() => getRouteMatches(branches(), location.pathname));
+
+  const params = createMemoObject(() => {
+    const m = matches();
+    const params: Params = {};
+    for (let i = 0; i < m.length; i++) {
+      Object.assign(params, m[i].params);
+    }
+    return params;
+  });
+
   const baseRoute: RouteContext = {
     pattern: basePath,
-    params: {},
     path: () => basePath,
     outlet: () => null,
     resolvePath(to: string) {
@@ -337,10 +347,12 @@ export function createRouterContext(
   return {
     base: baseRoute,
     location,
+    params,
     isRouting,
     renderPath,
     parsePath,
     navigatorFactory,
+    matches,
     beforeLeave,
     preloadRoute,
     singleFlight: options.singleFlight === undefined ? true : options.singleFlight,
@@ -436,7 +448,7 @@ export function createRouterContext(
   }
 
   function preloadRoute(url: URL, preloadData: boolean) {
-    const matches = getRouteMatches(getBranches!(), url.pathname);
+    const matches = getRouteMatches(branches(), url.pathname);
     const prevIntent = intent;
     intent = "preload";
     for (let match in matches) {
@@ -478,9 +490,8 @@ export function createRouteContext(
   parent: RouteContext,
   outlet: () => JSX.Element,
   match: () => RouteMatch,
-  params: Params
 ): RouteContext {
-  const { base, location } = router;
+  const { base, location, params } = router;
   const { pattern, component, load } = match().route;
   const path = createMemo(() => match().path);
 
@@ -493,7 +504,6 @@ export function createRouteContext(
     parent,
     pattern,
     path,
-    params,
     outlet: () =>
       component
         ? createComponent(component, {

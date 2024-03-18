@@ -32,7 +32,6 @@ import type {
   RouteSectionProps,
   Location
 } from "../types.js";
-import { createMemoObject } from "../utils.js";
 
 export type BaseRouterProps = {
   base?: string;
@@ -53,16 +52,14 @@ export const createRouterComponent = (router: RouterIntegration) => (props: Base
 
   const branches = createMemo(() => createBranches(routeDefs(), props.base || ""));
   let context: Owner;
-  const routerState = createRouterContext(router, () => context, branches, {
+  const routerState = createRouterContext(router, branches, () => context, {
     base,
     singleFlight: props.singleFlight
   });
-  const location = routerState.location;
   router.create && router.create(routerState);
-
   return (
     <RouterContextObj.Provider value={routerState}>
-      <Root location={location} root={props.root} load={props.rootLoad}>
+      <Root routerState={routerState} root={props.root} load={props.rootLoad}>
         {(context = getOwner()!) && null}
         <Routes routerState={routerState} branches={branches()} />
       </Root>
@@ -71,19 +68,20 @@ export const createRouterComponent = (router: RouterIntegration) => (props: Base
 };
 
 function Root(props: {
-  location: Location<unknown>;
+  routerState: RouterContext;
   root?: Component<RouteSectionProps>;
   load?: RouteLoadFunc;
   children: JSX.Element;
 }) {
-  const location = props.location;
+  const location = props.routerState.location;
+  const params = props.routerState.params;
   const data = createMemo(
-    () => props.load && untrack(() => props.load!({ params: {}, location, intent: "preload" }))
+    () => props.load && untrack(() => props.load!({ params, location, intent: "preload" }))
   );
   return (
     <Show when={props.root} keyed fallback={props.children}>
       {Root => (
-        <Root params={{}} location={location} data={data()}>
+        <Root params={params} location={location} data={data()}>
           {props.children}
         </Root>
       )}
@@ -92,10 +90,6 @@ function Root(props: {
 }
 
 function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
-  const matches = createMemo(() =>
-    getRouteMatches(props.branches, props.routerState.location.pathname)
-  );
-
   if (isServer) {
     const e = getRequestEvent();
     if (e && e.router && e.router.dataOnly) {
@@ -104,7 +98,7 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
     }
     e &&
       ((e.router || (e.router = {})).matches ||
-        (e.router.matches = matches().map(({ route, path, params }) => ({
+        (e.router.matches = props.routerState.matches().map(({ route, path, params }) => ({
           path: route.originalPath,
           pattern: route.pattern,
           match: path,
@@ -112,19 +106,12 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
           info: route.info
         }))));
   }
-  const params = createMemoObject(() => {
-    const m = matches();
-    const params: Params = {};
-    for (let i = 0; i < m.length; i++) {
-      Object.assign(params, m[i].params);
-    }
-    return params;
-  });
+
   const disposers: (() => void)[] = [];
   let root: RouteContext | undefined;
 
   const routeStates = createMemo(
-    on(matches, (nextMatches, prevMatches, prev: RouteContext[] | undefined) => {
+    on(props.routerState.matches, (nextMatches, prevMatches, prev: RouteContext[] | undefined) => {
       let equal = prevMatches && nextMatches.length === prevMatches.length;
       const next: RouteContext[] = [];
       for (let i = 0, len = nextMatches.length; i < len; i++) {
@@ -145,8 +132,7 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
               props.routerState,
               next[i - 1] || props.routerState.base,
               createOutlet(() => routeStates()[i + 1]),
-              () => matches()[i],
-              params
+              () => props.routerState.matches()[i]
             );
           });
         }
