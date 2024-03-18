@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 0.13.1
+
+### Patch Changes
+
+- 8b766a9: restore params into root
+
 ## 0.13.0
 
 ### Minor Changes
