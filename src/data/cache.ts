@@ -55,7 +55,9 @@ export function cacheKeyOp(key: string | string[] | void, fn: (cacheEntry: Cache
 export type CachedFunction<T extends (...args: any) => any> = T extends (
   ...args: infer A
 ) => infer R
-  ? ([] extends A ? (...args: never[]) => R : T) & {
+  ? ([] extends { [K in keyof A]-?: A[K] } // A tuple full of optional values is equivalent to an empty tuple
+      ? (...args: never[]) => R
+      : T) & {
       keyFor: (...args: A) => string;
       key: string;
     }
