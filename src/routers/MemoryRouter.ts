@@ -33,9 +33,15 @@ export function createMemoryHistory() {
         entries.splice(index + 1, entries.length - index, value);
         index++;
       }
-      if (scroll) {
-        scrollToHash(value.split("#")[1] || "", true);
-      }
+
+      listeners.forEach(listener => listener(value));
+
+      setTimeout(() => {
+        if (scroll) {
+          scrollToHash(value.split("#")[1] || "", true);
+        }
+      }, 1000);
+      
     },
     back: () => {
       go(-1);
