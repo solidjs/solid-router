@@ -40,7 +40,7 @@ export function createMemoryHistory() {
         if (scroll) {
           scrollToHash(value.split("#")[1] || "", true);
         }
-      }, 1000);
+      }, 0);
       
     },
     back: () => {
