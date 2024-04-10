@@ -158,6 +158,7 @@ describe("createRoutes should", () => {
         id: "someTHING",
         all: "BaR/sOlId"
       });
+      expect(route.originalPath).toBe("foo/:id/*all");
     });
 
     test(`validate path using match filters`, () => {
@@ -182,8 +183,10 @@ describe("createRoutes should", () => {
         path: "foo/:id?"
       };
       const routes = createRoutes(routeDef);
-      expect(routes[0].originalPath).toBe("foo");
-      expect(routes[1].originalPath).toBe("foo/:id");
+      expect(routes[0].pattern).toBe("/foo");
+      expect(routes[0].originalPath).toBe("foo/:id?");
+      expect(routes[1].pattern).toBe("/foo/:id");
+      expect(routes[1].originalPath).toBe("foo/:id?");
     });
 
     test(`with a multiple paths`, () => {
@@ -191,10 +194,14 @@ describe("createRoutes should", () => {
         path: ["foo/:id?", "bar/:name?"]
       };
       const routes = createRoutes(routeDef);
-      expect(routes[0].originalPath).toBe("foo");
-      expect(routes[1].originalPath).toBe("foo/:id");
-      expect(routes[2].originalPath).toBe("bar");
-      expect(routes[3].originalPath).toBe("bar/:name");
+      expect(routes[0].pattern).toBe("/foo");
+      expect(routes[0].originalPath).toBe("foo/:id?");
+      expect(routes[1].pattern).toBe("/foo/:id");
+      expect(routes[1].originalPath).toBe("foo/:id?");
+      expect(routes[2].pattern).toBe("/bar");
+      expect(routes[2].originalPath).toBe("bar/:name?");
+      expect(routes[3].pattern).toBe("/bar/:name");
+      expect(routes[3].originalPath).toBe("bar/:name?");
     });
   });
 });

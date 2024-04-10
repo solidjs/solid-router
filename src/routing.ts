@@ -132,9 +132,9 @@ export function createRoutes(routeDef: RouteDefinition, base: string = ""): Rout
     info
   };
 
-  return asArray(routeDef.path).reduce<Route[]>((acc, path) => {
-    for (const originalPath of expandOptionals(path)) {
-      const path = joinPaths(base, originalPath);
+  return asArray(routeDef.path).reduce<Route[]>((acc, originalPath) => {
+    for (const expandedPath of expandOptionals(originalPath)) {
+      const path = joinPaths(base, expandedPath);
       let pattern = isLeaf ? path : path.split("/*", 1)[0];
       pattern = pattern
         .split("/")
