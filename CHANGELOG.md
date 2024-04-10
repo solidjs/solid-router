@@ -1,5 +1,13 @@
 # @solidjs/router
 
+## 0.13.2
+
+### Patch Changes
+
+- 0a34883: preserve original path on optional segments
+- 94797e1: Fix types for cache functions with all optional arguments
+- 8a547a8: don't submit form when submit event is defaultPrevented
+
 ## 0.13.1
 
 ### Patch Changes
