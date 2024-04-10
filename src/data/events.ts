@@ -97,6 +97,7 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
     }
 
     function handleFormSubmit(evt: SubmitEvent) {
+      if (evt.defaultPrevented) return;
       let actionRef =
         evt.submitter && evt.submitter.hasAttribute("formaction")
           ? evt.submitter.getAttribute("formaction")
