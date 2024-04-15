@@ -7,6 +7,7 @@ import {
   createSignal,
   on,
   onCleanup,
+  onMount,
   untrack,
   useContext,
   startTransition,
@@ -325,6 +326,10 @@ export function createRouterContext(
       return resolvePath(basePath, to);
     }
   };
+
+  const handlePopState = () => setState(window.history.state);
+  onMount(() => window.addEventListener("popstate", handlePopState));
+  onCleanup(() => window.removeEventListener("popstate", handlePopState));
 
   createRenderEffect(() => {
     const { value, state } = source();
