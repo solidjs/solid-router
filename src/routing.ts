@@ -326,12 +326,6 @@ export function createRouterContext(
     }
   };
 
-  if (!isServer) {
-    const syncState = () => setState(window.history.state);
-    window.addEventListener("popstate", syncState);
-    onCleanup(() => window.removeEventListener("popstate", syncState));
-  }
-
   createRenderEffect(() => {
     const { value, state } = source();
     // Untrack this whole block so `start` doesn't cause Solid's Listener to be preserved
@@ -343,6 +337,13 @@ export function createRouterContext(
           setState(state);
           resetErrorBoundaries();
           submissions[1]([]);
+        }).then(() => {
+          intent = undefined;
+        });
+      } else {
+        start(() => {
+          intent = "native";
+          setState(state);
         }).then(() => {
           intent = undefined;
         });
