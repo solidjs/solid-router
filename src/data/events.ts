@@ -1,7 +1,7 @@
 import { delegateEvents } from "solid-js/web";
 import { onCleanup } from "solid-js";
 import type { RouterContext } from "../types.js";
-import { actions } from "./action.js";
+import { actions, routableForms } from "./action.js";
 import { mockBase } from "../utils.js";
 
 export function setupNativeEvents(preload = true, explicitLinks = false, actionBase = "/_server") {
@@ -103,13 +103,34 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
           ? evt.submitter.getAttribute("formaction")
           : (evt.target as HTMLElement).getAttribute("action");
       if (!actionRef) return;
+      const method =
+        evt.submitter && evt.submitter.hasAttribute("formmethod")
+          ? evt.submitter.getAttribute("formmethod")
+          : (evt.target as HTMLElement).getAttribute("method");
+      if (method?.toUpperCase() === "GET") {
+        if (routableForms.has(evt.target as HTMLFormElement)) {
+          evt.preventDefault();
+          const data = new FormData(evt.target as HTMLFormElement);
+          if (evt.submitter && (evt.submitter as HTMLButtonElement | HTMLInputElement).name)
+            data.append(
+              (evt.submitter as HTMLButtonElement | HTMLInputElement).name,
+              (evt.submitter as HTMLButtonElement | HTMLInputElement).value
+            );
+          const searchUrl =
+            actionRef +
+            "?" +
+            [...data.entries()].map(([key, value]) => `${key}=${value}`).join("&");
+          navigateFromRoute(searchUrl);
+          return;
+        }
+      }
       if (!actionRef.startsWith("https://action/")) {
         // normalize server actions
         const url = new URL(actionRef, mockBase);
         actionRef = router.parsePath(url.pathname + url.search);
         if (!actionRef.startsWith(actionBase)) return;
       }
-      if ((evt.target as HTMLFormElement).method.toUpperCase() !== "POST")
+      if (method?.toUpperCase() !== "POST")
         throw new Error("Only POST forms are supported for Actions");
       const handler = actions.get(actionRef);
       if (handler) {
