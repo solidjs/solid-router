@@ -116,11 +116,10 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
               (evt.submitter as HTMLButtonElement | HTMLInputElement).name,
               (evt.submitter as HTMLButtonElement | HTMLInputElement).value
             );
-          const searchUrl =
-            actionRef +
-            "?" +
-            [...data.entries()].map(([key, value]) => `${key}=${value}`).join("&");
-          navigateFromRoute(searchUrl);
+          const url = new URL(actionRef, location.origin);
+          url.search = "?" + [...data.entries()].map(([key, value]) => `${key}=${value}`).join("&");
+          const to = router.parsePath(url.pathname + url.search + url.hash);
+          navigateFromRoute(to, { resolve: false });
           return;
         }
       }
