@@ -6,14 +6,17 @@ import type { BaseRouterProps } from "./components.jsx";
 import type { JSX } from "solid-js";
 import { createBeforeLeave, keepDepth, notifyIfNotBlocked, saveCurrentDepth } from "../lifecycle.js";
 
-export type RouterProps = BaseRouterProps & { url?: string, actionBase?: string, explicitLinks?: boolean, preload?: boolean };
+export type RouterProps = BaseRouterProps & { url?: string, actionBase?: string, explicitLinks?: boolean, preload?: boolean, transformUrl?: (url: string) => string };
 
 export function Router(props: RouterProps): JSX.Element {
   if (isServer) return StaticRouter(props);
-  const getSource = () => ({
-    value: window.location.pathname + window.location.search + window.location.hash,
-    state: window.history.state
-  });
+  const getSource = () => {
+    const url = window.location.pathname + window.location.search;
+    return {
+      value: props.transformUrl ? props.transformUrl(url) + window.location.hash : url + window.location.hash,
+      state: window.history.state
+    }
+  };
   const beforeLeave = createBeforeLeave();
   return createRouter({
     get: getSource,

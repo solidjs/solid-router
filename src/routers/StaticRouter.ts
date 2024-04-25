@@ -7,12 +7,13 @@ function getPath(url: string) {
   return u.pathname + u.search;
 }
 
-export type StaticRouterProps = BaseRouterProps & { url?: string };
+export type StaticRouterProps = BaseRouterProps & { url?: string, transformUrl?: (url: string) => string };
 
 export function StaticRouter(props: StaticRouterProps): JSX.Element {
   let e;
+  const url = props.url || ((e = getRequestEvent()) && getPath(e.request.url)) || ""
   const obj = {
-    value: props.url || ((e = getRequestEvent()) && getPath(e.request.url)) || ""
+    value: props.transformUrl ? props.transformUrl(url) : url,
   };
   return createRouterComponent({
     signal: [() => obj, next => Object.assign(obj, next)]
