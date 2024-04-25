@@ -429,7 +429,7 @@ Keep in mind these are completely optional. To use but showcase the power of our
 To prevent duplicate fetching and to trigger handle refetching we provide a cache api. That takes a function and returns the same function.
 
 ```jsx
-const getUser = cache((id) => {
+const getUser = cache(async (id) => {
   return (await fetch(`/api/users${id}`)).json()
 }, "users") // used as cache key + serialized arguments
 ```
