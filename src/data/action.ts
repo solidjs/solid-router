@@ -52,14 +52,14 @@ export function useSubmission<T extends Array<any>, U>(
 
 export function useAction<T extends Array<any>, U>(action: Action<T, U>) {
   const r = useRouter();
-  return (...args: Parameters<Action<T, U>>) => action.apply({r}, args);
+  return (...args: Parameters<Action<T, U>>) => action.apply({ r }, args);
 }
 
 export function action<T extends Array<any>, U = void>(
   fn: (...args: T) => Promise<U>,
   name?: string
 ): Action<T, U> {
-  function mutate(this: { r: RouterContext, f?: HTMLFormElement }, ...variables: T) {
+  function mutate(this: { r: RouterContext; f?: HTMLFormElement }, ...variables: T) {
     const router = this.r;
     const form = this.f;
     const p = (
@@ -67,7 +67,7 @@ export function action<T extends Array<any>, U = void>(
         ? (fn as any).withOptions({ headers: { "X-Single-Flight": "true" } })
         : fn
     )(...variables);
-    const [result, setResult] = createSignal<{ data?: U, error?: any }>();
+    const [result, setResult] = createSignal<{ data?: U; error?: any }>();
     let submission: Submission<T, U>;
     function handler(error?: boolean) {
       return async (res: any) => {
@@ -144,22 +144,18 @@ const hashString = (s: string) =>
 
 async function handleResponse(response: unknown, error: boolean | undefined, navigate: Navigator) {
   let data: any;
+  let custom: any;
   let keys: string[] | undefined;
-  let invalidateKeys: string[] | undefined;
+  let flightKeys: string[] | undefined;
   if (response instanceof Response) {
     if (response.headers.has("X-Revalidate"))
-      keys = invalidateKeys = response.headers.get("X-Revalidate")!.split(",");
+      keys = response.headers.get("X-Revalidate")!.split(",");
     if ((response as any).customBody) {
-      data = await (response as any).customBody();
+      data = custom = await (response as any).customBody();
       if (response.headers.has("X-Single-Flight")) {
-        keys || (keys = []);
-        invalidateKeys || (invalidateKeys = []);
-        Object.keys(data).forEach(key => {
-          if (key === "_$value") return;
-          keys!.push(key);
-          cache.set(key, data[key]);
-        });
         data = data._$value;
+        delete custom._$value;
+        flightKeys = Object.keys(custom);
       }
     }
     if (response.headers.has("Location")) {
@@ -173,7 +169,9 @@ async function handleResponse(response: unknown, error: boolean | undefined, nav
   } else if (error) return { error: response };
   else data = response;
   // invalidate
-  cacheKeyOp(invalidateKeys, entry => (entry[0] = 0));
+  cacheKeyOp(keys, entry => (entry[0] = 0));
+  // set cache
+  flightKeys && flightKeys.forEach(k => cache.set(k, custom[k]));
   // trigger revalidation
   await revalidate(keys, false);
   return data != null ? { data } : undefined;
