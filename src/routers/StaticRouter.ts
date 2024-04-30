@@ -7,7 +7,7 @@ function getPath(url: string) {
   return u.pathname + u.search;
 }
 
-export type StaticRouterProps = BaseRouterProps & { url?: string, transformUrl?: (url: string) => string };
+export type StaticRouterProps = BaseRouterProps & { url?: string };
 
 export function StaticRouter(props: StaticRouterProps): JSX.Element {
   let e;

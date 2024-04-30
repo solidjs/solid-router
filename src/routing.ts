@@ -273,7 +273,7 @@ export function createRouterContext(
   integration: RouterIntegration,
   branches: () => Branch[],
   getContext?: () => any,
-  options: { base?: string; singleFlight?: boolean } = {}
+  options: { base?: string; singleFlight?: boolean, transformUrl?: (url: string) => string } = {}
 ): RouterContext {
   const {
     signal: [source, setSource],
@@ -306,7 +306,13 @@ export function createRouterContext(
   const referrers: LocationChange[] = [];
   const submissions = createSignal<Submission<any, any>[]>(isServer ? initFromFlash() : []);
 
-  const matches = createMemo(() => getRouteMatches(branches(), location.pathname));
+  const matches = createMemo(() => {
+    if (typeof options.transformUrl === "function") {
+      return getRouteMatches(branches(), options.transformUrl(location.pathname));
+    }
+
+    return getRouteMatches(branches(), location.pathname);
+  });
 
   const params = createMemoObject(() => {
     const m = matches();

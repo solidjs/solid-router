@@ -42,6 +42,7 @@ export type BaseRouterProps = {
   rootLoad?: RouteLoadFunc;
   singleFlight?: boolean;
   children?: JSX.Element | RouteDefinition | RouteDefinition[];
+  transformUrl?: (url: string) => string;
 };
 
 export const createRouterComponent = (router: RouterIntegration) => (props: BaseRouterProps) => {
@@ -54,7 +55,8 @@ export const createRouterComponent = (router: RouterIntegration) => (props: Base
   let context: Owner;
   const routerState = createRouterContext(router, branches, () => context, {
     base,
-    singleFlight: props.singleFlight
+    singleFlight: props.singleFlight,
+    transformUrl: props.transformUrl,
   });
   router.create && router.create(routerState);
   return (
