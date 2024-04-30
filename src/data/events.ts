@@ -4,7 +4,7 @@ import type { RouterContext } from "../types.js";
 import { actions } from "./action.js";
 import { mockBase } from "../utils.js";
 
-export function setupNativeEvents(preload = true, explicitLinks = false, actionBase = "/_server") {
+export function setupNativeEvents(preload = true, explicitLinks = false, actionBase = "/_server", transformUrl?: (url: string) => string) {
   return (router: RouterContext) => {
     const basePath = router.base.path();
     const navigateFromRoute = router.navigatorFactory(router.base);
@@ -71,6 +71,9 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
       const res = handleAnchor(evt as MouseEvent);
       if (!res) return;
       const [a, url] = res;
+      if (typeof transformUrl === "function") {
+        url.pathname = transformUrl(url.pathname);
+      }
       if (!preloadTimeout[url.pathname])
         router.preloadRoute(url, a.getAttribute("preload") !== "false");
     }
@@ -79,6 +82,9 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
       const res = handleAnchor(evt as MouseEvent);
       if (!res) return;
       const [a, url] = res;
+      if (typeof transformUrl === "function") {
+        url.pathname = transformUrl(url.pathname);
+      }
       if (preloadTimeout[url.pathname]) return;
       preloadTimeout[url.pathname] = setTimeout(() => {
         router.preloadRoute(url, a.getAttribute("preload") !== "false");
@@ -90,6 +96,9 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
       const res = handleAnchor(evt as MouseEvent);
       if (!res) return;
       const [, url] = res;
+      if (typeof transformUrl === "function") {
+        url.pathname = transformUrl(url.pathname);
+      }
       if (preloadTimeout[url.pathname]) {
         clearTimeout(preloadTimeout[url.pathname]);
         delete preloadTimeout[url.pathname];

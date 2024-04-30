@@ -39,7 +39,7 @@ export function Router(props: RouterProps): JSX.Element {
           }
         })
       ),
-    create: setupNativeEvents(props.preload, props.explicitLinks, props.actionBase),
+    create: setupNativeEvents(props.preload, props.explicitLinks, props.actionBase, props.transformUrl),
     utils: {
       go: delta => window.history.go(delta),
       beforeLeave
