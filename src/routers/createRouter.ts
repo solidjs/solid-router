@@ -1,6 +1,7 @@
 import { Signal, createSignal, onCleanup } from "solid-js";
 import type { LocationChange, RouterContext, RouterUtils } from "../types.ts";
 import { createRouterComponent } from "./components.jsx";
+import { equalObjects } from "../utils.js";
 
 function intercept<T>(
   [value, setValue]: [() => T, (v: T) => void],
@@ -32,7 +33,9 @@ export function createRouter(config: {
   let ignore = false;
   const wrap = (value: string | LocationChange) => (typeof value === "string" ? { value } : value);
   const signal = intercept<LocationChange>(
-    createSignal(wrap(config.get()), { equals: false }),
+    createSignal(wrap(config.get()), {
+      equals: (a, b) => a.value === b.value && equalObjects(a.state, b.state)
+    }),
     undefined,
     next => {
       !ignore && config.set(next);
