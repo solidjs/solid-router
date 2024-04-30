@@ -268,6 +268,13 @@ let intent: Intent | undefined;
 export function getIntent() {
   return intent;
 }
+let inLoadFn = false;
+export function getInLoadFn() {
+  return inLoadFn;
+}
+export function setInLoadFn(value: boolean) {
+  inLoadFn = value;
+}
 
 export function createRouterContext(
   integration: RouterIntegration,
@@ -457,6 +464,7 @@ export function createRouterContext(
         (route.component as MaybePreloadableComponent).preload &&
         (route.component as MaybePreloadableComponent).preload!();
       const { load } = route;
+      inLoadFn = true;
       preloadData &&
         load &&
         runWithOwner(getContext!(), () =>
@@ -473,6 +481,7 @@ export function createRouterContext(
             intent: "preload"
           })
         );
+      inLoadFn = false;
     }
     intent = prevIntent;
   }
@@ -498,7 +507,9 @@ export function createRouteContext(
   component &&
     (component as MaybePreloadableComponent).preload &&
     (component as MaybePreloadableComponent).preload!();
+  inLoadFn = true;
   const data = load ? load({ params, location, intent: intent || "initial" }) : undefined;
+  inLoadFn = false;
 
   const route: RouteContext = {
     parent,

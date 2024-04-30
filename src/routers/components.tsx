@@ -16,21 +16,21 @@ import {
   createBranches,
   createRouteContext,
   createRouterContext,
+  getIntent,
   getRouteMatches,
   RouteContextObj,
-  RouterContextObj
+  RouterContextObj,
+  setInLoadFn
 } from "../routing.js";
 import type {
   MatchFilters,
-  Params,
   RouteContext,
   RouteLoadFunc,
   RouteDefinition,
   RouterIntegration,
   RouterContext,
   Branch,
-  RouteSectionProps,
-  Location
+  RouteSectionProps
 } from "../types.js";
 
 export type BaseRouterProps = {
@@ -76,7 +76,13 @@ function Root(props: {
   const location = props.routerState.location;
   const params = props.routerState.params;
   const data = createMemo(
-    () => props.load && untrack(() => props.load!({ params, location, intent: "preload" }))
+    () =>
+      props.load &&
+      untrack(() => {
+        setInLoadFn(true);
+        props.load!({ params, location, intent: getIntent() || "initial" });
+        setInLoadFn(false);
+      })
   );
   return (
     <Show when={props.root} keyed fallback={props.children}>
