@@ -186,34 +186,3 @@ export function expandOptionals(pattern: string): string[] {
     []
   );
 }
-
-// Modified from fast-deep-equal for objects only (MIT)
-// https://github.com/epoberezkin/fast-deep-equal
-export function equalObjects(a: any, b: any) {
-  if (a === b) return true;
-
-  if (a && b && typeof a == "object" && typeof b == "object") {
-    if (a.constructor !== b.constructor) return false;
-    if (a.valueOf !== Object.prototype.valueOf) return a.valueOf() === b.valueOf();
-    if (a.toString !== Object.prototype.toString) return a.toString() === b.toString();
-
-    var length, i, keys;
-    keys = Object.keys(a);
-    length = keys.length;
-
-    if (length !== Object.keys(b).length) return false;
-
-    for (i = length; i-- !== 0; ) {
-      if (!Object.prototype.hasOwnProperty.call(b, keys[i])) return false;
-    }
-
-    for (i = length; i-- !== 0; ) {
-      var key = keys[i];
-      if (!equalObjects(a[key], b[key])) return false;
-    }
-
-    return true;
-  }
-
-  return false;
-}

@@ -44,8 +44,7 @@ import {
   joinPaths,
   scoreRoute,
   mergeSearchString,
-  expandOptionals,
-  equalObjects
+  expandOptionals
 } from "./utils.js";
 
 const MAX_REDIRECTS = 100;
@@ -328,20 +327,18 @@ export function createRouterContext(
   };
 
   createRenderEffect(() => {
-    const { value, state: nextState } = source();
+    const { value, state } = source();
     // Untrack this whole block so `start` doesn't cause Solid's Listener to be preserved
     untrack(() => {
-      if (value !== reference() || !equalObjects(nextState, state())) {
-        start(() => {
-          intent = "native";
-          setReference(value);
-          setState(nextState);
-          resetErrorBoundaries();
-          submissions[1]([]);
-        }).then(() => {
-          intent = undefined;
-        });
-      }
+      start(() => {
+        intent = "native";
+        if (value !== reference()) setReference(value);
+        setState(state);
+        resetErrorBoundaries();
+        submissions[1]([]);
+      }).then(() => {
+        intent = undefined;
+      });
     });
   });
 
