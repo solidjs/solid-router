@@ -32,7 +32,9 @@ export function createRouter(config: {
   let ignore = false;
   const wrap = (value: string | LocationChange) => (typeof value === "string" ? { value } : value);
   const signal = intercept<LocationChange>(
-    createSignal(wrap(config.get()), { equals: (a, b) => a.value === b.value }),
+    createSignal(wrap(config.get()), {
+      equals: (a, b) => a.value === b.value && a.state === b.state
+    }),
     undefined,
     next => {
       !ignore && config.set(next);

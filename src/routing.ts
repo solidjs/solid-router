@@ -337,17 +337,15 @@ export function createRouterContext(
     const { value, state } = source();
     // Untrack this whole block so `start` doesn't cause Solid's Listener to be preserved
     untrack(() => {
-      if (value !== reference()) {
-        start(() => {
-          intent = "native";
-          setReference(value);
-          setState(state);
-          resetErrorBoundaries();
-          submissions[1]([]);
-        }).then(() => {
-          intent = undefined;
-        });
-      }
+      start(() => {
+        intent = "native";
+        if (value !== reference()) setReference(value);
+        setState(state);
+        resetErrorBoundaries();
+        submissions[1]([]);
+      }).then(() => {
+        intent = undefined;
+      });
     });
   });
 
