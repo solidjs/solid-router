@@ -91,6 +91,8 @@ export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFi
   });
 };
 
+export const useCurrentMatches = () => useRouter().matches();
+
 export const useParams = <T extends Params>() => useRouter().params as T;
 
 export const useSearchParams = <T extends Params>(): [

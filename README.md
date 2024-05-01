@@ -30,6 +30,7 @@ It supports all of Solid's SSR methods and has Solid's transitions baked in, so 
   - [useSearchParams](#usesearchparams)
   - [useIsRouting](#useisrouting)
   - [useMatch](#usematch)
+  - [useCurrentMatches](#useCurrentMatches)
   - [useBeforeLeave](#usebeforeleave)
 - [SPAs in Deployed Environments](#spas-in-deployed-environments)
 
@@ -858,6 +859,16 @@ return (
 const match = useMatch(() => props.href);
 
 return <div classList={{ active: Boolean(match()) }} />;
+```
+
+### useCurrentMatches
+
+`useCurrentMatches` returns all the matches for the current matched route. Useful for getting all the route information.
+
+For example if you stored breadcrumbs on your route definition you could retrieve them like so:
+```js
+const matches = useCurrentMatches();
+const breadcrumbs = createMemo(() => matches.map(m => m.route.info.breadcrumb))
 ```
 
 ### useBeforeLeave
