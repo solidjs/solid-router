@@ -10,10 +10,13 @@ export type RouterProps = BaseRouterProps & { url?: string, actionBase?: string,
 
 export function Router(props: RouterProps): JSX.Element {
   if (isServer) return StaticRouter(props);
-  const getSource = () => ({
-    value: window.location.pathname + window.location.search + window.location.hash,
-    state: window.history.state
-  });
+  const getSource = () => {
+    const url = window.location.pathname + window.location.search;
+    return {
+      value: props.transformUrl ? props.transformUrl(url) + window.location.hash : url + window.location.hash,
+      state: window.history.state
+    }
+  };
   const beforeLeave = createBeforeLeave();
   return createRouter({
     get: getSource,
@@ -36,7 +39,7 @@ export function Router(props: RouterProps): JSX.Element {
           }
         })
       ),
-    create: setupNativeEvents(props.preload, props.explicitLinks, props.actionBase),
+    create: setupNativeEvents(props.preload, props.explicitLinks, props.actionBase, props.transformUrl),
     utils: {
       go: delta => window.history.go(delta),
       beforeLeave
