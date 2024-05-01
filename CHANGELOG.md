@@ -1,5 +1,15 @@
 # @solidjs/router
 
+## 0.13.3
+
+### Patch Changes
+
+- 884b8be: fix #374, fix #399 - suppress cache errors in load function
+- 4a76e7d: Fix state updates detection on history back/forward
+- 5af3da8: fix #407 single flight without explicit keys
+- 1068f1b: fix #408 - accessing route information
+- 0c698ed: Allow rewriting url
+
 ## 0.13.2
 
 ### Patch Changes
