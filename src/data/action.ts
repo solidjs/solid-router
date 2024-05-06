@@ -149,7 +149,9 @@ async function handleResponse(response: unknown, error: boolean | undefined, nav
   let flightKeys: string[] | undefined;
   if (response instanceof Response) {
     if (response.headers.has("X-Revalidate"))
-      keys = response.headers.get("X-Revalidate")!.split(",");
+      keys = response.headers.get("X-Revalidate")
+        ? response.headers.get("X-Revalidate")!.split(",")
+        : [];
     if ((response as any).customBody) {
       data = custom = await (response as any).customBody();
       if (response.headers.has("X-Single-Flight")) {
