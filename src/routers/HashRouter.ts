@@ -27,7 +27,7 @@ export function HashRouter(props: HashRouterProps): JSX.Element {
       if (replace) {
         window.history.replaceState(keepDepth(state), "", "#" + value);
       } else {
-        window.location.hash = value;
+        window.history.pushState(state, "", "#" + value);
       }
       const hashIndex = value.indexOf("#");
       const hash = hashIndex >= 0 ? value.slice(hashIndex + 1) : "";
