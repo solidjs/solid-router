@@ -6,6 +6,7 @@ export {
   useIsRouting,
   useLocation,
   useMatch,
+  useMatches,
   useCurrentMatches,
   useNavigate,
   useParams,
