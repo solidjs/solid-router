@@ -77,7 +77,7 @@ export type RouteLoadFunc<T = unknown> = (args: RouteLoadFuncArgs) => T;
 export interface RouteSectionProps<T = unknown> {
   params: Params;
   location: Location;
-  data?: T;
+  data: T;
   children?: JSX.Element;
 }
 
