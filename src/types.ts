@@ -5,9 +5,9 @@ declare module "solid-js/web" {
     response: {
       status?: number;
       statusText?: string;
-      headers: Headers
+      headers: Headers;
     };
-    router? : {
+    router?: {
       matches?: OutputMatch[];
       cache?: Map<string, CacheEntry>;
       submission?: {
@@ -18,7 +18,7 @@ declare module "solid-js/web" {
       dataOnly?: boolean | string[];
       data?: Record<string, any>;
       previousUrl?: string;
-    }
+    };
     serverOnly?: boolean;
   }
 }
@@ -74,21 +74,33 @@ export interface RouteLoadFuncArgs {
 
 export type RouteLoadFunc<T = unknown> = (args: RouteLoadFuncArgs) => T;
 
-export interface RouteSectionProps<T = unknown> {
+export interface RouteSectionProps<T = unknown, TSlots extends string = never> {
   params: Params;
   location: Location;
   data?: T;
   children?: JSX.Element;
+  slots: Record<TSlots, JSX.Element>;
 }
 
-export type RouteDefinition<S extends string | string[] = any, T = unknown> = {
+export type RouteDefinition<
+  S extends string | string[] = any,
+  T = unknown,
+  TSlots extends string = any
+> = {
   path?: S;
   matchFilters?: MatchFilters<S>;
   load?: RouteLoadFunc<T>;
   children?: RouteDefinition | RouteDefinition[];
-  component?: Component<RouteSectionProps<T>>;
+  component?: Component<RouteSectionProps<T, TSlots>>;
   info?: Record<string, any>;
-};
+} & (
+  | { component?: Component<RouteSectionProps<T, TSlots>>; slots?: never }
+  // slots require a component to render them
+  | {
+      component: Component<RouteSectionProps<T, TSlots>>;
+      slots: Record<TSlots, RouteDefinition>;
+    }
+);
 
 export type MatchFilter = readonly string[] | RegExp | ((s: string) => boolean);
 
@@ -114,6 +126,7 @@ export interface PathMatch {
 
 export interface RouteMatch extends PathMatch {
   route: Route;
+  slots?: Record<string, RouteMatch[]>;
 }
 
 export interface OutputMatch {
@@ -133,6 +146,7 @@ export interface Route {
   matcher: (location: string) => PathMatch | null;
   matchFilters?: MatchFilters;
   info?: Record<string, any>;
+  slots?: Record<string, Branch[]>;
 }
 
 export interface Branch {
@@ -143,11 +157,11 @@ export interface Branch {
 
 export interface RouteContext {
   parent?: RouteContext;
-  child?: RouteContext;
   pattern: string;
   path: () => string;
   outlet: () => JSX.Element;
   resolvePath(to: string): string | undefined;
+  slots?: Record<string, RouteContext[]>;
 }
 
 export interface RouterUtils {

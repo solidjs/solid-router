@@ -6,12 +6,13 @@ export {
   useIsRouting,
   useLocation,
   useMatch,
+  useMatches,
   useCurrentMatches,
   useNavigate,
   useParams,
   useResolvedPath,
   useSearchParams,
-  useBeforeLeave,
+  useBeforeLeave
 } from "./routing.js";
 export { mergeSearchString as _mergeSearchString } from "./utils.js";
 export * from "./data/index.js";

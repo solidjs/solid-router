@@ -1,4 +1,4 @@
-import { JSX, Accessor, runWithOwner } from "solid-js";
+import { JSX, Accessor, runWithOwner, createEffect } from "solid-js";
 import {
   createComponent,
   createContext,
@@ -78,6 +78,7 @@ export const useNavigate = () => useRouter().navigatorFactory();
 export const useLocation = <S = unknown>() => useRouter().location as Location<S>;
 export const useIsRouting = () => useRouter().isRouting;
 
+export const useMatches = () => useRouter().matches;
 export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFilters<S>) => {
   const location = useLocation();
   const matchers = createMemo(() =>
@@ -123,8 +124,9 @@ export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
   onCleanup(s);
 };
 
+// specific to route-level stuff, not slots since those are nested and act like children
 export function createRoutes(routeDef: RouteDefinition, base: string = ""): Route[] {
-  const { component, load, children, info } = routeDef;
+  const { component, load, children, info, slots } = routeDef;
   const isLeaf = !children || (Array.isArray(children) && !children.length);
 
   const shared = {
@@ -134,7 +136,7 @@ export function createRoutes(routeDef: RouteDefinition, base: string = ""): Rout
     info
   };
 
-  return asArray(routeDef.path).reduce<Route[]>((acc, originalPath) => {
+  return asArray(routeDef.path ?? "").reduce<Route[]>((acc, originalPath) => {
     for (const expandedPath of expandOptionals(originalPath)) {
       const path = joinPaths(base, expandedPath);
       let pattern = isLeaf ? path : path.split("/*", 1)[0];
@@ -196,9 +198,16 @@ export function createBranches(
       const routes = createRoutes(def, base);
       for (const route of routes) {
         stack.push(route);
+
         const isEmptyArray = Array.isArray(def.children) && def.children.length === 0;
         if (def.children && !isEmptyArray) {
           createBranches(def.children, route.pattern, stack, branches);
+
+          if (def.slots) {
+            for (const [name, slot] of Object.entries(def.slots) as [string, RouteDefinition][]) {
+              (route.slots ??= {})[name] = createBranches(slot, route.pattern);
+            }
+          }
         } else {
           const branch = createBranch([...stack], branches.length);
           branches.push(branch);
@@ -217,6 +226,11 @@ export function getRouteMatches(branches: Branch[], location: string): RouteMatc
   for (let i = 0, len = branches.length; i < len; i++) {
     const match = branches[i].matcher(location);
     if (match) {
+      match.forEach(m => {
+        for (const [name, slot] of Object.entries(m.route.slots ?? {})) {
+          (m.slots ??= {})[name] = getRouteMatches(slot, location);
+        }
+      });
       return match;
     }
   }
@@ -282,7 +296,7 @@ export function createRouterContext(
   integration: RouterIntegration,
   branches: () => Branch[],
   getContext?: () => any,
-  options: { base?: string; singleFlight?: boolean, transformUrl?: (url: string) => string } = {}
+  options: { base?: string; singleFlight?: boolean; transformUrl?: (url: string) => string } = {}
 ): RouterContext {
   const {
     signal: [source, setSource],
@@ -494,21 +508,21 @@ export function createRouterContext(
 
   function initFromFlash() {
     const e = getRequestEvent();
-    return (e && e.router && e.router.submission
-      ? [e.router.submission]
-      : []) as Array<Submission<any, any>>;
+    return (e && e.router && e.router.submission ? [e.router.submission] : []) as Array<
+      Submission<any, any>
+    >;
   }
 }
 
 export function createRouteContext(
   router: RouterContext,
   parent: RouteContext,
-  outlet: () => JSX.Element,
-  match: () => RouteMatch,
+  { children, ...slots }: Record<string, () => JSX.Element>,
+  match: RouteMatch
 ): RouteContext {
   const { base, location, params } = router;
-  const { pattern, component, load } = match().route;
-  const path = createMemo(() => match().path);
+  const { pattern, component, load } = match.route;
+  const path = createMemo(() => match.path);
 
   component &&
     (component as MaybePreloadableComponent).preload &&
@@ -528,10 +542,14 @@ export function createRouteContext(
             location,
             data,
             get children() {
-              return outlet();
-            }
+              return children();
+            },
+            slots: Object.entries(slots).reduce((acc, [key, slot]) => {
+              Object.defineProperty(acc, key, { get: slot });
+              return acc;
+            }, {})
           })
-        : outlet(),
+        : children(),
     resolvePath(to: string) {
       return resolvePath(base.path(), to, path());
     }
