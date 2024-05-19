@@ -199,15 +199,15 @@ export function createBranches(
       for (const route of routes) {
         stack.push(route);
 
+        if (def.slots) {
+          for (const [name, slot] of Object.entries(def.slots) as [string, RouteDefinition][]) {
+            (route.slots ??= {})[name] = createBranches(slot, route.pattern);
+          }
+        }
+
         const isEmptyArray = Array.isArray(def.children) && def.children.length === 0;
         if (def.children && !isEmptyArray) {
           createBranches(def.children, route.pattern, stack, branches);
-
-          if (def.slots) {
-            for (const [name, slot] of Object.entries(def.slots) as [string, RouteDefinition][]) {
-              (route.slots ??= {})[name] = createBranches(slot, route.pattern);
-            }
-          }
         } else {
           const branch = createBranch([...stack], branches.length);
           branches.push(branch);

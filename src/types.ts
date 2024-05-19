@@ -98,7 +98,7 @@ export type RouteDefinition<
   // slots require a component to render them
   | {
       component: Component<RouteSectionProps<T, TSlots>>;
-      slots: Record<TSlots, RouteDefinition>;
+      slots: Record<TSlots, RouteDefinition | RouteDefinition[]>;
     }
 );
 

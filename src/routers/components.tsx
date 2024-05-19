@@ -185,9 +185,14 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
                 prev?.[i].slots?.[name],
                 [...disposerPath, [i, name]]
               );
+
+              if (rendered.length === 0) continue;
+
               slots[name] = rendered;
               outlets[name] = createOutlet(() => {
                 const context = rendered[0];
+                if (!context) return;
+
                 return {
                   context,
                   outlet: context.outlet
