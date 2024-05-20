@@ -140,7 +140,7 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
       document.addEventListener("mouseover", handleAnchorIn);
       document.addEventListener("mouseout", handleAnchorOut);
       document.addEventListener("focusin", handleAnchorPreload);
-      document.addEventListener("touchstart", handleAnchorPreload);
+      document.addEventListener("touchstart", handleAnchorPreload, { passive: true });
     }
     document.addEventListener("submit", handleFormSubmit);
     onCleanup(() => {
