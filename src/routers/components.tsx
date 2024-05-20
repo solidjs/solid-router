@@ -164,7 +164,10 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
 
         let disposers = globalDisposers;
         for (const [i, slot] of disposerPath) {
-          disposers = (disposers[i].slots ??= {})[slot] ??= [];
+          const disposer = disposers[i];
+          if (!disposer) break;
+
+          disposers = (disposer.slots ??= {})[slot] ??= [];
         }
 
         if (disposers[i]) {
