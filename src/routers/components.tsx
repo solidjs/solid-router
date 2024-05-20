@@ -23,8 +23,7 @@ import {
   getRouteMatches,
   RouteContextObj,
   RouterContextObj,
-  setInLoadFn,
-  useMatch
+  setInLoadFn
 } from "../routing.js";
 import type {
   MatchFilters,
@@ -132,155 +131,80 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
     }
   }
 
-  function renderRouteMatches(
-    nextMatches: RouteMatch[],
-    prevMatches?: RouteMatch[],
-    prev?: RouteContext[],
-    disposerPath: [number, string][] = []
+  // Renders an array of route matches, recursively calling itself to branch
+  // off for slots
+  // Takes linear branches of matches and creates linear branches of contexts
+  // Almost but not quite a regular tree since children aren't included in slots
+  function renderRouteContexts(
+    matches: RouteMatch[],
+    parent: RouteContext = props.routerState.base
   ): RouteContext[] {
-    let equal = prevMatches && nextMatches.length === prevMatches.length;
+    const renderedContexts: RouteContext[] = [];
 
-    const next: RouteContext[] = [];
-    for (let i = 0, len = nextMatches.length; i < len; i++) {
-      const prevMatch = prevMatches && prevMatches[i];
-      const nextMatch = nextMatches[i];
+    for (let i = 0; i < matches.length; i++) {
+      // matches get processed linearly unless a slot is encountered, at which point
+      // this function recurses
+      const match = matches[i];
 
-      if (prev && prevMatch && nextMatch.route.key === prevMatch.route.key) {
-        next[i] = prev[i];
+      // the context above the one about to be rendered
+      const matchParentContext = renderedContexts[i - 1] ?? parent;
 
-        if (prevMatch.slots && nextMatch.slots) {
-          const nextSlots = (next[i].slots ??= {});
-          for (const [name, slot] of Object.entries(nextMatch.slots)) {
-            nextSlots[name] = renderRouteMatches(
-              slot,
-              prevMatch.slots?.[name],
-              prev[i].slots?.[name],
-              [...disposerPath, [i, name]]
-            );
+      // outlets rendered for the slots of the parent - includes 'children'
+      const slotOutlets: Record<string, () => JSX.Element> = {};
+      // context branches for each slot of this match
+      let slotContexts: Record<string, RouteContext[]> | undefined;
+
+      const dispose = createRoot(dispose => {
+        if ("slots" in match && match.slots) {
+          slotContexts = {};
+
+          for (const [slot, matches] of Object.entries(match.slots)) {
+            slotContexts[slot] = renderRouteContexts(matches, matchParentContext);
+            slotOutlets[slot] = createOutlet(() => slotContexts?.[slot]?.[0]);
           }
         }
-      } else {
-        equal = false;
 
-        let disposers = globalDisposers;
-        for (const [i, slot] of disposerPath) {
-          const disposer = disposers[i];
-          if (!disposer) break;
+        // children renders the next match in the next context
+        slotOutlets["children"] = createOutlet(() => renderedContexts[i + 1]);
 
-          disposers = (disposer.slots ??= {})[slot] ??= [];
-        }
+        const context = createRouteContext(
+          props.routerState,
+          matchParentContext,
+          slotOutlets,
+          match
+        );
+        context.slots = slotContexts;
 
-        if (disposers[i]) {
-          disposeAll([disposers[i]]);
-        }
+        renderedContexts[i] = context;
 
-        createRoot(dispose => {
-          disposers[i] = { dispose };
+        return dispose;
+      });
 
-          const outlets: Record<string, () => JSX.Element> = {};
-          const slots: Record<string, RouteContext[]> = {};
-
-          if (nextMatch.slots)
-            for (const [name, slot] of Object.entries(nextMatch.slots)) {
-              const rendered = renderRouteMatches(
-                slot,
-                prevMatch?.slots?.[name],
-                prev?.[i].slots?.[name],
-                [...disposerPath, [i, name]]
-              );
-
-              if (rendered.length === 0) continue;
-
-              slots[name] = rendered;
-              outlets[name] = createOutlet(() => {
-                const context = rendered[0];
-                if (!context) return;
-
-                return {
-                  context,
-                  outlet: context.outlet
-                };
-              });
-            }
-
-          outlets["children"] = createOutlet(() => {
-            const context = createMemo(() => {
-              let traversed = routeStates();
-
-              for (const [i, slot] of disposerPath) {
-                traversed = traversed[i].slots?.[slot]!;
-              }
-              return traversed[i + 1];
-            });
-
-            return {
-              context: context(),
-              outlet: context().outlet
-            };
-          });
-
-          next[i] = createRouteContext(
-            props.routerState,
-            next[i - 1] || props.routerState.base,
-            outlets,
-            nextMatches[i]
-          );
-
-          next[i].slots = slots;
-        });
-      }
+      onCleanup(dispose);
     }
 
-    globalDisposers.splice(nextMatches.length).forEach(disposer => {
-      disposeAll([disposer]);
-    });
-
-    if (prev && equal) {
-      return prev;
-    }
-
-    return next;
+    return renderedContexts;
   }
 
   const routeStates = createMemo(
-    on(props.routerState.matches, (nextMatches, prevMatches, prev: RouteContext[] | undefined) => {
-      const next = renderRouteMatches(nextMatches, prevMatches, prev);
+    on(props.routerState.matches, nextMatches => {
+      const next = renderRouteContexts(nextMatches);
 
       root = next[0];
+
       return next;
     })
   );
 
-  return createOutlet(() => {
-    if (routeStates() && root) return root;
-  })();
+  return createOutlet(() => routeStates() && root)();
 }
 
-const createOutlet = (
-  child: () => RouteContext | { context: RouteContext; outlet: () => JSX.Element } | undefined
-) => {
-  let memoed: { context: RouteContext; outlet: () => JSX.Element } | undefined;
-
-  // not using createMemo as we can't call routeStates eagerly
-  const _child = () => {
-    const c = child();
-    if (!c) return;
-    if ("context" in c) return c;
-    else if (memoed?.context === c) return memoed;
-    return (memoed = {
-      context: c,
-      outlet: c.outlet
-    });
-  };
-
-  return () => (
-    <Show when={_child()} keyed>
-      {child => (
-        <RouteContextObj.Provider value={child.context}>{child.outlet()}</RouteContextObj.Provider>
-      )}
+const createOutlet = (child: () => RouteContext | undefined) => () =>
+  (
+    <Show when={child()} keyed>
+      {child => <RouteContextObj.Provider value={child}>{child.outlet()}</RouteContextObj.Provider>}
     </Show>
   );
-};
 
 export type RouteProps<S extends string, T = unknown, TSlots extends string = never> = {
   path?: S | S[];
@@ -322,3 +246,114 @@ function dataOnly(event: RequestEvent, routerState: RouterContext, branches: Bra
       });
   }
 }
+
+// function renderRouteMatches(
+//   nextMatches: RouteMatch[],
+//   // prevMatches?: RouteMatch[],
+//   // prev?: RouteContext[],
+//   disposerPath: [number, string][] = []
+// ): RouteContext[] {
+//   // let equal = prevMatches && nextMatches.length === prevMatches.length;
+
+//   const next: RouteContext[] = [];
+//   for (let i = 0, len = nextMatches.length; i < len; i++) {
+//     // const prevMatch = prevMatches && prevMatches[i];
+//     const nextMatch = nextMatches[i];
+
+//     // if (prev && prevMatch && nextMatch.route.key === prevMatch.route.key) {
+//     //   next[i] = prev[i];
+
+//     //   if (prevMatch.slots && nextMatch.slots) {
+//     //     const nextSlots = (next[i].slots ??= {});
+//     //     for (const [name, slot] of Object.entries(nextMatch.slots)) {
+//     //       nextSlots[name] = renderRouteMatches(
+//     //         slot,
+//     //         prevMatch.slots?.[name],
+//     //         prev[i].slots?.[name],
+//     //         [...disposerPath, [i, name]]
+//     //       );
+//     //     }
+//     //   }
+//     // } else {
+//     //   equal = false;
+
+//     let disposers = globalDisposers;
+//     for (const [i, slot] of disposerPath) {
+//       const disposer = disposers[i];
+//       if (!disposer) break;
+
+//       disposers = (disposer.slots ??= {})[slot] ??= [];
+//     }
+
+//     if (disposers[i]) {
+//       disposeAll([disposers[i]]);
+//     }
+
+//     createRoot(dispose => {
+//       disposers[i] = { dispose };
+
+//       const outlets: Record<string, () => JSX.Element> = {};
+//       const slots: Record<string, RouteContext[]> = {};
+
+//       if (nextMatch.slots)
+//         for (const [name, slot] of Object.entries(nextMatch.slots)) {
+//           const rendered = renderRouteMatches(
+//             slot,
+//             // prevMatch?.slots?.[name],
+//             // prev?.[i].slots?.[name],
+//             [...disposerPath, [i, name]]
+//           );
+
+//           if (rendered.length === 0) continue;
+
+//           slots[name] = rendered;
+//           outlets[name] = createOutlet(() => {
+//             const context = rendered[0];
+//             if (!context) return;
+
+//             return {
+//               context,
+//               outlet: context.outlet
+//             };
+//           });
+//         }
+
+//       outlets["children"] = createOutlet(() => {
+//         const context = createMemo(() => {
+//           let traversed = routeStates();
+
+//           for (const [i, slot] of disposerPath) {
+//             traversed = traversed[i].slots?.[slot]!;
+//           }
+
+//           return traversed[i + 1];
+//         });
+
+//         return {
+//           context: context(),
+//           outlet: context().outlet
+//         };
+//       });
+
+//       next[i] = createRouteContext(
+//         props.routerState,
+//         next[i - 1] || props.routerState.base,
+//         outlets,
+//         nextMatches[i]
+//       );
+
+//       next[i].slots = slots;
+//     });
+//     // }
+//   }
+
+//   globalDisposers.splice(nextMatches.length).forEach(disposer => {
+//     disposeAll([disposer]);
+//   });
+
+//   // if (prev && equal) {
+//   //   return prev;
+//   // }
+
+//   return next;
+// }

@@ -126,7 +126,7 @@ export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
 
 // specific to route-level stuff, not slots since those are nested and act like children
 export function createRoutes(routeDef: RouteDefinition, base: string = ""): Route[] {
-  const { component, load, children, info, slots } = routeDef;
+  const { component, load, children, info } = routeDef;
   const isLeaf = !children || (Array.isArray(children) && !children.length);
 
   const shared = {
