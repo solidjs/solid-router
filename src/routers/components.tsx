@@ -6,12 +6,9 @@ import {
   children,
   createMemo,
   createRoot,
-  createSignal,
-  For,
   getOwner,
   mergeProps,
   on,
-  onCleanup,
   Show,
   untrack
 } from "solid-js";
@@ -119,16 +116,14 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
         }))));
   }
 
-  type Disposers = { dispose: () => void; slots?: Record<string, Disposers> }[];
+  type Disposer = { dispose?: () => void; slots?: Record<string, Disposer[]> };
 
-  const globalDisposers: Disposers = [];
+  const globalDisposers: Disposer[] = [];
   let root: RouteContext | undefined;
 
-  function disposeAll(disposer: Disposers) {
-    for (const { dispose, slots } of disposer) {
-      dispose();
-      slots && Object.values(slots).forEach(disposeAll);
-    }
+  function disposeAll({ dispose, slots }: Disposer) {
+    dispose?.();
+    if (slots) Object.values(slots).forEach(d => d.forEach(disposeAll));
   }
 
   // Renders an array of route matches, recursively calling itself to branch
@@ -137,63 +132,105 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
   // Almost but not quite a regular tree since children aren't included in slots
   function renderRouteContexts(
     matches: RouteMatch[],
-    parent: RouteContext = props.routerState.base
+    parent: RouteContext,
+    disposers: Disposer[],
+    prev?: { matches: RouteMatch[]; contexts: RouteContext[] },
+    fullyRenderedRoutes = () => routeStates(),
+    getLiveMatches = () => props.routerState.matches()
   ): RouteContext[] {
+    let equal = matches.length === prev?.matches.length;
+
     const renderedContexts: RouteContext[] = [];
 
+    // matches get processed linearly unless a slot is encountered, at which point
+    // this function recurses
     for (let i = 0; i < matches.length; i++) {
-      // matches get processed linearly unless a slot is encountered, at which point
-      // this function recurses
       const match = matches[i];
+      const prevMatch = prev?.matches[i];
+      const prevContext = prev?.contexts[i];
 
       // the context above the one about to be rendered
       const matchParentContext = renderedContexts[i - 1] ?? parent;
 
+      let slotContexts: Record<string, RouteContext[]> = {};
       // outlets rendered for the slots of the parent - includes 'children'
-      const slotOutlets: Record<string, () => JSX.Element> = {};
-      // context branches for each slot of this match
-      let slotContexts: Record<string, RouteContext[]> | undefined;
+      let slotOutlets: Record<string, () => JSX.Element> = {};
 
-      const dispose = createRoot(dispose => {
-        if ("slots" in match && match.slots) {
-          slotContexts = {};
+      if (match.slots) {
+        const slotsDisposers: Record<string, Disposer[]> = ((disposers[i] ??= {}).slots ??= {});
 
-          for (const [slot, matches] of Object.entries(match.slots)) {
-            slotContexts[slot] = renderRouteContexts(matches, matchParentContext);
-            slotOutlets[slot] = createOutlet(() => slotContexts?.[slot]?.[0]);
-          }
+        for (const [slot, matches] of Object.entries(match.slots)) {
+          slotContexts[slot] = renderRouteContexts(
+            matches,
+            renderedContexts[i],
+            (slotsDisposers[slot] ??= []),
+            prevMatch?.slots?.[slot] && prevContext?.slots?.[slot]
+              ? { matches: prevMatch?.slots?.[slot], contexts: prevContext?.slots?.[slot] }
+              : undefined,
+            () => fullyRenderedRoutes()[i]?.slots?.[slot] ?? [],
+            () => getLiveMatches()[i]?.slots?.[slot] ?? []
+          );
         }
+      }
 
-        // children renders the next match in the next context
-        slotOutlets["children"] = createOutlet(() => renderedContexts[i + 1]);
+      if (prev && match.route.key === prevMatch?.route.key) {
+        renderedContexts[i] = prev.contexts[i];
+        renderedContexts[i].slots = slotContexts;
+      } else {
+        equal = false;
 
-        const context = createRouteContext(
-          props.routerState,
-          matchParentContext,
-          slotOutlets,
-          match
-        );
-        context.slots = slotContexts;
+        if (disposers?.[i]) disposers[i].dispose?.();
 
-        renderedContexts[i] = context;
+        createRoot(dispose => {
+          disposers[i] = {
+            ...disposers[i],
+            dispose
+          };
 
-        return dispose;
-      });
+          // children renders the next match in the next context
+          slotOutlets["children"] = createOutlet(() => fullyRenderedRoutes()[i + 1]);
 
-      onCleanup(dispose);
+          for (const slot of Object.keys(match.slots ?? {})) {
+            const fullyRenderedSlotRoutes = () => fullyRenderedRoutes()[i]?.slots?.[slot];
+
+            slotOutlets[slot] = createOutlet(() => fullyRenderedSlotRoutes()?.[0]);
+          }
+
+          renderedContexts[i] = createRouteContext(
+            props.routerState,
+            matchParentContext,
+            slotOutlets,
+            () => getLiveMatches()[i]
+          );
+
+          renderedContexts[i].slots = slotContexts;
+        });
+      }
     }
+
+    disposers.splice(renderedContexts.length).forEach(disposeAll);
+
+    if (prev && equal) return prev.contexts;
 
     return renderedContexts;
   }
 
   const routeStates = createMemo(
-    on(props.routerState.matches, nextMatches => {
-      const next = renderRouteContexts(nextMatches);
+    on(
+      props.routerState.matches,
+      (nextMatches, prevMatches, prevContexts: RouteContext[] | undefined) => {
+        const next = renderRouteContexts(
+          nextMatches,
+          props.routerState.base,
+          globalDisposers,
+          prevMatches && prevContexts ? { matches: prevMatches, contexts: prevContexts } : undefined
+        );
 
-      root = next[0];
+        root = next[0];
 
-      return next;
-    })
+        return next;
+      }
+    )
   );
 
   return createOutlet(() => routeStates() && root)();

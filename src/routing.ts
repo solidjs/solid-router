@@ -1,4 +1,4 @@
-import { JSX, Accessor, runWithOwner, createEffect } from "solid-js";
+import { JSX, Accessor, runWithOwner, createEffect, onMount } from "solid-js";
 import {
   createComponent,
   createContext,
@@ -518,11 +518,11 @@ export function createRouteContext(
   router: RouterContext,
   parent: RouteContext,
   { children, ...slots }: Record<string, () => JSX.Element>,
-  match: RouteMatch
+  match: () => RouteMatch
 ): RouteContext {
   const { base, location, params } = router;
-  const { pattern, component, load } = match.route;
-  const path = createMemo(() => match.path);
+  const { pattern, component, load } = match().route;
+  const path = createMemo(() => match().path);
 
   component &&
     (component as MaybePreloadableComponent).preload &&
