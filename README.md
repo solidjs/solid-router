@@ -868,7 +868,7 @@ return <div classList={{ active: Boolean(match()) }} />;
 For example if you stored breadcrumbs on your route definition you could retrieve them like so:
 ```js
 const matches = useCurrentMatches();
-const breadcrumbs = createMemo(() => matches.map(m => m.route.info.breadcrumb))
+const breadcrumbs = createMemo(() => matches().map(m => m.route.info.breadcrumb))
 ```
 
 ### useBeforeLeave
