@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 0.13.5
+
+### Patch Changes
+
+- bfb059f: types Route -> RouteDescription
+
 ## 0.13.4
 
 ### Patch Changes
