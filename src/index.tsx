@@ -29,7 +29,7 @@ export type {
   RouteLoadFunc,
   RouteLoadFuncArgs,
   RouteDefinition,
-  Route,
+  Route as RouteInfo,  
   RouteMatch,
   RouterIntegration,
   RouterUtils,
