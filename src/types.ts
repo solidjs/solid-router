@@ -113,7 +113,7 @@ export interface PathMatch {
 }
 
 export interface RouteMatch extends PathMatch {
-  route: Route;
+  route: RouteDescription;
 }
 
 export interface OutputMatch {
@@ -124,7 +124,7 @@ export interface OutputMatch {
   info?: Record<string, any>;
 }
 
-export interface Route {
+export interface RouteDescription {
   key: unknown;
   originalPath: string;
   pattern: string;
@@ -136,7 +136,7 @@ export interface Route {
 }
 
 export interface Branch {
-  routes: Route[];
+  routes: RouteDescription[];
   score: number;
   matcher: (location: string) => RouteMatch[] | null;
 }
