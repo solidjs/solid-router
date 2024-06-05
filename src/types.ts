@@ -1,4 +1,4 @@
-import type { Component, JSX, Signal } from "solid-js";
+import type { Accessor, Component, JSX, Signal } from "solid-js";
 
 declare module "solid-js/web" {
   interface RequestEvent {
@@ -8,7 +8,7 @@ declare module "solid-js/web" {
       headers: Headers
     };
     router? : {
-      matches?: OutputMatch[];
+      matches?: Accessor<OutputMatch[]>;
       cache?: Map<string, CacheEntry>;
       submission?: {
         input: any;
