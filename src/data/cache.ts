@@ -166,21 +166,24 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
     function handleResponse(error: boolean) {
       return async (v: any | Response) => {
         if (v instanceof Response) {
-          if (v.headers.has("Location")) {
-            if (navigate) {
+          const url = v.headers.get(LocationHeader);
+
+          if (url !== null) {
+            let returnEarly = true;
+
+            // client + server relative redirect
+            if (navigate && url.startsWith("/"))
               startTransition(() => {
-                let url = (v as Response).headers.get(LocationHeader);
-                if (url && url.startsWith("/")) {
-                  navigate!(url, {
-                    replace: true
-                  });
-                } else if (!isServer && url) {
-                  window.location.href = url;
-                }
+                navigate(url, { replace: true });
               });
-            }
-            return;
+            // client-only absolute redirect (possibly cross-origin)
+            else if (!isServer && url) window.location.href = url;
+            // server-only absolute redirects are handled on the client
+            else if (isServer) returnEarly = false;
+
+            if (returnEarly) return;
           }
+
           if ((v as any).customBody) v = await (v as any).customBody();
         }
         if (error) throw v;
