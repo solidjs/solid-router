@@ -282,7 +282,7 @@ export function createRouterContext(
   integration: RouterIntegration,
   branches: () => Branch[],
   getContext?: () => any,
-  options: { base?: string; singleFlight?: boolean, transformUrl?: (url: string) => string } = {}
+  options: { base?: string; singleFlight?: boolean; transformUrl?: (url: string) => string } = {}
 ): RouterContext {
   const {
     signal: [source, setSource],
@@ -341,10 +341,12 @@ export function createRouterContext(
     }
   };
 
-  createRenderEffect(() => {
-    const { value, state } = source();
-    // Untrack this whole block so `start` doesn't cause Solid's Listener to be preserved
-    untrack(() => {
+  // Handles browser back/forward (native) navigations
+  createRenderEffect(
+    // 'on' this whole block so `start` doesn't cause Solid's Listener to be preserved
+    on(source, ({ value, state, intent: sourceIntent }) => {
+      if (sourceIntent !== "native") return;
+
       start(() => {
         intent = "native";
         if (value !== reference()) setReference(value);
@@ -354,8 +356,8 @@ export function createRouterContext(
       }).then(() => {
         intent = undefined;
       });
-    });
-  });
+    })
+  );
 
   return {
     base: baseRoute,
@@ -494,9 +496,9 @@ export function createRouterContext(
 
   function initFromFlash() {
     const e = getRequestEvent();
-    return (e && e.router && e.router.submission
-      ? [e.router.submission]
-      : []) as Array<Submission<any, any>>;
+    return (e && e.router && e.router.submission ? [e.router.submission] : []) as Array<
+      Submission<any, any>
+    >;
   }
 }
 
@@ -504,7 +506,7 @@ export function createRouteContext(
   router: RouterContext,
   parent: RouteContext,
   outlet: () => JSX.Element,
-  match: () => RouteMatch,
+  match: () => RouteMatch
 ): RouteContext {
   const { base, location, params } = router;
   const { pattern, component, load } = match().route;

@@ -56,7 +56,7 @@ export const createRouterComponent = (router: RouterIntegration) => (props: Base
   const routerState = createRouterContext(router, branches, () => context, {
     base,
     singleFlight: props.singleFlight,
-    transformUrl: props.transformUrl,
+    transformUrl: props.transformUrl
   });
   router.create && router.create(routerState);
   return (

@@ -8,10 +8,9 @@
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
     "outDir": "./dist",
-    "module": "esnext"
+    "module": "esnext",
+    "stripInternal": true
   },
-  "include": [
-    "./src"
-  ],
+  "include": ["./src"],
   "exclude": ["node_modules/"]
 }

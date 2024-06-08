@@ -5,9 +5,9 @@ declare module "solid-js/web" {
     response: {
       status?: number;
       statusText?: string;
-      headers: Headers
+      headers: Headers;
     };
-    router? : {
+    router?: {
       matches?: OutputMatch[];
       cache?: Map<string, CacheEntry>;
       submission?: {
@@ -18,7 +18,7 @@ declare module "solid-js/web" {
       dataOnly?: boolean | string[];
       data?: Record<string, any>;
       previousUrl?: string;
-    }
+    };
     serverOnly?: boolean;
   }
 }
@@ -58,6 +58,14 @@ export interface LocationChange<S = unknown> {
   replace?: boolean;
   scroll?: boolean;
   state?: S;
+  /**
+   * Tracks the source of location changes.
+   * Needed to prevent non-native navigations from triggering the
+   * native navigation createRenderEffect.
+   *
+   * @internal
+   */
+  intent?: "native";
 }
 export interface RouterIntegration {
   signal: Signal<LocationChange>;
