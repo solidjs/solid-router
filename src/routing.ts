@@ -1,4 +1,4 @@
-import { JSX, Accessor, runWithOwner } from "solid-js";
+import { JSX, Accessor, runWithOwner, batch } from "solid-js";
 import {
   createComponent,
   createContext,
@@ -301,13 +301,38 @@ export function createRouterContext(
   }
 
   const [isRouting, setIsRouting] = createSignal(false);
-  const start = async (callback: () => void) => {
-    setIsRouting(true);
-    try {
-      await startTransition(callback);
-    } finally {
-      setIsRouting(false);
-    }
+  let activeTransitions = 0;
+
+  // Keep track of last intent and target, so that last call to transition wins
+  let lastTransitionIntent: Intent | undefined;
+  let lastTransitionTarget: LocationChange | undefined;
+
+  // Transition the location to a new value
+  const transition = (newIntent: Intent, newTarget: LocationChange) => {
+    intent = lastTransitionIntent = newIntent;
+    lastTransitionTarget = newTarget;
+
+    if (++activeTransitions === 1) setIsRouting(true);
+
+    startTransition(() =>
+      untrack(() => {
+        setReference(lastTransitionTarget!.value);
+        setState(lastTransitionTarget!.state);
+        resetErrorBoundaries();
+        submissions[1]([]);
+      })
+    ).finally(() => {
+      if (--activeTransitions !== 0) return;
+
+      // Batch, in order for isRouting and final source update to happen together
+      batch(() => {
+        intent = undefined;
+        if (lastTransitionIntent === "navigate") {
+          navigateEnd(lastTransitionTarget!);
+        }
+        setIsRouting(false);
+      });
+    });
   };
   const [reference, setReference] = createSignal(source().value);
   const [state, setState] = createSignal(source().state);
@@ -341,21 +366,16 @@ export function createRouterContext(
     }
   };
 
+  // Create a native transition, whenever the source changes from outside
   createRenderEffect(() => {
-    const { value, state } = source();
-    // Untrack this whole block so `start` doesn't cause Solid's Listener to be preserved
-    untrack(() => {
-      start(() => {
-        intent = "native";
-        if (value !== reference()) setReference(value);
-        setState(state);
-        resetErrorBoundaries();
-        submissions[1]([]);
-      }).then(() => {
-        intent = undefined;
-      });
-    });
+    const newSource = source();
+    if (newSource.value !== untrack(reference) || newSource.state !== untrack(state)) {
+      transition("native", newSource);
+    }
   });
+
+  // Is this needed?
+  //createRenderEffect(() => transition("initial", untrack(source)));
 
   return {
     base: baseRoute,
@@ -418,21 +438,10 @@ export function createRouterContext(
           e && (e.response = { status: 302, headers: new Headers({ Location: resolvedTo }) });
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
         } else if (beforeLeave.confirm(resolvedTo, options)) {
-          const len = referrers.push({ value: current, replace, scroll, state: state() });
-          start(() => {
-            intent = "navigate";
-            setReference(resolvedTo);
-            setState(nextState);
-            resetErrorBoundaries();
-            submissions[1]([]);
-          }).then(() => {
-            if (referrers.length === len) {
-              intent = undefined;
-              navigateEnd({
-                value: resolvedTo,
-                state: nextState
-              });
-            }
+          referrers.push({ value: current, replace, scroll, state: state() });
+          transition("navigate", {
+            value: resolvedTo,
+            state: nextState
           });
         }
       }
@@ -449,13 +458,11 @@ export function createRouterContext(
   function navigateEnd(next: LocationChange) {
     const first = referrers[0];
     if (first) {
-      if (next.value !== first.value || next.state !== first.state) {
-        setSource({
-          ...next,
-          replace: first.replace,
-          scroll: first.scroll
-        });
-      }
+      setSource({
+        ...next,
+        replace: first.replace,
+        scroll: first.scroll
+      });
       referrers.length = 0;
     }
   }
