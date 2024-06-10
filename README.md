@@ -372,8 +372,10 @@ You can nest indefinitely - just remember that only leaf nodes will become their
       </div>
     }
   >
-    <Route path="layer2"
-      component={() => <div>Innermost layer</div>}>           </Route>
+    <Route
+      path="layer2"
+      component={() => <div>Innermost layer</div>}
+    />
   </Route>
 </Route>
 ```
