@@ -169,19 +169,18 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
           const url = v.headers.get(LocationHeader);
 
           if (url !== null) {
-            let returnEarly = true;
-
             // client + server relative redirect
             if (navigate && url.startsWith("/"))
               startTransition(() => {
                 navigate(url, { replace: true });
               });
-            // client-only absolute redirect (possibly cross-origin)
-            else if (!isServer && url) window.location.href = url;
-            // server-only absolute redirects are handled on the client
-            else if (isServer) returnEarly = false;
+            else if (!isServer) window.location.href = url;
+            else if (isServer) {
+              const e = getRequestEvent();
+              if (e) e.response = { status: 302, headers: new Headers({ Location: url }) };
+            }
 
-            if (returnEarly) return;
+            return;
           }
 
           if ((v as any).customBody) v = await (v as any).customBody();
