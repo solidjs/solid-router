@@ -222,16 +222,22 @@ export function createBranches(
 
 export function getRouteMatches(branches: Branch[], location: string): RouteMatch[] {
   for (let i = 0, len = branches.length; i < len; i++) {
-    const match = branches[i].matcher(location);
-    if (match) {
-      match.forEach(m => {
-        for (const [name, slot] of Object.entries(m.route.slots ?? {})) {
-          (m.slots ??= {})[name] = getRouteMatches(slot, location);
+    const matches = branches[i].matcher(location);
+    if (!matches) continue;
+
+    for (const match of matches) {
+      if (match.route.slots) {
+        match.slots = {};
+
+        for (const [name, branches] of Object.entries(match.route.slots)) {
+          match.slots[name] = getRouteMatches(branches, location);
         }
-      });
-      return match;
+      }
     }
+
+    return matches;
   }
+
   return [];
 }
 

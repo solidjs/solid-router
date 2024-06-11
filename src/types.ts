@@ -85,20 +85,19 @@ export interface RouteSectionProps<T = unknown, TSlots extends string = never> {
 export type RouteDefinition<
   S extends string | string[] = any,
   T = unknown,
-  TSlots extends string = any
+  TSlots extends string = never
 > = {
   path?: S;
   matchFilters?: MatchFilters<S>;
   load?: RouteLoadFunc<T>;
   children?: RouteDefinition | RouteDefinition[];
-  component?: Component<RouteSectionProps<T, TSlots>>;
   info?: Record<string, any>;
 } & (
   | { component?: Component<RouteSectionProps<T, TSlots>>; slots?: never }
   // slots require a component to render them
   | {
       component: Component<RouteSectionProps<T, TSlots>>;
-      slots: Record<TSlots, RouteDefinition | RouteDefinition[]>;
+      slots: Record<TSlots, Omit<RouteDefinition, "path">>;
     }
 );
 
