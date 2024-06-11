@@ -152,7 +152,7 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
       // the context above the one about to be rendered
       const matchParentContext = renderedContexts[i - 1] ?? parent;
 
-      let slotContexts: Record<string, RouteContext[]> = {};
+      const slotContexts: Record<string, RouteContext[]> = {};
       // outlets rendered for the slots of the parent - includes 'children'
       let slotOutlets: Record<string, () => JSX.Element> = {};
 
@@ -160,10 +160,12 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
         const slotsDisposers: Record<string, Disposer[]> = ((disposers[i] ??= {}).slots ??= {});
 
         for (const [slot, matches] of Object.entries(match.slots)) {
+          slotsDisposers[slot] ??= [];
+
           slotContexts[slot] = renderRouteContexts(
             matches,
             renderedContexts[i],
-            (slotsDisposers[slot] ??= []),
+            slotsDisposers[slot],
             prevMatch?.slots?.[slot] && prevContext?.slots?.[slot]
               ? { matches: prevMatch?.slots?.[slot], contexts: prevContext?.slots?.[slot] }
               : undefined,
@@ -188,7 +190,7 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
           };
 
           // children renders the next match in the next context
-          slotOutlets["children"] = createOutlet(() => fullyRenderedRoutes()[i + 1]);
+          slotOutlets.children = createOutlet(() => fullyRenderedRoutes()[i + 1]);
 
           for (const slot of Object.keys(match.slots ?? {})) {
             const fullyRenderedSlotRoutes = () => fullyRenderedRoutes()[i]?.slots?.[slot];
@@ -271,126 +273,30 @@ function dataOnly(event: RequestEvent, routerState: RouterContext, branches: Bra
     new URL(event.router!.previousUrl || event.request.url).pathname
   );
   const matches = getRouteMatches(branches, url.pathname);
+
+  preloadMatches(event, routerState, prevMatches, matches);
+}
+
+function preloadMatches(
+  event: RequestEvent,
+  routerState: RouterContext,
+  prevMatches: RouteMatch[],
+  matches: RouteMatch[]
+) {
   for (let match = 0; match < matches.length; match++) {
     if (!prevMatches[match] || matches[match].route !== prevMatches[match].route)
       event.router!.dataOnly = true;
     const { route, params } = matches[match];
-    route.load &&
-      route.load({
-        params,
-        location: routerState.location,
-        intent: "preload"
-      });
+    route.load?.({
+      params,
+      location: routerState.location,
+      intent: "preload"
+    });
+
+    if (matches[match].slots) {
+      for (const [slot, slotMatches] of Object.entries(matches[match].slots ?? {})) {
+        preloadMatches(event, routerState, prevMatches[match].slots?.[slot] ?? [], slotMatches);
+      }
+    }
   }
 }
-
-// function renderRouteMatches(
-//   nextMatches: RouteMatch[],
-//   // prevMatches?: RouteMatch[],
-//   // prev?: RouteContext[],
-//   disposerPath: [number, string][] = []
-// ): RouteContext[] {
-//   // let equal = prevMatches && nextMatches.length === prevMatches.length;
-
-//   const next: RouteContext[] = [];
-//   for (let i = 0, len = nextMatches.length; i < len; i++) {
-//     // const prevMatch = prevMatches && prevMatches[i];
-//     const nextMatch = nextMatches[i];
-
-//     // if (prev && prevMatch && nextMatch.route.key === prevMatch.route.key) {
-//     //   next[i] = prev[i];
-
-//     //   if (prevMatch.slots && nextMatch.slots) {
-//     //     const nextSlots = (next[i].slots ??= {});
-//     //     for (const [name, slot] of Object.entries(nextMatch.slots)) {
-//     //       nextSlots[name] = renderRouteMatches(
-//     //         slot,
-//     //         prevMatch.slots?.[name],
-//     //         prev[i].slots?.[name],
-//     //         [...disposerPath, [i, name]]
-//     //       );
-//     //     }
-//     //   }
-//     // } else {
-//     //   equal = false;
-
-//     let disposers = globalDisposers;
-//     for (const [i, slot] of disposerPath) {
-//       const disposer = disposers[i];
-//       if (!disposer) break;
-
-//       disposers = (disposer.slots ??= {})[slot] ??= [];
-//     }
-
-//     if (disposers[i]) {
-//       disposeAll([disposers[i]]);
-//     }
-
-//     createRoot(dispose => {
-//       disposers[i] = { dispose };
-
-//       const outlets: Record<string, () => JSX.Element> = {};
-//       const slots: Record<string, RouteContext[]> = {};
-
-//       if (nextMatch.slots)
-//         for (const [name, slot] of Object.entries(nextMatch.slots)) {
-//           const rendered = renderRouteMatches(
-//             slot,
-//             // prevMatch?.slots?.[name],
-//             // prev?.[i].slots?.[name],
-//             [...disposerPath, [i, name]]
-//           );
-
-//           if (rendered.length === 0) continue;
-
-//           slots[name] = rendered;
-//           outlets[name] = createOutlet(() => {
-//             const context = rendered[0];
-//             if (!context) return;
-
-//             return {
-//               context,
-//               outlet: context.outlet
-//             };
-//           });
-//         }
-
-//       outlets["children"] = createOutlet(() => {
-//         const context = createMemo(() => {
-//           let traversed = routeStates();
-
-//           for (const [i, slot] of disposerPath) {
-//             traversed = traversed[i].slots?.[slot]!;
-//           }
-
-//           return traversed[i + 1];
-//         });
-
-//         return {
-//           context: context(),
-//           outlet: context().outlet
-//         };
-//       });
-
-//       next[i] = createRouteContext(
-//         props.routerState,
-//         next[i - 1] || props.routerState.base,
-//         outlets,
-//         nextMatches[i]
-//       );
-
-//       next[i].slots = slots;
-//     });
-//     // }
-//   }
-
-//   globalDisposers.splice(nextMatches.length).forEach(disposer => {
-//     disposeAll([disposer]);
-//   });
-
-//   // if (prev && equal) {
-//   //   return prev;
-//   // }
-
-//   return next;
-// }

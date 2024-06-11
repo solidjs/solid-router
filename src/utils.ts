@@ -1,5 +1,5 @@
 import { createMemo, getOwner, runWithOwner } from "solid-js";
-import type { MatchFilter, MatchFilters, Params, PathMatch, Route, SetParams } from "./types.ts";
+import type { MatchFilter, MatchFilters, Params, PathMatch, RouteDescription, SetParams } from "./types.ts";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|(\/)\/+$/g;
@@ -114,7 +114,7 @@ function matchSegment(input: string, filter?: string | MatchFilter): boolean {
   return false;
 }
 
-export function scoreRoute(route: Route): number {
+export function scoreRoute(route: RouteDescription): number {
   const [pattern, splat] = route.pattern.split("/*", 2);
   const segments = pattern.split("/").filter(Boolean);
   return segments.reduce(
