@@ -169,8 +169,6 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
           const url = v.headers.get(LocationHeader);
 
           if (url !== null) {
-            let returnEarly = true;
-
             // client + server relative redirect
             if (navigate && url.startsWith("/"))
               startTransition(() => {
@@ -180,10 +178,9 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
             else if (isServer) {
               const e = getRequestEvent();
               if (e) e.response = { status: 302, headers: new Headers({ Location: url }) };
-              return;
             }
 
-            if (returnEarly) return;
+            return;
           }
 
           if ((v as any).customBody) v = await (v as any).customBody();
