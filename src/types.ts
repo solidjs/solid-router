@@ -91,15 +91,10 @@ export type RouteDefinition<
   matchFilters?: MatchFilters<S>;
   load?: RouteLoadFunc<T>;
   children?: RouteDefinition | RouteDefinition[];
+  component?: Component<RouteSectionProps<T, TSlots>>;
   info?: Record<string, any>;
-} & (
-  | { component?: Component<RouteSectionProps<T, TSlots>>; slots?: never }
-  // slots require a component to render them
-  | {
-      component: Component<RouteSectionProps<T, TSlots>>;
-      slots: Record<TSlots, Omit<RouteDefinition, "path">>;
-    }
-);
+  slots?: Record<TSlots, Omit<RouteDefinition, "path">>;
+};
 
 export type MatchFilter = readonly string[] | RegExp | ((s: string) => boolean);
 
