@@ -474,34 +474,44 @@ export function createRouterContext(
 
   function preloadRoute(url: URL, preloadData: boolean) {
     const matches = getRouteMatches(branches(), url.pathname);
+
     const prevIntent = intent;
     intent = "preload";
-    for (let match in matches) {
-      const { route, params } = matches[match];
-      route.component &&
-        (route.component as MaybePreloadableComponent).preload &&
-        (route.component as MaybePreloadableComponent).preload!();
-      const { load } = route;
-      inLoadFn = true;
-      preloadData &&
-        load &&
-        runWithOwner(getContext!(), () =>
-          load({
-            params,
-            location: {
-              pathname: url.pathname,
-              search: url.search,
-              hash: url.hash,
-              query: extractSearchParams(url),
-              state: null,
-              key: ""
-            },
-            intent: "preload"
-          })
-        );
-      inLoadFn = false;
-    }
+    preloadMatches(matches);
     intent = prevIntent;
+
+    function preloadMatches(matches: RouteMatch[]) {
+      for (const match in matches) {
+        const { route, params, slots } = matches[match];
+
+        const component: MaybePreloadableComponent | undefined = route.component;
+        component?.preload?.();
+
+        const { load } = route;
+        inLoadFn = true;
+        preloadData &&
+          load &&
+          runWithOwner(getContext!(), () =>
+            load({
+              params,
+              location: {
+                pathname: url.pathname,
+                search: url.search,
+                hash: url.hash,
+                query: extractSearchParams(url),
+                state: null,
+                key: ""
+              },
+              intent: "preload"
+            })
+          );
+        inLoadFn = false;
+
+        if (slots) {
+          for (const matches of Object.values(slots)) preloadMatches(matches);
+        }
+      }
+    }
   }
 
   function initFromFlash() {

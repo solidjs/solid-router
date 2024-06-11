@@ -135,6 +135,7 @@ export interface OutputMatch {
   match: string;
   params: Params;
   info?: Record<string, any>;
+  slots?: Record<string, OutputMatch[]>;
 }
 
 export interface RouteDescription {
@@ -216,7 +217,7 @@ export type Submission<T, U> = {
   retry: () => void;
 };
 
-export interface MaybePreloadableComponent extends Component {
+export interface MaybePreloadableComponent extends Component<any> {
   preload?: () => void;
 }
 
