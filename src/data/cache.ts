@@ -176,9 +176,7 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
               startTransition(() => {
                 navigate(url, { replace: true });
               });
-            // client absolute redirect
             else if (!isServer) window.location.href = url;
-            // server absolute redirects
             else if (isServer) {
               const e = getRequestEvent();
               if (e) e.response = { status: 302, headers: new Headers({ Location: url }) };
