@@ -1,5 +1,19 @@
 # @solidjs/router
 
+## 0.13.5
+
+### Patch Changes
+
+- bfb059f: types Route -> RouteDescription
+
+## 0.13.4
+
+### Patch Changes
+
+- 00e37fd: Export all types used in public API
+- 2e90de5: Fix `HashRouter` state reset with `replace: false`
+- 75472d2: Fix useCurrentMatches a getter function
+
 ## 0.13.3
 
 ### Patch Changes

@@ -26,7 +26,7 @@ export function Router(props: RouterProps): JSX.Element {
       } else {
         window.history.pushState(state, "", value);
       }
-      scrollToHash(window.location.hash.slice(1), scroll);
+      scrollToHash(decodeURIComponent(window.location.hash.slice(1)), scroll);
       saveCurrentDepth();
     },
     init: notify => bindEvent(window, "popstate",

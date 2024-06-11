@@ -25,7 +25,7 @@ import type {
   NavigateOptions,
   Navigator,
   Params,
-  Route,
+  RouteDescription,
   RouteContext,
   RouteDefinition,
   RouteMatch,
@@ -92,7 +92,7 @@ export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFi
   });
 };
 
-export const useCurrentMatches = () => useRouter().matches();
+export const useCurrentMatches = () => useRouter().matches;
 
 export const useParams = <T extends Params>() => useRouter().params as T;
 
@@ -124,8 +124,7 @@ export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
   onCleanup(s);
 };
 
-// specific to route-level stuff, not slots since those are nested and act like children
-export function createRoutes(routeDef: RouteDefinition, base: string = ""): Route[] {
+export function createRoutes(routeDef: RouteDefinition, base: string = ""): RouteDescription[] {
   const { component, load, children, info } = routeDef;
   const isLeaf = !children || (Array.isArray(children) && !children.length);
 
@@ -136,7 +135,7 @@ export function createRoutes(routeDef: RouteDefinition, base: string = ""): Rout
     info
   };
 
-  return asArray(routeDef.path ?? "").reduce<Route[]>((acc, originalPath) => {
+  return asArray(routeDef.path).reduce<RouteDescription[]>((acc, originalPath) => {
     for (const expandedPath of expandOptionals(originalPath)) {
       const path = joinPaths(base, expandedPath);
       let pattern = isLeaf ? path : path.split("/*", 1)[0];
@@ -157,7 +156,7 @@ export function createRoutes(routeDef: RouteDefinition, base: string = ""): Rout
   }, []);
 }
 
-export function createBranch(routes: Route[], index: number = 0): Branch {
+export function createBranch(routes: RouteDescription[], index: number = 0): Branch {
   return {
     routes,
     score: scoreRoute(routes[routes.length - 1]) * 10000 - index,
@@ -186,7 +185,7 @@ function asArray<T>(value: T | T[]): T[] {
 export function createBranches(
   routeDef: RouteDefinition | RouteDefinition[],
   base: string = "",
-  stack: Route[] = [],
+  stack: RouteDescription[] = [],
   branches: Branch[] = []
 ): Branch[] {
   const routeDefs = asArray(routeDef);

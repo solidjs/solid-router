@@ -77,7 +77,7 @@ export type RouteLoadFunc<T = unknown> = (args: RouteLoadFuncArgs) => T;
 export interface RouteSectionProps<T = unknown, TSlots extends string = never> {
   params: Params;
   location: Location;
-  data?: T;
+  data: T;
   children?: JSX.Element;
   slots: Record<TSlots, JSX.Element>;
 }
@@ -125,7 +125,7 @@ export interface PathMatch {
 }
 
 export interface RouteMatch extends PathMatch {
-  route: Route;
+  route: RouteDescription;
   slots?: Record<string, RouteMatch[]>;
 }
 
@@ -137,7 +137,7 @@ export interface OutputMatch {
   info?: Record<string, any>;
 }
 
-export interface Route {
+export interface RouteDescription {
   key: unknown;
   originalPath: string;
   pattern: string;
@@ -150,7 +150,7 @@ export interface Route {
 }
 
 export interface Branch {
-  routes: Route[];
+  routes: RouteDescription[];
   score: number;
   matcher: (location: string) => RouteMatch[] | null;
 }

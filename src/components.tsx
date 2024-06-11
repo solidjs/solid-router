@@ -52,7 +52,7 @@ export function A(props: AnchorProps) {
     if (to_ === undefined) return [false, false];
     const path = normalizePath(to_.split(/[?#]/, 1)[0]).toLowerCase();
     const loc = normalizePath(location.pathname).toLowerCase();
-    return [props.end ? path === loc : loc.startsWith(path), path === loc];
+    return [props.end ? path === loc : loc.startsWith(path + "/") || loc === path, path === loc];
   });
 
   return (
