@@ -78,7 +78,6 @@ export const useNavigate = () => useRouter().navigatorFactory();
 export const useLocation = <S = unknown>() => useRouter().location as Location<S>;
 export const useIsRouting = () => useRouter().isRouting;
 
-export const useMatches = () => useRouter().matches;
 export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFilters<S>) => {
   const location = useLocation();
   const matchers = createMemo(() =>
