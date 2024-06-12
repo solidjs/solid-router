@@ -314,8 +314,8 @@ export function createRouterContext(
     intent = newIntent;
     lastTransitionTarget = newTarget;
 
-    startTransition(() =>{
-      if(lastTransitionTarget !== newTarget) return;
+    startTransition(() => {
+      if (lastTransitionTarget !== newTarget) return;
 
       setReference(lastTransitionTarget.value);
       setState(lastTransitionTarget.state);
@@ -367,10 +367,8 @@ export function createRouterContext(
     }
   };
 
-  // Create a native transition, whenever the source changes from outside
-  createRenderEffect(on(source, (source) => {
-    transition("native", source);
-  }));
+  // Create a native transition, when source updates
+  createRenderEffect(on(source, source => transition("native", source), { defer: true }));
 
   return {
     base: baseRoute,
