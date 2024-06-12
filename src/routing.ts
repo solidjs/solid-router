@@ -301,36 +301,37 @@ export function createRouterContext(
   }
 
   const [isRouting, setIsRouting] = createSignal(false);
-  let activeTransitions = 0;
 
-  // Keep track of last intent and target, so that last call to transition wins
-  let lastTransitionIntent: Intent | undefined;
+  // Keep track of last target, so that last call to transition wins
   let lastTransitionTarget: LocationChange | undefined;
 
   // Transition the location to a new value
   const transition = (newIntent: Intent, newTarget: LocationChange) => {
-    intent = lastTransitionIntent = newIntent;
+    if (newTarget.value === reference() && newTarget.state === state()) return;
+
+    if (lastTransitionTarget === undefined) setIsRouting(true);
+
+    intent = newIntent;
     lastTransitionTarget = newTarget;
 
-    if (++activeTransitions === 1) setIsRouting(true);
+    startTransition(() =>{
+      if(lastTransitionTarget !== newTarget) return;
 
-    startTransition(() =>
-      untrack(() => {
-        setReference(lastTransitionTarget!.value);
-        setState(lastTransitionTarget!.state);
-        resetErrorBoundaries();
-        submissions[1]([]);
-      })
-    ).finally(() => {
-      if (--activeTransitions !== 0) return;
-
+      setReference(lastTransitionTarget.value);
+      setState(lastTransitionTarget.state);
+      resetErrorBoundaries();
+      submissions[1]([]);
+    }).finally(() => {
       // Batch, in order for isRouting and final source update to happen together
       batch(() => {
+        if (lastTransitionTarget !== newTarget) return;
+
         intent = undefined;
-        if (lastTransitionIntent === "navigate") {
-          navigateEnd(lastTransitionTarget!);
-        }
+        if (newIntent === "navigate") navigateEnd(lastTransitionTarget);
+
         setIsRouting(false);
+
+        lastTransitionTarget = undefined;
       });
     });
   };
@@ -367,15 +368,9 @@ export function createRouterContext(
   };
 
   // Create a native transition, whenever the source changes from outside
-  createRenderEffect(() => {
-    const newSource = source();
-    if (newSource.value !== untrack(reference) || newSource.state !== untrack(state)) {
-      transition("native", newSource);
-    }
-  });
-
-  // Is this needed?
-  //createRenderEffect(() => transition("initial", untrack(source)));
+  createRenderEffect(on(source, (source) => {
+      transition("native", source);
+  }));
 
   return {
     base: baseRoute,
