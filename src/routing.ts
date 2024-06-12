@@ -1,4 +1,4 @@
-import { JSX, Accessor, runWithOwner } from "solid-js";
+import { JSX, Accessor, runWithOwner, createEffect, onMount } from "solid-js";
 import {
   createComponent,
   createContext,
@@ -196,6 +196,13 @@ export function createBranches(
       const routes = createRoutes(def, base);
       for (const route of routes) {
         stack.push(route);
+
+        if (def.slots) {
+          for (const [name, slot] of Object.entries(def.slots) as [string, RouteDefinition][]) {
+            (route.slots ??= {})[name] = createBranches(slot, route.pattern);
+          }
+        }
+
         const isEmptyArray = Array.isArray(def.children) && def.children.length === 0;
         if (def.children && !isEmptyArray) {
           createBranches(def.children, route.pattern, stack, branches);
@@ -215,11 +222,22 @@ export function createBranches(
 
 export function getRouteMatches(branches: Branch[], location: string): RouteMatch[] {
   for (let i = 0, len = branches.length; i < len; i++) {
-    const match = branches[i].matcher(location);
-    if (match) {
-      return match;
+    const matches = branches[i].matcher(location);
+    if (!matches) continue;
+
+    for (const match of matches) {
+      if (match.route.slots) {
+        match.slots = {};
+
+        for (const [name, branches] of Object.entries(match.route.slots)) {
+          match.slots[name] = getRouteMatches(branches, location);
+        }
+      }
     }
+
+    return matches;
   }
+
   return [];
 }
 
@@ -282,7 +300,7 @@ export function createRouterContext(
   integration: RouterIntegration,
   branches: () => Branch[],
   getContext?: () => any,
-  options: { base?: string; singleFlight?: boolean, transformUrl?: (url: string) => string } = {}
+  options: { base?: string; singleFlight?: boolean; transformUrl?: (url: string) => string } = {}
 ): RouterContext {
   const {
     signal: [source, setSource],
@@ -462,49 +480,59 @@ export function createRouterContext(
 
   function preloadRoute(url: URL, preloadData: boolean) {
     const matches = getRouteMatches(branches(), url.pathname);
+
     const prevIntent = intent;
     intent = "preload";
-    for (let match in matches) {
-      const { route, params } = matches[match];
-      route.component &&
-        (route.component as MaybePreloadableComponent).preload &&
-        (route.component as MaybePreloadableComponent).preload!();
-      const { load } = route;
-      inLoadFn = true;
-      preloadData &&
-        load &&
-        runWithOwner(getContext!(), () =>
-          load({
-            params,
-            location: {
-              pathname: url.pathname,
-              search: url.search,
-              hash: url.hash,
-              query: extractSearchParams(url),
-              state: null,
-              key: ""
-            },
-            intent: "preload"
-          })
-        );
-      inLoadFn = false;
-    }
+    preloadMatches(matches);
     intent = prevIntent;
+
+    function preloadMatches(matches: RouteMatch[]) {
+      for (const match in matches) {
+        const { route, params, slots } = matches[match];
+
+        const component: MaybePreloadableComponent | undefined = route.component;
+        component?.preload?.();
+
+        const { load } = route;
+        inLoadFn = true;
+        preloadData &&
+          load &&
+          runWithOwner(getContext!(), () =>
+            load({
+              params,
+              location: {
+                pathname: url.pathname,
+                search: url.search,
+                hash: url.hash,
+                query: extractSearchParams(url),
+                state: null,
+                key: ""
+              },
+              intent: "preload"
+            })
+          );
+        inLoadFn = false;
+
+        if (slots) {
+          for (const matches of Object.values(slots)) preloadMatches(matches);
+        }
+      }
+    }
   }
 
   function initFromFlash() {
     const e = getRequestEvent();
-    return (e && e.router && e.router.submission
-      ? [e.router.submission]
-      : []) as Array<Submission<any, any>>;
+    return (e && e.router && e.router.submission ? [e.router.submission] : []) as Array<
+      Submission<any, any>
+    >;
   }
 }
 
 export function createRouteContext(
   router: RouterContext,
   parent: RouteContext,
-  outlet: () => JSX.Element,
-  match: () => RouteMatch,
+  { children, ...slots }: Record<string, () => JSX.Element>,
+  match: () => RouteMatch
 ): RouteContext {
   const { base, location, params } = router;
   const { pattern, component, load } = match().route;
@@ -528,10 +556,14 @@ export function createRouteContext(
             location,
             data,
             get children() {
-              return outlet();
-            }
+              return children();
+            },
+            slots: Object.entries(slots).reduce((acc, [key, slot]) => {
+              Object.defineProperty(acc, key, { get: slot });
+              return acc;
+            }, {})
           })
-        : outlet(),
+        : children(),
     resolvePath(to: string) {
       return resolvePath(base.path(), to, path());
     }
