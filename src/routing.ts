@@ -369,7 +369,7 @@ export function createRouterContext(
 
   // Create a native transition, whenever the source changes from outside
   createRenderEffect(on(source, (source) => {
-      transition("native", source);
+    transition("native", source);
   }));
 
   return {
