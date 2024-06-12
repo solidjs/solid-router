@@ -322,15 +322,14 @@ export function createRouterContext(
       resetErrorBoundaries();
       submissions[1]([]);
     }).finally(() => {
+      if (lastTransitionTarget !== newTarget) return;
+
       // Batch, in order for isRouting and final source update to happen together
       batch(() => {
-        if (lastTransitionTarget !== newTarget) return;
-
         intent = undefined;
-        if (newIntent === "navigate") navigateEnd(lastTransitionTarget);
+        if (newIntent === "navigate") navigateEnd(lastTransitionTarget!);
 
         setIsRouting(false);
-
         lastTransitionTarget = undefined;
       });
     });

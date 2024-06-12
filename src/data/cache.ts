@@ -187,7 +187,7 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
         return v;
       };
     }
-  }) as CachedFunction<T>;
+  }) as unknown as CachedFunction<T>;
   cachedFn.keyFor = (...args: Parameters<T>) => name + hashKey(args);
   cachedFn.key = name;
   return cachedFn;
