@@ -282,7 +282,7 @@ export function createRouterContext(
   integration: RouterIntegration,
   branches: () => Branch[],
   getContext?: () => any,
-  options: { base?: string; singleFlight?: boolean; transformUrl?: (url: string) => string } = {}
+  options: { base?: string; singleFlight?: boolean, transformUrl?: (url: string) => string } = {}
 ): RouterContext {
   const {
     signal: [source, setSource],
@@ -496,9 +496,9 @@ export function createRouterContext(
 
   function initFromFlash() {
     const e = getRequestEvent();
-    return (e && e.router && e.router.submission ? [e.router.submission] : []) as Array<
-      Submission<any, any>
-    >;
+    return (e && e.router && e.router.submission
+      ? [e.router.submission]
+      : []) as Array<Submission<any, any>>;
   }
 }
 
@@ -506,7 +506,7 @@ export function createRouteContext(
   router: RouterContext,
   parent: RouteContext,
   outlet: () => JSX.Element,
-  match: () => RouteMatch
+  match: () => RouteMatch,
 ): RouteContext {
   const { base, location, params } = router;
   const { pattern, component, load } = match().route;

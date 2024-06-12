@@ -4,12 +4,7 @@ import type { RouterContext } from "../types.js";
 import { actions } from "./action.js";
 import { mockBase } from "../utils.js";
 
-export function setupNativeEvents(
-  preload = true,
-  explicitLinks = false,
-  actionBase = "/_server",
-  transformUrl?: (url: string) => string
-) {
+export function setupNativeEvents(preload = true, explicitLinks = false, actionBase = "/_server", transformUrl?: (url: string) => string) {
   return (router: RouterContext) => {
     const basePath = router.base.path();
     const navigateFromRoute = router.navigatorFactory(router.base);

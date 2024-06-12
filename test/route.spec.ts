@@ -1,4 +1,4 @@
-import { vi } from "vitest";
+import { vi } from 'vitest'
 import { createBranch, createBranches, createRoutes } from "../src/routing.js";
 import type { RouteDefinition } from "../src/index.js";
 
@@ -174,6 +174,7 @@ describe("createRoutes should", () => {
       expect(match).not.toBeNull();
       expect(match.path).toBe("/foo/123/bar/solid.html");
     });
+
   });
 
   describe(`expand optional parameters`, () => {

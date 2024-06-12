@@ -4,30 +4,18 @@ import { StaticRouter } from "./StaticRouter.js";
 import { setupNativeEvents } from "../data/events.js";
 import type { BaseRouterProps } from "./components.jsx";
 import type { JSX } from "solid-js";
-import {
-  createBeforeLeave,
-  keepDepth,
-  notifyIfNotBlocked,
-  saveCurrentDepth
-} from "../lifecycle.js";
+import { createBeforeLeave, keepDepth, notifyIfNotBlocked, saveCurrentDepth } from "../lifecycle.js";
 
-export type RouterProps = BaseRouterProps & {
-  url?: string;
-  actionBase?: string;
-  explicitLinks?: boolean;
-  preload?: boolean;
-};
+export type RouterProps = BaseRouterProps & { url?: string; actionBase?: string; explicitLinks?: boolean; preload?: boolean; };
 
 export function Router(props: RouterProps): JSX.Element {
   if (isServer) return StaticRouter(props);
   const getSource = () => {
     const url = window.location.pathname + window.location.search;
     return {
-      value: props.transformUrl
-        ? props.transformUrl(url) + window.location.hash
-        : url + window.location.hash,
+      value: props.transformUrl ? props.transformUrl(url) + window.location.hash : url + window.location.hash,
       state: window.history.state
-    };
+    }
   };
   const beforeLeave = createBeforeLeave();
   return createRouter({
@@ -42,9 +30,7 @@ export function Router(props: RouterProps): JSX.Element {
       saveCurrentDepth();
     },
     init: notify =>
-      bindEvent(
-        window,
-        "popstate",
+      bindEvent(window, "popstate",
         notifyIfNotBlocked(
           () => notify({ ...getSource(), intent: "native" }),
           delta => {
@@ -57,12 +43,7 @@ export function Router(props: RouterProps): JSX.Element {
           }
         )
       ),
-    create: setupNativeEvents(
-      props.preload,
-      props.explicitLinks,
-      props.actionBase,
-      props.transformUrl
-    ),
+    create: setupNativeEvents(props.preload, props.explicitLinks, props.actionBase, props.transformUrl),
     utils: {
       go: delta => window.history.go(delta),
       beforeLeave
