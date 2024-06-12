@@ -1,4 +1,4 @@
-import { JSX, Accessor, runWithOwner } from "solid-js";
+import { JSX, Accessor, runWithOwner, batch } from "solid-js";
 import {
   createComponent,
   createContext,
@@ -282,7 +282,7 @@ export function createRouterContext(
   integration: RouterIntegration,
   branches: () => Branch[],
   getContext?: () => any,
-  options: { base?: string; singleFlight?: boolean, transformUrl?: (url: string) => string } = {}
+  options: { base?: string; singleFlight?: boolean; transformUrl?: (url: string) => string } = {}
 ): RouterContext {
   const {
     signal: [source, setSource],
@@ -301,13 +301,38 @@ export function createRouterContext(
   }
 
   const [isRouting, setIsRouting] = createSignal(false);
-  const start = async (callback: () => void) => {
-    setIsRouting(true);
-    try {
-      await startTransition(callback);
-    } finally {
-      setIsRouting(false);
-    }
+
+  // Keep track of last target, so that last call to transition wins
+  let lastTransitionTarget: LocationChange | undefined;
+
+  // Transition the location to a new value
+  const transition = (newIntent: Intent, newTarget: LocationChange) => {
+    if (newTarget.value === reference() && newTarget.state === state()) return;
+
+    if (lastTransitionTarget === undefined) setIsRouting(true);
+
+    intent = newIntent;
+    lastTransitionTarget = newTarget;
+
+    startTransition(() => {
+      if (lastTransitionTarget !== newTarget) return;
+
+      setReference(lastTransitionTarget.value);
+      setState(lastTransitionTarget.state);
+      resetErrorBoundaries();
+      submissions[1]([]);
+    }).finally(() => {
+      if (lastTransitionTarget !== newTarget) return;
+
+      // Batch, in order for isRouting and final source update to happen together
+      batch(() => {
+        intent = undefined;
+        if (newIntent === "navigate") navigateEnd(lastTransitionTarget!);
+
+        setIsRouting(false);
+        lastTransitionTarget = undefined;
+      });
+    });
   };
   const [reference, setReference] = createSignal(source().value);
   const [state, setState] = createSignal(source().state);
@@ -341,21 +366,8 @@ export function createRouterContext(
     }
   };
 
-  createRenderEffect(() => {
-    const { value, state } = source();
-    // Untrack this whole block so `start` doesn't cause Solid's Listener to be preserved
-    untrack(() => {
-      start(() => {
-        intent = "native";
-        if (value !== reference()) setReference(value);
-        setState(state);
-        resetErrorBoundaries();
-        submissions[1]([]);
-      }).then(() => {
-        intent = undefined;
-      });
-    });
-  });
+  // Create a native transition, when source updates
+  createRenderEffect(on(source, source => transition("native", source), { defer: true }));
 
   return {
     base: baseRoute,
@@ -418,21 +430,10 @@ export function createRouterContext(
           e && (e.response = { status: 302, headers: new Headers({ Location: resolvedTo }) });
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
         } else if (beforeLeave.confirm(resolvedTo, options)) {
-          const len = referrers.push({ value: current, replace, scroll, state: state() });
-          start(() => {
-            intent = "navigate";
-            setReference(resolvedTo);
-            setState(nextState);
-            resetErrorBoundaries();
-            submissions[1]([]);
-          }).then(() => {
-            if (referrers.length === len) {
-              intent = undefined;
-              navigateEnd({
-                value: resolvedTo,
-                state: nextState
-              });
-            }
+          referrers.push({ value: current, replace, scroll, state: state() });
+          transition("navigate", {
+            value: resolvedTo,
+            state: nextState
           });
         }
       }
@@ -449,13 +450,11 @@ export function createRouterContext(
   function navigateEnd(next: LocationChange) {
     const first = referrers[0];
     if (first) {
-      if (next.value !== first.value || next.state !== first.state) {
-        setSource({
-          ...next,
-          replace: first.replace,
-          scroll: first.scroll
-        });
-      }
+      setSource({
+        ...next,
+        replace: first.replace,
+        scroll: first.scroll
+      });
       referrers.length = 0;
     }
   }
@@ -494,9 +493,9 @@ export function createRouterContext(
 
   function initFromFlash() {
     const e = getRequestEvent();
-    return (e && e.router && e.router.submission
-      ? [e.router.submission]
-      : []) as Array<Submission<any, any>>;
+    return (e && e.router && e.router.submission ? [e.router.submission] : []) as Array<
+      Submission<any, any>
+    >;
   }
 }
 
@@ -504,7 +503,7 @@ export function createRouteContext(
   router: RouterContext,
   parent: RouteContext,
   outlet: () => JSX.Element,
-  match: () => RouteMatch,
+  match: () => RouteMatch
 ): RouteContext {
   const { base, location, params } = router;
   const { pattern, component, load } = match().route;
