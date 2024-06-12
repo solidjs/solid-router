@@ -6,7 +6,7 @@ import type { BaseRouterProps } from "./components.jsx";
 import type { JSX } from "solid-js";
 import { createBeforeLeave, keepDepth, notifyIfNotBlocked, saveCurrentDepth } from "../lifecycle.js";
 
-export type RouterProps = BaseRouterProps & { url?: string; actionBase?: string; explicitLinks?: boolean; preload?: boolean; };
+export type RouterProps = BaseRouterProps & { url?: string, actionBase?: string, explicitLinks?: boolean, preload?: boolean };
 
 export function Router(props: RouterProps): JSX.Element {
   if (isServer) return StaticRouter(props);

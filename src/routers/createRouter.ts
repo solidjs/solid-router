@@ -27,7 +27,7 @@ export function createRouter(config: {
   set: (next: LocationChange) => void,
   init?: (notify: (value?: string | LocationChange) => void) => () => void,
   create?: (router: RouterContext) => void,
-  utils?: Partial<RouterUtils>;
+  utils?: Partial<RouterUtils>
 }) {
   let ignore = false;
   const wrap = (value: string | LocationChange) => (typeof value === "string" ? { value } : value);

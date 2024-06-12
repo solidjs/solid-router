@@ -41,6 +41,7 @@ export function createMemoryHistory() {
           scrollToHash(value.split("#")[1] || "", true);
         }
       }, 0);
+
     },
     back: () => {
       go(-1);
@@ -59,7 +60,7 @@ export function createMemoryHistory() {
   };
 }
 
-export type MemoryRouterProps = BaseRouterProps & { history?: MemoryHistory; actionBase?: string; explicitLinks?: boolean; preload?: boolean; };
+export type MemoryRouterProps = BaseRouterProps & { history?: MemoryHistory, actionBase?: string, explicitLinks?: boolean, preload?: boolean };
 
 export function MemoryRouter(props: MemoryRouterProps): JSX.Element {
   const memoryHistory = props.history || createMemoryHistory();

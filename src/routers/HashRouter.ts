@@ -16,7 +16,7 @@ export function hashParser(str: string) {
   return to;
 }
 
-export type HashRouterProps = BaseRouterProps & { actionBase?: string; explicitLinks?: boolean; preload?: boolean; };
+export type HashRouterProps = BaseRouterProps & { actionBase?: string, explicitLinks?: boolean, preload?: boolean };
 
 export function HashRouter(props: HashRouterProps): JSX.Element {
   const getSource = () => window.location.hash.slice(1);
@@ -34,7 +34,7 @@ export function HashRouter(props: HashRouterProps): JSX.Element {
       scrollToHash(hash, scroll);
       saveCurrentDepth();
     },
-    init: notify => bindEvent(window "hashchange",
+    init: notify => bindEvent(window, "hashchange",
         notifyIfNotBlocked(
           notify,
           delta => !beforeLeave.confirm(delta && delta < 0 ? delta : getSource())
