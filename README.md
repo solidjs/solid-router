@@ -873,6 +873,16 @@ const matches = useCurrentMatches();
 const breadcrumbs = createMemo(() => matches().map(m => m.route.info.breadcrumb))
 ```
 
+### usePreloadRoute
+
+`usePreloadRoute` returns a function that can be used to preload a route manual. This is what happens automatically with link hovering and similar focus based behavior, but it is available here as an API.
+
+```js
+const preload = usePreloadRoute();
+
+preload(`/users/settings`, { preloadData: true });
+```
+
 ### useBeforeLeave
 
 `useBeforeLeave` takes a function that will be called prior to leaving a route. The function will be called with:

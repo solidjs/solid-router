@@ -77,6 +77,7 @@ export const useHref = (to: () => string | undefined) => {
 export const useNavigate = () => useRouter().navigatorFactory();
 export const useLocation = <S = unknown>() => useRouter().location as Location<S>;
 export const useIsRouting = () => useRouter().isRouting;
+export const usePreloadRoute = () => useRouter().preloadRoute
 
 export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFilters<S>) => {
   const location = useLocation();
@@ -459,7 +460,7 @@ export function createRouterContext(
     }
   }
 
-  function preloadRoute(url: URL, preloadData: boolean) {
+  function preloadRoute(url: URL, options: { preloadData?: boolean } = {}) {
     const matches = getRouteMatches(branches(), url.pathname);
     const prevIntent = intent;
     intent = "preload";
@@ -470,7 +471,7 @@ export function createRouterContext(
         (route.component as MaybePreloadableComponent).preload!();
       const { load } = route;
       inLoadFn = true;
-      preloadData &&
+      options.preloadData &&
         load &&
         runWithOwner(getContext!(), () =>
           load({

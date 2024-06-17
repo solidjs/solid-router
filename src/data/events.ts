@@ -75,7 +75,7 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
         url.pathname = transformUrl(url.pathname);
       }
       if (!preloadTimeout[url.pathname])
-        router.preloadRoute(url, a.getAttribute("preload") !== "false");
+        router.preloadRoute(url, { preloadData: a.getAttribute("preload") !== "false" });
     }
 
     function handleAnchorIn(evt: Event) {
@@ -87,7 +87,7 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
       }
       if (preloadTimeout[url.pathname]) return;
       preloadTimeout[url.pathname] = setTimeout(() => {
-        router.preloadRoute(url, a.getAttribute("preload") !== "false");
+        router.preloadRoute(url, { preloadData: a.getAttribute("preload") !== "false" });
         delete preloadTimeout[url.pathname];
       }, 200) as any;
     }
