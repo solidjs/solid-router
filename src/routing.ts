@@ -321,7 +321,7 @@ export function createRouterContext(
       setReference(lastTransitionTarget.value);
       setState(lastTransitionTarget.state);
       resetErrorBoundaries();
-      submissions[1]([]);
+      if (!isServer) submissions[1]([]);
     }).finally(() => {
       if (lastTransitionTarget !== newTarget) return;
 
