@@ -111,13 +111,14 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
         cached[0] = now;
       }
       let res = cached[1];
-      if (!inLoadFn) {
+      if (intent !== "preload") {
         res =
           "then" in cached[1]
             ? cached[1].then(handleResponse(false), handleResponse(true))
             : handleResponse(false)(cached[1]);
         !isServer && intent === "navigate" && startTransition(() => cached[3][1](cached[0])); // update version
-      } else "then" in res && res.catch(() => {});
+      }
+      inLoadFn && "then" in res && res.catch(() => {});
       return res;
     }
     let res =
@@ -145,12 +146,13 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
       const e = getRequestEvent();
       if (e && e.router!.dataOnly) return (e.router!.data![key] = res);
     }
-    if (!inLoadFn) {
+    if (intent !== "preload") {
       res =
         "then" in res
           ? res.then(handleResponse(false), handleResponse(true))
           : handleResponse(false)(res);
-    } else "then" in res && res.catch(() => {});
+    }
+    inLoadFn && "then" in res && res.catch(() => {});
     // serialize on server
     if (
       isServer &&
