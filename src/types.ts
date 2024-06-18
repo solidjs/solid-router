@@ -202,6 +202,16 @@ export type Submission<T, U> = {
   retry: () => void;
 };
 
+export type SubmissionStub = {
+  readonly input: undefined;
+  readonly result: undefined;
+  readonly error: undefined;
+  readonly pending: undefined;
+  readonly url: undefined;
+  clear: () => void;
+  retry: () => void;
+};
+
 export interface MaybePreloadableComponent extends Component {
   preload?: () => void;
 }

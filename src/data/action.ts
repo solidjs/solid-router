@@ -1,7 +1,7 @@
 import { $TRACK, createMemo, createSignal, JSX, onCleanup, getOwner } from "solid-js";
 import { isServer } from "solid-js/web";
 import { useRouter } from "../routing.js";
-import { RouterContext, Submission, Navigator } from "../types.js";
+import type { RouterContext, Submission, SubmissionStub, Navigator } from "../types.js";
 import { mockBase } from "../utils.js";
 import { cacheKeyOp, hashKey, revalidate, cache } from "./cache.js";
 
@@ -38,12 +38,13 @@ export function useSubmissions<T extends Array<any>, U>(
 export function useSubmission<T extends Array<any>, U>(
   fn: Action<T, U>,
   filter?: (arg: T) => boolean
-): Submission<T, U> {
+): Submission<T, U> | SubmissionStub {
   const submissions = useSubmissions(fn, filter);
   return new Proxy(
     {},
     {
       get(_, property) {
+        if (submissions.length === 0 && property === "clear" || property === "retry") return (() => {});
         return submissions[submissions.length - 1]?.[property as keyof Submission<T, U>];
       }
     }
