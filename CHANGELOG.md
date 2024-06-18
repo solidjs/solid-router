@@ -1,5 +1,18 @@
 # @solidjs/router
 
+## 0.13.6
+
+### Patch Changes
+
+- 7344f69: Handle absolute redirects within `cache` on server
+- 8263115: Forward absolute redirects inside `cache` from server to client
+- 8fbf74a: Treat `window.location.hash` as URI encoded
+- e9fd55d: fix #449 No JS submissions not working
+- f311f4a: fix #452 useSubmission types/references
+- 2f05f37: Make isRouting more reliable + other fixes
+- 618ef17: performance improvement leveraging redirects in loadfn
+- d81473a: usePreloadRoute method pre-release
+
 ## 0.13.5
 
 ### Patch Changes
