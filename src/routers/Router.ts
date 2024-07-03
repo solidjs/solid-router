@@ -11,7 +11,7 @@ export type RouterProps = BaseRouterProps & { url?: string, actionBase?: string,
 export function Router(props: RouterProps): JSX.Element {
   if (isServer) return StaticRouter(props);
   const getSource = () => {
-    const url = window.location.pathname + window.location.search;
+    const url = window.location.pathname.replace(/^\/+/, "/") + window.location.search;
     return {
       value: props.transformUrl ? props.transformUrl(url) + window.location.hash : url + window.location.hash,
       state: window.history.state
