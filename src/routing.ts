@@ -125,13 +125,13 @@ export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
 };
 
 export function createRoutes(routeDef: RouteDefinition, base: string = ""): RouteDescription[] {
-  const { component, load, children, info } = routeDef;
+  const { component, preload, load, children, info } = routeDef;
   const isLeaf = !children || (Array.isArray(children) && !children.length);
 
   const shared = {
     key: routeDef,
     component,
-    load,
+    preload: preload || load,
     info
   };
 
@@ -271,12 +271,12 @@ let intent: Intent | undefined;
 export function getIntent() {
   return intent;
 }
-let inLoadFn = false;
-export function getInLoadFn() {
-  return inLoadFn;
+let inPreloadFn = false;
+export function getInPreloadFn() {
+  return inPreloadFn;
 }
-export function setInLoadFn(value: boolean) {
-  inLoadFn = value;
+export function setInPreloadFn(value: boolean) {
+  inPreloadFn = value;
 }
 
 export function createRouterContext(
@@ -469,12 +469,12 @@ export function createRouterContext(
       route.component &&
         (route.component as MaybePreloadableComponent).preload &&
         (route.component as MaybePreloadableComponent).preload!();
-      const { load } = route;
-      inLoadFn = true;
+      const { preload } = route;
+      inPreloadFn = true;
       options.preloadData &&
-        load &&
+        preload &&
         runWithOwner(getContext!(), () =>
-          load({
+          preload({
             params,
             location: {
               pathname: url.pathname,
@@ -487,7 +487,7 @@ export function createRouterContext(
             intent: "preload"
           })
         );
-      inLoadFn = false;
+      inPreloadFn = false;
     }
     intent = prevIntent;
   }
@@ -507,15 +507,15 @@ export function createRouteContext(
   match: () => RouteMatch
 ): RouteContext {
   const { base, location, params } = router;
-  const { pattern, component, load } = match().route;
+  const { pattern, component, preload } = match().route;
   const path = createMemo(() => match().path);
 
   component &&
     (component as MaybePreloadableComponent).preload &&
     (component as MaybePreloadableComponent).preload!();
-  inLoadFn = true;
-  const data = load ? load({ params, location, intent: intent || "initial" }) : undefined;
-  inLoadFn = false;
+  inPreloadFn = true;
+  const data = preload ? preload({ params, location, intent: intent || "initial" }) : undefined;
+  inPreloadFn = false;
 
   const route: RouteContext = {
     parent,

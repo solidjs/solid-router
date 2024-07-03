@@ -66,13 +66,13 @@ export interface RouterIntegration {
 }
 
 export type Intent = "initial" | "native" | "navigate" | "preload";
-export interface RouteLoadFuncArgs {
+export interface RoutePreloadFuncArgs {
   params: Params;
   location: Location;
   intent: Intent;
 }
 
-export type RouteLoadFunc<T = unknown> = (args: RouteLoadFuncArgs) => T;
+export type RoutePreloadFunc<T = unknown> = (args: RoutePreloadFuncArgs) => T;
 
 export interface RouteSectionProps<T = unknown> {
   params: Params;
@@ -84,10 +84,12 @@ export interface RouteSectionProps<T = unknown> {
 export type RouteDefinition<S extends string | string[] = any, T = unknown> = {
   path?: S;
   matchFilters?: MatchFilters<S>;
-  load?: RouteLoadFunc<T>;
+  preload?: RoutePreloadFunc<T>;
   children?: RouteDefinition | RouteDefinition[];
   component?: Component<RouteSectionProps<T>>;
   info?: Record<string, any>;
+  /** @deprecated */
+  load?: RoutePreloadFunc;
 };
 
 export type MatchFilter = readonly string[] | RegExp | ((s: string) => boolean);
@@ -129,7 +131,7 @@ export interface RouteDescription {
   originalPath: string;
   pattern: string;
   component?: Component<RouteSectionProps>;
-  load?: RouteLoadFunc;
+  preload?: RoutePreloadFunc;
   matcher: (location: string) => PathMatch | null;
   matchFilters?: MatchFilters;
   info?: Record<string, any>;
@@ -217,3 +219,8 @@ export interface MaybePreloadableComponent extends Component {
 }
 
 export type CacheEntry = [number, any, Intent | undefined, Signal<number> & { count: number }];
+
+/** @deprecated */
+export type RouteLoadFunc = RoutePreloadFunc;
+/** @deprecated */
+export type RouteLoadFuncArgs = RoutePreloadFuncArgs;

@@ -8,7 +8,7 @@ import {
   startTransition
 } from "solid-js";
 import { getRequestEvent, isServer } from "solid-js/web";
-import { useNavigate, getIntent, getInLoadFn } from "../routing.js";
+import { useNavigate, getIntent, getInPreloadFn } from "../routing.js";
 import { CacheEntry } from "../types.js";
 
 const LocationHeader = "Location";
@@ -69,7 +69,7 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
   const cachedFn = ((...args: Parameters<T>) => {
     const cache = getCache();
     const intent = getIntent();
-    const inLoadFn = getInLoadFn();
+    const inPreloadFn = getInPreloadFn();
     const owner = getOwner();
     const navigate = owner ? useNavigate() : undefined;
     const now = Date.now();
@@ -118,7 +118,7 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
             : handleResponse(false)(cached[1]);
         !isServer && intent === "navigate" && startTransition(() => cached[3][1](cached[0])); // update version
       }
-      inLoadFn && "then" in res && res.catch(() => {});
+      inPreloadFn && "then" in res && res.catch(() => {});
       return res;
     }
     let res =
@@ -152,7 +152,7 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
           ? res.then(handleResponse(false), handleResponse(true))
           : handleResponse(false)(res);
     }
-    inLoadFn && "then" in res && res.catch(() => {});
+    inPreloadFn && "then" in res && res.catch(() => {});
     // serialize on server
     if (
       isServer &&

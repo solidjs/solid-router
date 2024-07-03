@@ -27,13 +27,15 @@ export type {
   Params,
   PathMatch,
   RouteSectionProps,
-  RouteLoadFunc,
-  RouteLoadFuncArgs,
+  RoutePreloadFunc,
+  RoutePreloadFuncArgs,
   RouteDefinition,
   RouteDescription,
   RouteMatch,
   RouterIntegration,
   RouterUtils,
   SetParams,
-  BeforeLeaveEventArgs
+  BeforeLeaveEventArgs,
+  RouteLoadFunc,
+  RouteLoadFuncArgs,
 } from "./types.js";

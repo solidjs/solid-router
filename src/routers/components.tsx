@@ -20,17 +20,17 @@ import {
   getRouteMatches,
   RouteContextObj,
   RouterContextObj,
-  setInLoadFn
+  setInPreloadFn
 } from "../routing.js";
 import type {
   MatchFilters,
   RouteContext,
-  RouteLoadFunc,
   RouteDefinition,
   RouterIntegration,
   RouterContext,
   Branch,
-  RouteSectionProps
+  RouteSectionProps,
+  RoutePreloadFunc
 } from "../types.js";
 
 export type BaseRouterProps = {
@@ -39,10 +39,12 @@ export type BaseRouterProps = {
    * A component that wraps the content of every route.
    */
   root?: Component<RouteSectionProps>;
-  rootLoad?: RouteLoadFunc;
+  rootPreload?: RoutePreloadFunc;
   singleFlight?: boolean;
   children?: JSX.Element | RouteDefinition | RouteDefinition[];
   transformUrl?: (url: string) => string;
+  /** @deprecated use rootPreload */
+  rootLoad?: RoutePreloadFunc;
 };
 
 export const createRouterComponent = (router: RouterIntegration) => (props: BaseRouterProps) => {
@@ -61,7 +63,7 @@ export const createRouterComponent = (router: RouterIntegration) => (props: Base
   router.create && router.create(routerState);
   return (
     <RouterContextObj.Provider value={routerState}>
-      <Root routerState={routerState} root={props.root} load={props.rootLoad}>
+      <Root routerState={routerState} root={props.root} preload={props.rootPreload || props.rootLoad}>
         {(context = getOwner()!) && null}
         <Routes routerState={routerState} branches={branches()} />
       </Root>
@@ -72,18 +74,18 @@ export const createRouterComponent = (router: RouterIntegration) => (props: Base
 function Root(props: {
   routerState: RouterContext;
   root?: Component<RouteSectionProps>;
-  load?: RouteLoadFunc;
+  preload?: RoutePreloadFunc;
   children: JSX.Element;
 }) {
   const location = props.routerState.location;
   const params = props.routerState.params;
   const data = createMemo(
     () =>
-      props.load &&
+      props.preload &&
       untrack(() => {
-        setInLoadFn(true);
-        props.load!({ params, location, intent: getIntent() || "initial" });
-        setInLoadFn(false);
+        setInPreloadFn(true);
+        props.preload!({ params, location, intent: getIntent() || "initial" });
+        setInPreloadFn(false);
       })
   );
   return (
@@ -169,10 +171,12 @@ const createOutlet = (child: () => RouteContext | undefined) => {
 export type RouteProps<S extends string, T = unknown> = {
   path?: S | S[];
   children?: JSX.Element;
-  load?: RouteLoadFunc<T>;
+  preload?: RoutePreloadFunc<T>;
   matchFilters?: MatchFilters<S>;
   component?: Component<RouteSectionProps<T>>;
   info?: Record<string, any>;
+  /** @deprecated use preload */
+  load?: RoutePreloadFunc<T>;
 };
 
 export const Route = <S extends string, T = unknown>(props: RouteProps<S, T>) => {
@@ -196,8 +200,8 @@ function dataOnly(event: RequestEvent, routerState: RouterContext, branches: Bra
     if (!prevMatches[match] || matches[match].route !== prevMatches[match].route)
       event.router!.dataOnly = true;
     const { route, params } = matches[match];
-    route.load &&
-      route.load({
+    route.preload &&
+      route.preload({
         params,
         location: routerState.location,
         intent: "preload"
