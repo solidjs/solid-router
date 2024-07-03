@@ -38,4 +38,6 @@ export type {
   BeforeLeaveEventArgs,
   RouteLoadFunc,
   RouteLoadFuncArgs,
+  RouterResponseInit,
+  CustomResponse
 } from "./types.js";

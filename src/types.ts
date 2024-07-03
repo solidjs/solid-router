@@ -88,7 +88,7 @@ export type RouteDefinition<S extends string | string[] = any, T = unknown> = {
   children?: RouteDefinition | RouteDefinition[];
   component?: Component<RouteSectionProps<T>>;
   info?: Record<string, any>;
-  /** @deprecated */
+  /** @deprecated use preload */
   load?: RoutePreloadFunc;
 };
 
@@ -219,6 +219,10 @@ export interface MaybePreloadableComponent extends Component {
 }
 
 export type CacheEntry = [number, any, Intent | undefined, Signal<number> & { count: number }];
+
+export type NarrowResponse<T> = T extends CustomResponse<infer U> ? U : Exclude<T, Response>;
+export type RouterResponseInit = Omit<ResponseInit, "body"> & { revalidate?: string | string[] };
+export type CustomResponse<T> = Response & { customBody: () => T };
 
 /** @deprecated */
 export type RouteLoadFunc = RoutePreloadFunc;

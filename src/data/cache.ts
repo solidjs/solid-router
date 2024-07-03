@@ -9,7 +9,7 @@ import {
 } from "solid-js";
 import { getRequestEvent, isServer } from "solid-js/web";
 import { useNavigate, getIntent, getInPreloadFn } from "../routing.js";
-import { CacheEntry } from "../types.js";
+import type { CacheEntry, NarrowResponse } from "../types.js";
 
 const LocationHeader = "Location";
 const PRELOAD_TIMEOUT = 5000;
@@ -56,8 +56,12 @@ export type CachedFunction<T extends (...args: any) => any> = T extends (
   ...args: infer A
 ) => infer R
   ? ([] extends { [K in keyof A]-?: A[K] } // A tuple full of optional values is equivalent to an empty tuple
-      ? (...args: never[]) => R
-      : T) & {
+      ? (
+          ...args: never[]
+        ) => R extends Promise<infer P> ? Promise<NarrowResponse<P>> : NarrowResponse<R>
+      : (
+          ...args: A
+        ) => R extends Promise<infer P> ? Promise<NarrowResponse<P>> : NarrowResponse<R>) & {
       keyFor: (...args: A) => string;
       key: string;
     }

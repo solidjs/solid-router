@@ -1,4 +1,4 @@
-export type RouterResponseInit = Omit<ResponseInit, "body"> & { revalidate?: string | string[] };
+import type { RouterResponseInit, CustomResponse } from "../types";
 
 export function redirect(url: string, init: number | RouterResponseInit = 302) {
   let responseInit: ResponseInit;
@@ -21,7 +21,7 @@ export function redirect(url: string, init: number | RouterResponseInit = 302) {
     headers: headers
   });
 
-  return response as never;
+  return response as CustomResponse<never>;
 }
 
 export function reload(init: RouterResponseInit = {}) {
@@ -32,7 +32,7 @@ export function reload(init: RouterResponseInit = {}) {
   return new Response(null, {
     ...responseInit,
     headers
-  }) as never;
+  }) as CustomResponse<never>;
 }
 
 export function json<T>(data: T, init: RouterResponseInit = {}) {
@@ -45,6 +45,6 @@ export function json<T>(data: T, init: RouterResponseInit = {}) {
     ...responseInit,
     headers
   });
-  (response as any).customBody = () => data;
-  return response as T;
+  (response as CustomResponse<T>).customBody = () => data;
+  return response as CustomResponse<T>;
 }

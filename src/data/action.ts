@@ -1,17 +1,17 @@
 import { $TRACK, createMemo, createSignal, JSX, onCleanup, getOwner } from "solid-js";
 import { isServer } from "solid-js/web";
 import { useRouter } from "../routing.js";
-import type { RouterContext, Submission, SubmissionStub, Navigator } from "../types.js";
+import type { RouterContext, Submission, SubmissionStub, Navigator, NarrowResponse } from "../types.js";
 import { mockBase } from "../utils.js";
 import { cacheKeyOp, hashKey, revalidate, cache } from "./cache.js";
 
 export type Action<T extends Array<any>, U> = (T extends [FormData] | []
   ? JSX.SerializableAttributeValue
   : unknown) &
-  ((...vars: T) => Promise<U>) & {
+  ((...vars: T) => Promise<NarrowResponse<U>>) & {
     url: string;
     with<A extends any[], B extends any[]>(
-      this: (this: any, ...args: [...A, ...B]) => Promise<U>,
+      this: (this: any, ...args: [...A, ...B]) => Promise<NarrowResponse<U>>,
       ...args: A
     ): Action<B, U>;
   };
