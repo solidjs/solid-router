@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 0.14.1
+
+### Patch Changes
+
+- 6144da8: fix Response type narrowing in submission APIs
+
 ## 0.14.0
 
 ### Minor Changes
