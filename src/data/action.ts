@@ -21,7 +21,7 @@ export const actions = /* #__PURE__ */ new Map<string, Action<any, any>>();
 export function useSubmissions<T extends Array<any>, U>(
   fn: Action<T, U>,
   filter?: (arg: T) => boolean
-): Submission<T, U>[] & { pending: boolean } {
+): Submission<T, NarrowResponse<U>>[] & { pending: boolean } {
   const router = useRouter();
   const subs = createMemo(() =>
     router.submissions[0]().filter(s => s.url === fn.toString() && (!filter || filter(s.input)))
@@ -38,7 +38,7 @@ export function useSubmissions<T extends Array<any>, U>(
 export function useSubmission<T extends Array<any>, U>(
   fn: Action<T, U>,
   filter?: (arg: T) => boolean
-): Submission<T, U> | SubmissionStub {
+): Submission<T, NarrowResponse<U>> | SubmissionStub {
   const submissions = useSubmissions(fn, filter);
   return new Proxy(
     {},
@@ -48,7 +48,7 @@ export function useSubmission<T extends Array<any>, U>(
         return submissions[submissions.length - 1]?.[property as keyof Submission<T, U>];
       }
     }
-  ) as Submission<T, U>;
+  ) as Submission<T, NarrowResponse<U>>;
 }
 
 export function useAction<T extends Array<any>, U>(action: Action<T, U>) {
