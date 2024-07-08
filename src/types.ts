@@ -222,7 +222,9 @@ export type CacheEntry = [number, any, Intent | undefined, Signal<number> & { co
 
 export type NarrowResponse<T> = T extends CustomResponse<infer U> ? U : Exclude<T, Response>;
 export type RouterResponseInit = Omit<ResponseInit, "body"> & { revalidate?: string | string[] };
-export type CustomResponse<T> = Response & { customBody: () => T };
+// export type CustomResponse<T> = Response & { customBody: () => T };
+// hack to avoid it thinking it inherited from Response
+export type CustomResponse<T> = Omit<Response, "clone"> & { customBody: () => T; clone(...args: readonly unknown[]): CustomResponse<T> };
 
 /** @deprecated */
 export type RouteLoadFunc = RoutePreloadFunc;
