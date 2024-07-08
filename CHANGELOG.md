@@ -1,5 +1,19 @@
 # @solidjs/router
 
+## 0.14.0
+
+### Minor Changes
+
+- e4a13f6: Response helpers return responses, cache/action filter them out
+- bd9f19a: default form actions to url encoded
+- 5d9263b: rename load to preload
+
+### Patch Changes
+
+- a7e4062: fix #457 extra leading slashes on path
+- 4b4536e: add usePreloadRoute export
+- 8cc0530: hack the types to work a bit better with Response Unions
+
 ## 0.13.6
 
 ### Patch Changes
