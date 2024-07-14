@@ -1,4 +1,4 @@
-import { createRoot, createSignal } from "solid-js";
+import { createComputed, createRoot, createSignal } from "solid-js";
 import { createRouterContext } from "../src/routing.js";
 import type { LocationChange } from "../src/types.js";
 import { createAsyncRoot, createCounter, waitFor } from "./helpers.js";
@@ -338,8 +338,43 @@ describe("Router should", () => {
   }); // end of "have member `navigate`"
 
   describe("have member `isRouting` which should", () => {
-    test.skip("be true when the push or replace causes transition", () => {
-      throw new Error("Test not implemented");
-    });
+    test("be true when the push or replace causes transition", () =>
+      createAsyncRoot(resolve => {
+        const signal = createSignal<LocationChange>({
+          value: "/"
+        });
+        const { navigatorFactory, isRouting } = createRouterContext({ signal }, fakeBranches);
+        const navigate = navigatorFactory();
+
+        expect(isRouting()).toBe(false);
+        navigate("/target");
+        expect(isRouting()).toBe(true);
+        waitFor(() => !isRouting()).then(resolve);
+      }));
+
+    test("turn false, only after location has changed", () =>
+      createAsyncRoot(resolve => {
+        const signal = createSignal<LocationChange>({
+          value: "/"
+        });
+        const { navigatorFactory, isRouting } = createRouterContext({ signal }, fakeBranches);
+        const navigate = navigatorFactory();
+
+        navigate("/target");
+
+        //  capture location immediately after `isRouting` turns false
+        let postRoutingValue: string | undefined;
+        createComputed(() => {
+          if (!isRouting() && !postRoutingValue) {
+            postRoutingValue = signal[0]().value;
+          }
+        });
+
+        return waitFor(() => !isRouting())
+          .then(() => {
+            expect(postRoutingValue).toBe("/target");
+          })
+          .finally(resolve);
+      }));
   });
 });

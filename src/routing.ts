@@ -1,4 +1,4 @@
-import { JSX, Accessor, runWithOwner, createEffect, onMount } from "solid-js";
+import { JSX, Accessor, runWithOwner, batch } from "solid-js";
 import {
   createComponent,
   createContext,
@@ -77,6 +77,7 @@ export const useHref = (to: () => string | undefined) => {
 export const useNavigate = () => useRouter().navigatorFactory();
 export const useLocation = <S = unknown>() => useRouter().location as Location<S>;
 export const useIsRouting = () => useRouter().isRouting;
+export const usePreloadRoute = () => useRouter().preloadRoute;
 
 export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFilters<S>) => {
   const location = useLocation();
@@ -124,13 +125,13 @@ export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
 };
 
 export function createRoutes(routeDef: RouteDefinition, base: string = ""): RouteDescription[] {
-  const { component, load, children, info } = routeDef;
+  const { component, preload, load, children, info } = routeDef;
   const isLeaf = !children || (Array.isArray(children) && !children.length);
 
   const shared = {
     key: routeDef,
     component,
-    load,
+    preload: preload || load,
     info
   };
 
@@ -288,12 +289,12 @@ let intent: Intent | undefined;
 export function getIntent() {
   return intent;
 }
-let inLoadFn = false;
-export function getInLoadFn() {
-  return inLoadFn;
+let inPreloadFn = false;
+export function getInPreloadFn() {
+  return inPreloadFn;
 }
-export function setInLoadFn(value: boolean) {
-  inLoadFn = value;
+export function setInPreloadFn(value: boolean) {
+  inPreloadFn = value;
 }
 
 export function createRouterContext(
@@ -319,13 +320,38 @@ export function createRouterContext(
   }
 
   const [isRouting, setIsRouting] = createSignal(false);
-  const start = async (callback: () => void) => {
-    setIsRouting(true);
-    try {
-      await startTransition(callback);
-    } finally {
-      setIsRouting(false);
-    }
+
+  // Keep track of last target, so that last call to transition wins
+  let lastTransitionTarget: LocationChange | undefined;
+
+  // Transition the location to a new value
+  const transition = (newIntent: Intent, newTarget: LocationChange) => {
+    if (newTarget.value === reference() && newTarget.state === state()) return;
+
+    if (lastTransitionTarget === undefined) setIsRouting(true);
+
+    intent = newIntent;
+    lastTransitionTarget = newTarget;
+
+    startTransition(() => {
+      if (lastTransitionTarget !== newTarget) return;
+
+      setReference(lastTransitionTarget.value);
+      setState(lastTransitionTarget.state);
+      resetErrorBoundaries();
+      if (!isServer) submissions[1]([]);
+    }).finally(() => {
+      if (lastTransitionTarget !== newTarget) return;
+
+      // Batch, in order for isRouting and final source update to happen together
+      batch(() => {
+        intent = undefined;
+        if (newIntent === "navigate") navigateEnd(lastTransitionTarget!);
+
+        setIsRouting(false);
+        lastTransitionTarget = undefined;
+      });
+    });
   };
   const [reference, setReference] = createSignal(source().value);
   const [state, setState] = createSignal(source().state);
@@ -359,21 +385,8 @@ export function createRouterContext(
     }
   };
 
-  createRenderEffect(() => {
-    const { value, state } = source();
-    // Untrack this whole block so `start` doesn't cause Solid's Listener to be preserved
-    untrack(() => {
-      start(() => {
-        intent = "native";
-        if (value !== reference()) setReference(value);
-        setState(state);
-        resetErrorBoundaries();
-        submissions[1]([]);
-      }).then(() => {
-        intent = undefined;
-      });
-    });
-  });
+  // Create a native transition, when source updates
+  createRenderEffect(on(source, source => transition("native", source), { defer: true }));
 
   return {
     base: baseRoute,
@@ -436,21 +449,10 @@ export function createRouterContext(
           e && (e.response = { status: 302, headers: new Headers({ Location: resolvedTo }) });
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
         } else if (beforeLeave.confirm(resolvedTo, options)) {
-          const len = referrers.push({ value: current, replace, scroll, state: state() });
-          start(() => {
-            intent = "navigate";
-            setReference(resolvedTo);
-            setState(nextState);
-            resetErrorBoundaries();
-            submissions[1]([]);
-          }).then(() => {
-            if (referrers.length === len) {
-              intent = undefined;
-              navigateEnd({
-                value: resolvedTo,
-                state: nextState
-              });
-            }
+          referrers.push({ value: current, replace, scroll, state: state() });
+          transition("navigate", {
+            value: resolvedTo,
+            state: nextState
           });
         }
       }
@@ -467,18 +469,16 @@ export function createRouterContext(
   function navigateEnd(next: LocationChange) {
     const first = referrers[0];
     if (first) {
-      if (next.value !== first.value || next.state !== first.state) {
-        setSource({
-          ...next,
-          replace: first.replace,
-          scroll: first.scroll
-        });
-      }
+      setSource({
+        ...next,
+        replace: first.replace,
+        scroll: first.scroll
+      });
       referrers.length = 0;
     }
   }
 
-  function preloadRoute(url: URL, preloadData: boolean) {
+  function preloadRoute(url: URL, options: { preloadData?: boolean } = {}) {
     const matches = getRouteMatches(branches(), url.pathname);
 
     const prevIntent = intent;
@@ -489,16 +489,15 @@ export function createRouterContext(
     function preloadMatches(matches: RouteMatch[]) {
       for (const match in matches) {
         const { route, params, slots } = matches[match];
-
-        const component: MaybePreloadableComponent | undefined = route.component;
-        component?.preload?.();
-
-        const { load } = route;
-        inLoadFn = true;
-        preloadData &&
-          load &&
+        route.component &&
+          (route.component as MaybePreloadableComponent).preload &&
+          (route.component as MaybePreloadableComponent).preload!();
+        const { preload } = route;
+        inPreloadFn = true;
+        options.preloadData &&
+          preload &&
           runWithOwner(getContext!(), () =>
-            load({
+            preload({
               params,
               location: {
                 pathname: url.pathname,
@@ -511,7 +510,7 @@ export function createRouterContext(
               intent: "preload"
             })
           );
-        inLoadFn = false;
+        inPreloadFn = false;
 
         if (slots) {
           for (const matches of Object.values(slots)) preloadMatches(matches);
@@ -535,15 +534,15 @@ export function createRouteContext(
   match: () => RouteMatch
 ): RouteContext {
   const { base, location, params } = router;
-  const { pattern, component, load } = match().route;
+  const { pattern, component, preload } = match().route;
   const path = createMemo(() => match().path);
 
   component &&
     (component as MaybePreloadableComponent).preload &&
     (component as MaybePreloadableComponent).preload!();
-  inLoadFn = true;
-  const data = load ? load({ params, location, intent: intent || "initial" }) : undefined;
-  inLoadFn = false;
+  inPreloadFn = true;
+  const data = preload ? preload({ params, location, intent: intent || "initial" }) : undefined;
+  inPreloadFn = false;
 
   const route: RouteContext = {
     parent,

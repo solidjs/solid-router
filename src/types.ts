@@ -66,13 +66,13 @@ export interface RouterIntegration {
 }
 
 export type Intent = "initial" | "native" | "navigate" | "preload";
-export interface RouteLoadFuncArgs {
+export interface RoutePreloadFuncArgs {
   params: Params;
   location: Location;
   intent: Intent;
 }
 
-export type RouteLoadFunc<T = unknown> = (args: RouteLoadFuncArgs) => T;
+export type RoutePreloadFunc<T = unknown> = (args: RoutePreloadFuncArgs) => T;
 
 export interface RouteSectionProps<T = unknown, TSlots extends string = never> {
   params: Params;
@@ -89,10 +89,12 @@ export type RouteDefinition<
 > = {
   path?: S;
   matchFilters?: MatchFilters<S>;
-  load?: RouteLoadFunc<T>;
+  preload?: RoutePreloadFunc<T>;
   children?: RouteDefinition | RouteDefinition[];
   component?: Component<RouteSectionProps<T, TSlots>>;
   info?: Record<string, any>;
+  /** @deprecated use preload */
+  load?: RoutePreloadFunc;
   slots?: Record<TSlots, Omit<RouteDefinition, "path">>;
 };
 
@@ -137,7 +139,7 @@ export interface RouteDescription {
   originalPath: string;
   pattern: string;
   component?: Component<RouteSectionProps>;
-  load?: RouteLoadFunc;
+  preload?: RoutePreloadFunc;
   matcher: (location: string) => PathMatch | null;
   matchFilters?: MatchFilters;
   info?: Record<string, any>;
@@ -176,7 +178,7 @@ export interface RouterContext {
   renderPath(path: string): string;
   parsePath(str: string): string;
   beforeLeave: BeforeLeaveLifecycle;
-  preloadRoute: (url: URL, preloadData: boolean) => void;
+  preloadRoute: (url: URL, options: { preloadData?: boolean }) => void;
   singleFlight: boolean;
   submissions: Signal<Submission<any, any>[]>;
 }
@@ -211,8 +213,32 @@ export type Submission<T, U> = {
   retry: () => void;
 };
 
-export interface MaybePreloadableComponent extends Component<any> {
+export type SubmissionStub = {
+  readonly input: undefined;
+  readonly result: undefined;
+  readonly error: undefined;
+  readonly pending: undefined;
+  readonly url: undefined;
+  clear: () => void;
+  retry: () => void;
+};
+
+export interface MaybePreloadableComponent extends Component {
   preload?: () => void;
 }
 
 export type CacheEntry = [number, any, Intent | undefined, Signal<number> & { count: number }];
+
+export type NarrowResponse<T> = T extends CustomResponse<infer U> ? U : Exclude<T, Response>;
+export type RouterResponseInit = Omit<ResponseInit, "body"> & { revalidate?: string | string[] };
+// export type CustomResponse<T> = Response & { customBody: () => T };
+// hack to avoid it thinking it inherited from Response
+export type CustomResponse<T> = Omit<Response, "clone"> & {
+  customBody: () => T;
+  clone(...args: readonly unknown[]): CustomResponse<T>;
+};
+
+/** @deprecated */
+export type RouteLoadFunc = RoutePreloadFunc;
+/** @deprecated */
+export type RouteLoadFuncArgs = RoutePreloadFuncArgs;

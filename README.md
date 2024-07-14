@@ -10,7 +10,7 @@ A router lets you change your view based on the URL in the browser. This allows 
 
 Solid Router is a universal router for SolidJS - it works whether you're rendering on the client or on the server. It was inspired by and combines paradigms of React Router and the Ember Router. Routes can be defined directly in your app's template using JSX, but you can also pass your route configuration directly as an object. It also supports nested routing, so navigation can change a part of a component, rather than completely replacing it.
 
-It supports all of Solid's SSR methods and has Solid's transitions baked in, so use it freely with suspense, resources, and lazy components. Solid Router also allows you to define a load function that loads parallel to the routes ([render-as-you-fetch](https://epicreact.dev/render-as-you-fetch/)).
+It supports all of Solid's SSR methods and has Solid's transitions baked in, so use it freely with suspense, resources, and lazy components. Solid Router also allows you to define a preload function that loads parallel to the routes ([render-as-you-fetch](https://epicreact.dev/render-as-you-fetch/)).
 
 - [Getting Started](#getting-started)
   - [Set Up the Router](#set-up-the-router)
@@ -380,11 +380,11 @@ You can nest indefinitely - just remember that only leaf nodes will become their
 </Route>
 ```
 
-## Load Functions
+## Preload Functions
 
-Even with smart caches it is possible that we have waterfalls both with view logic and with lazy loaded code. With load functions, we can instead start fetching the data parallel to loading the route, so we can use the data as soon as possible. The load function is called when the Route is loaded or eagerly when links are hovered.
+Even with smart caches it is possible that we have waterfalls both with view logic and with lazy loaded code. With preload functions, we can instead start fetching the data parallel to loading the route, so we can use the data as soon as possible. The preload function is called when the Route is loaded or eagerly when links are hovered.
 
-As its only argument, the load function is passed an object that you can use to access route information:
+As its only argument, the preload function is passed an object that you can use to access route information:
 
 ```js
 import { lazy } from "solid-js";
@@ -392,13 +392,13 @@ import { Route } from "@solidjs/router";
 
 const User = lazy(() => import("./pages/users/[id].js"));
 
-// load function
-function loadUser({params, location}) {
-  // do loading
+// preload function
+function preloadUser({params, location}) {
+  // do preloading
 }
 
 // Pass it in the route definition
-<Route path="/users/:id" component={User} load={loadUser} />;
+<Route path="/users/:id" component={User} preload={preloadUser} />;
 ```
 
 | key      | type                                              | description                                                                                                                   |
@@ -408,24 +408,24 @@ function loadUser({params, location}) {
 | intent | `"initial", "navigate", "native", "preload"` | Indicates why this function is being called. <ul><li>"initial" - the route is being initially shown (ie page load)</li><li>"native" - navigate originated from the browser (eg back/forward)</li><li>"navigate" - navigate originated from the router (eg call to navigate or anchor clicked)</li><li>"preload" - not navigating, just preloading (eg link hover)</li></ul> |
 
 
-A common pattern is to export the load function and data wrappers that corresponds to a route in a dedicated `route.data.js` file. This way, the data function can be imported without loading anything else.
+A common pattern is to export the preload function and data wrappers that corresponds to a route in a dedicated `route.data.js` file. This way, the data function can be imported without loading anything else.
 
 ```js
 import { lazy } from "solid-js";
 import { Route } from "@solidjs/router";
-import loadUser from "./pages/users/[id].data.js";
+import preloadUser from "./pages/users/[id].data.js";
 const User = lazy(() => import("/pages/users/[id].js"));
 
 // In the Route definition
-<Route path="/users/:id" component={User} load={loadUser} />;
+<Route path="/users/:id" component={User} preload={preloadUser} />;
 ```
 
-The return value of the `load` function is passed to the page component when called at anytime other than `"preload"`, so you can initialize things in there, or alternatively use our new Data APIs:
+The return value of the `preload` function is passed to the page component when called at anytime other than `"preload"` intent, so you can initialize things in there, or alternatively use our new Data APIs:
 
 
 ## Data APIs
 
-Keep in mind these are completely optional. To use but showcase the power of our load mechanism.
+Keep in mind these are completely optional. To use but showcase the power of our preload mechanism.
 
 ### `cache`
 
@@ -441,11 +441,11 @@ It is expected that the arguments to the cache function are serializable.
 This cache accomplishes the following:
 
 1. It does just deduping on the server for the lifetime of the request.
-2. It does preload cache in the browser which lasts 10 seconds. When a route is preloaded on hover or when load is called when entering a route it will make sure to dedupe calls.
+2. It does preload cache in the browser which lasts 5 seconds. When a route is preloaded on hover or when preload is called when entering a route it will make sure to dedupe calls.
 3. We have a reactive refetch mechanism based on key. So we can tell routes that aren't new to retrigger on action revalidation.
 4. It will serve as a back/forward cache for browser navigation up to 5 mins. Any user based navigation or link click bypasses it. Revalidation or new fetch updates the cache.
 
-Using it with load function might look like:
+Using it with preload function might look like:
 
 ```js
 import { lazy } from "solid-js";
@@ -454,13 +454,13 @@ import { getUser } from ... // the cache function
 
 const User = lazy(() => import("./pages/users/[id].js"));
 
-// load function
-function loadUser({params, location}) {
+// preload function
+function preloadUser({params, location}) {
   void getUser(params.id)
 }
 
 // Pass it in the route definition
-<Route path="/users/:id" component={User} load={loadUser} />;
+<Route path="/users/:id" component={User} preload={preloadUser} />;
 ```
 
 Inside your page component you:
@@ -770,7 +770,7 @@ The Component for defining Routes:
 | component | `Component` | Component that will be rendered for the matched segment |
 | matchFilters | `MatchFilters` | Additional constraints for matching against the route |
 | children | `JSX.Element` | Nested `<Route>` definitions |
-| load | `RouteLoadFunc` | Function called during preload or when the route is navigated to. |
+| preload | `RoutePreloadFunc` | Function called during preload or when the route is navigated to. |
 
 ## Router Primitives
 
@@ -873,6 +873,16 @@ const matches = useCurrentMatches();
 const breadcrumbs = createMemo(() => matches().map(m => m.route.info.breadcrumb))
 ```
 
+### usePreloadRoute
+
+`usePreloadRoute` returns a function that can be used to preload a route manual. This is what happens automatically with link hovering and similar focus based behavior, but it is available here as an API.
+
+```js
+const preload = usePreloadRoute();
+
+preload(`/users/settings`, { preloadData: true });
+```
+
 ### useBeforeLeave
 
 `useBeforeLeave` takes a function that will be called prior to leaving a route. The function will be called with:
@@ -919,7 +929,7 @@ Related without Outlet component it has to be passed in manually. At which point
 
 ### `data` functions & `useRouteData`
 
-These have been replaced by a load mechanism. This  allows link hover preloads (as the load function can be run as much as wanted without worry about reactivity). It support deduping/cache APIs which give more control over how things are cached. It also addresses TS issues with getting the right types in the Component without `typeof` checks.
+These have been replaced by a preload mechanism. This  allows link hover preloads (as the preload function can be run as much as wanted without worry about reactivity). It support deduping/cache APIs which give more control over how things are cached. It also addresses TS issues with getting the right types in the Component without `typeof` checks.
 
 That being said you can reproduce the old pattern largely by turning off preloads at the router level and then injecting your own Context:
 
@@ -929,15 +939,15 @@ import { Route } from "@solidjs/router";
 
 const User = lazy(() => import("./pages/users/[id].js"));
 
-// load function
-function loadUser({params, location}) {
+// preload function
+function preloadUser({params, location}) {
   const [user] = createResource(() => params.id, fetchUser);
   return user;
 }
 
 // Pass it in the route definition
 <Router preload={false}>
-  <Route path="/users/:id" component={User} load={loadUser} />
+  <Route path="/users/:id" component={User} preload={preloadUser} />
 </Router>
 ```
 

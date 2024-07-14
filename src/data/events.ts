@@ -4,7 +4,12 @@ import type { RouterContext } from "../types.js";
 import { actions } from "./action.js";
 import { mockBase } from "../utils.js";
 
-export function setupNativeEvents(preload = true, explicitLinks = false, actionBase = "/_server", transformUrl?: (url: string) => string) {
+export function setupNativeEvents(
+  preload = true,
+  explicitLinks = false,
+  actionBase = "/_server",
+  transformUrl?: (url: string) => string
+) {
   return (router: RouterContext) => {
     const basePath = router.base.path();
     const navigateFromRoute = router.navigatorFactory(router.base);
@@ -75,7 +80,7 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
         url.pathname = transformUrl(url.pathname);
       }
       if (!preloadTimeout[url.pathname])
-        router.preloadRoute(url, a.getAttribute("preload") !== "false");
+        router.preloadRoute(url, { preloadData: a.getAttribute("preload") !== "false" });
     }
 
     function handleAnchorIn(evt: Event) {
@@ -87,7 +92,7 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
       }
       if (preloadTimeout[url.pathname]) return;
       preloadTimeout[url.pathname] = setTimeout(() => {
-        router.preloadRoute(url, a.getAttribute("preload") !== "false");
+        router.preloadRoute(url, { preloadData: a.getAttribute("preload") !== "false" });
         delete preloadTimeout[url.pathname];
       }, 200) as any;
     }
@@ -123,13 +128,13 @@ export function setupNativeEvents(preload = true, explicitLinks = false, actionB
       const handler = actions.get(actionRef);
       if (handler) {
         evt.preventDefault();
-        const data = new FormData(evt.target as HTMLFormElement);
-        if (evt.submitter && (evt.submitter as HTMLButtonElement | HTMLInputElement).name)
-          data.append(
-            (evt.submitter as HTMLButtonElement | HTMLInputElement).name,
-            (evt.submitter as HTMLButtonElement | HTMLInputElement).value
-          );
-        handler.call({ r: router, f: evt.target }, data);
+        const data = new FormData(evt.target as HTMLFormElement, evt.submitter);
+        handler.call(
+          { r: router, f: evt.target },
+          (evt.target as HTMLFormElement).enctype === "multipart/form-data"
+            ? data
+            : new URLSearchParams(data as any)
+        );
       }
     }
 

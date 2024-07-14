@@ -1,17 +1,17 @@
 import { $TRACK, createMemo, createSignal, JSX, onCleanup, getOwner } from "solid-js";
 import { isServer } from "solid-js/web";
 import { useRouter } from "../routing.js";
-import { RouterContext, Submission, Navigator } from "../types.js";
+import type { RouterContext, Submission, SubmissionStub, Navigator, NarrowResponse } from "../types.js";
 import { mockBase } from "../utils.js";
 import { cacheKeyOp, hashKey, revalidate, cache } from "./cache.js";
 
 export type Action<T extends Array<any>, U> = (T extends [FormData] | []
   ? JSX.SerializableAttributeValue
   : unknown) &
-  ((...vars: T) => Promise<U>) & {
+  ((...vars: T) => Promise<NarrowResponse<U>>) & {
     url: string;
     with<A extends any[], B extends any[]>(
-      this: (this: any, ...args: [...A, ...B]) => Promise<U>,
+      this: (this: any, ...args: [...A, ...B]) => Promise<NarrowResponse<U>>,
       ...args: A
     ): Action<B, U>;
   };
@@ -21,7 +21,7 @@ export const actions = /* #__PURE__ */ new Map<string, Action<any, any>>();
 export function useSubmissions<T extends Array<any>, U>(
   fn: Action<T, U>,
   filter?: (arg: T) => boolean
-): Submission<T, U>[] & { pending: boolean } {
+): Submission<T, NarrowResponse<U>>[] & { pending: boolean } {
   const router = useRouter();
   const subs = createMemo(() =>
     router.submissions[0]().filter(s => s.url === fn.toString() && (!filter || filter(s.input)))
@@ -38,16 +38,17 @@ export function useSubmissions<T extends Array<any>, U>(
 export function useSubmission<T extends Array<any>, U>(
   fn: Action<T, U>,
   filter?: (arg: T) => boolean
-): Submission<T, U> {
+): Submission<T, NarrowResponse<U>> | SubmissionStub {
   const submissions = useSubmissions(fn, filter);
   return new Proxy(
     {},
     {
       get(_, property) {
+        if (submissions.length === 0 && property === "clear" || property === "retry") return (() => {});
         return submissions[submissions.length - 1]?.[property as keyof Submission<T, U>];
       }
     }
-  ) as Submission<T, U>;
+  ) as Submission<T, NarrowResponse<U>>;
 }
 
 export function useAction<T extends Array<any>, U>(action: Action<T, U>) {

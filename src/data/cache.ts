@@ -8,8 +8,8 @@ import {
   startTransition
 } from "solid-js";
 import { getRequestEvent, isServer } from "solid-js/web";
-import { useNavigate, getIntent, getInLoadFn } from "../routing.js";
-import { CacheEntry } from "../types.js";
+import { useNavigate, getIntent, getInPreloadFn } from "../routing.js";
+import type { CacheEntry, NarrowResponse } from "../types.js";
 
 const LocationHeader = "Location";
 const PRELOAD_TIMEOUT = 5000;
@@ -56,8 +56,12 @@ export type CachedFunction<T extends (...args: any) => any> = T extends (
   ...args: infer A
 ) => infer R
   ? ([] extends { [K in keyof A]-?: A[K] } // A tuple full of optional values is equivalent to an empty tuple
-      ? (...args: never[]) => R
-      : T) & {
+      ? (
+          ...args: never[]
+        ) => R extends Promise<infer P> ? Promise<NarrowResponse<P>> : NarrowResponse<R>
+      : (
+          ...args: A
+        ) => R extends Promise<infer P> ? Promise<NarrowResponse<P>> : NarrowResponse<R>) & {
       keyFor: (...args: A) => string;
       key: string;
     }
@@ -69,7 +73,7 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
   const cachedFn = ((...args: Parameters<T>) => {
     const cache = getCache();
     const intent = getIntent();
-    const inLoadFn = getInLoadFn();
+    const inPreloadFn = getInPreloadFn();
     const owner = getOwner();
     const navigate = owner ? useNavigate() : undefined;
     const now = Date.now();
@@ -111,13 +115,14 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
         cached[0] = now;
       }
       let res = cached[1];
-      if (!inLoadFn) {
+      if (intent !== "preload") {
         res =
           "then" in cached[1]
             ? cached[1].then(handleResponse(false), handleResponse(true))
             : handleResponse(false)(cached[1]);
         !isServer && intent === "navigate" && startTransition(() => cached[3][1](cached[0])); // update version
-      } else "then" in res && res.catch(() => {});
+      }
+      inPreloadFn && "then" in res && res.catch(() => {});
       return res;
     }
     let res =
@@ -145,12 +150,13 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
       const e = getRequestEvent();
       if (e && e.router!.dataOnly) return (e.router!.data![key] = res);
     }
-    if (!inLoadFn) {
+    if (intent !== "preload") {
       res =
         "then" in res
           ? res.then(handleResponse(false), handleResponse(true))
           : handleResponse(false)(res);
-    } else "then" in res && res.catch(() => {});
+    }
+    inPreloadFn && "then" in res && res.catch(() => {});
     // serialize on server
     if (
       isServer &&
@@ -169,19 +175,18 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
           const url = v.headers.get(LocationHeader);
 
           if (url !== null) {
-            let returnEarly = true;
-
             // client + server relative redirect
             if (navigate && url.startsWith("/"))
               startTransition(() => {
                 navigate(url, { replace: true });
               });
-            // client-only absolute redirect (possibly cross-origin)
-            else if (!isServer && url) window.location.href = url;
-            // server-only absolute redirects are handled on the client
-            else if (isServer) returnEarly = false;
+            else if (!isServer) window.location.href = url;
+            else if (isServer) {
+              const e = getRequestEvent();
+              if (e) e.response = { status: 302, headers: new Headers({ Location: url }) };
+            }
 
-            if (returnEarly) return;
+            return;
           }
 
           if ((v as any).customBody) v = await (v as any).customBody();
@@ -190,7 +195,7 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
         return v;
       };
     }
-  }) as CachedFunction<T>;
+  }) as unknown as CachedFunction<T>;
   cachedFn.keyFor = (...args: Parameters<T>) => name + hashKey(args);
   cachedFn.key = name;
   return cachedFn;

@@ -11,7 +11,8 @@ export {
   useParams,
   useResolvedPath,
   useSearchParams,
-  useBeforeLeave
+  useBeforeLeave,
+  usePreloadRoute
 } from "./routing.js";
 export { mergeSearchString as _mergeSearchString } from "./utils.js";
 export * from "./data/index.js";
@@ -26,13 +27,17 @@ export type {
   Params,
   PathMatch,
   RouteSectionProps,
-  RouteLoadFunc,
-  RouteLoadFuncArgs,
+  RoutePreloadFunc,
+  RoutePreloadFuncArgs,
   RouteDefinition,
   RouteDescription,
   RouteMatch,
   RouterIntegration,
   RouterUtils,
   SetParams,
-  BeforeLeaveEventArgs
+  BeforeLeaveEventArgs,
+  RouteLoadFunc,
+  RouteLoadFuncArgs,
+  RouterResponseInit,
+  CustomResponse
 } from "./types.js";
