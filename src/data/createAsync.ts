@@ -30,7 +30,8 @@ export function createAsync<T>(
   }
 ): Accessor<T | undefined> {
   let resource: () => T;
-  let prev = () => !resource || (resource as any).state === "unresolved" ? undefined : (resource as any).latest;
+  let prev = () =>
+    !resource || (resource as any).state === "unresolved" ? undefined : (resource as any).latest;
   [resource] = createResource(
     () => subFetch(fn, untrack(prev)),
     v => v,
@@ -67,7 +68,10 @@ export function createAsyncStore<T>(
   } = {}
 ): Accessor<T | undefined> {
   let resource: () => T;
-  let prev = () => !resource || (resource as any).state === "unresolved" ? undefined : unwrap((resource as any).latest);
+  let prev = () =>
+    !resource || (resource as any).state === "unresolved"
+      ? undefined
+      : unwrap((resource as any).latest);
   [resource] = createResource(
     () => subFetch(fn, untrack(prev)),
     v => v,

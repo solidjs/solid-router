@@ -1,7 +1,13 @@
 import { $TRACK, createMemo, createSignal, JSX, onCleanup, getOwner } from "solid-js";
 import { isServer } from "solid-js/web";
 import { useRouter } from "../routing.js";
-import type { RouterContext, Submission, SubmissionStub, Navigator, NarrowResponse } from "../types.js";
+import type {
+  RouterContext,
+  Submission,
+  SubmissionStub,
+  Navigator,
+  NarrowResponse
+} from "../types.js";
 import { mockBase } from "../utils.js";
 import { cacheKeyOp, hashKey, revalidate, cache } from "./cache.js";
 
@@ -44,7 +50,8 @@ export function useSubmission<T extends Array<any>, U>(
     {},
     {
       get(_, property) {
-        if (submissions.length === 0 && property === "clear" || property === "retry") return (() => {});
+        if ((submissions.length === 0 && property === "clear") || property === "retry")
+          return () => {};
         return submissions[submissions.length - 1]?.[property as keyof Submission<T, U>];
       }
     }
