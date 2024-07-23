@@ -5,6 +5,16 @@ import { type Accessor, createResource, sharedConfig, type Setter, untrack } fro
 import { createStore, reconcile, type ReconcileOptions, unwrap } from "solid-js/store";
 import { isServer } from "solid-js/web";
 
+/**
+ * As `createAsync` and `createAsyncStore` are wrappers for `createResource`,
+ * this type allows to support `latest` field for these primitives.
+ * It will be removed in the future.
+ */
+type AccessorWithLatest<T> = {
+  (): T;
+  latest: T;
+}
+
 export function createAsync<T>(
   fn: (prev: T) => Promise<T>,
   options: {
@@ -12,7 +22,7 @@ export function createAsync<T>(
     initialValue: T;
     deferStream?: boolean;
   }
-): Accessor<T>;
+): AccessorWithLatest<T>;
 export function createAsync<T>(
   fn: (prev: T | undefined) => Promise<T>,
   options?: {
@@ -20,7 +30,7 @@ export function createAsync<T>(
     initialValue?: T;
     deferStream?: boolean;
   }
-): Accessor<T | undefined>;
+): AccessorWithLatest<T | undefined>;
 export function createAsync<T>(
   fn: (prev: T | undefined) => Promise<T>,
   options?: {
@@ -28,7 +38,7 @@ export function createAsync<T>(
     initialValue?: T;
     deferStream?: boolean;
   }
-): Accessor<T | undefined> {
+): AccessorWithLatest<T | undefined> {
   let resource: () => T;
   let prev = () => !resource || (resource as any).state === "unresolved" ? undefined : (resource as any).latest;
   [resource] = createResource(
@@ -36,7 +46,15 @@ export function createAsync<T>(
     v => v,
     options as any
   );
-  return () => resource();
+
+  const resultAccessor: AccessorWithLatest<T> = (() => resource()) as any;
+  Object.defineProperty(resultAccessor, 'latest', {
+    get() {
+      return (resource as any).latest;
+    }
+  })
+
+  return resultAccessor;
 }
 
 export function createAsyncStore<T>(
@@ -47,7 +65,7 @@ export function createAsyncStore<T>(
     deferStream?: boolean;
     reconcile?: ReconcileOptions;
   }
-): Accessor<T>;
+): AccessorWithLatest<T>;
 export function createAsyncStore<T>(
   fn: (prev: T | undefined) => Promise<T>,
   options?: {
@@ -56,7 +74,7 @@ export function createAsyncStore<T>(
     deferStream?: boolean;
     reconcile?: ReconcileOptions;
   }
-): Accessor<T | undefined>;
+): AccessorWithLatest<T | undefined>;
 export function createAsyncStore<T>(
   fn: (prev: T | undefined) => Promise<T>,
   options: {
@@ -65,7 +83,7 @@ export function createAsyncStore<T>(
     deferStream?: boolean;
     reconcile?: ReconcileOptions;
   } = {}
-): Accessor<T | undefined> {
+): AccessorWithLatest<T | undefined> {
   let resource: () => T;
   let prev = () => !resource || (resource as any).state === "unresolved" ? undefined : unwrap((resource as any).latest);
   [resource] = createResource(
@@ -76,7 +94,15 @@ export function createAsyncStore<T>(
       storage: (init: T | undefined) => createDeepSignal(init, options.reconcile)
     } as any
   );
-  return () => resource();
+
+  const resultAccessor: AccessorWithLatest<T> = (() => resource()) as any;
+  Object.defineProperty(resultAccessor, 'latest', {
+    get() {
+      return (resource as any).latest;
+    }
+  })
+
+  return resultAccessor;
 }
 
 function createDeepSignal<T>(value: T | undefined, options?: ReconcileOptions) {
