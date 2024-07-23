@@ -10,7 +10,7 @@ import { isServer } from "solid-js/web";
  * this type allows to support `latest` field for these primitives.
  * It will be removed in the future.
  */
-type AccessorWithLatest<T> = {
+export type AccessorWithLatest<T> = {
   (): T;
   latest: T;
 }
