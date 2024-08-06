@@ -77,7 +77,7 @@ export const useHref = (to: () => string | undefined) => {
 export const useNavigate = () => useRouter().navigatorFactory();
 export const useLocation = <S = unknown>() => useRouter().location as Location<S>;
 export const useIsRouting = () => useRouter().isRouting;
-export const usePreloadRoute = () => useRouter().preloadRoute
+export const usePreloadRoute = () => useRouter().preloadRoute;
 
 export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFilters<S>) => {
   const location = useLocation();
@@ -197,6 +197,13 @@ export function createBranches(
       const routes = createRoutes(def, base);
       for (const route of routes) {
         stack.push(route);
+
+        if (def.slots) {
+          for (const [name, slot] of Object.entries(def.slots) as [string, RouteDefinition][]) {
+            (route.slots ??= {})[name] = createBranches(slot, route.pattern);
+          }
+        }
+
         const isEmptyArray = Array.isArray(def.children) && def.children.length === 0;
         if (def.children && !isEmptyArray) {
           createBranches(def.children, route.pattern, stack, branches);
@@ -216,11 +223,22 @@ export function createBranches(
 
 export function getRouteMatches(branches: Branch[], location: string): RouteMatch[] {
   for (let i = 0, len = branches.length; i < len; i++) {
-    const match = branches[i].matcher(location);
-    if (match) {
-      return match;
+    const matches = branches[i].matcher(location);
+    if (!matches) continue;
+
+    for (const match of matches) {
+      if (match.route.slots) {
+        match.slots = {};
+
+        for (const [name, branches] of Object.entries(match.route.slots)) {
+          match.slots[name] = getRouteMatches(branches, location);
+        }
+      }
     }
+
+    return matches;
   }
+
   return [];
 }
 
@@ -462,34 +480,43 @@ export function createRouterContext(
 
   function preloadRoute(url: URL, options: { preloadData?: boolean } = {}) {
     const matches = getRouteMatches(branches(), url.pathname);
+
     const prevIntent = intent;
     intent = "preload";
-    for (let match in matches) {
-      const { route, params } = matches[match];
-      route.component &&
-        (route.component as MaybePreloadableComponent).preload &&
-        (route.component as MaybePreloadableComponent).preload!();
-      const { preload } = route;
-      inPreloadFn = true;
-      options.preloadData &&
-        preload &&
-        runWithOwner(getContext!(), () =>
-          preload({
-            params,
-            location: {
-              pathname: url.pathname,
-              search: url.search,
-              hash: url.hash,
-              query: extractSearchParams(url),
-              state: null,
-              key: ""
-            },
-            intent: "preload"
-          })
-        );
-      inPreloadFn = false;
-    }
+    preloadMatches(matches);
     intent = prevIntent;
+
+    function preloadMatches(matches: RouteMatch[]) {
+      for (const match in matches) {
+        const { route, params, slots } = matches[match];
+        route.component &&
+          (route.component as MaybePreloadableComponent).preload &&
+          (route.component as MaybePreloadableComponent).preload!();
+        const { preload } = route;
+        inPreloadFn = true;
+        options.preloadData &&
+          preload &&
+          runWithOwner(getContext!(), () =>
+            preload({
+              params,
+              location: {
+                pathname: url.pathname,
+                search: url.search,
+                hash: url.hash,
+                query: extractSearchParams(url),
+                state: null,
+                key: ""
+              },
+              intent: "preload"
+            })
+          );
+        inPreloadFn = false;
+
+        if (slots) {
+          for (const matches of Object.values(slots)) preloadMatches(matches);
+        }
+      }
+    }
   }
 
   function initFromFlash() {
@@ -503,7 +530,7 @@ export function createRouterContext(
 export function createRouteContext(
   router: RouterContext,
   parent: RouteContext,
-  outlet: () => JSX.Element,
+  { children, ...slots }: Record<string, () => JSX.Element>,
   match: () => RouteMatch
 ): RouteContext {
   const { base, location, params } = router;
@@ -528,10 +555,14 @@ export function createRouteContext(
             location,
             data,
             get children() {
-              return outlet();
-            }
+              return children();
+            },
+            slots: Object.entries(slots).reduce((acc, [key, slot]) => {
+              Object.defineProperty(acc, key, { get: slot });
+              return acc;
+            }, {})
           })
-        : outlet(),
+        : children(),
     resolvePath(to: string) {
       return resolvePath(base.path(), to, path());
     }

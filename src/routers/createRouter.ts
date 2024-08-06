@@ -23,11 +23,11 @@ function querySelector<T extends Element>(selector: string) {
 }
 
 export function createRouter(config: {
-  get: () => string | LocationChange,
-  set: (next: LocationChange) => void,
-  init?: (notify: (value?: string | LocationChange) => void) => () => void,
-  create?: (router: RouterContext) => void,
-  utils?: Partial<RouterUtils>
+  get: () => string | LocationChange;
+  set: (next: LocationChange) => void;
+  init?: (notify: (value?: string | LocationChange) => void) => () => void;
+  create?: (router: RouterContext) => void;
+  utils?: Partial<RouterUtils>;
 }) {
   let ignore = false;
   const wrap = (value: string | LocationChange) => (typeof value === "string" ? { value } : value);

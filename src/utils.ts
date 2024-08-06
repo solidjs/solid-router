@@ -1,9 +1,16 @@
 import { createMemo, getOwner, runWithOwner } from "solid-js";
-import type { MatchFilter, MatchFilters, Params, PathMatch, RouteDescription, SetParams } from "./types.ts";
+import type {
+  MatchFilter,
+  MatchFilters,
+  Params,
+  PathMatch,
+  RouteDescription,
+  SetParams
+} from "./types.ts";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|(\/)\/+$/g;
-export const mockBase = "http://sr"
+export const mockBase = "http://sr";
 
 export function normalizePath(path: string, omitSlash: boolean = false) {
   const s = path.replace(trimPathRegex, "$1");

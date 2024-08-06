@@ -1,4 +1,4 @@
-import { vi } from 'vitest'
+import { vi } from "vitest";
 import { createBranch, createBranches, createRoutes } from "../src/routing.js";
 import type { RouteDefinition } from "../src/index.js";
 
@@ -174,7 +174,6 @@ describe("createRoutes should", () => {
       expect(match).not.toBeNull();
       expect(match.path).toBe("/foo/123/bar/solid.html");
     });
-
   });
 
   describe(`expand optional parameters`, () => {
@@ -563,5 +562,54 @@ describe("createBranches should", () => {
     const branchPaths = branches.map(b => b.routes[b.routes.length - 1].pattern);
 
     expect(branchPaths).toEqual(["/root/%E3%81%BB%E3%81%92/:ふが/*ぴよ"]);
+  });
+
+  describe(`traverse slots`, () => {
+    test("with no children", () => {
+      const branches = createBranches({
+        path: "root",
+        children: {
+          path: "nested",
+          slots: { nestedSlot: {} }
+        },
+        slots: { rootSlot: {} }
+      });
+
+      const root = branches[0].routes.find(r => r.originalPath === "root")!;
+      expect(root.slots).toHaveProperty("rootSlot");
+      const rootSlot = root.slots!.rootSlot;
+      expect(rootSlot.length).toBe(1);
+      expect(rootSlot[0].routes.length).toBe(1);
+      expect(rootSlot[0].routes[0].pattern).toEqual("/root");
+
+      const nested = branches[0].routes.find(r => r.originalPath === "nested")!;
+      expect(nested.slots).toHaveProperty("nestedSlot");
+      const nestedSlot = nested.slots!.nestedSlot;
+      expect(nestedSlot.length).toBe(1);
+      expect(nestedSlot[0].routes.length).toBe(1);
+      expect(nestedSlot[0].routes[0].pattern).toEqual("/root/nested");
+    });
+
+    test("with children", () => {
+      const branches = createBranches({
+        path: "root",
+        children: {
+          path: "nested",
+          slots: { nestedSlot: { children: [{ path: "one" }, { path: "two" }] } }
+        },
+        slots: { rootSlot: { children: [{ path: "one" }, { path: "two" }] } }
+      });
+
+      const rootSlot = branches[0].routes.find(r => r.originalPath === "root")!.slots!.rootSlot;
+      expect(rootSlot.length).toBe(2);
+      expect(rootSlot[1].routes.length).toBe(2);
+      expect(rootSlot[1].routes[1].pattern).toEqual("/root/two");
+
+      const nestedSlot = branches[0].routes.find(r => r.originalPath === "nested")!.slots!
+        .nestedSlot;
+      expect(nestedSlot.length).toBe(2);
+      expect(nestedSlot[1].routes.length).toBe(2);
+      expect(nestedSlot[1].routes[1].pattern).toEqual("/root/nested/two");
+    });
   });
 });

@@ -5,9 +5,9 @@ declare module "solid-js/web" {
     response: {
       status?: number;
       statusText?: string;
-      headers: Headers
+      headers: Headers;
     };
-    router? : {
+    router?: {
       matches?: OutputMatch[];
       cache?: Map<string, CacheEntry>;
       submission?: {
@@ -18,7 +18,7 @@ declare module "solid-js/web" {
       dataOnly?: boolean | string[];
       data?: Record<string, any>;
       previousUrl?: string;
-    }
+    };
     serverOnly?: boolean;
   }
 }
@@ -74,22 +74,28 @@ export interface RoutePreloadFuncArgs {
 
 export type RoutePreloadFunc<T = unknown> = (args: RoutePreloadFuncArgs) => T;
 
-export interface RouteSectionProps<T = unknown> {
+export interface RouteSectionProps<T = unknown, TSlots extends string = never> {
   params: Params;
   location: Location;
   data: T;
   children?: JSX.Element;
+  slots: Record<TSlots, JSX.Element>;
 }
 
-export type RouteDefinition<S extends string | string[] = any, T = unknown> = {
+export type RouteDefinition<
+  S extends string | string[] = any,
+  T = unknown,
+  TSlots extends string = never
+> = {
   path?: S;
   matchFilters?: MatchFilters<S>;
   preload?: RoutePreloadFunc<T>;
   children?: RouteDefinition | RouteDefinition[];
-  component?: Component<RouteSectionProps<T>>;
+  component?: Component<RouteSectionProps<T, TSlots>>;
   info?: Record<string, any>;
   /** @deprecated use preload */
   load?: RoutePreloadFunc;
+  slots?: Record<TSlots, Omit<RouteDefinition, "path">>;
 };
 
 export type MatchFilter = readonly string[] | RegExp | ((s: string) => boolean);
@@ -116,6 +122,7 @@ export interface PathMatch {
 
 export interface RouteMatch extends PathMatch {
   route: RouteDescription;
+  slots?: Record<string, RouteMatch[]>;
 }
 
 export interface OutputMatch {
@@ -124,6 +131,7 @@ export interface OutputMatch {
   match: string;
   params: Params;
   info?: Record<string, any>;
+  slots?: Record<string, OutputMatch[]>;
 }
 
 export interface RouteDescription {
@@ -135,6 +143,7 @@ export interface RouteDescription {
   matcher: (location: string) => PathMatch | null;
   matchFilters?: MatchFilters;
   info?: Record<string, any>;
+  slots?: Record<string, Branch[]>;
 }
 
 export interface Branch {
@@ -145,11 +154,11 @@ export interface Branch {
 
 export interface RouteContext {
   parent?: RouteContext;
-  child?: RouteContext;
   pattern: string;
   path: () => string;
   outlet: () => JSX.Element;
   resolvePath(to: string): string | undefined;
+  slots?: Record<string, RouteContext[]>;
 }
 
 export interface RouterUtils {
@@ -224,7 +233,10 @@ export type NarrowResponse<T> = T extends CustomResponse<infer U> ? U : Exclude<
 export type RouterResponseInit = Omit<ResponseInit, "body"> & { revalidate?: string | string[] };
 // export type CustomResponse<T> = Response & { customBody: () => T };
 // hack to avoid it thinking it inherited from Response
-export type CustomResponse<T> = Omit<Response, "clone"> & { customBody: () => T; clone(...args: readonly unknown[]): CustomResponse<T> };
+export type CustomResponse<T> = Omit<Response, "clone"> & {
+  customBody: () => T;
+  clone(...args: readonly unknown[]): CustomResponse<T>;
+};
 
 /** @deprecated */
 export type RouteLoadFunc = RoutePreloadFunc;
