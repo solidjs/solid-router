@@ -495,11 +495,19 @@ This is light wrapper over `createResource` that aims to serve as stand-in for a
 const user = createAsync((currentValue) => getUser(params.id))
 ```
 
+It also preserves `latest` field from `createResource`. Note that it will be removed in the future.
+
+```jsx
+const user = createAsync((currentValue) => getUser(params.id))
+return <h1>{user.latest.name}</h1>;
+```
+
 Using `cache` in `createResource` directly won't work properly as the fetcher is not reactive and it won't invalidate properly.
 
 ### `createAsyncStore`
 
 Similar to `createAsync` except it uses a deeply reactive store. Perfect for applying fine-grained changes to large model data that updates.
+It also supports `latest` field which will be removed in the future.
 
 ```jsx
 const todos = createAsyncStore(() => getTodos());
