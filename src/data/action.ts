@@ -18,6 +18,8 @@ export type Action<T extends Array<any>, U> = (T extends [FormData] | []
 
 export const actions = /* #__PURE__ */ new Map<string, Action<any, any>>();
 
+export const routableForms = /* #__PURE__ */ new Set<HTMLFormElement>();
+
 export function useSubmissions<T extends Array<any>, U>(
   fn: Action<T, U>,
   filter?: (arg: T) => boolean
