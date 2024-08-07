@@ -42,9 +42,12 @@ export type BaseRouterProps = {
   rootPreload?: RoutePreloadFunc;
   singleFlight?: boolean;
   children?: JSX.Element | RouteDefinition | RouteDefinition[];
-  transformUrl?: (url: string) => string;
+  rewritePathToRoute?: (url: string) => string;
+  rewriteRouteToPath?: (url: string) => string;
   /** @deprecated use rootPreload */
   rootLoad?: RoutePreloadFunc;
+  /** @deprecated  use rewritePathToRoute */
+  transformUrl?: (url: string) => string;
 };
 
 export const createRouterComponent = (router: RouterIntegration) => (props: BaseRouterProps) => {
@@ -58,7 +61,7 @@ export const createRouterComponent = (router: RouterIntegration) => (props: Base
   const routerState = createRouterContext(router, branches, () => context, {
     base,
     singleFlight: props.singleFlight,
-    transformUrl: props.transformUrl,
+    rewritePathToRoute: props.rewritePathToRoute || props.transformUrl
   });
   router.create && router.create(routerState);
   return (

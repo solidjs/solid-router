@@ -102,9 +102,14 @@ export const useSearchParams = <T extends Params>(): [
 ] => {
   const location = useLocation();
   const navigate = useNavigate();
+  const rewriteRouteToPath = useRouter().rewriteRouteToPath;
   const setSearchParams = (params: SetParams, options?: Partial<NavigateOptions>) => {
-    const searchString = untrack(
-      () => location.pathname + mergeSearchString(location.search, params) + location.hash
+    const searchString = untrack(() =>
+      rewriteRouteToPath
+        ? rewriteRouteToPath(location.pathname) +
+          mergeSearchString(location.search, params) +
+          location.hash
+        : location.pathname + mergeSearchString(location.search, params) + location.hash
     );
     navigate(searchString, {
       scroll: false,
@@ -283,7 +288,11 @@ export function createRouterContext(
   integration: RouterIntegration,
   branches: () => Branch[],
   getContext?: () => any,
-  options: { base?: string; singleFlight?: boolean; transformUrl?: (url: string) => string } = {}
+  options: {
+    base?: string;
+    singleFlight?: boolean;
+    rewritePathToRoute?: (url: string) => string;
+  } = {}
 ): RouterContext {
   const {
     signal: [source, setSource],
@@ -342,8 +351,8 @@ export function createRouterContext(
   const submissions = createSignal<Submission<any, any>[]>(isServer ? initFromFlash() : []);
 
   const matches = createMemo(() => {
-    if (typeof options.transformUrl === "function") {
-      return getRouteMatches(branches(), options.transformUrl(location.pathname));
+    if (typeof options.rewritePathToRoute === "function") {
+      return getRouteMatches(branches(), options.rewritePathToRoute(location.pathname));
     }
 
     return getRouteMatches(branches(), location.pathname);
@@ -382,6 +391,7 @@ export function createRouterContext(
     beforeLeave,
     preloadRoute,
     singleFlight: options.singleFlight === undefined ? true : options.singleFlight,
+    rewritePathToRoute: options.rewritePathToRoute,
     submissions
   };
 

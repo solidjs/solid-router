@@ -171,7 +171,11 @@ export interface RouterContext {
   beforeLeave: BeforeLeaveLifecycle;
   preloadRoute: (url: URL, options: { preloadData?: boolean }) => void;
   singleFlight: boolean;
+  rewritePathToRoute?: (url: string) => string;
+  rewriteRouteToPath?: (url: string) => string;
   submissions: Signal<Submission<any, any>[]>;
+  /** @deprecated  use rewritePathToRoute */
+  transformUrl?: (url: string) => string;
 }
 
 export interface BeforeLeaveEventArgs {

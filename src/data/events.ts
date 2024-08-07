@@ -8,7 +8,7 @@ export function setupNativeEvents(
   preload = true,
   explicitLinks = false,
   actionBase = "/_server",
-  transformUrl?: (url: string) => string
+  rewritePathToRoute?: (url: string) => string
 ) {
   return (router: RouterContext) => {
     const basePath = router.base.path();
@@ -76,8 +76,8 @@ export function setupNativeEvents(
       const res = handleAnchor(evt as MouseEvent);
       if (!res) return;
       const [a, url] = res;
-      if (typeof transformUrl === "function") {
-        url.pathname = transformUrl(url.pathname);
+      if (typeof rewritePathToRoute === "function") {
+        url.pathname = rewritePathToRoute(url.pathname);
       }
       if (!preloadTimeout[url.pathname])
         router.preloadRoute(url, { preloadData: a.getAttribute("preload") !== "false" });
@@ -87,8 +87,8 @@ export function setupNativeEvents(
       const res = handleAnchor(evt as MouseEvent);
       if (!res) return;
       const [a, url] = res;
-      if (typeof transformUrl === "function") {
-        url.pathname = transformUrl(url.pathname);
+      if (typeof rewritePathToRoute === "function") {
+        url.pathname = rewritePathToRoute(url.pathname);
       }
       if (preloadTimeout[url.pathname]) return;
       preloadTimeout[url.pathname] = setTimeout(() => {
@@ -101,8 +101,8 @@ export function setupNativeEvents(
       const res = handleAnchor(evt as MouseEvent);
       if (!res) return;
       const [, url] = res;
-      if (typeof transformUrl === "function") {
-        url.pathname = transformUrl(url.pathname);
+      if (typeof rewritePathToRoute === "function") {
+        url.pathname = rewritePathToRoute(url.pathname);
       }
       if (preloadTimeout[url.pathname]) {
         clearTimeout(preloadTimeout[url.pathname]);

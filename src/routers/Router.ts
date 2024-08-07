@@ -13,7 +13,9 @@ export function Router(props: RouterProps): JSX.Element {
   const getSource = () => {
     const url = window.location.pathname.replace(/^\/+/, "/") + window.location.search;
     return {
-      value: props.transformUrl ? props.transformUrl(url) + window.location.hash : url + window.location.hash,
+      value: props.rewritePathToRoute
+        ? props.rewritePathToRoute(url) + window.location.hash
+        : url + window.location.hash,
       state: window.history.state
     }
   };
@@ -39,7 +41,12 @@ export function Router(props: RouterProps): JSX.Element {
           }
         })
       ),
-    create: setupNativeEvents(props.preload, props.explicitLinks, props.actionBase, props.transformUrl),
+    create: setupNativeEvents(
+      props.preload,
+      props.explicitLinks,
+      props.actionBase,
+      props.rewritePathToRoute
+    ),
     utils: {
       go: delta => window.history.go(delta),
       beforeLeave
