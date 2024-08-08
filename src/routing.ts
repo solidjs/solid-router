@@ -104,7 +104,7 @@ export const useSearchParams = <T extends Params>(): [
   const navigate = useNavigate();
   const setSearchParams = (params: SetParams, options?: Partial<NavigateOptions>) => {
     const searchString = untrack(
-      () => location.pathname + mergeSearchString(location.search, params) + location.hash
+      () => isServer ? location.pathname : window.location.pathname + mergeSearchString(location.search, params) + location.hash
     );
     navigate(searchString, {
       scroll: false,
