@@ -1,5 +1,5 @@
 import { delegateEvents } from "solid-js/web";
-import { onCleanup } from "solid-js";
+import { onCleanup, sharedConfig } from "solid-js";
 import type { RouterContext } from "../types.js";
 import { actions } from "./action.js";
 import { mockBase } from "../utils.js";
@@ -64,6 +64,7 @@ export function setupNativeEvents(
       const state = a.getAttribute("state");
 
       evt.preventDefault();
+      if (sharedConfig.registry && !sharedConfig.done) sharedConfig.done = true;
       navigateFromRoute(to, {
         resolve: false,
         replace: a.hasAttribute("replace"),
