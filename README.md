@@ -735,7 +735,7 @@ This is the main Router component for the browser.
 | base | string | Base url to use for matching routes |
 | actionBase | string | Root url for server actions, default: `/_server` |
 | preload | boolean | Enables/disables preloads globally, default: `true` |
-| explicitLinks | boolean | Disables all anchors being intercepted and instead requires `<A>`. default: `false` |
+| explicitLinks | boolean | Disables all anchors being intercepted and instead requires `<A>`. Default: `false`. (To disable interception for a specific link, set `target` to any value, e.g. `<a target="_self">`.) |
 
 ### `<A>`
 
