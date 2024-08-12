@@ -1,5 +1,13 @@
 # @solidjs/router
 
+## 0.14.2
+
+### Patch Changes
+
+- bc3d8e3: expose .latest from createAsync
+- fc6ac53: fix #464 flaky hydration bail out
+- 3295502: fix hydration cancellation on browser events
+
 ## 0.14.1
 
 ### Patch Changes
