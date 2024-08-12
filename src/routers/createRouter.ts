@@ -1,4 +1,4 @@
-import { Signal, createSignal, onCleanup } from "solid-js";
+import { type Signal, createSignal, onCleanup, sharedConfig } from "solid-js";
 import type { LocationChange, RouterContext, RouterUtils } from "../types.ts";
 import { createRouterComponent } from "./components.jsx";
 
@@ -38,6 +38,7 @@ export function createRouter(config: {
     undefined,
     next => {
       !ignore && config.set(next);
+      if (sharedConfig.registry && !sharedConfig.done) sharedConfig.done = true;
       return next;
     }
   ) as Signal<LocationChange>;
