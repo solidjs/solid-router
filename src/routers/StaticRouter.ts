@@ -14,6 +14,7 @@ export function StaticRouter(props: StaticRouterProps): JSX.Element {
   const url = props.url || ((e = getRequestEvent()) && getPath(e.request.url)) || ""
   const obj = {
     value: props.transformUrl ? props.transformUrl(url) : url,
+    rawPath: url,
   };
   return createRouterComponent({
     signal: [() => obj, next => Object.assign(obj, next)]

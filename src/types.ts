@@ -58,6 +58,7 @@ export interface LocationChange<S = unknown> {
   replace?: boolean;
   scroll?: boolean;
   state?: S;
+  rawPath?: string;
 }
 export interface RouterIntegration {
   signal: Signal<LocationChange>;

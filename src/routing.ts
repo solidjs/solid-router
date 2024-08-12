@@ -77,7 +77,7 @@ export const useHref = (to: () => string | undefined) => {
 export const useNavigate = () => useRouter().navigatorFactory();
 export const useLocation = <S = unknown>() => useRouter().location as Location<S>;
 export const useIsRouting = () => useRouter().isRouting;
-export const usePreloadRoute = () => useRouter().preloadRoute
+export const usePreloadRoute = () => useRouter().preloadRoute;
 
 export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFilters<S>) => {
   const location = useLocation();
@@ -103,9 +103,7 @@ export const useSearchParams = <T extends Params>(): [
   const location = useLocation();
   const navigate = useNavigate();
   const setSearchParams = (params: SetParams, options?: Partial<NavigateOptions>) => {
-    const searchString = untrack(
-      () => location.pathname + mergeSearchString(location.search, params) + location.hash
-    );
+    const searchString = untrack(() => mergeSearchString(location.search, params) + location.hash);
     navigate(searchString, {
       scroll: false,
       resolve: false,
@@ -403,6 +401,7 @@ export function createRouterContext(
         return;
       }
 
+      const queryOnly = to[0] === "?";
       const {
         replace,
         resolve,
@@ -410,12 +409,14 @@ export function createRouterContext(
         state: nextState
       } = {
         replace: false,
-        resolve: true,
+        resolve: !queryOnly,
         scroll: true,
         ...options
       };
 
-      const resolvedTo = resolve ? route.resolvePath(to) : resolvePath("", to);
+      const resolvedTo = resolve
+        ? route.resolvePath(to)
+        : resolvePath((queryOnly && source().rawPath) || "", to);
 
       if (resolvedTo === undefined) {
         throw new Error(`Path '${to}' is not a routable path`);

@@ -41,7 +41,6 @@ export function createMemoryHistory() {
           scrollToHash(value.split("#")[1] || "", true);
         }
       }, 0);
-      
     },
     back: () => {
       go(-1);
