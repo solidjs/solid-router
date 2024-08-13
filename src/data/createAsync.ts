@@ -107,13 +107,13 @@ export function createAsyncStore<T>(
 
 function createDeepSignal<T>(value: T | undefined, options?: ReconcileOptions) {
   const [store, setStore] = createStore({
-    value
+    value: structuredClone(value)
   });
   return [
     () => store.value,
     (v: T) => {
       typeof v === "function" && (v = v());
-      setStore("value", reconcile(v, options));
+      setStore("value", reconcile(structuredClone(v), options));
       return store.value;
     }
   ] as [Accessor<T | null>, Setter<T | null>];
