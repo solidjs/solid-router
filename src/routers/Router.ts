@@ -13,8 +13,7 @@ export function Router(props: RouterProps): JSX.Element {
   const getSource = () => {
     const url = window.location.pathname.replace(/^\/+/, "/") + window.location.search;
     return {
-      value: props.transformUrl ? props.transformUrl(url) + window.location.hash : url + window.location.hash,
-      rawPath: url,
+      value: url + window.location.hash,
       state: window.history.state
     }
   };

@@ -401,7 +401,7 @@ export function createRouterContext(
         return;
       }
 
-      const queryOnly = to[0] === "?";
+      const queryOnly = !to || to[0] === "?";
       const {
         replace,
         resolve,
@@ -414,9 +414,10 @@ export function createRouterContext(
         ...options
       };
 
+      let s: string;
       const resolvedTo = resolve
         ? route.resolvePath(to)
-        : resolvePath((queryOnly && source().rawPath) || "", to);
+        : resolvePath((queryOnly && (s = source().value) && s.split("?")[0]) || "", to);
 
       if (resolvedTo === undefined) {
         throw new Error(`Path '${to}' is not a routable path`);
