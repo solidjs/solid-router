@@ -1,5 +1,13 @@
 # @solidjs/router
 
+## 0.14.3
+
+### Patch Changes
+
+- 19a21cc: fix async store references
+- f8aaf16: make url transform consistent
+- 86c3b1f: better handling of query only navigation
+
 ## 0.14.2
 
 ### Patch Changes
