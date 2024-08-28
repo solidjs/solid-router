@@ -417,7 +417,7 @@ export function createRouterContext(
       let s: string;
       const resolvedTo = resolve
         ? route.resolvePath(to)
-        : resolvePath((queryOnly && (s = source().value) && s.split("?")[0]) || "", to);
+        : resolvePath((queryOnly && location.pathname) || "", to);
 
       if (resolvedTo === undefined) {
         throw new Error(`Path '${to}' is not a routable path`);
