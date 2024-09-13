@@ -87,7 +87,7 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
         if (dataOnly) {
           const data = e && (e.router.data || (e.router.data = {}));
           if (data && key in data) return data[key];
-          if (Array.isArray(dataOnly) && !dataOnly.includes(key)) {
+          if (Array.isArray(dataOnly) && !matchKey(key, dataOnly)) {
             data[key] = undefined;
             return Promise.resolve();
           }
