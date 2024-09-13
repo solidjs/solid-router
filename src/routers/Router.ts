@@ -12,9 +12,10 @@ export function Router(props: RouterProps): JSX.Element {
   if (isServer) return StaticRouter(props);
   const getSource = () => {
     const url = window.location.pathname.replace(/^\/+/, "/") + window.location.search;
+    const state = window.history.state && window.history.state._depth && Object.keys(window.history.state).length === 1 ? undefined : window.history.state;
     return {
       value: url + window.location.hash,
-      state: window.history.state
+      state
     }
   };
   const beforeLeave = createBeforeLeave();
