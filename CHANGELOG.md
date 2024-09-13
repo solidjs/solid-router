@@ -1,5 +1,12 @@
 # @solidjs/router
 
+## 0.14.4
+
+### Patch Changes
+
+- 098dccb: fix #474 improper search parameter resolution while routing
+- f8f30df: fix initial state including \_depth
+
 ## 0.14.3
 
 ### Patch Changes
