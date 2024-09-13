@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 0.14.5
+
+### Patch Changes
+
+- 5c87acc: fix partial matches in single flight mutations
+
 ## 0.14.4
 
 ### Patch Changes
