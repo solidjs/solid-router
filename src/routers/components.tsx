@@ -43,6 +43,7 @@ export type BaseRouterProps = {
   singleFlight?: boolean;
   children?: JSX.Element | RouteDefinition | RouteDefinition[];
   transformUrl?: (url: string) => string;
+  customSetup?: (props: BaseRouterProps) => (router: RouterContext) => void;
   /** @deprecated use rootPreload */
   rootLoad?: RoutePreloadFunc;
 };
