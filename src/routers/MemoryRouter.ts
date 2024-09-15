@@ -68,7 +68,7 @@ export function MemoryRouter(props: MemoryRouterProps): JSX.Element {
     get: memoryHistory.get,
     set: memoryHistory.set,
     init: memoryHistory.listen,
-    create: setupNativeEvents(props.preload, props.explicitLinks, props.actionBase),
+    create: props.customSetup ? props.customSetup(props) : setupNativeEvents(props.preload, props.explicitLinks, props.actionBase),
     utils: {
       go: memoryHistory.go
     }
