@@ -37,6 +37,7 @@ import type {
 import {
   mockBase,
   createMemoObject,
+  createMemoWithoutProxy,
   extractSearchParams,
   invariant,
   resolvePath,
@@ -347,14 +348,37 @@ export function createRouterContext(
     return getRouteMatches(branches(), location.pathname);
   });
 
-  const params = createMemoObject(() => {
+  const collectDynamicParams =(branches: Branch[]) => {
+    const dynamicParams: string[] = [];
+  
+    branches.forEach(branch => {
+      branch.routes.forEach(route => {
+        if (route.pattern) {
+          const matches = route.pattern.match(/:(\w+)/g);
+          if (matches) {
+            matches.forEach(param => {
+              const p = param.slice(1); // Remove the `:`
+              if (!dynamicParams.includes(p))
+                dynamicParams.push(p)
+            });
+          }
+        }
+      });
+    });
+  
+    return dynamicParams;
+  }
+
+  const SUPPORTS_PROXY = typeof Proxy === "function";
+  const paramsHandler = () => {
     const m = matches();
     const params: Params = {};
     for (let i = 0; i < m.length; i++) {
       Object.assign(params, m[i].params);
     }
     return params;
-  });
+  };
+  const params = SUPPORTS_PROXY ? createMemoObject(paramsHandler) : createMemoWithoutProxy(paramsHandler, collectDynamicParams(branches()));
 
   const baseRoute: RouteContext = {
     pattern: basePath,

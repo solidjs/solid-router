@@ -123,6 +123,36 @@ export function scoreRoute(route: RouteDescription): number {
   );
 }
 
+export function createMemoWithoutProxy<T extends Record<string | symbol, unknown>>(fn: () => T, allKeys?: string[]): T {
+  const map = new Map();
+  const owner = getOwner()!;
+  const target = {} as T;
+
+  const handler = (property: keyof T) => {
+    if (!map.has(property)) {
+      runWithOwner(owner, () =>
+        map.set(
+          property,
+          createMemo(() => fn()[property])
+        )
+      );
+    }
+    return map.get(property)!();
+  };
+
+  const keys = allKeys ? allKeys : Object.keys(fn()) as (keyof T)[];
+
+  keys.forEach((key) => {
+    Object.defineProperty(target, key, {
+      get: () => handler(key),
+      enumerable: true,
+      configurable: true,
+    });
+  });
+
+  return target;
+}
+
 export function createMemoObject<T extends Record<string | symbol, unknown>>(fn: () => T): T {
   const map = new Map();
   const owner = getOwner()!;
