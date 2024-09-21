@@ -68,7 +68,7 @@ export function setupNativeEvents(
         resolve: false,
         replace: a.hasAttribute("replace"),
         scroll: !a.hasAttribute("noscroll"),
-        state: state && JSON.parse(state)
+        state: state ? JSON.parse(state) : undefined
       });
     }
 
