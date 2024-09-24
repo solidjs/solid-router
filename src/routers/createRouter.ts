@@ -65,7 +65,7 @@ export function bindEvent(target: EventTarget, type: string, handler: EventListe
 }
 
 export function scrollToHash(hash: string, fallbackTop?: boolean) {
-  const el = querySelector(`#${hash}`);
+  const el = querySelector(`#${hash}`) ?? document.getElementById(hash);
   if (el) {
     el.scrollIntoView();
   } else if (fallbackTop) {
