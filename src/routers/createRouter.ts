@@ -10,18 +10,6 @@ function intercept<T>(
   return [get ? () => get(value()) : value, set ? (v: T) => setValue(set(v)) : setValue];
 }
 
-function querySelector<T extends Element>(selector: string) {
-  if (selector === "#") {
-    return null;
-  }
-  // Guard against selector being an invalid CSS selector
-  try {
-    return document.querySelector<T>(selector);
-  } catch (e) {
-    return null;
-  }
-}
-
 export function createRouter(config: {
   get: () => string | LocationChange,
   set: (next: LocationChange) => void,
@@ -65,7 +53,7 @@ export function bindEvent(target: EventTarget, type: string, handler: EventListe
 }
 
 export function scrollToHash(hash: string, fallbackTop?: boolean) {
-  const el = querySelector(`#${hash}`) ?? document.getElementById(hash);
+  const el = hash && document.getElementById(hash);
   if (el) {
     el.scrollIntoView();
   } else if (fallbackTop) {

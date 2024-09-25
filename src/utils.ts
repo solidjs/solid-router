@@ -72,13 +72,13 @@ export function createMatcher<S extends string>(
 
     for (let i = 0; i < len; i++) {
       const segment = segments[i];
-      const locSegment = locSegments[i];
       const dynamic = segment[0] === ":";
-      const key = dynamic ? segment.slice(1) : segment;
+      const locSegment = dynamic ? locSegments[i] : locSegments[i].toLowerCase();
+      const key = dynamic ? segment.slice(1) : segment.toLowerCase();
 
       if (dynamic && matchSegment(locSegment, matchFilter(key))) {
         match.params[key] = locSegment;
-      } else if (dynamic || !matchSegment(locSegment, segment)) {
+      } else if (dynamic || !matchSegment(locSegment, key)) {
         return null;
       }
       match.path += `/${locSegment}`;
@@ -98,7 +98,7 @@ export function createMatcher<S extends string>(
 }
 
 function matchSegment(input: string, filter?: string | MatchFilter): boolean {
-  const isEqual = (s: string) => s.localeCompare(input, undefined, { sensitivity: "base" }) === 0;
+  const isEqual = (s: string) => s === input;
 
   if (filter === undefined) {
     return true;
