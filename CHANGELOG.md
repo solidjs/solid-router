@@ -1,5 +1,13 @@
 # @solidjs/router
 
+## 0.14.6
+
+### Patch Changes
+
+- 0a964b6: Fix duplicated push history
+- c61231d: Fix scrollToHash to handle hashes starting with a number
+- 83b7093: remove extra code, fix #406 slow perf on localeCompare
+
 ## 0.14.5
 
 ### Patch Changes
