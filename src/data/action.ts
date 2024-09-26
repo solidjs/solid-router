@@ -31,6 +31,9 @@ export function useSubmissions<T extends Array<any>, U>(
       if (property === $TRACK) return subs();
       if (property === "pending") return subs().some(sub => !sub.result);
       return subs()[property as any];
+    },
+    has(_, property) {
+      return property in subs();
     }
   });
 }
