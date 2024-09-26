@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 0.14.7
+
+### Patch Changes
+
+- 3594e45: fix iterator methods on useSubmissions
+
 ## 0.14.6
 
 ### Patch Changes
