@@ -1,6 +1,6 @@
 export { Route } from "./components.jsx";
 export type { BaseRouterProps, RouteProps } from "./components.jsx";
-export { createRouter } from "./createRouter.js";
+export { createRouter, bindEvent, scrollToHash } from "./createRouter.js";
 export { Router } from "./Router.js";
 export type { RouterProps } from "./Router.js";
 export { HashRouter } from "./HashRouter.js";
