@@ -856,7 +856,7 @@ const isRouting = useIsRouting();
 
 return (
   <div classList={{ "grey-out": isRouting() }}>
-    <MyAwesomeConent />
+    <MyAwesomeContent />
   </div>
 );
 ```
