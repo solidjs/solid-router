@@ -286,11 +286,7 @@ export function createRouterContext(
   integration: RouterIntegration,
   branches: () => Branch[],
   getContext?: () => any,
-  options: {
-    base?: string;
-    singleFlight?: boolean;
-    transformUrl?: (url: string) => string;
-  } = {}
+  options: { base?: string; singleFlight?: boolean; transformUrl?: (url: string) => string } = {}
 ): RouterContext {
   const {
     signal: [source, setSource],
@@ -427,7 +423,6 @@ export function createRouterContext(
         ...options
       };
 
-      let s: string;
       const resolvedTo = resolve
         ? route.resolvePath(to)
         : resolvePath((queryOnly && location.pathname) || "", to);
