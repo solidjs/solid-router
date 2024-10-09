@@ -222,7 +222,11 @@ export function getRouteMatches(branches: Branch[], location: string): RouteMatc
   return [];
 }
 
-export function createLocation(path: Accessor<string>, state: Accessor<any>): Location {
+function createLocation(
+  path: Accessor<string>,
+  state: Accessor<any>,
+  queryWrapper?: (getQuery: () => Params) => Params
+): Location {
   const origin = new URL(mockBase);
   const url = createMemo<URL>(
     prev => {
@@ -244,6 +248,7 @@ export function createLocation(path: Accessor<string>, state: Accessor<any>): Lo
   const search = createMemo(() => url().search, true);
   const hash = createMemo(() => url().hash);
   const key = () => "";
+  const queryFn = on(search, () => extractSearchParams(url())) as () => Params;
 
   return {
     get pathname() {
@@ -261,7 +266,7 @@ export function createLocation(path: Accessor<string>, state: Accessor<any>): Lo
     get key() {
       return key();
     },
-    query: createMemoObject(on(search, () => extractSearchParams(url())) as () => Params)
+    query: queryWrapper ? queryWrapper(queryFn) : createMemoObject(queryFn)
   };
 }
 
@@ -281,7 +286,11 @@ export function createRouterContext(
   integration: RouterIntegration,
   branches: () => Branch[],
   getContext?: () => any,
-  options: { base?: string; singleFlight?: boolean; transformUrl?: (url: string) => string } = {}
+  options: {
+    base?: string;
+    singleFlight?: boolean;
+    transformUrl?: (url: string) => string;
+  } = {}
 ): RouterContext {
   const {
     signal: [source, setSource],
@@ -335,7 +344,7 @@ export function createRouterContext(
   };
   const [reference, setReference] = createSignal(source().value);
   const [state, setState] = createSignal(source().state);
-  const location = createLocation(reference, state);
+  const location = createLocation(reference, state, utils.queryWrapper);
   const referrers: LocationChange[] = [];
   const submissions = createSignal<Submission<any, any>[]>(isServer ? initFromFlash() : []);
 
@@ -347,14 +356,18 @@ export function createRouterContext(
     return getRouteMatches(branches(), location.pathname);
   });
 
-  const params = createMemoObject(() => {
+  const buildParams = () => {
     const m = matches();
     const params: Params = {};
     for (let i = 0; i < m.length; i++) {
       Object.assign(params, m[i].params);
     }
     return params;
-  });
+  };
+
+  const params = utils.paramsWrapper
+    ? utils.paramsWrapper(buildParams, branches)
+    : createMemoObject(buildParams);
 
   const baseRoute: RouteContext = {
     pattern: basePath,

@@ -158,6 +158,8 @@ export interface RouterUtils {
   parsePath(str: string): string;
   go(delta: number): void;
   beforeLeave: BeforeLeaveLifecycle;
+  paramsWrapper: (getParams: () => Params, branches: () => Branch[]) => Params;
+  queryWrapper: (getQuery: () => Params) => Params;
 }
 
 export interface RouterContext {
