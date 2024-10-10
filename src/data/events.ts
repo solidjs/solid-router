@@ -13,7 +13,8 @@ export function setupNativeEvents(
   return (router: RouterContext) => {
     const basePath = router.base.path();
     const navigateFromRoute = router.navigatorFactory(router.base);
-    let preloadTimeout: Record<string, number> = {};
+    let preloadTimeout: string;
+    let lastElement: Node | null;
 
     function isSvg<T extends SVGElement>(el: T | HTMLElement): el is T {
       return el.namespaceURI === "http://www.w3.org/2000/svg";
@@ -76,38 +77,21 @@ export function setupNativeEvents(
       const res = handleAnchor(evt as MouseEvent);
       if (!res) return;
       const [a, url] = res;
-      if (typeof transformUrl === "function") {
-        url.pathname = transformUrl(url.pathname);
-      }
-      if (!preloadTimeout[url.pathname])
-        router.preloadRoute(url, { preloadData: a.getAttribute("preload") !== "false" });
+      transformUrl && (url.pathname = transformUrl(url.pathname));
+      router.preloadRoute(url, { preloadData: a.getAttribute("preload") !== "false" });
     }
 
-    function handleAnchorIn(evt: Event) {
+    function handleAnchorMove(evt: Event) {
+      clearTimeout(preloadTimeout)
       const res = handleAnchor(evt as MouseEvent);
-      if (!res) return;
+      if (!res) return lastElement = null;
       const [a, url] = res;
-      if (typeof transformUrl === "function") {
-        url.pathname = transformUrl(url.pathname);
-      }
-      if (preloadTimeout[url.pathname]) return;
-      preloadTimeout[url.pathname] = setTimeout(() => {
+      if (lastElement === a) return;
+      transformUrl && (url.pathname = transformUrl(url.pathname));
+      preloadTimeout = setTimeout(() => {
         router.preloadRoute(url, { preloadData: a.getAttribute("preload") !== "false" });
-        delete preloadTimeout[url.pathname];
-      }, 200) as any;
-    }
-
-    function handleAnchorOut(evt: Event) {
-      const res = handleAnchor(evt as MouseEvent);
-      if (!res) return;
-      const [, url] = res;
-      if (typeof transformUrl === "function") {
-        url.pathname = transformUrl(url.pathname);
-      }
-      if (preloadTimeout[url.pathname]) {
-        clearTimeout(preloadTimeout[url.pathname]);
-        delete preloadTimeout[url.pathname];
-      }
+        lastElement = a;
+      }, 20) as any;
     }
 
     function handleFormSubmit(evt: SubmitEvent) {
@@ -142,17 +126,15 @@ export function setupNativeEvents(
     delegateEvents(["click", "submit"]);
     document.addEventListener("click", handleAnchorClick);
     if (preload) {
-      document.addEventListener("mouseover", handleAnchorIn);
-      document.addEventListener("mouseout", handleAnchorOut);
-      document.addEventListener("focusin", handleAnchorPreload);
-      document.addEventListener("touchstart", handleAnchorPreload);
+      document.addEventListener("mousemove", handleAnchorMove, { passive: true });
+      document.addEventListener("focusin", handleAnchorPreload, { passive: true });
+      document.addEventListener("touchstart", handleAnchorPreload, { passive: true });
     }
     document.addEventListener("submit", handleFormSubmit);
     onCleanup(() => {
       document.removeEventListener("click", handleAnchorClick);
       if (preload) {
-        document.removeEventListener("mouseover", handleAnchorIn);
-        document.removeEventListener("mouseout", handleAnchorOut);
+        document.removeEventListener("mousemove", handleAnchorMove);
         document.removeEventListener("focusin", handleAnchorPreload);
         document.removeEventListener("touchstart", handleAnchorPreload);
       }
