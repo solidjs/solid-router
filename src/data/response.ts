@@ -14,7 +14,7 @@ export function redirect(url: string, init: number | RouterResponseInit = 302) {
 
   const headers = new Headers(responseInit.headers);
   headers.set("Location", url);
-  revalidate && headers.set("X-Revalidate", revalidate.toString());
+  revalidate !== undefined && headers.set("X-Revalidate", revalidate.toString());
 
   const response = new Response(null, {
     ...responseInit,
@@ -27,7 +27,7 @@ export function redirect(url: string, init: number | RouterResponseInit = 302) {
 export function reload(init: RouterResponseInit = {}) {
   const { revalidate, ...responseInit } = init;
   const headers = new Headers(responseInit.headers);
-  revalidate && headers.set("X-Revalidate", revalidate.toString());
+  revalidate !== undefined && headers.set("X-Revalidate", revalidate.toString());
 
   return new Response(null, {
     ...responseInit,
@@ -38,7 +38,7 @@ export function reload(init: RouterResponseInit = {}) {
 export function json<T>(data: T, init: RouterResponseInit = {}) {
   const { revalidate, ...responseInit } = init;
   const headers = new Headers(responseInit.headers);
-  revalidate && headers.set("X-Revalidate", revalidate.toString());
+  revalidate !== undefined && headers.set("X-Revalidate", revalidate.toString());
   headers.set("Content-Type", "application/json");
 
   const response = new Response(JSON.stringify(data), {
