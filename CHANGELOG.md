@@ -1,5 +1,13 @@
 # @solidjs/router
 
+## 0.14.8
+
+### Patch Changes
+
+- a3a36fb: Add query and param wrappers to support non-Proxy envs
+- 2475851: bump deps
+- 2f1fa18: improve anchor preload performance
+
 ## 0.14.7
 
 ### Patch Changes
