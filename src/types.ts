@@ -5,9 +5,9 @@ declare module "solid-js/web" {
     response: {
       status?: number;
       statusText?: string;
-      headers: Headers
+      headers: Headers;
     };
-    router? : {
+    router?: {
       matches?: OutputMatch[];
       cache?: Map<string, CacheEntry>;
       submission?: {
@@ -18,14 +18,17 @@ declare module "solid-js/web" {
       dataOnly?: boolean | string[];
       data?: Record<string, any>;
       previousUrl?: string;
-    }
+    };
     serverOnly?: boolean;
   }
 }
 
-export type Params = Record<string, string>;
+export type Params = Record<string, string | string[]>;
 
-export type SetParams = Record<string, string | number | boolean | null | undefined>;
+export type SetParams = Record<
+  string,
+  string | string[] | number | number[] | boolean | boolean[] | null | undefined
+>;
 
 export interface Path {
   pathname: string;
@@ -227,7 +230,10 @@ export type NarrowResponse<T> = T extends CustomResponse<infer U> ? U : Exclude<
 export type RouterResponseInit = Omit<ResponseInit, "body"> & { revalidate?: string | string[] };
 // export type CustomResponse<T> = Response & { customBody: () => T };
 // hack to avoid it thinking it inherited from Response
-export type CustomResponse<T> = Omit<Response, "clone"> & { customBody: () => T; clone(...args: readonly unknown[]): CustomResponse<T> };
+export type CustomResponse<T> = Omit<Response, "clone"> & {
+  customBody: () => T;
+  clone(...args: readonly unknown[]): CustomResponse<T>;
+};
 
 /** @deprecated */
 export type RouteLoadFunc = RoutePreloadFunc;
