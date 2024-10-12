@@ -23,9 +23,14 @@ declare module "solid-js/web" {
   }
 }
 
-export type Params = Record<string, string | string[]>;
+export type Params = Record<string, string>;
+export type SearchParams = Record<string, string | string[]>;
 
 export type SetParams = Record<
+  string,
+  string | number | boolean | null | undefined
+>;
+export type SetSearchParams = Record<
   string,
   string | string[] | number | number[] | boolean | boolean[] | null | undefined
 >;
@@ -37,7 +42,7 @@ export interface Path {
 }
 
 export interface Location<S = unknown> extends Path {
-  query: Params;
+  query: SearchParams;
   state: Readonly<Partial<S>> | null;
   key: string;
 }

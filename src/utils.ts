@@ -5,7 +5,9 @@ import type {
   Params,
   PathMatch,
   RouteDescription,
-  SetParams
+  SearchParams,
+  SetParams,
+  SetSearchParams
 } from "./types.ts";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
@@ -45,8 +47,8 @@ export function joinPaths(from: string, to: string): string {
   return normalizePath(from).replace(/\/*(\*.*)?$/g, "") + normalizePath(to);
 }
 
-export function extractSearchParams(url: URL): Params {
-  const params: Params = {};
+export function extractSearchParams(url: URL): SearchParams {
+  const params: SearchParams = {};
   url.searchParams.forEach((value, key) => {
     if (key in params) {
       params[key] = Array.isArray(params[key])
@@ -163,7 +165,7 @@ export function createMemoObject<T extends Record<string | symbol, unknown>>(fn:
   });
 }
 
-export function mergeSearchString(search: string, params: SetParams) {
+export function mergeSearchString(search: string, params: SetSearchParams) {
   const merged = new URLSearchParams(search);
   Object.entries(params).forEach(([key, value]) => {
     if (value == null || value === "" || (value instanceof Array && !value.length)) {
