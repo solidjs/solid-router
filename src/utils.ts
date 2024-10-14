@@ -172,6 +172,8 @@ export function mergeSearchString(search: string, params: SetSearchParams) {
       merged.delete(key);
     } else {
       if (value instanceof Array) {
+        // Delete all instances of the key before appending
+        merged.delete(key);
         value.forEach(v => {
           merged.append(key, String(v));
         });

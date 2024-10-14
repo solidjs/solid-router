@@ -136,6 +136,12 @@ describe("mergeSearchString should", () => {
     const actual = mergeSearchString("?foo=2&foo=3", { foo: [] });
     expect(actual).toBe(expected);
   });
+
+  test("return array containing only new value when current is present and new is an array with one value", () => {
+    const expected = "?foo=1&foo=2";
+    const actual = mergeSearchString("?foo=3&foo=4", { foo: [1, 2] });
+    expect(actual).toBe(expected);
+  });
 });
 
 describe("extractSearchParams should", () => {
