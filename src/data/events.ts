@@ -78,7 +78,7 @@ export function setupNativeEvents(
       if (!res) return;
       const [a, url] = res;
       transformUrl && (url.pathname = transformUrl(url.pathname));
-      router.preloadRoute(url, { preloadData: a.getAttribute("preload") !== "false" });
+      router.preloadRoute(url, a.getAttribute("preload") !== "false");
     }
 
     function handleAnchorMove(evt: Event) {
@@ -89,7 +89,7 @@ export function setupNativeEvents(
       if (lastElement === a) return;
       transformUrl && (url.pathname = transformUrl(url.pathname));
       preloadTimeout = setTimeout(() => {
-        router.preloadRoute(url, { preloadData: a.getAttribute("preload") !== "false" });
+        router.preloadRoute(url, a.getAttribute("preload") !== "false");
         lastElement = a;
       }, 20) as any;
     }

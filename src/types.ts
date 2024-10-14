@@ -172,7 +172,7 @@ export interface RouterContext {
   renderPath(path: string): string;
   parsePath(str: string): string;
   beforeLeave: BeforeLeaveLifecycle;
-  preloadRoute: (url: URL, options: { preloadData?: boolean }) => void;
+  preloadRoute: (url: URL, preloadData?: boolean) => void;
   singleFlight: boolean;
   submissions: Signal<Submission<any, any>[]>;
 }
