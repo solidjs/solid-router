@@ -1,5 +1,12 @@
 # @solidjs/router
 
+## 0.14.9
+
+### Patch Changes
+
+- a22d7d2: fix preloadRoute to take string path
+- 6dd0473: support empty array/string to mean no revalidation
+
 ## 0.14.8
 
 ### Patch Changes
