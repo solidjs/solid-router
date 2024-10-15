@@ -3,7 +3,7 @@ import { isServer } from "solid-js/web";
 import { useRouter } from "../routing.js";
 import type { RouterContext, Submission, SubmissionStub, Navigator, NarrowResponse } from "../types.js";
 import { mockBase } from "../utils.js";
-import { cacheKeyOp, hashKey, revalidate, cache } from "./cache.js";
+import { cacheKeyOp, hashKey, revalidate, query } from "./query.js";
 
 export type Action<T extends Array<any>, U> = (T extends [FormData] | []
   ? JSX.SerializableAttributeValue
@@ -62,6 +62,14 @@ export function useAction<T extends Array<any>, U>(action: Action<T, U>) {
 export function action<T extends Array<any>, U = void>(
   fn: (...args: T) => Promise<U>,
   name?: string
+): Action<T, U>
+export function action<T extends Array<any>, U = void>(
+  fn: (...args: T) => Promise<U>,
+  options?: { name?: string; onComplete?: (s: Submission<T, U>) => void }
+): Action<T, U>
+export function action<T extends Array<any>, U = void>(
+  fn: (...args: T) => Promise<U>,
+  options: string | { name?: string; onComplete?: (s: Submission<T, U>) => void } = {}
 ): Action<T, U> {
   function mutate(this: { r: RouterContext; f?: HTMLFormElement }, ...variables: T) {
     const router = this.r;
@@ -76,6 +84,7 @@ export function action<T extends Array<any>, U = void>(
     function handler(error?: boolean) {
       return async (res: any) => {
         const result = await handleResponse(res, error, router.navigatorFactory());
+        o.onComplete && o.onComplete(submission);
         if (!result) return submission.clear();
         setResult(result);
         if (result.error && !form) throw result.error;
@@ -108,10 +117,10 @@ export function action<T extends Array<any>, U = void>(
     ]);
     return p.then(handler(), handler(true));
   }
-
+  const o = typeof options === "string" ? { name: options } : options;
   const url: string =
     (fn as any).url ||
-    (name && `https://action/${name}`) ||
+    (o.name && `https://action/${o.name}`) ||
     (!isServer ? `https://action/${hashString(fn.toString())}` : "");
   return toAction(mutate, url);
 }
@@ -175,7 +184,7 @@ async function handleResponse(response: unknown, error: boolean | undefined, nav
   // invalidate
   cacheKeyOp(keys, entry => (entry[0] = 0));
   // set cache
-  flightKeys && flightKeys.forEach(k => cache.set(k, custom[k]));
+  flightKeys && flightKeys.forEach(k => query.set(k, custom[k]));
   // trigger revalidation
   await revalidate(keys, false);
   return data != null ? { data } : undefined;

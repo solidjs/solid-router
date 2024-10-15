@@ -221,7 +221,7 @@ export interface MaybePreloadableComponent extends Component {
   preload?: () => void;
 }
 
-export type CacheEntry = [number, any, Intent | undefined, Signal<number> & { count: number }];
+export type CacheEntry = [number, Promise<any>, any, Intent | undefined, Signal<number> & { count: number }];
 
 export type NarrowResponse<T> = T extends CustomResponse<infer U> ? U : Exclude<T, Response>;
 export type RouterResponseInit = Omit<ResponseInit, "body"> & { revalidate?: string | string[] };

@@ -21,7 +21,7 @@ if (!isServer) {
   setInterval(() => {
     const now = Date.now();
     for (let [k, v] of cacheMap.entries()) {
-      if (!v[3].count && now - v[0] > CACHE_TIMEOUT) {
+      if (!v[4].count && now - v[0] > CACHE_TIMEOUT) {
         cacheMap.delete(k);
       }
     }
@@ -40,7 +40,7 @@ export function revalidate(key?: string | string[] | void, force = true) {
     const now = Date.now();
     cacheKeyOp(key, entry => {
       force && (entry[0] = 0); //force cache miss
-      entry[3][1](now); // retrigger live signals
+      entry[4][1](now); // retrigger live signals
     });
   });
 }
@@ -67,7 +67,7 @@ export type CachedFunction<T extends (...args: any) => any> = T extends (
     }
   : never;
 
-export function cache<T extends (...args: any) => any>(fn: T, name: string): CachedFunction<T> {
+export function query<T extends (...args: any) => any>(fn: T, name: string): CachedFunction<T> {
   // prioritize GET for server functions
   if ((fn as any).GET) fn = (fn as any).GET;
   const cachedFn = ((...args: Parameters<T>) => {
@@ -96,7 +96,7 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
     }
     if (getListener() && !isServer) {
       tracking = true;
-      onCleanup(() => cached[3].count--);
+      onCleanup(() => cached[4].count--);
     }
 
     if (
@@ -104,14 +104,14 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
       cached[0] &&
       (isServer ||
         intent === "native" ||
-        cached[3].count ||
+        cached[4].count ||
         Date.now() - cached[0] < PRELOAD_TIMEOUT)
     ) {
       if (tracking) {
-        cached[3].count++;
-        cached[3][0](); // track
+        cached[4].count++;
+        cached[4][0](); // track
       }
-      if (cached[2] === "preload" && intent !== "preload") {
+      if (cached[3] === "preload" && intent !== "preload") {
         cached[0] = now;
       }
       let res = cached[1];
@@ -120,7 +120,7 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
           "then" in cached[1]
             ? cached[1].then(handleResponse(false), handleResponse(true))
             : handleResponse(false)(cached[1]);
-        !isServer && intent === "navigate" && startTransition(() => cached[3][1](cached[0])); // update version
+        !isServer && intent === "navigate" && startTransition(() => cached[4][1](cached[0])); // update version
       }
       inPreloadFn && "then" in res && res.catch(() => {});
       return res;
@@ -133,18 +133,18 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
     if (cached) {
       cached[0] = now;
       cached[1] = res;
-      cached[2] = intent;
-      !isServer && intent === "navigate" && startTransition(() => cached[3][1](cached[0])); // update version
+      cached[3] = intent;
+      !isServer && intent === "navigate" && startTransition(() => cached[4][1](cached[0])); // update version
     } else {
       cache.set(
         key,
-        (cached = [now, res, intent, createSignal(now) as Signal<number> & { count: number }])
+        (cached = [now, res, , intent, createSignal(now) as Signal<number> & { count: number }])
       );
-      cached[3].count = 0;
+      cached[4].count = 0;
     }
     if (tracking) {
-      cached[3].count++;
-      cached[3][0](); // track
+      cached[4].count++;
+      cached[4][0](); // track
     }
     if (isServer) {
       const e = getRequestEvent();
@@ -192,6 +192,7 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
           if ((v as any).customBody) v = await (v as any).customBody();
         }
         if (error) throw v;
+        cached[2] = v;
         return v;
       };
     }
@@ -201,24 +202,35 @@ export function cache<T extends (...args: any) => any>(fn: T, name: string): Cac
   return cachedFn;
 }
 
-cache.set = (key: string, value: any) => {
+query.get = (key: string) => {
+  const cached = getCache().get(key) as CacheEntry;
+  return cached[2];
+}
+
+query.set = <T>(key: string, value: T extends Promise<any> ? never : T) => {
   const cache = getCache();
   const now = Date.now();
   let cached = cache.get(key);
   if (cached) {
     cached[0] = now;
-    cached[1] = value;
-    cached[2] = "preload";
+    cached[1] = Promise.resolve(value);
+    cached[2] = value;
+    cached[3] = "preload";
   } else {
     cache.set(
       key,
-      (cached = [now, value, , createSignal(now) as Signal<number> & { count: number }])
+      (cached = [now, Promise.resolve(value), value, "preload", createSignal(now) as Signal<number> & { count: number }])
     );
-    cached[3].count = 0;
+    cached[4].count = 0;
   }
 };
 
-cache.clear = () => getCache().clear();
+query.delete = (key: string) => getCache().delete(key);
+
+query.clear = () => getCache().clear();
+
+/** @deprecated use query instead */
+export const cache = query;
 
 function matchKey(key: string, keys: string[]) {
   for (let k of keys) {
