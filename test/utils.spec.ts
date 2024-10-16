@@ -3,7 +3,9 @@ import {
   joinPaths,
   resolvePath,
   createMemoObject,
-  expandOptionals
+  expandOptionals,
+  mergeSearchString,
+  extractSearchParams
 } from "../src/utils";
 
 describe("resolvePath should", () => {
@@ -83,6 +85,85 @@ describe("resolvePath should", () => {
     const expected = "/ foo / bar baz ";
     const actual = resolvePath(" foo ", " bar baz ", "");
     expect(actual).toBe(expected);
+  });
+});
+
+describe("mergeSearchString should", () => {
+  test("return empty string when current and new params are empty", () => {
+    const expected = "";
+    const actual = mergeSearchString("", {});
+    expect(actual).toBe(expected);
+  });
+
+  test("return new params when current params are empty", () => {
+    const expected = "?foo=bar";
+    const actual = mergeSearchString("", { foo: "bar" });
+    expect(actual).toBe(expected);
+  });
+
+  test("return current params when new params are empty", () => {
+    const expected = "?foo=bar";
+    const actual = mergeSearchString("?foo=bar", {});
+    expect(actual).toBe(expected);
+  });
+
+  test("return merged params when current and new params are not empty", () => {
+    const expected = "?foo=bar&baz=qux";
+    const actual = mergeSearchString("?foo=bar", { baz: "qux" });
+    expect(actual).toBe(expected);
+  });
+
+  test("return ampersand-separated params when new params is an array", () => {
+    const expected = "?foo=bar&foo=baz";
+    const actual = mergeSearchString("", { foo: ["bar", "baz"] });
+    expect(actual).toBe(expected);
+  });
+
+  test("return ampersand-separated params when current params is an array of numbers", () => {
+    const expected = "?foo=1&foo=2";
+    const actual = mergeSearchString("", { foo: [1, 2] });
+    expect(actual).toBe(expected);
+  });
+
+  test("return empty string when new is an empty array", () => {
+    const expected = "";
+    const actual = mergeSearchString("", { foo: [] });
+    expect(actual).toBe(expected);
+  });
+
+  test("return empty string when current is present and new is an empty array", () => {
+    const expected = "";
+    const actual = mergeSearchString("?foo=2&foo=3", { foo: [] });
+    expect(actual).toBe(expected);
+  });
+
+  test("return array containing only new value when current is present and new is an array with one value", () => {
+    const expected = "?foo=1&foo=2";
+    const actual = mergeSearchString("?foo=3&foo=4", { foo: [1, 2] });
+    expect(actual).toBe(expected);
+  });
+});
+
+describe("extractSearchParams should", () => {
+  test("return empty object when URL has no search params", () => {
+    const url = new URL("http://localhost/");
+    const expected = {};
+    const actual = extractSearchParams(url);
+    expect(actual).toEqual(expected);
+  });
+
+  test("return search params as object", () => {
+    const url = new URL("http://localhost/?foo=bar&baz=qux");
+    const expected = { foo: "bar", baz: "qux" };
+    const actual = extractSearchParams(url);
+    expect(actual).toEqual(expected);
+  });
+
+  test("return search params as object with array values", () => {
+    const url = new URL("http://localhost/?foo=bar&foo=baz");
+    const expected = { foo: ["bar", "baz"] };
+    const actual = extractSearchParams(url);
+    expect(actual).toEqual(expected);
   });
 });
 

@@ -1,9 +1,18 @@
 import { createMemo, getOwner, runWithOwner } from "solid-js";
-import type { MatchFilter, MatchFilters, Params, PathMatch, RouteDescription, SetParams } from "./types.ts";
+import type {
+  MatchFilter,
+  MatchFilters,
+  Params,
+  PathMatch,
+  RouteDescription,
+  SearchParams,
+  SetParams,
+  SetSearchParams
+} from "./types.ts";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|(\/)\/+$/g;
-export const mockBase = "http://sr"
+export const mockBase = "http://sr";
 
 export function normalizePath(path: string, omitSlash: boolean = false) {
   const s = path.replace(trimPathRegex, "$1");
@@ -38,10 +47,16 @@ export function joinPaths(from: string, to: string): string {
   return normalizePath(from).replace(/\/*(\*.*)?$/g, "") + normalizePath(to);
 }
 
-export function extractSearchParams(url: URL): Params {
-  const params: Params = {};
+export function extractSearchParams(url: URL): SearchParams {
+  const params: SearchParams = {};
   url.searchParams.forEach((value, key) => {
-    params[key] = value;
+    if (key in params) {
+      params[key] = Array.isArray(params[key])
+        ? ([...params[key], value] as string[])
+        : ([params[key], value] as string[]);
+    } else {
+      params[key] = value;
+    }
   });
   return params;
 }
@@ -150,13 +165,21 @@ export function createMemoObject<T extends Record<string | symbol, unknown>>(fn:
   });
 }
 
-export function mergeSearchString(search: string, params: SetParams) {
+export function mergeSearchString(search: string, params: SetSearchParams) {
   const merged = new URLSearchParams(search);
   Object.entries(params).forEach(([key, value]) => {
-    if (value == null || value === "") {
+    if (value == null || value === "" || (value instanceof Array && !value.length)) {
       merged.delete(key);
     } else {
-      merged.set(key, String(value));
+      if (value instanceof Array) {
+        // Delete all instances of the key before appending
+        merged.delete(key);
+        value.forEach(v => {
+          merged.append(key, String(v));
+        });
+      } else {
+        merged.set(key, String(value));
+      }
     }
   });
   const s = merged.toString();
