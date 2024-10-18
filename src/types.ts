@@ -167,7 +167,7 @@ export interface RouterUtils {
   go(delta: number): void;
   beforeLeave: BeforeLeaveLifecycle;
   paramsWrapper: (getParams: () => Params, branches: () => Branch[]) => Params;
-  queryWrapper: (getQuery: () => Params) => Params;
+  queryWrapper: (getQuery: () => SearchParams) => SearchParams;
 }
 
 export interface RouterContext {

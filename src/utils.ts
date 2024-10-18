@@ -51,12 +51,9 @@ export function extractSearchParams(url: URL): SearchParams {
   const params: SearchParams = {};
   url.searchParams.forEach((value, key) => {
     if (key in params) {
-      params[key] = Array.isArray(params[key])
-        ? ([...params[key], value] as string[])
-        : ([params[key], value] as string[]);
-    } else {
-      params[key] = value;
-    }
+      if (Array.isArray(params[key])) (params[key] as string[]).push(value);
+      else params[key] = [params[key] as string, value];
+    } else params[key] = value;
   });
   return params;
 }

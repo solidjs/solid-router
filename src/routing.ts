@@ -231,7 +231,7 @@ export function getRouteMatches(branches: Branch[], location: string): RouteMatc
 function createLocation(
   path: Accessor<string>,
   state: Accessor<any>,
-  queryWrapper?: (getQuery: () => Params) => Params
+  queryWrapper?: (getQuery: () => SearchParams) => SearchParams
 ): Location {
   const origin = new URL(mockBase);
   const url = createMemo<URL>(
@@ -254,7 +254,7 @@ function createLocation(
   const search = createMemo(() => url().search, true);
   const hash = createMemo(() => url().hash);
   const key = () => "";
-  const queryFn = on(search, () => extractSearchParams(url())) as () => Params;
+  const queryFn = on(search, () => extractSearchParams(url())) as () => SearchParams;
 
   return {
     get pathname() {
