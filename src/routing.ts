@@ -32,7 +32,9 @@ import type {
   RouterContext,
   RouterIntegration,
   SetParams,
-  Submission
+  Submission,
+  SearchParams,
+  SetSearchParams
 } from "./types.js";
 import {
   mockBase,
@@ -100,13 +102,13 @@ export const useCurrentMatches = () => useRouter().matches;
 
 export const useParams = <T extends Params>() => useRouter().params as T;
 
-export const useSearchParams = <T extends Params>(): [
+export const useSearchParams = <T extends SearchParams>(): [
   Partial<T>,
-  (params: SetParams, options?: Partial<NavigateOptions>) => void
+  (params: SetSearchParams, options?: Partial<NavigateOptions>) => void
 ] => {
   const location = useLocation();
   const navigate = useNavigate();
-  const setSearchParams = (params: SetParams, options?: Partial<NavigateOptions>) => {
+  const setSearchParams = (params: SetSearchParams, options?: Partial<NavigateOptions>) => {
     const searchString = untrack(() => mergeSearchString(location.search, params) + location.hash);
     navigate(searchString, {
       scroll: false,
