@@ -1,7 +1,13 @@
 import { $TRACK, createMemo, createSignal, JSX, onCleanup, getOwner } from "solid-js";
 import { isServer } from "solid-js/web";
 import { useRouter } from "../routing.js";
-import type { RouterContext, Submission, SubmissionStub, Navigator, NarrowResponse } from "../types.js";
+import type {
+  RouterContext,
+  Submission,
+  SubmissionStub,
+  Navigator,
+  NarrowResponse
+} from "../types.js";
 import { mockBase } from "../utils.js";
 import { cacheKeyOp, hashKey, revalidate, query } from "./query.js";
 
@@ -47,7 +53,8 @@ export function useSubmission<T extends Array<any>, U, V>(
     {},
     {
       get(_, property) {
-        if (submissions.length === 0 && property === "clear" || property === "retry") return (() => {});
+        if ((submissions.length === 0 && property === "clear") || property === "retry")
+          return () => {};
         return submissions[submissions.length - 1]?.[property as keyof Submission<T, U>];
       }
     }
@@ -62,14 +69,14 @@ export function useAction<T extends Array<any>, U, V>(action: Action<T, U, V>) {
 export function action<T extends Array<any>, U = void>(
   fn: (...args: T) => Promise<U>,
   name?: string
-): Action<T, U>
+): Action<T, U>;
 export function action<T extends Array<any>, U = void>(
   fn: (...args: T) => Promise<U>,
-  options?: { name?: string; onComplete?: (s: Submission<T, U>) => void }
-): Action<T, U>
+  options?: { name?: string; onComplete?: (s: Submission<T, U>) => boolean }
+): Action<T, U>;
 export function action<T extends Array<any>, U = void>(
   fn: (...args: T) => Promise<U>,
-  options: string | { name?: string; onComplete?: (s: Submission<T, U>) => void } = {}
+  options: string | { name?: string; onComplete?: (s: Submission<T, U>) => boolean } = {}
 ): Action<T, U> {
   function mutate(this: { r: RouterContext; f?: HTMLFormElement }, ...variables: T) {
     const router = this.r;
@@ -84,7 +91,17 @@ export function action<T extends Array<any>, U = void>(
     function handler(error?: boolean) {
       return async (res: any) => {
         const result = await handleResponse(res, error, router.navigatorFactory());
-        o.onComplete && o.onComplete(submission);
+        let retry = null;
+        !o.onComplete?.({
+          ...submission,
+          result: result?.data,
+          error: result?.error,
+          pending: false,
+          retry() {
+            return retry = submission.retry();
+          }
+        });
+        if (retry) return retry;
         if (!result) return submission.clear();
         setResult(result);
         if (result.error && !form) throw result.error;
@@ -106,7 +123,7 @@ export function action<T extends Array<any>, U = void>(
           return !result();
         },
         clear() {
-          router.submissions[1](v => v.filter(i => i.input !== variables));
+          router.submissions[1](v => v.filter(i => i !== submission));
         },
         retry() {
           setResult(undefined);
