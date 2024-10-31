@@ -558,7 +558,9 @@ const deleteUser = action(api.deleteTodo)
 </form>
 ```
 
-#### Notes of `<form>` implementation and SSR
+Actions also a second argument which can be the name or an option object with `name` and `onComplete`. `name` is used to identify SSR actions that aren't server functions (see note below). `onComplete` allows you to configure behavior when `action`s complete. Keep in mind `onComplete` does not work when JavaScript is disabled.
+
+#### Notes on `<form>` implementation and SSR
 This requires stable references as you can only serialize a string as an attribute, and across SSR they'd need to match. The solution is providing a unique name.
 
 ```jsx

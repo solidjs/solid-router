@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 0.15.0
+
+### Minor Changes
+
+- 6799556: rename `cache` to `query`, action `onComplete`
+
 ## 0.14.10
 
 ### Patch Changes
