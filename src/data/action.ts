@@ -72,11 +72,11 @@ export function action<T extends Array<any>, U = void>(
 ): Action<T, U>;
 export function action<T extends Array<any>, U = void>(
   fn: (...args: T) => Promise<U>,
-  options?: { name?: string; onComplete?: (s: Submission<T, U>) => boolean }
+  options?: { name?: string; onComplete?: (s: Submission<T, U>) => void }
 ): Action<T, U>;
 export function action<T extends Array<any>, U = void>(
   fn: (...args: T) => Promise<U>,
-  options: string | { name?: string; onComplete?: (s: Submission<T, U>) => boolean } = {}
+  options: string | { name?: string; onComplete?: (s: Submission<T, U>) => void } = {}
 ): Action<T, U> {
   function mutate(this: { r: RouterContext; f?: HTMLFormElement }, ...variables: T) {
     const router = this.r;
@@ -92,7 +92,7 @@ export function action<T extends Array<any>, U = void>(
       return async (res: any) => {
         const result = await handleResponse(res, error, router.navigatorFactory());
         let retry = null;
-        !o.onComplete?.({
+        o.onComplete?.({
           ...submission,
           result: result?.data,
           error: result?.error,
