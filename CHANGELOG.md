@@ -1,5 +1,12 @@
 # @solidjs/router
 
+## 0.15.1
+
+### Patch Changes
+
+- f3763aa: Export Submission at the top level
+- 813e6bd: fix `onComplete` return type
+
 ## 0.15.0
 
 ### Minor Changes
