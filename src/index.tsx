@@ -35,6 +35,7 @@ export type {
   RouterIntegration,
   RouterUtils,
   SetParams,
+  Submission,
   BeforeLeaveEventArgs,
   RouteLoadFunc,
   RouteLoadFuncArgs,
