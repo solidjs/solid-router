@@ -52,7 +52,7 @@
     "solid-js": "^1.9.2",
     "typescript": "^5.3.3",
     "vite": "^5.4.8",
-    "vite-plugin-solid": "^2.9.1",
+    "vite-plugin-solid": "^2.11.0",
     "vitest": "^2.1.2"
   },
   "peerDependencies": {
