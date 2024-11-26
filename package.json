@@ -50,7 +50,7 @@
     "prettier": "^3.4.1",
     "rollup": "^4.27.4",
     "solid-js": "^1.9.3",
-    "typescript": "^5.3.3",
+    "typescript": "^5.7.2",
     "vite": "^5.4.8",
     "vite-plugin-solid": "^2.11.0",
     "vitest": "^2.1.6"

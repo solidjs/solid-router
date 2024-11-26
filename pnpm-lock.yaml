@@ -48,8 +48,8 @@ importers:
         specifier: ^1.9.3
         version: 1.9.3
       typescript:
-        specifier: ^5.3.3
-        version: 5.3.3
+        specifier: ^5.7.2
+        version: 5.7.2
       vite:
         specifier: ^5.4.8
         version: 5.4.8(@types/node@22.10.0)(terser@5.36.0)
@@ -1453,8 +1453,8 @@ packages:
     resolution: {integrity: sha512-tk2G5R2KRwBd+ZN0zaEXpmzdKyOYksXwywulIX95MBODjSzMIuQnQ3m8JxgbhnL1LeVo7lqQKsYa1O3Htl7K5g==}
     engines: {node: '>=18'}
 
-  typescript@5.3.3:
-    resolution: {integrity: sha512-pXWcraxM0uxAS+tN0AG/BF2TyqmHO014Z070UsJ+pFvYuRSq8KH8DmWpnbXe0pEPDHXZV3FcAbJkijJ5oNEnWw==}
+  typescript@5.7.2:
+    resolution: {integrity: sha512-i5t66RHxDvVN40HfDd1PsEThGNnlMCMT3jMUuoh9/0TaqWevNontacunWyN02LA9/fIbEWlcHZcgTKb9QoaLfg==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -3039,7 +3039,7 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
-  typescript@5.3.3: {}
+  typescript@5.7.2: {}
 
   undici-types@6.20.0: {}
 
