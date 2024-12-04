@@ -2,6 +2,14 @@ import { defineConfig } from 'vite';
 import solidPlugin from 'vite-plugin-solid';
 export default defineConfig({
   plugins: [solidPlugin()],
+  resolve:{
+    conditions: ['module', 'browser', 'development|production']
+  },
+  ssr: {
+    resolve: {
+      conditions: ['module', 'node', 'development|production']
+    }
+  },
   server: {
     port: 3000,
   },
