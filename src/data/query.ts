@@ -35,6 +35,9 @@ function getCache() {
   return (req.router || (req.router = {})).cache || (req.router.cache = new Map());
 }
 
+/**
+ * Revalidates the given cache entry/entries.
+ */
 export function revalidate(key?: string | string[] | void, force = true) {
   return startTransition(() => {
     const now = Date.now();

@@ -818,7 +818,7 @@ if (unauthorized) {
 
 ### useLocation
 
-Retrieves reactive `location` object useful for getting things like `pathname`
+Retrieves reactive `location` object useful for getting things like `pathname`.
 
 ```js
 const location = useLocation();
@@ -880,7 +880,8 @@ return <div classList={{ active: Boolean(match()) }} />;
 For example if you stored breadcrumbs on your route definition you could retrieve them like so:
 ```js
 const matches = useCurrentMatches();
-const breadcrumbs = createMemo(() => matches().map(m => m.route.info.breadcrumb))
+
+const breadcrumbs = createMemo(() => matches().map(m => m.route.info.breadcrumb));
 ```
 
 ### usePreloadRoute
@@ -898,11 +899,11 @@ preload(`/users/settings`, { preloadData: true });
 `useBeforeLeave` takes a function that will be called prior to leaving a route. The function will be called with:
 
 - from (_Location_): current location (before change).
-- to (_string | number_}: path passed to `navigate`.
-- options (_NavigateOptions_}: options passed to `navigate`.
-- preventDefault (_void function_): call to block the route change.
-- defaultPrevented (_readonly boolean_): true if any previously called leave handlers called preventDefault().
-- retry (_void function_, _force?: boolean_ ): call to retry the same navigation, perhaps after confirming with the user. Pass `true` to skip running the leave handlers again (ie force navigate without confirming).
+- to (_string | number_): path passed to `navigate`.
+- options (_NavigateOptions_): options passed to `navigate`.
+- preventDefault (_function_): call to block the route change.
+- defaultPrevented (_readonly boolean_): `true` if any previously called leave handlers called `preventDefault`.
+- retry (_function_, _force?: boolean_ ): call to retry the same navigation, perhaps after confirming with the user. Pass `true` to skip running the leave handlers again (i.e. force navigate without confirming).
 
 Example usage:
 
