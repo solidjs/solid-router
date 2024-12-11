@@ -3,15 +3,21 @@ contact_links:
   - name: 🤔 Long question or idea
     url: https://github.com/solidjs/solid-router
     about: Ask long-form questions and discuss ideas.
+  - name: 📝 Official Documentation
+    url: https://docs.solidjs.com/solid-router
+    about: Check existing documentation on APIs and how to use Solid-Router.
   - name: 💬 Community Chat
     url: https://discord.com/invite/solidjs
-    about: Ask quick questions or simply chat on the EdgeDB Discord server.
-  - name: 💬 New Updates (Twitter)
-    url: https://twitter.com/solid_js
-    about: Link to our twitter account if you want to follow us and stay up to date with news
+    about: Ask quick questions or simply chat on the SolidJS Discord server.
+  - name: 💬 New Updates (X - formerly Twitter)
+    url: https://x.com/solid_js
+    about: Link to our X account if you want to follow us and stay up to date with news.
+  - name: 💬 New Updates BlueSky
+    url: https://bsky.app/profile/solidjs.com
+    about: Link to our BlueSky account if you want to follow us and stay up to date with news.
   - name: 💬 New Updates (Reddit)
     url: https://www.reddit.com/r/solidjs/
-    about: Link to our twitter account if you want to follow us and stay up to date with news
+    about: Link to our twitter account if you want to follow us and stay up to date with news.
   - name: 🍿 YouTube Channel
     url: https://www.youtube.com/c/RyanCarniato9
-    about: Are you a techlead or wanting to learn more about SolidJS? Watch Ryan Carniato (creator of solidJS) share detailed technical deep dives into topics like how SolidJS, Server Side Rendering (SSR), ReactJS, Svelte, MarkoJS & Partial Hydration works under the hood and so much more
+    about: Are you a techlead or wanting to learn more about SolidJS? Watch Ryan Carniato (creator of SolidJS) share detailed technical deep dives into topics like how SolidJS, Server Side Rendering (SSR), ReactJS, Svelte, MarkoJS & Partial Hydration works under the hood and so much more.
