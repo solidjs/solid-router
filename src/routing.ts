@@ -330,7 +330,7 @@ export function createRouterContext(
       setReference(lastTransitionTarget.value);
       setState(lastTransitionTarget.state);
       resetErrorBoundaries();
-      if (!isServer) submissions[1]([]);
+      if (!isServer) submissions[1](subs => subs.filter(s => s.pending));
     }).finally(() => {
       if (lastTransitionTarget !== newTarget) return;
 
