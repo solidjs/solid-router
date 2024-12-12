@@ -1,5 +1,13 @@
 # @solidjs/router
 
+## 0.15.2
+
+### Patch Changes
+
+- fe5c83e: Add JSdoc
+- 9a5e350: Vite 6 compatibility
+- 20ad18f: only clear completed actions on navigation
+
 ## 0.15.1
 
 ### Patch Changes
