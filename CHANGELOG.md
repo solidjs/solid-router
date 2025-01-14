@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 0.15.3
+
+### Patch Changes
+
+- 97184e4: more lenient on cache resuming (allow nested promises during hydration)
+
 ## 0.15.2
 
 ### Patch Changes
