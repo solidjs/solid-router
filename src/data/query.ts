@@ -128,10 +128,12 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
       inPreloadFn && "then" in res && res.catch(() => {});
       return res;
     }
-    let res =
-      !isServer && sharedConfig.context && sharedConfig.has!(key)
-        ? sharedConfig.load!(key) // hydrating
-        : fn(...(args as any));
+    let res;
+    if (!isServer && sharedConfig.has && sharedConfig.has(key)) {
+      res = sharedConfig.load!(key) // hydrating
+      // @ts-ignore at least until we add a delete method to sharedConfig
+      delete globalThis._$HY.r[key];
+    } else res = fn(...(args as any));
 
     if (cached) {
       cached[0] = now;
