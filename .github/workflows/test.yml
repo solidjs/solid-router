@@ -14,10 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js 22.13.1
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: 22.13.1
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
