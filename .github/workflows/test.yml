@@ -14,10 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Use Node.js from nvmrc
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version-file: '.nvmrc'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
