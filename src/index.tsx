@@ -19,6 +19,7 @@ export * from "./data/index.js";
 export type {
   Location,
   LocationChange,
+  SearchParams,
   MatchFilter,
   MatchFilters,
   NavigateOptions,
