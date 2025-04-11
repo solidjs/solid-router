@@ -39,7 +39,7 @@ It supports all of Solid's SSR methods and has Solid's transitions baked in, so 
 ### Set Up the Router
 
 ```sh
-> npm i @solidjs/router
+npm i @solidjs/router
 ```
 
 Install `@solidjs/router`, then start your application by rendering the router component
