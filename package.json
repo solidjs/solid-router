@@ -34,7 +34,8 @@
     "test": "vitest run && npm run test:types",
     "test:watch": "vitest",
     "test:types": "tsc --project tsconfig.test.json",
-    "pretty": "prettier --write \"{src,test}/**/*.{ts,tsx}\""
+    "pretty": "prettier --write \"{src,test}/**/*.{ts,tsx}\"",
+    "release": "pnpm build && changeset publish"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",
