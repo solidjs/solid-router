@@ -23,8 +23,8 @@ declare module "solid-js/web" {
   }
 }
 
-export type Params = Record<string, string>;
-export type SearchParams = Record<string, string | string[]>;
+export type Params = Record<string, string | undefined>;
+export type SearchParams = Record<string, string | string[] | undefined>;
 
 export type SetParams = Record<
   string,
