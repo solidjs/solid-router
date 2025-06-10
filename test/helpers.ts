@@ -23,3 +23,7 @@ export function createAsyncRoot(fn: (resolve: () => void, disposer: () => void) 
     createRoot(disposer => fn(resolve, disposer));
   });
 }
+
+export async function awaitPromise() {
+  return new Promise(resolve => setTimeout(resolve, 100));
+}

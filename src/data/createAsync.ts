@@ -1,7 +1,14 @@
 /**
  * This is mock of the eventual Solid 2.0 primitive. It is not fully featured.
  */
-import { type Accessor, createResource, sharedConfig, type Setter, untrack } from "solid-js";
+import {
+  type Accessor,
+  createResource,
+  sharedConfig,
+  type Setter,
+  untrack,
+  catchError
+} from "solid-js";
 import { createStore, reconcile, type ReconcileOptions, unwrap } from "solid-js/store";
 import { isServer } from "solid-js/web";
 
@@ -13,7 +20,7 @@ import { isServer } from "solid-js/web";
 export type AccessorWithLatest<T> = {
   (): T;
   latest: T;
-}
+};
 
 export function createAsync<T>(
   fn: (prev: T) => Promise<T>,
@@ -40,19 +47,28 @@ export function createAsync<T>(
   }
 ): AccessorWithLatest<T | undefined> {
   let resource: () => T;
-  let prev = () => !resource || (resource as any).state === "unresolved" ? undefined : (resource as any).latest;
+  let prev = () =>
+    !resource || (resource as any).state === "unresolved" ? undefined : (resource as any).latest;
+
   [resource] = createResource(
-    () => subFetch(fn, untrack(prev)),
+    () =>
+      subFetch(
+        fn,
+        catchError(
+          () => untrack(prev),
+          () => undefined
+        )
+      ),
     v => v,
     options as any
   );
 
   const resultAccessor: AccessorWithLatest<T> = (() => resource()) as any;
-  Object.defineProperty(resultAccessor, 'latest', {
+  Object.defineProperty(resultAccessor, "latest", {
     get() {
       return (resource as any).latest;
     }
-  })
+  });
 
   return resultAccessor;
 }
@@ -85,9 +101,20 @@ export function createAsyncStore<T>(
   } = {}
 ): AccessorWithLatest<T | undefined> {
   let resource: () => T;
-  let prev = () => !resource || (resource as any).state === "unresolved" ? undefined : unwrap((resource as any).latest);
+
+  let prev = () =>
+    !resource || (resource as any).state === "unresolved"
+      ? undefined
+      : unwrap((resource as any).latest);
   [resource] = createResource(
-    () => subFetch(fn, untrack(prev)),
+    () =>
+      subFetch(
+        fn,
+        catchError(
+          () => untrack(prev),
+          () => undefined
+        )
+      ),
     v => v,
     {
       ...options,
@@ -96,11 +123,11 @@ export function createAsyncStore<T>(
   );
 
   const resultAccessor: AccessorWithLatest<T> = (() => resource()) as any;
-  Object.defineProperty(resultAccessor, 'latest', {
+  Object.defineProperty(resultAccessor, "latest", {
     get() {
       return (resource as any).latest;
     }
-  })
+  });
 
   return resultAccessor;
 }
@@ -157,6 +184,8 @@ function subFetch<T>(fn: (prev: T | undefined) => Promise<T>, prev: T | undefine
   try {
     window.fetch = () => new MockPromise() as any;
     Promise = MockPromise as any;
+    console.log({ prev, fn });
+
     return fn(prev);
   } finally {
     window.fetch = ogFetch;
