@@ -184,8 +184,6 @@ function subFetch<T>(fn: (prev: T | undefined) => Promise<T>, prev: T | undefine
   try {
     window.fetch = () => new MockPromise() as any;
     Promise = MockPromise as any;
-    console.log({ prev, fn });
-
     return fn(prev);
   } finally {
     window.fetch = ogFetch;
