@@ -46,6 +46,7 @@
     "@rollup/plugin-terser": "0.4.4",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.10.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "babel-preset-solid": "^1.9.3",
     "jsdom": "^25.0.1",
     "prettier": "^3.4.1",
@@ -58,5 +59,6 @@
   },
   "peerDependencies": {
     "solid-js": "^1.8.6"
-  }
+  },
+  "packageManager": "pnpm@10.14.0+sha512.ad27a79641b49c3e481a16a805baa71817a04bbe06a38d17e60e2eaee83f6a146c6a688125f5792e48dd5ba30e7da52a5cda4c3992b9ccf333f9ce223af84748"
 }
