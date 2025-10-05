@@ -4,12 +4,19 @@ import type { RouterContext } from "../types.js";
 import { actions } from "./action.js";
 import { mockBase } from "../utils.js";
 
-export function setupNativeEvents(
+type NativeEventConfig = {
+  preload?: boolean; // defaults `true`
+  explicitLinks?: boolean; // defaults false
+  actionBase?: string; // defaults "/_server"
+  transformUrl?: (url: string) => string;
+};
+
+export function setupNativeEvents({
   preload = true,
   explicitLinks = false,
   actionBase = "/_server",
-  transformUrl?: (url: string) => string
-) {
+  transformUrl
+}: NativeEventConfig = {}) {
   return (router: RouterContext) => {
     const basePath = router.base.path();
     const navigateFromRoute = router.navigatorFactory(router.base);
@@ -82,9 +89,9 @@ export function setupNativeEvents(
     }
 
     function handleAnchorMove(evt: Event) {
-      clearTimeout(preloadTimeout)
+      clearTimeout(preloadTimeout);
       const res = handleAnchor(evt as MouseEvent);
-      if (!res) return lastElement = null;
+      if (!res) return (lastElement = null);
       const [a, url] = res;
       if (lastElement === a) return;
       transformUrl && (url.pathname = transformUrl(url.pathname));
