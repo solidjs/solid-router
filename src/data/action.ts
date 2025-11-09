@@ -140,6 +140,7 @@ export function action<T extends Array<any>, U = void>(
     (o.name && `https://action/${o.name}`) ||
     (!isServer ? `https://action/${hashString(fn.toString())}` : "");
   mutate.base = url;
+  if (o.name) Object.defineProperty(mutate, 'name', { value: o.name, writable: false, configurable: true });
   return toAction(mutate, url);
 }
 

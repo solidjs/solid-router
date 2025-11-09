@@ -52,7 +52,7 @@ describe("action", () => {
     expect((testAction as any).name).toMatch(/^-?\d+$/);
   });
 
-  test.skip("should use it as `name` when `options` are provided as a string", () => {
+  test("should use it as `name` when `options` are provided as a string", () => {
     const testFn = async (data: string) => `result: ${data}`;
     const testAction = action(testFn, "test-action");
 
@@ -60,7 +60,7 @@ describe("action", () => {
     expect((testAction as any).name).toBe("test-action");
   });
 
-  test.skip("should use `name` when provided in object options", () => {
+  test("should use `name` when provided in object options", () => {
     const testFn = async (data: string) => `result: ${data}`;
     const testAction = action(testFn, { name: "test-action" });
 
