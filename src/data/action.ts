@@ -135,12 +135,13 @@ export function action<T extends Array<any>, U = void>(
     return p.then(handler(), handler(true));
   }
   const o = typeof options === "string" ? { name: options } : options;
+  const name = o.name || (!isServer ? String(hashString(fn.toString())) : undefined);
   const url: string =
     (fn as any).url ||
-    (o.name && `https://action/${o.name}`) ||
-    (!isServer ? `https://action/${hashString(fn.toString())}` : "");
+    (name && `https://action/${name}`) ||
+    "";
   mutate.base = url;
-  if (o.name) Object.defineProperty(mutate, 'name', { value: o.name, writable: false, configurable: true });
+  if (name) Object.defineProperty(mutate, 'name', { value: name, writable: false, configurable: true });
   return toAction(mutate, url);
 }
 

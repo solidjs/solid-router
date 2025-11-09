@@ -44,7 +44,7 @@ describe("action", () => {
     expect(testAction.url).toBe("https://action/test-action");
   });
 
-  test.skip("should create action with auto-generated hash when no `name` provided", () => {
+  test("should create action with auto-generated hash when no `name` provided", () => {
     const testFn = async (data: string) => `result: ${data}`;
     const testAction = action(testFn);
 
