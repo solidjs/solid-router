@@ -8,7 +8,8 @@
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
     "outDir": "./dist",
-    "module": "NodeNext"
+    "module": "NodeNext",
+    "skipLibCheck": true
   },
   "include": ["./src"],
   "exclude": ["node_modules/"]
