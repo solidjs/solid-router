@@ -1,6 +1,6 @@
 import type { JSX } from "solid-js";
 import { setupNativeEvents } from "../data/events.js";
-import type { BaseRouterProps } from "./components.js";
+import type { BaseRouterProps } from "./components.jsx";
 import { createRouter, scrollToHash, bindEvent } from "./createRouter.js";
 import { createBeforeLeave, keepDepth, notifyIfNotBlocked, saveCurrentDepth } from "../lifecycle.js";
 

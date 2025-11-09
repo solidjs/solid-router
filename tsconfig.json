@@ -3,15 +3,13 @@
     "declaration": true,
     "target": "esnext",
     "newLine": "LF",
-    "moduleResolution": "node",
+    "moduleResolution": "NodeNext",
     "strict": true,
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
     "outDir": "./dist",
-    "module": "esnext"
+    "module": "NodeNext"
   },
-  "include": [
-    "./src"
-  ],
+  "include": ["./src"],
   "exclude": ["node_modules/"]
 }
