@@ -8,7 +8,7 @@ import type {
   Navigator,
   NarrowResponse
 } from "../types.js";
-import { mockBase } from "../utils.js";
+import { mockBase, setFunctionName } from "../utils.js";
 import { cacheKeyOp, hashKey, revalidate, query } from "./query.js";
 
 export type Action<T extends Array<any>, U, V = T> = (T extends [FormData] | []
@@ -98,7 +98,7 @@ export function action<T extends Array<any>, U = void>(
           error: result?.error,
           pending: false,
           retry() {
-            return retry = submission.retry();
+            return (retry = submission.retry());
           }
         });
         if (retry) return retry;
@@ -136,12 +136,9 @@ export function action<T extends Array<any>, U = void>(
   }
   const o = typeof options === "string" ? { name: options } : options;
   const name = o.name || (!isServer ? String(hashString(fn.toString())) : undefined);
-  const url: string =
-    (fn as any).url ||
-    (name && `https://action/${name}`) ||
-    "";
+  const url: string = (fn as any).url || (name && `https://action/${name}`) || "";
   mutate.base = url;
-  if (name) Object.defineProperty(mutate, 'name', { value: name, writable: false, configurable: true });
+  if (name) setFunctionName(mutate, name);
   return toAction(mutate, url);
 }
 

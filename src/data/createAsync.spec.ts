@@ -95,7 +95,7 @@ describe("createAsync", () => {
     });
   });
 
-  test.skip("should support `name` option for debugging", () => {
+  test("should support `name` option for debugging", () => {
     return createRoot(() => {
       const resource = createAsync(async () => "named resource", { name: "test-resource" });
 
