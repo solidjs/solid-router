@@ -1,16 +1,34 @@
-<p>
-  <img src="https://assets.solidjs.com/banner?project=Router&type=core" alt="Solid Router" />
-</p>
+[![Banner](https://assets.solidjs.com/banner?project=Router&type=core)](https://github.com/solidjs)
 
-# Solid Router [![npm Version](https://img.shields.io/npm/v/@solidjs/router.svg?style=flat-square)](https://www.npmjs.org/package/@solidjs/router)
+<div align="center">
 
-**Version 0.10.0 requires Solid v1.8.4 or later.**
+[![Version](https://img.shields.io/npm/v/@solidjs/router.svg?style=for-the-badge&color=blue&logo=npm)](https://npmjs.com/package/@solidjs/router)
+[![Downloads](https://img.shields.io/npm/dm/@solidjs/router.svg?style=for-the-badge&color=green&logo=npm)](https://npmjs.com/package/@solidjs/router)
+[![Stars](https://img.shields.io/github/stars/solidjs/solid-router?style=for-the-badge&color=yellow&logo=github)](https://github.com/solidjs/solid-router)
+[![Discord](https://img.shields.io/discord/722131463138705510?label=join&style=for-the-badge&color=5865F2&logo=discord&logoColor=white)](https://discord.com/invite/solidjs)
+[![Reddit](https://img.shields.io/reddit/subreddit-subscribers/solidjs?label=join&style=for-the-badge&color=FF4500&logo=reddit&logoColor=white)](https://reddit.com/r/solidjs)
 
-A router lets you change your view based on the URL in the browser. This allows your "single-page" application to simulate a traditional multipage site. To use Solid Router, you specify components called Routes that depend on the value of the URL (the "path"), and the router handles the mechanism of swapping them in and out.
+</div>
 
-Solid Router is a universal router for SolidJS - it works whether you're rendering on the client or on the server. It was inspired by and combines paradigms of React Router and the Ember Router. Routes can be defined directly in your app's template using JSX, but you can also pass your route configuration directly as an object. It also supports nested routing, so navigation can change a part of a component, rather than completely replacing it.
+**Solid Router** brings fine-grained reactivity to route navigation, enabling your single-page application to become multi-paged without full page reloads. Fully integrated into the SolidJS ecosystem, Solid Router provides declarative syntax with features like universal rendering and parallel data fetching for best performance.
 
-It supports all of Solid's SSR methods and has Solid's transitions baked in, so use it freely with suspense, resources, and lazy components. Solid Router also allows you to define a preload function that loads parallel to the routes ([render-as-you-fetch](https://epicreact.dev/render-as-you-fetch/)).
+Explore the official [documentation](https://docs.solidjs.com/solid-router) for detailed guides and examples.
+
+## Core Features
+
+- **All Routing Modes**:
+  - [History-Based](https://docs.solidjs.com/solid-router/reference/components/router#router) for standard browser navigation
+  - [Hash-Based](https://docs.solidjs.com/solid-router/reference/components/hash-router#hashrouter) for navigation based on URL hash
+  - [Static Routing](https://docs.solidjs.com/solid-router/rendering-modes/ssr#server-side-rendering) for server-side rendering (_SSR_)
+  - [Memory-Based](https://docs.solidjs.com/solid-router/reference/components/memory-router#memoryrouter) for testing in non-browser environments
+- **TypeScript**: Full integration for robust, type-safe development
+- **Universal Rendering**: Seamless rendering on both client and server environments
+- **Declarative**: Define routes as components or as an object
+- **Preload Functions**: Parallel data fetching, following the render-as-you-fetch pattern
+- **Dynamic Route Parameters**: Flexible URL patterns with parameters, optional segments, and wildcards
+- **Data APIs with Caching**: Reactive data fetching with deduplication and revalidation
+
+## Table of contents
 
 - [Getting Started](#getting-started)
   - [Set Up the Router](#set-up-the-router)
@@ -38,8 +56,9 @@ It supports all of Solid's SSR methods and has Solid's transitions baked in, so 
 
 ### Set Up the Router
 
-```sh
-npm i @solidjs/router
+```bash
+# use preferred package manager
+npm add @solidjs/router
 ```
 
 Install `@solidjs/router`, then start your application by rendering the router component
@@ -48,10 +67,7 @@ Install `@solidjs/router`, then start your application by rendering the router c
 import { render } from "solid-js/web";
 import { Router } from "@solidjs/router";
 
-render(
-  () => <Router />,
-  document.getElementById("app")
-);
+render(() => <Router />, document.getElementById("app"));
 ```
 
 This sets up a Router that will match on the url to display the desired page
@@ -69,13 +85,17 @@ import { Router, Route } from "@solidjs/router";
 import Home from "./pages/Home";
 import Users from "./pages/Users";
 
-render(() => (
-  <Router>
-    <Route path="/users" component={Users} />
-    <Route path="/" component={Home} />
-  </Router>
-), document.getElementById("app"));
+render(
+  () => (
+    <Router>
+      <Route path="/users" component={Users} />
+      <Route path="/" component={Home} />
+    </Router>
+  ),
+  document.getElementById("app")
+);
 ```
+
 2. Provide a root level layout
 
 This will always be there and won't update on page change. It is the ideal place to put top level navigation and Context Providers
@@ -87,24 +107,27 @@ import { Router, Route } from "@solidjs/router";
 import Home from "./pages/Home";
 import Users from "./pages/Users";
 
-const App = props => (
+const App = (props) => (
   <>
     <h1>My Site with lots of pages</h1>
     {props.children}
   </>
-)
+);
 
-render(() => (
-  <Router root={App}>
-    <Route path="/users" component={Users} />
-    <Route path="/" component={Home} />
-  </Router>
-), document.getElementById("app"));
+render(
+  () => (
+    <Router root={App}>
+      <Route path="/users" component={Users} />
+      <Route path="/" component={Home} />
+    </Router>
+  ),
+  document.getElementById("app")
+);
 ```
 
-3. Create a CatchAll Route (404 page)
+3. Create a catch-all route (404 page)
 
-We can create catchall routes for pages not found at any nested level of the router. We use `*` and optionally the name of a parameter to retrieve the rest of the path.
+We can create catch-all routes for pages not found at any nested level of the router. We use `*` and optionally the name of a parameter to retrieve the rest of the path.
 
 ```jsx
 import { render } from "solid-js/web";
@@ -114,20 +137,23 @@ import Home from "./pages/Home";
 import Users from "./pages/Users";
 import NotFound from "./pages/404";
 
-const App = props => (
+const App = (props) => (
   <>
     <h1>My Site with lots of pages</h1>
     {props.children}
   </>
-)
+);
 
-render(() => (
-  <Router root={App}>
-    <Route path="/users" component={Users} />
-    <Route path="/" component={Home} />
-    <Route path="*404" component={NotFound} />
-  </Router>
-), document.getElementById("app"));
+render(
+  () => (
+    <Router root={App}>
+      <Route path="/users" component={Users} />
+      <Route path="/" component={Home} />
+      <Route path="*404" component={NotFound} />
+    </Router>
+  ),
+  document.getElementById("app")
+);
 ```
 
 4. Lazy-load route components
@@ -142,19 +168,22 @@ import { Router, Route } from "@solidjs/router";
 const Users = lazy(() => import("./pages/Users"));
 const Home = lazy(() => import("./pages/Home"));
 
-const App = props => (
+const App = (props) => (
   <>
     <h1>My Site with lots of pages</h1>
     {props.children}
   </>
-)
+);
 
-render(() => (
-  <Router root={App}>
-    <Route path="/users" component={Users} />
-    <Route path="/" component={Home} />
-  </Router>
-), document.getElementById("app"));
+render(
+  () => (
+    <Router root={App}>
+      <Route path="/users" component={Users} />
+      <Route path="/" component={Home} />
+    </Router>
+  ),
+  document.getElementById("app")
+);
 ```
 
 ### Create Links to Your Routes
@@ -169,7 +198,7 @@ import { Router, Route } from "@solidjs/router";
 const Users = lazy(() => import("./pages/Users"));
 const Home = lazy(() => import("./pages/Home"));
 
-const App = props => (
+const App = (props) => (
   <>
     <nav>
       <a href="/about">About</a>
@@ -180,12 +209,15 @@ const App = props => (
   </>
 );
 
-render(() => (
-  <Router root={App}>
-    <Route path="/users" component={Users} />
-    <Route path="/" component={Home} />
-  </Router>
-), document.getElementById("app"));
+render(
+  () => (
+    <Router root={App}>
+      <Route path="/users" component={Users} />
+      <Route path="/" component={Home} />
+    </Router>
+  ),
+  document.getElementById("app")
+);
 ```
 
 ## Dynamic Routes
@@ -201,13 +233,16 @@ const Users = lazy(() => import("./pages/Users"));
 const User = lazy(() => import("./pages/User"));
 const Home = lazy(() => import("./pages/Home"));
 
-render(() => (
-  <Router>
-    <Route path="/users" component={Users} />
-    <Route path="/users/:id" component={User} />
-    <Route path="/" component={Home} />
-  </Router>
- ), document.getElementById("app"));
+render(
+  () => (
+    <Router>
+      <Route path="/users" component={Users} />
+      <Route path="/users/:id" component={User} />
+      <Route path="/" component={Home} />
+    </Router>
+  ),
+  document.getElementById("app")
+);
 ```
 
 The colon indicates that `id` can be any string, and as long as the URL fits that pattern, the `User` component will show.
@@ -216,9 +251,13 @@ You can then access that `id` from within a route component with `useParams`.
 
 **Note on Animation/Transitions**:
 Routes that share the same path match will be treated as the same route. If you want to force re-render you can wrap your component in a keyed `<Show>` like:
+
 ```jsx
-<Show when={params.something} keyed><MyComponent></Show>
+<Show when={params.something} keyed>
+  <MyComponent />
+</Show>
 ```
+
 ---
 
 Each path parameter can be validated using a `MatchFilter`.
@@ -228,7 +267,7 @@ This allows for more complex routing descriptions than just checking the presenc
 import { lazy } from "solid-js";
 import { render } from "solid-js/web";
 import { Router, Route } from "@solidjs/router";
-import type { SegmentValidators } from "./types";
+import type { MatchFilters } from "@solidjs/router";
 
 const User = lazy(() => import("./pages/User"));
 
@@ -238,15 +277,18 @@ const filters: MatchFilters = {
   withHtmlExtension: (v: string) => v.length > 5 && v.endsWith(".html"), // we want an `*.html` extension
 };
 
-render(() => (
-  <Router>
-    <Route
-      path="/users/:parent/:id/:withHtmlExtension"
-      component={User}
-      matchFilters={filters}
-    />
-  </Router>
-), document.getElementById("app"));
+render(
+  () => (
+    <Router>
+      <Route
+        path="/users/:parent/:id/:withHtmlExtension"
+        component={User}
+        matchFilters={filters}
+      />
+    </Router>
+  ),
+  document.getElementById("app")
+);
 ```
 
 Here, we have added the `matchFilters` prop. This allows us to validate the `parent`, `id` and `withHtmlExtension` parameters against the filters defined in `filters`.
@@ -358,24 +400,13 @@ You can nest indefinitely - just remember that only leaf nodes will become their
 ```jsx
 <Route
   path="/"
-  component={(props) =>
-    <div>
-      Onion starts here {props.children}
-    </div>
-  }
+  component={(props) => <div>Onion starts here {props.children}</div>}
 >
   <Route
     path="layer1"
-    component={(props) =>
-      <div>
-        Another layer {props.children}
-      </div>
-    }
+    component={(props) => <div>Another layer {props.children}</div>}
   >
-    <Route
-      path="layer2"
-      component={() => <div>Innermost layer</div>}
-    />
+    <Route path="layer2" component={() => <div>Innermost layer</div>} />
   </Route>
 </Route>
 ```
@@ -393,7 +424,7 @@ import { Route } from "@solidjs/router";
 const User = lazy(() => import("./pages/users/[id].js"));
 
 // preload function
-function preloadUser({params, location}) {
+function preloadUser({ params, location }) {
   // do preloading
 }
 
@@ -401,12 +432,11 @@ function preloadUser({params, location}) {
 <Route path="/users/:id" component={User} preload={preloadUser} />;
 ```
 
-| key      | type                                              | description                                                                                                                   |
-| -------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| params   | object                                            | The route parameters (same value as calling `useParams()` inside the route component)                                         |
-| location | `{ pathname, search, hash, query, state, key}`    | An object that you can use to get more information about the path (corresponds to [`useLocation()`](#uselocation))        |
-| intent | `"initial", "navigate", "native", "preload"` | Indicates why this function is being called. <ul><li>"initial" - the route is being initially shown (ie page load)</li><li>"native" - navigate originated from the browser (eg back/forward)</li><li>"navigate" - navigate originated from the router (eg call to navigate or anchor clicked)</li><li>"preload" - not navigating, just preloading (eg link hover)</li></ul> |
-
+| key      | type                                           | description                                                                                                                                                                                                                                                                                                                                                                 |
+| -------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| params   | object                                         | The route parameters (same value as calling `useParams()` inside the route component)                                                                                                                                                                                                                                                                                       |
+| location | `{ pathname, search, hash, query, state, key}` | An object that you can use to get more information about the path (corresponds to [`useLocation()`](#uselocation))                                                                                                                                                                                                                                                          |
+| intent   | `"initial", "navigate", "native", "preload"`   | Indicates why this function is being called. <ul><li>"initial" - the route is being initially shown (ie page load)</li><li>"native" - navigate originated from the browser (eg back/forward)</li><li>"navigate" - navigate originated from the router (eg call to navigate or anchor clicked)</li><li>"preload" - not navigating, just preloading (eg link hover)</li></ul> |
 
 A common pattern is to export the preload function and data wrappers that corresponds to a route in a dedicated `route.data.js` file. This way, the data function can be imported without loading anything else.
 
@@ -420,22 +450,22 @@ const User = lazy(() => import("/pages/users/[id].js"));
 <Route path="/users/:id" component={User} preload={preloadUser} />;
 ```
 
-The return value of the `preload` function is passed to the page component when called at anytime other than `"preload"` intent, so you can initialize things in there, or alternatively use our new Data APIs:
-
+The `preload` function's return value is passed to the page component for any intent other than `"preload"`, allowing you to initialize data or alternatively use our new Data APIs:
 
 ## Data APIs
 
-Keep in mind these are completely optional. To use but showcase the power of our preload mechanism.
+Keep in mind that these are entirely optional, but they demonstrate the power of our preload mechanism.
 
 ### `query`
 
-To prevent duplicate fetching and to trigger handle refetching we provide a query api. That takes a function and returns the same function.
+To prevent duplicate fetching and to handle refetching triggers, we provide a query API that accepts a function and returns the same function.
 
 ```jsx
 const getUser = query(async (id) => {
-  return (await fetch(`/api/users${id}`)).json()
-}, "users") // used as the query key + serialized arguments
+  return (await fetch(`/api/users/${id}`)).json();
+}, "users"); // used as the query key + serialized arguments
 ```
+
 It is expected that the arguments to the query function are serializable.
 
 This query accomplishes the following:
@@ -476,11 +506,12 @@ export default function User(props) {
 ```
 
 Cached function has a few useful methods for getting the key that are useful for invalidation.
+
 ```ts
 let id = 5;
 
-getUser.key // returns "users"
-getUser.keyFor(id) // returns "users[5]"
+getUser.key; // returns "users"
+getUser.keyFor(id); // returns "users[5]"
 ```
 
 You can revalidate the query using the `revalidate` method or you can set `revalidate` keys on your response from your actions. If you pass the whole key it will invalidate all the entries for the query (ie "users" in the example above). You can also invalidate a single entry by using `keyFor`.
@@ -492,13 +523,13 @@ You can revalidate the query using the `revalidate` method or you can set `reval
 This is light wrapper over `createResource` that aims to serve as stand-in for a future primitive we intend to bring to Solid core in 2.0. It is a simpler async primitive where the function tracks like `createMemo` and it expects a promise back that it turns into a Signal. Reading it before it is ready causes Suspense/Transitions to trigger.
 
 ```jsx
-const user = createAsync((currentValue) => getUser(params.id))
+const user = createAsync((currentValue) => getUser(params.id));
 ```
 
 It also preserves `latest` field from `createResource`. Note that it will be removed in the future.
 
 ```jsx
-const user = createAsync((currentValue) => getUser(params.id))
+const user = createAsync((currentValue) => getUser(params.id));
 return <h1>{user.latest.name}</h1>;
 ```
 
@@ -516,6 +547,7 @@ const todos = createAsyncStore(() => getTodos());
 ### `action`
 
 Actions are data mutations that can trigger invalidations and further routing. A list of prebuilt response helpers can be found below.
+
 ```jsx
 import { action, revalidate, redirect } from "@solidjs/router"
 
@@ -549,18 +581,21 @@ const deleteTodo = action(async (formData: FormData) => {
   <button type="submit">Delete</button>
 </form>
 ```
+
 Instead with `with` you can write this:
+
 ```js
-const deleteUser = action(api.deleteTodo)
+const deleteTodo = action(api.deleteTodo)
 
 <form action={deleteTodo.with(todo.id)} method="post">
   <button type="submit">Delete</button>
 </form>
 ```
 
-Actions also a second argument which can be the name or an option object with `name` and `onComplete`. `name` is used to identify SSR actions that aren't server functions (see note below). `onComplete` allows you to configure behavior when `action`s complete. Keep in mind `onComplete` does not work when JavaScript is disabled.
+Actions also take a second argument which can be the name or an option object with `name` and `onComplete`. `name` is used to identify SSR actions that aren't server functions (see note below). `onComplete` allows you to configure behavior when `action`s complete. Keep in mind `onComplete` does not work when JavaScript is disabled.
 
 #### Notes on `<form>` implementation and SSR
+
 This requires stable references as you can only serialize a string as an attribute, and across SSR they'd need to match. The solution is providing a unique name.
 
 ```jsx
@@ -573,11 +608,11 @@ Instead of forms you can use actions directly by wrapping them in a `useAction` 
 
 ```jsx
 // in component
-const submit = useAction(myAction)
-submit(...args)
+const submit = useAction(myAction);
+submit(...args);
 ```
 
-The outside of a form context you can use custom data instead of formData, and these helpers preserve types. However, even when used with server functions (in projects like SolidStart) this requires client side javascript and is not Progressive Enhancible like forms are.
+The outside of a form context you can use custom data instead of formData, and these helpers preserve types. However, even when used with server functions (in projects like SolidStart) this requires client side javascript and is not Progressive Enhanceable like forms are.
 
 ### `useSubmission`/`useSubmissions`
 
@@ -604,6 +639,7 @@ These are used to communicate router navigations from query/actions, and can inc
 #### `redirect(path, options)`
 
 Redirects to the next route
+
 ```js
 const getUser = query(() => {
   const user = await api.getCurrentUser()
@@ -615,16 +651,17 @@ const getUser = query(() => {
 #### `reload(options)`
 
 Reloads the data on the current page
+
 ```js
 const getTodo = query(async (id: number) => {
   const todo = await fetchTodo(id);
   return todo;
-}, "todo")
+}, "todo");
 
 const updateTodo = action(async (todo: Todo) => {
   await updateTodo(todo.id, todo);
-  reload({ revalidate: getTodo.keyFor(id) })
-})
+  reload({ revalidate: getTodo.keyFor(todo.id) });
+});
 ```
 
 ## Config Based Routing
@@ -669,10 +706,7 @@ const routes = [
   },
 ];
 
-render(() =>
-  <Router>{routes}</Router>,
-  document.getElementById("app")
-);
+render(() => <Router>{routes}</Router>, document.getElementById("app"));
 ```
 
 Also you can pass a single route definition object for a single route:
@@ -684,7 +718,7 @@ import { Router } from "@solidjs/router";
 
 const route = {
   path: "/",
-  component: lazy(() => import("/pages/index.js"))
+  component: lazy(() => import("/pages/index.js")),
 };
 
 render(() => <Router>{route}</Router>, document.getElementById("app"));
@@ -723,29 +757,28 @@ import { Router } from "@solidjs/router";
 <Router url={isServer ? req.url : ""} />;
 ```
 
-
 ## Components
 
 ### `<Router>`
 
 This is the main Router component for the browser.
 
-| prop | type | description |
-|-----|----|----|
-| children | `JSX.Element`, `RouteDefinition`, or `RouteDefinition[]` | The route definitions |
-| root | Component | Top level layout component |
-| base | string | Base url to use for matching routes |
-| actionBase | string | Root url for server actions, default: `/_server` |
-| preload | boolean | Enables/disables preloads globally, default: `true` |
-| explicitLinks | boolean | Disables all anchors being intercepted and instead requires `<A>`. Default: `false`. (To disable interception for a specific link, set `target` to any value, e.g. `<a target="_self">`.) |
+| prop          | type                                                     | description                                                                                                                                                                               |
+| ------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| children      | `JSX.Element`, `RouteDefinition`, or `RouteDefinition[]` | The route definitions                                                                                                                                                                     |
+| root          | Component                                                | Top level layout component                                                                                                                                                                |
+| base          | string                                                   | Base url to use for matching routes                                                                                                                                                       |
+| actionBase    | string                                                   | Root url for server actions, default: `/_server`                                                                                                                                          |
+| preload       | boolean                                                  | Enables/disables preloads globally, default: `true`                                                                                                                                       |
+| explicitLinks | boolean                                                  | Disables all anchors being intercepted and instead requires `<A>`. Default: `false`. (To disable interception for a specific link, set `target` to any value, e.g. `<a target="_self">`.) |
 
 ### `<A>`
 
 Like the `<a>` tag but supports automatic apply of base path + relative paths and active class styling (requires client side JavaScript).
 
-The `<A>` tag has an `active` class if its href matches the current location, and `inactive` otherwise. **Note:** By default matching includes locations that are descendents (eg. href `/users` matches locations `/users` and `/users/123`), use the boolean `end` prop to prevent matching these. This is particularly useful for links to the root route `/` which would match everything.
+The `<A>` tag has an `active` class if its href matches the current location, and `inactive` otherwise. **Note:** By default matching includes locations that are descendants (eg. href `/users` matches locations `/users` and `/users/123`), use the boolean `end` prop to prevent matching these. This is particularly useful for links to the root route `/` which would match everything.
 
-| prop          |  type   | description                                                                                                                                                                              |
+| prop          | type    | description                                                                                                                                                                              |
 | ------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | href          | string  | The path of the route to navigate to. This will be resolved relative to the route that the link is in, but you can preface it with `/` to refer back to the root.                        |
 | noScroll      | boolean | If true, turn off the default behavior of scrolling to the top of the new page                                                                                                           |
@@ -753,7 +786,7 @@ The `<A>` tag has an `active` class if its href matches the current location, an
 | state         | unknown | [Push this value](https://developer.mozilla.org/en-US/docs/Web/API/History/pushState) to the history stack when navigating                                                               |
 | inactiveClass | string  | The class to show when the link is inactive (when the current location doesn't match the link)                                                                                           |
 | activeClass   | string  | The class to show when the link is active                                                                                                                                                |
-| end           | boolean | If `true`, only considers the link to be active when the curent location matches the `href` exactly; if `false`, check if the current location _starts with_ `href`                      |
+| end           | boolean | If `true`, only considers the link to be active when the current location matches the `href` exactly; if `false`, check if the current location _starts with_ `href`                     |
 
 ### `<Navigate />`
 
@@ -774,13 +807,13 @@ function getPath({ navigate, location }) {
 
 The Component for defining Routes:
 
-| prop | type | description |
-|-|-|-|
-| path | string | Path partial for defining the route segment |
-| component | `Component` | Component that will be rendered for the matched segment |
-| matchFilters | `MatchFilters` | Additional constraints for matching against the route |
-| children | `JSX.Element` | Nested `<Route>` definitions |
-| preload | `RoutePreloadFunc` | Function called during preload or when the route is navigated to. |
+| prop         | type               | description                                                       |
+| ------------ | ------------------ | ----------------------------------------------------------------- |
+| path         | string             | Path partial for defining the route segment                       |
+| component    | `Component`        | Component that will be rendered for the matched segment           |
+| matchFilters | `MatchFilters`     | Additional constraints for matching against the route             |
+| children     | `JSX.Element`      | Nested `<Route>` definitions                                      |
+| preload      | `RoutePreloadFunc` | Function called during preload or when the route is navigated to. |
 
 ## Router Primitives
 
@@ -878,10 +911,13 @@ return <div classList={{ active: Boolean(match()) }} />;
 `useCurrentMatches` returns all the matches for the current matched route. Useful for getting all the route information.
 
 For example if you stored breadcrumbs on your route definition you could retrieve them like so:
+
 ```js
 const matches = useCurrentMatches();
 
-const breadcrumbs = createMemo(() => matches().map(m => m.route.info.breadcrumb));
+const breadcrumbs = createMemo(() =>
+  matches().map((m) => m.route.info.breadcrumb)
+);
 ```
 
 ### usePreloadRoute
@@ -940,7 +976,7 @@ Related without Outlet component it has to be passed in manually. At which point
 
 ### `data` functions & `useRouteData`
 
-These have been replaced by a preload mechanism. This  allows link hover preloads (as the preload function can be run as much as wanted without worry about reactivity). It support deduping/query APIs which give more control over how things are cached. It also addresses TS issues with getting the right types in the Component without `typeof` checks.
+These have been replaced by a preload mechanism. This allows link hover preloads (as the preload function can be run as much as wanted without worry about reactivity). It support deduping/query APIs which give more control over how things are cached. It also addresses TS issues with getting the right types in the Component without `typeof` checks.
 
 That being said you can reproduce the old pattern largely by turning off preloads at the router level and then injecting your own Context:
 
@@ -951,7 +987,7 @@ import { Route } from "@solidjs/router";
 const User = lazy(() => import("./pages/users/[id].js"));
 
 // preload function
-function preloadUser({params, location}) {
+function preloadUser({ params, location }) {
   const [user] = createResource(() => params.id, fetchUser);
   return user;
 }
@@ -959,20 +995,21 @@ function preloadUser({params, location}) {
 // Pass it in the route definition
 <Router preload={false}>
   <Route path="/users/:id" component={User} preload={preloadUser} />
-</Router>
+</Router>;
 ```
 
 And then in your component taking the page props and putting them in a Context.
+
 ```js
 function User(props) {
   <UserContext.Provider value={props.data}>
     {/* my component content  */}
-  </UserContext.Provider>
+  </UserContext.Provider>;
 }
 
 // Somewhere else
 function UserDetails() {
-  const user = useContext(UserContext)
+  const user = useContext(UserContext);
   // render stuff
 }
 ```
