@@ -8,7 +8,7 @@ import type {
   SearchParams,
   SetParams,
   SetSearchParams
-} from "./types.ts";
+} from "./types.js";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|(\/)\/+$/g;
