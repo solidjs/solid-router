@@ -11,7 +11,7 @@ import type {
 import { mockBase } from "../utils.js";
 import { cacheKeyOp, hashKey, revalidate, query } from "./query.js";
 
-export type Action<T extends Array<any>, U, V = T> = (T extends [FormData] | []
+export type Action<T extends Array<any>, U, V = T> = (T extends [FormData | URLSearchParams] | []
   ? JSX.SerializableAttributeValue
   : unknown) &
   ((...vars: T) => Promise<NarrowResponse<U>>) & {
