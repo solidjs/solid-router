@@ -1,36 +1,27 @@
 /*@refresh skip*/
 
-import type { Component, JSX, Owner } from "solid-js";
-import { type RequestEvent, getRequestEvent, isServer } from "solid-js/web";
+import type {Component, JSX, Owner} from "solid-js";
+import {children, createMemo, createRoot, getOwner, mergeProps, on, Show, untrack} from "solid-js";
+import {getRequestEvent, isServer, type RequestEvent} from "solid-js/web";
 import {
-  children,
-  createMemo,
-  createRoot,
-  getOwner,
-  mergeProps,
-  on,
-  Show,
-  untrack
-} from "solid-js";
-import {
-  createBranches,
-  createRouteContext,
-  createRouterContext,
-  getIntent,
-  getRouteMatches,
-  RouteContextObj,
-  RouterContextObj,
-  setInPreloadFn
+    createBranches,
+    createRouteContext,
+    createRouterContext,
+    getIntent,
+    getRouteMatches,
+    RouteContextObj,
+    RouterContextObj,
+    setInPreloadFn
 } from "../routing.js";
 import type {
-  MatchFilters,
-  RouteContext,
-  RouteDefinition,
-  RouterIntegration,
-  RouterContext,
-  Branch,
-  RouteSectionProps,
-  RoutePreloadFunc
+    Branch,
+    MatchFilters,
+    RouteContext,
+    RouteDefinition,
+    RoutePreloadFunc,
+    RouterContext,
+    RouterIntegration,
+    RouteSectionProps
 } from "../types.js";
 
 export type BaseRouterProps = {
@@ -142,7 +133,10 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
               props.routerState,
               next[i - 1] || props.routerState.base,
               createOutlet(() => routeStates()[i + 1]),
-              () => props.routerState.matches()[i]
+              () => {
+                const routeMatches = props.routerState.matches();
+                return routeMatches[i] ?? routeMatches[0];
+              }
             );
           });
         }
