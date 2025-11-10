@@ -158,6 +158,9 @@ export function createMemoObject<T extends Record<string | symbol, unknown>>(fn:
     },
     ownKeys() {
       return Reflect.ownKeys(fn());
+    },
+    has(_, property) {
+      return property in fn();
     }
   });
 }
