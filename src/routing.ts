@@ -68,7 +68,7 @@ export const useResolvedPath = (path: () => string) => {
   return createMemo(() => route.resolvePath(path()));
 };
 
-export const useHref = (to: () => string | undefined) => {
+export const useHref = <T extends string | undefined>(to: () => T): () => string | T => {
   const router = useRouter();
   return createMemo(() => {
     const to_ = to();
