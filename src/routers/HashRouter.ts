@@ -40,7 +40,7 @@ export function HashRouter(props: HashRouterProps): JSX.Element {
           delta => !beforeLeave.confirm(delta && delta < 0 ? delta : getSource())
         )
       ),
-    create: setupNativeEvents(props.preload, props.explicitLinks, props.actionBase),
+    create: setupNativeEvents({ preload: props.preload, explicitLinks: props.explicitLinks, actionBase: props.actionBase }),
     utils: {
       go: delta => window.history.go(delta),
       renderPath: path => `#${path}`,

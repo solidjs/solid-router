@@ -206,3 +206,12 @@ export function expandOptionals(pattern: string): string[] {
     []
   );
 }
+
+export function setFunctionName<T>(obj: T, value: string) {
+  Object.defineProperty(obj, "name", {
+    value,
+    writable: false,
+    configurable: false
+  });
+  return obj;
+}
