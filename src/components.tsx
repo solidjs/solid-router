@@ -2,6 +2,7 @@
 import type { JSX } from "solid-js";
 import { createMemo, mergeProps, splitProps } from "solid-js";
 import {
+  RouterContextObj,
   useHref,
   useLocation,
   useNavigate,
@@ -12,6 +13,8 @@ import type {
   Navigator
 } from "./types.js";
 import { normalizePath } from "./utils.js";
+
+export { RouterContextObj as RouterContext };
 
 declare module "solid-js" {
   namespace JSX {
