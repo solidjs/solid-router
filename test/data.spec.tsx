@@ -7,8 +7,8 @@ import {
   createSignal
 } from "solid-js";
 import { render } from "solid-js/web";
-import { createAsync, createAsyncStore } from "../src/data";
-import { awaitPromise, waitFor } from "./helpers";
+import { createAsync } from "../src/data/createAsync.js";
+import { awaitPromise } from "./helpers.js";
 
 function Parent(props: ParentProps) {
   return <ErrorBoundary fallback={<div id="parentError" />}>{props.children}</ErrorBoundary>;
