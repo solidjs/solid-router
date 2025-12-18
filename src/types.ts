@@ -55,7 +55,7 @@ export interface NavigateOptions<S = unknown> {
 }
 
 export interface Navigator {
-  (to: string, options?: Partial<NavigateOptions>): void;
+  (to: string | number, options?: Partial<NavigateOptions>): void;
   (delta: number): void;
 }
 
