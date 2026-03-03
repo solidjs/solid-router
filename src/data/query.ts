@@ -290,20 +290,10 @@ function debounce<T, R>(callback: (value: T) => Promise<R>): (value: T) => Promi
     if (timeout) {
       clearTimeout(timeout);
     }
-    const expected = setTimeout(() => {
-      callback(value).then((value) => {
-        if (expected === timeout) {
-          resolve(value);
-          current = undefined;
-        } 
-      }, (value) => {
-        if (expected === timeout) {
-          reject(value);
-          current = undefined;
-        } 
-      });
+    timeout = setTimeout(() => {
+      callback(value).then(resolve, reject);
+      current = undefined;
     });
-    timeout = expected;
     if (!current) {
       current = new Promise((res, rej) => {
         resolve = res;
