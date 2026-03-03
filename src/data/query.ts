@@ -311,8 +311,9 @@ export function batchedQuery<Query, Data, Return>(
   const pendingQueries: Query[] = [];
 
   const debounced = debounce(async () => {
-    const result = await callback(pendingQueries);
+    const currentQueries = [...pendingQueries];
     pendingQueries.length = 0;
+    const result = await callback(currentQueries);
     return result;
   });
 
