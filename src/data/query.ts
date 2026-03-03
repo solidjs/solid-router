@@ -4,11 +4,11 @@ import {
   getOwner,
   onCleanup,
   sharedConfig,
-  type Signal,
-  startTransition
+  startTransition,
+  type Signal
 } from "solid-js";
 import { getRequestEvent, isServer } from "solid-js/web";
-import { useNavigate, getIntent, getInPreloadFn } from "../routing.js";
+import { getInPreloadFn, getIntent, useNavigate } from "../routing.js";
 import type { CacheEntry, NarrowResponse } from "../types.js";
 
 const LocationHeader = "Location";
@@ -130,7 +130,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     }
     let res;
     if (!isServer && sharedConfig.has && sharedConfig.has(key)) {
-      res = sharedConfig.load!(key) // hydrating
+      res = sharedConfig.load!(key); // hydrating
       // @ts-ignore at least until we add a delete method to sharedConfig
       delete globalThis._$HY.r[key];
     } else res = fn(...(args as any));
@@ -178,16 +178,14 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
       return async (v: any | Response) => {
         if (v instanceof Response) {
           const e = getRequestEvent();
-          
+
           if (e) {
-            for (const [ key, value ] of v.headers) {
-              if (key == "set-cookie")
-                e.response.headers.append("set-cookie", value);
-              else
-                e.response.headers.set(key, value);
+            for (const [key, value] of v.headers) {
+              if (key == "set-cookie") e.response.headers.append("set-cookie", value);
+              else e.response.headers.set(key, value);
             }
           }
-          
+
           const url = v.headers.get(LocationHeader);
 
           if (url !== null) {
@@ -218,7 +216,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
 query.get = (key: string) => {
   const cached = getCache().get(key) as CacheEntry;
   return cached[2];
-}
+};
 
 query.set = <T>(key: string, value: T extends Promise<any> ? never : T) => {
   const cache = getCache();
@@ -232,7 +230,13 @@ query.set = <T>(key: string, value: T extends Promise<any> ? never : T) => {
   } else {
     cache.set(
       key,
-      (cached = [now, Promise.resolve(value), value, "preload", createSignal(now) as Signal<number> & { count: number }])
+      (cached = [
+        now,
+        Promise.resolve(value),
+        value,
+        "preload",
+        createSignal(now) as Signal<number> & { count: number }
+      ])
     );
     cached[4].count = 0;
   }
@@ -274,4 +278,47 @@ function isPlainObject(obj: object) {
     typeof obj === "object" &&
     (!(proto = Object.getPrototypeOf(obj)) || proto === Object.prototype)
   );
+}
+
+function debounce<T, R>(callback: (value: T) => Promise<R>): (value: T) => Promise<R> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  let current: Promise<R> | undefined;
+  let resolve: (value: R) => void;
+  let reject: (value: unknown) => void;
+
+  return value => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+    timeout = setTimeout(() => {
+      callback(value).then(resolve, reject);
+      current = undefined;
+    });
+    if (!current) {
+      current = new Promise((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+    }
+    return current;
+  };
+}
+
+export function batchedQuery<Query, Data, Return>(
+  callback: (queries: Query[]) => Promise<Data>,
+  lookup: (data: Data, query: Query) => Return
+): (query: Query) => Promise<Return> {
+  const pendingQueries: Query[] = [];
+
+  const debounced = debounce(async () => {
+    const result = await callback(pendingQueries);
+    pendingQueries.length = 0;
+    return result;
+  });
+
+  return async (query: Query) => {
+    pendingQueries.push(query);
+    const data = await debounced(pendingQueries);
+    return lookup(data, query);
+  };
 }
