@@ -306,7 +306,7 @@ function debounce<T, R>(callback: (value: T) => Promise<R>): (value: T) => Promi
 
 export function batchedQuery<Query, Data, Return>(
   callback: (queries: Query[]) => Promise<Data>,
-  lookup: (data: Data, query: Query) => Return
+  lookup: (data: Data, query: Query, index: number) => Return
 ): (query: Query) => Promise<Return> {
   const pendingQueries: Query[] = [];
 
@@ -318,8 +318,8 @@ export function batchedQuery<Query, Data, Return>(
   });
 
   return async (query: Query) => {
-    pendingQueries.push(query);
+    const targetIndex = pendingQueries.push(query) - 1;
     const data = await debounced(pendingQueries);
-    return lookup(data, query);
+    return lookup(data, query, targetIndex);
   };
 }
