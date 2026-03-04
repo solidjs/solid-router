@@ -280,20 +280,20 @@ function isPlainObject(obj: object) {
   );
 }
 
-function debounce<T, R>(callback: (value: T) => Promise<R>): (value: T) => Promise<R> {
+function throttle<T, R>(callback: (value: T) => Promise<R>): (value: T) => Promise<R> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   let current: Promise<R> | undefined;
   let resolve: (value: R) => void;
   let reject: (value: unknown) => void;
 
   return value => {
-    if (timeout) {
-      clearTimeout(timeout);
+    if (!timeout) {
+      timeout = setTimeout(() => {
+        callback(value).then(resolve, reject);
+        current = undefined;
+        timeout = undefined;
+      });
     }
-    timeout = setTimeout(() => {
-      callback(value).then(resolve, reject);
-      current = undefined;
-    });
     if (!current) {
       current = new Promise((res, rej) => {
         resolve = res;
@@ -308,7 +308,7 @@ export function batchedQuery<Query, Data, Return>(
   callback: (queries: Query[]) => Promise<Data>,
   lookup: (data: Data, query: Query, index: number) => Return
 ): (query: Query) => Promise<Return> {
-  const debounced = debounce(async (queries: Query[]) => {
+  const debounced = throttle(async (queries: Query[]) => {
     const currentQueries = [...queries];
     queries.length = 0;
     const result = await callback(currentQueries);
