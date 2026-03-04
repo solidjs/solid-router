@@ -308,14 +308,14 @@ export function batchedQuery<Query, Data, Return>(
   callback: (queries: Query[]) => Promise<Data>,
   lookup: (data: Data, query: Query, index: number) => Return
 ): (query: Query) => Promise<Return> {
-  const pendingQueries: Query[] = [];
-
-  const debounced = debounce(async () => {
-    const currentQueries = [...pendingQueries];
-    pendingQueries.length = 0;
+  const debounced = debounce(async (queries: Query[]) => {
+    const currentQueries = [...queries];
+    queries.length = 0;
     const result = await callback(currentQueries);
     return result;
   });
+
+  const pendingQueries: Query[] = [];
 
   return async (query: Query) => {
     const targetIndex = pendingQueries.push(query) - 1;
