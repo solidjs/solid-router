@@ -157,7 +157,7 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
     root = next[0];
     return next;
   }, undefined);
-  return createOutlet(() => routeStates() && root)();
+  return createMemo(createOutlet(() => routeStates() && root)) as unknown as JSX.Element;
 }
 
 const createOutlet = (child: () => RouteContext | undefined) => {
