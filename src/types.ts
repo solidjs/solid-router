@@ -1,6 +1,6 @@
 import type { Component, JSX, Signal } from "solid-js";
 
-declare module "solid-js/web" {
+declare module "@solidjs/web" {
   interface RequestEvent {
     response: {
       status?: number;
@@ -26,10 +26,7 @@ declare module "solid-js/web" {
 export type Params = Record<string, string | undefined>;
 export type SearchParams = Record<string, string | string[] | undefined>;
 
-export type SetParams = Record<
-  string,
-  string | number | boolean | null | undefined
->;
+export type SetParams = Record<string, string | number | boolean | null | undefined>;
 export type SetSearchParams = Record<
   string,
   string | string[] | number | number[] | boolean | boolean[] | null | undefined
@@ -107,12 +104,12 @@ export type PathParams<P extends string | readonly string[]> =
   P extends `${infer Head}/${infer Tail}`
     ? [...PathParams<Head>, ...PathParams<Tail>]
     : P extends `:${infer S}?`
-    ? [S]
-    : P extends `:${infer S}`
-    ? [S]
-    : P extends `*${infer S}`
-    ? [S]
-    : [];
+      ? [S]
+      : P extends `:${infer S}`
+        ? [S]
+        : P extends `*${infer S}`
+          ? [S]
+          : [];
 
 export type MatchFilters<P extends string | readonly string[] = any> = P extends string
   ? { [K in PathParams<P>[number]]?: MatchFilter }
@@ -229,7 +226,13 @@ export interface MaybePreloadableComponent extends Component {
   preload?: () => void;
 }
 
-export type CacheEntry = [number, Promise<any>, any, Intent | undefined, Signal<number> & { count: number }];
+export type CacheEntry = [
+  number,
+  Promise<any>,
+  any,
+  Intent | undefined,
+  Signal<number> & { count: number }
+];
 
 export type NarrowResponse<T> = T extends CustomResponse<infer U> ? U : Exclude<T, Response>;
 export type RouterResponseInit = Omit<ResponseInit, "body"> & { revalidate?: string | string[] };

@@ -1,13 +1,12 @@
 import {
   createSignal,
-  getListener,
+  getObserver,
   getOwner,
   onCleanup,
   sharedConfig,
-  type Signal,
-  startTransition
+  type Signal
 } from "solid-js";
-import { getRequestEvent, isServer } from "solid-js/web";
+import { getRequestEvent, isServer } from "@solidjs/web";
 import { useNavigate, getIntent, getInPreloadFn } from "../routing.js";
 import type { CacheEntry, NarrowResponse } from "../types.js";
 
@@ -39,12 +38,10 @@ function getCache() {
  * Revalidates the given cache entry/entries.
  */
 export function revalidate(key?: string | string[] | void, force = true) {
-  return startTransition(() => {
-    const now = Date.now();
-    cacheKeyOp(key, entry => {
-      force && (entry[0] = 0); //force cache miss
-      entry[4][1](now); // retrigger live signals
-    });
+  const now = Date.now();
+  cacheKeyOp(key, entry => {
+    force && (entry[0] = 0); //force cache miss
+    entry[4][1](now); // retrigger live signals
   });
 }
 
@@ -97,7 +94,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
         }
       }
     }
-    if (getListener() && !isServer) {
+    if (getObserver() && !isServer) {
       tracking = true;
       onCleanup(() => cached[4].count--);
     }
@@ -123,14 +120,14 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
           "then" in cached[1]
             ? cached[1].then(handleResponse(false), handleResponse(true))
             : handleResponse(false)(cached[1]);
-        !isServer && intent === "navigate" && startTransition(() => cached[4][1](cached[0])); // update version
+        !isServer && intent === "navigate" && cached[4][1](cached[0]); // update version
       }
       inPreloadFn && "then" in res && res.catch(() => {});
       return res;
     }
     let res;
     if (!isServer && sharedConfig.has && sharedConfig.has(key)) {
-      res = sharedConfig.load!(key) // hydrating
+      res = sharedConfig.load!(key); // hydrating
       // @ts-ignore at least until we add a delete method to sharedConfig
       delete globalThis._$HY.r[key];
     } else res = fn(...(args as any));
@@ -139,7 +136,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
       cached[0] = now;
       cached[1] = res;
       cached[3] = intent;
-      !isServer && intent === "navigate" && startTransition(() => cached[4][1](cached[0])); // update version
+      !isServer && intent === "navigate" && cached[4][1](cached[0]); // update version
     } else {
       cache.set(
         key,
@@ -163,14 +160,13 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     }
     inPreloadFn && "then" in res && res.catch(() => {});
     // serialize on server
-    if (
-      isServer &&
-      sharedConfig.context &&
-      (sharedConfig.context as any).async &&
-      !(sharedConfig.context as any).noHydrate
-    ) {
+    // NOTE: sharedConfig.context existed in Solid 1.x for SSR serialization.
+    // In Solid 2.0 the SSR model is different; this block is kept for
+    // backward-compat with any SSR integration that still sets it.
+    const cfg = sharedConfig as any;
+    if (isServer && cfg.context && cfg.context.async && !cfg.context.noHydrate) {
       const e = getRequestEvent();
-      (!e || !e.serverOnly) && (sharedConfig.context as any).serialize(key, res);
+      (!e || !e.serverOnly) && cfg.context.serialize(key, res);
     }
     return res;
 
@@ -178,24 +174,19 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
       return async (v: any | Response) => {
         if (v instanceof Response) {
           const e = getRequestEvent();
-          
+
           if (e) {
-            for (const [ key, value ] of v.headers) {
-              if (key == "set-cookie")
-                e.response.headers.append("set-cookie", value);
-              else
-                e.response.headers.set(key, value);
+            for (const [key, value] of v.headers) {
+              if (key == "set-cookie") e.response.headers.append("set-cookie", value);
+              else e.response.headers.set(key, value);
             }
           }
-          
+
           const url = v.headers.get(LocationHeader);
 
           if (url !== null) {
             // client + server relative redirect
-            if (navigate && url.startsWith("/"))
-              startTransition(() => {
-                navigate(url, { replace: true });
-              });
+            if (navigate && url.startsWith("/")) navigate(url, { replace: true });
             else if (!isServer) window.location.href = url;
             else if (e) e.response.status = 302;
 
@@ -218,7 +209,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
 query.get = (key: string) => {
   const cached = getCache().get(key) as CacheEntry;
   return cached[2];
-}
+};
 
 query.set = <T>(key: string, value: T extends Promise<any> ? never : T) => {
   const cache = getCache();
@@ -232,7 +223,13 @@ query.set = <T>(key: string, value: T extends Promise<any> ? never : T) => {
   } else {
     cache.set(
       key,
-      (cached = [now, Promise.resolve(value), value, "preload", createSignal(now) as Signal<number> & { count: number }])
+      (cached = [
+        now,
+        Promise.resolve(value),
+        value,
+        "preload",
+        createSignal(now) as Signal<number> & { count: number }
+      ])
     );
     cached[4].count = 0;
   }

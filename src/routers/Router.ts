@@ -1,22 +1,37 @@
-import { isServer } from "solid-js/web";
+import { isServer } from "@solidjs/web";
 import { createRouter, scrollToHash, bindEvent } from "./createRouter.js";
 import { StaticRouter } from "./StaticRouter.js";
 import { setupNativeEvents } from "../data/events.js";
 import type { BaseRouterProps } from "./components.jsx";
 import type { JSX } from "solid-js";
-import { createBeforeLeave, keepDepth, notifyIfNotBlocked, saveCurrentDepth } from "../lifecycle.js";
+import {
+  createBeforeLeave,
+  keepDepth,
+  notifyIfNotBlocked,
+  saveCurrentDepth
+} from "../lifecycle.js";
 
-export type RouterProps = BaseRouterProps & { url?: string, actionBase?: string, explicitLinks?: boolean, preload?: boolean };
+export type RouterProps = BaseRouterProps & {
+  url?: string;
+  actionBase?: string;
+  explicitLinks?: boolean;
+  preload?: boolean;
+};
 
 export function Router(props: RouterProps): JSX.Element {
   if (isServer) return StaticRouter(props);
   const getSource = () => {
     const url = window.location.pathname.replace(/^\/+/, "/") + window.location.search;
-    const state = window.history.state && window.history.state._depth && Object.keys(window.history.state).length === 1 ? undefined : window.history.state;
+    const state =
+      window.history.state &&
+      window.history.state._depth &&
+      Object.keys(window.history.state).length === 1
+        ? undefined
+        : window.history.state;
     return {
       value: url + window.location.hash,
       state
-    }
+    };
   };
   const beforeLeave = createBeforeLeave();
   return createRouter({
@@ -30,7 +45,10 @@ export function Router(props: RouterProps): JSX.Element {
       scrollToHash(decodeURIComponent(window.location.hash.slice(1)), scroll);
       saveCurrentDepth();
     },
-    init: notify => bindEvent(window, "popstate",
+    init: notify =>
+      bindEvent(
+        window,
+        "popstate",
         notifyIfNotBlocked(notify, delta => {
           if (delta) {
             return !beforeLeave.confirm(delta);
@@ -40,7 +58,12 @@ export function Router(props: RouterProps): JSX.Element {
           }
         })
       ),
-    create: setupNativeEvents(props.preload, props.explicitLinks, props.actionBase, props.transformUrl),
+    create: setupNativeEvents(
+      props.preload,
+      props.explicitLinks,
+      props.actionBase,
+      props.transformUrl
+    ),
     utils: {
       go: delta => window.history.go(delta),
       beforeLeave

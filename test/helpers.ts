@@ -9,12 +9,16 @@ export function createCounter(fn: () => void, start: number = -1) {
 
 export function waitFor(fn: () => boolean) {
   return new Promise<number>(resolve => {
-    createEffect<number>((n = 0) => {
-      if (fn()) {
-        resolve(n);
+    let n = 0;
+    createEffect(
+      () => fn(),
+      result => {
+        n++;
+        if (result) {
+          resolve(n);
+        }
       }
-      return n + 1;
-    });
+    );
   });
 }
 

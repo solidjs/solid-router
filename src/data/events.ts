@@ -1,4 +1,4 @@
-import { delegateEvents } from "solid-js/web";
+import { delegateEvents } from "@solidjs/web";
 import { onCleanup } from "solid-js";
 import type { RouterContext } from "../types.js";
 import { actions } from "./action.js";
@@ -82,9 +82,9 @@ export function setupNativeEvents(
     }
 
     function handleAnchorMove(evt: Event) {
-      clearTimeout(preloadTimeout)
+      clearTimeout(preloadTimeout);
       const res = handleAnchor(evt as MouseEvent);
-      if (!res) return lastElement = null;
+      if (!res) return (lastElement = null);
       const [a, url] = res;
       if (lastElement === a) return;
       transformUrl && (url.pathname = transformUrl(url.pathname));

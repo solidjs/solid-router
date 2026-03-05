@@ -1,16 +1,8 @@
 /*@refresh skip*/
 import type { JSX } from "solid-js";
-import { createMemo, mergeProps, splitProps } from "solid-js";
-import {
-  useHref,
-  useLocation,
-  useNavigate,
-  useResolvedPath
-} from "./routing.js";
-import type {
-  Location,
-  Navigator
-} from "./types.js";
+import { createMemo, merge, omit } from "solid-js";
+import { useHref, useLocation, useNavigate, useResolvedPath } from "./routing.js";
+import type { Location, Navigator } from "./types.js";
 import { normalizePath } from "./utils.js";
 
 declare module "solid-js" {
@@ -35,15 +27,8 @@ export interface AnchorProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorEle
   end?: boolean | undefined;
 }
 export function A(props: AnchorProps) {
-  props = mergeProps({ inactiveClass: "inactive", activeClass: "active" }, props);
-  const [, rest] = splitProps(props, [
-    "href",
-    "state",
-    "class",
-    "activeClass",
-    "inactiveClass",
-    "end"
-  ]);
+  props = merge({ inactiveClass: "inactive", activeClass: "active" }, props);
+  const rest = omit(props, "href", "state", "class", "activeClass", "inactiveClass", "end");
   const to = useResolvedPath(() => props.href);
   const href = useHref(to);
   const location = useLocation();
@@ -60,12 +45,12 @@ export function A(props: AnchorProps) {
       {...rest}
       href={href() || props.href}
       state={JSON.stringify(props.state)}
-      classList={{
-        ...(props.class && { [props.class]: true }),
-        [props.inactiveClass!]: !isActive()[0],
-        [props.activeClass!]: isActive()[0],
-        ...rest.classList
-      }}
+      class={
+        [
+          props.class as string,
+          { [props.inactiveClass!]: !isActive()[0], [props.activeClass!]: isActive()[0] }
+        ] as JSX.ClassList
+      }
       link
       aria-current={isActive()[1] ? "page" : undefined}
     />

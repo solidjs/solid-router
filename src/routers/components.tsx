@@ -1,27 +1,28 @@
 /*@refresh skip*/
 
-import type {Component, JSX, Owner} from "solid-js";
-import {children, createMemo, createRoot, getOwner, mergeProps, on, Show, untrack} from "solid-js";
-import {getRequestEvent, isServer, type RequestEvent} from "solid-js/web";
+import type { Component, JSX, Owner } from "solid-js";
+import { children, createMemo, createRoot, getOwner, merge, untrack } from "solid-js";
+import { getRequestEvent, isServer, type RequestEvent } from "@solidjs/web";
 import {
-    createBranches,
-    createRouteContext,
-    createRouterContext,
-    getIntent,
-    getRouteMatches,
-    RouteContextObj,
-    RouterContextObj,
-    setInPreloadFn
+  createBranches,
+  createRouteContext,
+  createRouterContext,
+  getIntent,
+  getRouteMatches,
+  RouteContextObj,
+  RouterContextObj,
+  setInPreloadFn
 } from "../routing.js";
 import type {
-    Branch,
-    MatchFilters,
-    RouteContext,
-    RouteDefinition,
-    RoutePreloadFunc,
-    RouterContext,
-    RouterIntegration,
-    RouteSectionProps
+  Branch,
+  MatchFilters,
+  RouteContext,
+  RouteDefinition,
+  RouteMatch,
+  RoutePreloadFunc,
+  RouterContext,
+  RouterIntegration,
+  RouteSectionProps
 } from "../types.js";
 
 export type BaseRouterProps = {
@@ -49,16 +50,20 @@ export const createRouterComponent = (router: RouterIntegration) => (props: Base
   const routerState = createRouterContext(router, branches, () => context, {
     base,
     singleFlight: props.singleFlight,
-    transformUrl: props.transformUrl,
+    transformUrl: props.transformUrl
   });
   router.create && router.create(routerState);
   return (
-    <RouterContextObj.Provider value={routerState}>
-      <Root routerState={routerState} root={props.root} preload={props.rootPreload || props.rootLoad}>
+    <RouterContextObj value={routerState}>
+      <Root
+        routerState={routerState}
+        root={props.root}
+        preload={props.rootPreload || props.rootLoad}
+      >
         {(context = getOwner()!) && null}
         <Routes routerState={routerState} branches={branches()} />
       </Root>
-    </RouterContextObj.Provider>
+    </RouterContextObj>
   );
 };
 
@@ -79,15 +84,15 @@ function Root(props: {
         setInPreloadFn(false);
       })
   );
-  return (
-    <Show when={props.root} keyed fallback={props.children}>
-      {Root => (
-        <Root params={params} location={location} data={data()}>
-          {props.children}
-        </Root>
-      )}
-    </Show>
-  );
+  const RootComp = props.root;
+  if (RootComp) {
+    return (
+      <RootComp params={params} location={location} data={data()}>
+        {props.children}
+      </RootComp>
+    );
+  }
+  return props.children;
 }
 
 function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
@@ -110,56 +115,59 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
 
   const disposers: (() => void)[] = [];
   let root: RouteContext | undefined;
+  let prevMatches: RouteMatch[] | undefined;
 
-  const routeStates = createMemo(
-    on(props.routerState.matches, (nextMatches, prevMatches, prev: RouteContext[] | undefined) => {
-      let equal = prevMatches && nextMatches.length === prevMatches.length;
-      const next: RouteContext[] = [];
-      for (let i = 0, len = nextMatches.length; i < len; i++) {
-        const prevMatch = prevMatches && prevMatches[i];
-        const nextMatch = nextMatches[i];
+  const routeStates = createMemo((prev: RouteContext[] | undefined) => {
+    const nextMatches = props.routerState.matches();
+    let equal = prevMatches && nextMatches.length === prevMatches.length;
+    const next: RouteContext[] = [];
+    for (let i = 0, len = nextMatches.length; i < len; i++) {
+      const prevMatch = prevMatches && prevMatches[i];
+      const nextMatch = nextMatches[i];
 
-        if (prev && prevMatch && nextMatch.route.key === prevMatch.route.key) {
-          next[i] = prev[i];
-        } else {
-          equal = false;
-          if (disposers[i]) {
-            disposers[i]();
-          }
-
-          createRoot(dispose => {
-            disposers[i] = dispose;
-            next[i] = createRouteContext(
-              props.routerState,
-              next[i - 1] || props.routerState.base,
-              createOutlet(() => routeStates()[i + 1]),
-              () => {
-                const routeMatches = props.routerState.matches();
-                return routeMatches[i] ?? routeMatches[0];
-              }
-            );
-          });
+      if (prev && prevMatch && nextMatch.route.key === prevMatch.route.key) {
+        next[i] = prev[i];
+      } else {
+        equal = false;
+        if (disposers[i]) {
+          disposers[i]();
         }
-      }
 
-      disposers.splice(nextMatches.length).forEach(dispose => dispose());
-
-      if (prev && equal) {
-        return prev;
+        createRoot(dispose => {
+          disposers[i] = dispose;
+          next[i] = createRouteContext(
+            props.routerState,
+            next[i - 1] || props.routerState.base,
+            createOutlet(() => routeStates()[i + 1]),
+            () => {
+              const routeMatches = props.routerState.matches();
+              return routeMatches[i] ?? routeMatches[0];
+            }
+          );
+        });
       }
-      root = next[0];
-      return next;
-    })
-  );
+    }
+
+    disposers.splice(nextMatches.length).forEach(dispose => dispose());
+    prevMatches = nextMatches;
+
+    if (prev && equal) {
+      return prev;
+    }
+    root = next[0];
+    return next;
+  }, undefined);
   return createOutlet(() => routeStates() && root)();
 }
 
 const createOutlet = (child: () => RouteContext | undefined) => {
-  return () => (
-    <Show when={child()} keyed>
-      {child => <RouteContextObj.Provider value={child}>{child.outlet()}</RouteContextObj.Provider>}
-    </Show>
-  );
+  return () => {
+    const c = child();
+    if (c) {
+      return <RouteContextObj value={c}>{c.outlet()}</RouteContextObj>;
+    }
+    return undefined;
+  };
 };
 
 export type RouteProps<S extends string, T = unknown> = {
@@ -175,7 +183,7 @@ export type RouteProps<S extends string, T = unknown> = {
 
 export const Route = <S extends string, T = unknown>(props: RouteProps<S, T>) => {
   const childRoutes = children(() => props.children);
-  return mergeProps(props, {
+  return merge(props, {
     get children() {
       return childRoutes();
     }

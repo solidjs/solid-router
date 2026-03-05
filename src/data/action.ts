@@ -1,5 +1,5 @@
 import { $TRACK, createMemo, createSignal, JSX, onCleanup, getOwner } from "solid-js";
-import { isServer } from "solid-js/web";
+import { isServer } from "@solidjs/web";
 import { useRouter } from "../routing.js";
 import type {
   RouterContext,
@@ -98,7 +98,7 @@ export function action<T extends Array<any>, U = void>(
           error: result?.error,
           pending: false,
           retry() {
-            return retry = submission.retry();
+            return (retry = submission.retry());
           }
         });
         if (retry) return retry;

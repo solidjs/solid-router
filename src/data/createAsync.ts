@@ -1,26 +1,24 @@
 /**
- * This is mock of the eventual Solid 2.0 primitive. It is not fully featured.
+ * Wrapper around Solid 2.0 async createMemo.
+ *
+ * In Solid 2.0, createMemo can return a Promise and the reactive graph
+ * handles suspension automatically.  `createAsync` is therefore a thin
+ * wrapper that feeds the user-supplied async function into createMemo
+ * and exposes a `.latest` convenience property.
  */
-import {
-  type Accessor,
-  createResource,
-  sharedConfig,
-  type Setter,
-  untrack,
-  catchError
-} from "solid-js";
-import { createStore, reconcile, type ReconcileOptions, unwrap } from "solid-js/store";
-import { isServer } from "solid-js/web";
+import { createMemo, latest as solidLatest } from "solid-js";
+import { isServer } from "@solidjs/web";
 
-/**
- * As `createAsync` and `createAsyncStore` are wrappers for `createResource`,
- * this type allows to support `latest` field for these primitives.
- * It will be removed in the future.
- */
 export type AccessorWithLatest<T> = {
   (): T;
   latest: T;
 };
+
+/** Options for store reconciliation in Solid 2.0 */
+export interface ReconcileOptions {
+  key?: string | ((item: any) => any);
+  merge?: boolean;
+}
 
 export function createAsync<T>(
   fn: (prev: T) => Promise<T>,
@@ -46,27 +44,14 @@ export function createAsync<T>(
     deferStream?: boolean;
   }
 ): AccessorWithLatest<T | undefined> {
-  let resource: () => T;
-  let prev = () =>
-    !resource || (resource as any).state === "unresolved" ? undefined : (resource as any).latest;
+  // In Solid 2.0, createMemo natively handles Promises.
+  // The memo suspends until the promise resolves; <Loading> catches it.
+  const memo = createMemo(() => fn(undefined));
 
-  [resource] = createResource(
-    () =>
-      subFetch(
-        fn,
-        catchError(
-          () => untrack(prev),
-          () => undefined
-        )
-      ),
-    v => v,
-    options as any
-  );
-
-  const resultAccessor: AccessorWithLatest<T> = (() => resource()) as any;
+  const resultAccessor: AccessorWithLatest<T> = (() => memo()) as any;
   Object.defineProperty(resultAccessor, "latest", {
     get() {
-      return (resource as any).latest;
+      return solidLatest(memo);
     }
   });
 
@@ -100,93 +85,16 @@ export function createAsyncStore<T>(
     reconcile?: ReconcileOptions;
   } = {}
 ): AccessorWithLatest<T | undefined> {
-  let resource: () => T;
+  // Derived store form: createStore(fn) in Solid 2.0 creates a projection.
+  // For now, fall back to the same async memo approach.
+  const memo = createMemo(() => fn(undefined));
 
-  let prev = () =>
-    !resource || (resource as any).state === "unresolved"
-      ? undefined
-      : unwrap((resource as any).latest);
-  [resource] = createResource(
-    () =>
-      subFetch(
-        fn,
-        catchError(
-          () => untrack(prev),
-          () => undefined
-        )
-      ),
-    v => v,
-    {
-      ...options,
-      storage: (init: T | undefined) => createDeepSignal(init, options.reconcile)
-    } as any
-  );
-
-  const resultAccessor: AccessorWithLatest<T> = (() => resource()) as any;
+  const resultAccessor: AccessorWithLatest<T> = (() => memo()) as any;
   Object.defineProperty(resultAccessor, "latest", {
     get() {
-      return (resource as any).latest;
+      return solidLatest(memo);
     }
   });
 
   return resultAccessor;
-}
-
-function createDeepSignal<T>(value: T | undefined, options?: ReconcileOptions) {
-  const [store, setStore] = createStore({
-    value: structuredClone(value)
-  });
-  return [
-    () => store.value,
-    (v: T) => {
-      typeof v === "function" && (v = v());
-      setStore("value", reconcile(structuredClone(v), options));
-      return store.value;
-    }
-  ] as [Accessor<T | null>, Setter<T | null>];
-}
-
-// mock promise while hydrating to prevent fetching
-class MockPromise {
-  static all() {
-    return new MockPromise();
-  }
-  static allSettled() {
-    return new MockPromise();
-  }
-  static any() {
-    return new MockPromise();
-  }
-  static race() {
-    return new MockPromise();
-  }
-  static reject() {
-    return new MockPromise();
-  }
-  static resolve() {
-    return new MockPromise();
-  }
-  catch() {
-    return new MockPromise();
-  }
-  then() {
-    return new MockPromise();
-  }
-  finally() {
-    return new MockPromise();
-  }
-}
-
-function subFetch<T>(fn: (prev: T | undefined) => Promise<T>, prev: T | undefined) {
-  if (isServer || !sharedConfig.context) return fn(prev);
-  const ogFetch = fetch;
-  const ogPromise = Promise;
-  try {
-    window.fetch = () => new MockPromise() as any;
-    Promise = MockPromise as any;
-    return fn(prev);
-  } finally {
-    window.fetch = ogFetch;
-    Promise = ogPromise;
-  }
 }

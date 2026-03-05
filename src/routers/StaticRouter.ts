@@ -1,4 +1,4 @@
-import { getRequestEvent } from "solid-js/web";
+import { getRequestEvent } from "@solidjs/web";
 import { type BaseRouterProps, createRouterComponent } from "./components.jsx";
 import type { JSX } from "solid-js";
 
@@ -12,7 +12,7 @@ export type StaticRouterProps = BaseRouterProps & { url?: string };
 export function StaticRouter(props: StaticRouterProps): JSX.Element {
   let e;
   const obj = {
-    value: props.url || ((e = getRequestEvent()) && getPath(e.request.url)) || "",
+    value: props.url || ((e = getRequestEvent()) && getPath(e.request.url)) || ""
   };
   return createRouterComponent({
     signal: [() => obj, next => Object.assign(obj, next)]

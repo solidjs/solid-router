@@ -1,18 +1,15 @@
-import { JSX, Accessor, runWithOwner, batch } from "solid-js";
+import { JSX, Accessor, runWithOwner } from "solid-js";
 import {
   createComponent,
   createContext,
   createMemo,
-  createRenderEffect,
+  createEffect,
   createSignal,
-  on,
   onCleanup,
   untrack,
-  useContext,
-  startTransition,
-  resetErrorBoundaries
+  useContext
 } from "solid-js";
-import { isServer, getRequestEvent } from "solid-js/web";
+import { isServer, getRequestEvent } from "@solidjs/web";
 import { createBeforeLeave } from "./lifecycle.js";
 import type {
   BeforeLeaveEventArgs,
@@ -78,18 +75,18 @@ export const useHref = (to: () => string | undefined) => {
 
 /**
  * Retrieves method to do navigation. The method accepts a path to navigate to and an optional object with the following options:
- * 
+ *
  * - resolve (*boolean*, default `true`): resolve the path against the current route
  * - replace (*boolean*, default `false`): replace the history entry
  * - scroll (*boolean*, default `true`): scroll to top after navigation
  * - state (*any*, default `undefined`): pass custom state to `location.state`
- * 
+ *
  * **Note**: The state is serialized using the structured clone algorithm which does not support all object types.
- * 
+ *
  * @example
  * ```js
  * const navigate = useNavigate();
- * 
+ *
  * if (unauthorized) {
  *   navigate("/login", { replace: true });
  * }
@@ -99,11 +96,11 @@ export const useNavigate = () => useRouter().navigatorFactory();
 
 /**
  * Retrieves reactive `location` object useful for getting things like `pathname`.
- * 
+ *
  * @example
  * ```js
  * const location = useLocation();
- * 
+ *
  * const pathname = createMemo(() => parsePath(location.pathname));
  * ```
  */
@@ -112,11 +109,11 @@ export const useLocation = <S = unknown>() => useRouter().location as Location<S
 /**
  * Retrieves signal that indicates whether the route is currently in a *Transition*.
  * Useful for showing stale/pending state when the route resolution is *Suspended* during concurrent rendering.
- * 
+ *
  * @example
  * ```js
  * const isRouting = useIsRouting();
- * 
+ *
  * return (
  *   <div classList={{ "grey-out": isRouting() }}>
  *     <MyAwesomeContent />
@@ -129,28 +126,28 @@ export const useIsRouting = () => useRouter().isRouting;
 /**
  * usePreloadRoute returns a function that can be used to preload a route manual.
  * This is what happens automatically with link hovering and similar focus based behavior, but it is available here as an API.
- * 
+ *
  * @example
  * ```js
  * const preload = usePreloadRoute();
- * 
+ *
  * preload(`/users/settings`, { preloadData: true });
  * ```
  */
 export const usePreloadRoute = () => {
-  const pre = useRouter().preloadRoute
-  return (url: string | URL, options: { preloadData?: boolean } = {} ) =>
-    pre(url instanceof URL ? url : new URL(url, mockBase), options.preloadData)
-}
+  const pre = useRouter().preloadRoute;
+  return (url: string | URL, options: { preloadData?: boolean } = {}) =>
+    pre(url instanceof URL ? url : new URL(url, mockBase), options.preloadData);
+};
 
 /**
  * `useMatch` takes an accessor that returns the path and creates a `Memo` that returns match information if the current path matches the provided path.
  * Useful for determining if a given path matches the current route.
- * 
+ *
  * @example
  * ```js
  * const match = useMatch(() => props.href);
- * 
+ *
  * return <div classList={{ active: Boolean(match()) }} />;
  * ```
  */
@@ -170,11 +167,11 @@ export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFi
 /**
  * `useCurrentMatches` returns all the matches for the current matched route.
  * Useful for getting all the route information.
- * 
+ *
  * @example
  * ```js
  * const matches = useCurrentMatches();
- * 
+ *
  * const breadcrumbs = createMemo(() => matches().map(m => m.route.info.breadcrumb))
  * ```
  */
@@ -182,11 +179,11 @@ export const useCurrentMatches = () => useRouter().matches;
 
 /**
  * Retrieves a reactive, store-like object containing the current route path parameters as defined in the Route.
- * 
+ *
  * @example
  * ```js
  * const params = useParams();
- * 
+ *
  * // fetch user based on the id path parameter
  * const [user] = createResource(() => params.id, fetchUser);
  * ```
@@ -197,15 +194,15 @@ export const useParams = <T extends Params>() => useRouter().params as T;
  * Retrieves a tuple containing a reactive object to read the current location's query parameters and a method to update them.
  * The object is a proxy so you must access properties to subscribe to reactive updates.
  * **Note** that values will be strings and property names will retain their casing.
- * 
+ *
  * The setter method accepts an object whose entries will be merged into the current query string.
  * Values `''`, `undefined` and `null` will remove the key from the resulting query string.
  * Updates will behave just like a navigation and the setter accepts the same optional second parameter as `navigate` and auto-scrolling is disabled by default.
- * 
+ *
  * @examples
  * ```js
  * const [searchParams, setSearchParams] = useSearchParams();
- * 
+ *
  * return (
  *   <div>
  *     <span>Page: {searchParams.page}</span>
@@ -240,14 +237,14 @@ export const useSearchParams = <T extends SearchParams>(): [
 /**
  * useBeforeLeave takes a function that will be called prior to leaving a route.
  * The function will be called with:
- * 
+ *
  * - from (*Location*): current location (before change).
  * - to (*string | number*): path passed to `navigate`.
  * - options (*NavigateOptions*): options passed to navigate.
  * - preventDefault (*function*): call to block the route change.
  * - defaultPrevented (*readonly boolean*): `true` if any previously called leave handlers called `preventDefault`.
  * - retry (*function*, force?: boolean ): call to retry the same navigation, perhaps after confirming with the user. Pass `true` to skip running the leave handlers again (i.e. force navigate without confirming).
- * 
+ *
  * @example
  * ```js
  * useBeforeLeave((e: BeforeLeaveEventArgs) => {
@@ -399,7 +396,10 @@ function createLocation(
   const search = createMemo(() => url().search, true);
   const hash = createMemo(() => url().hash);
   const key = () => "";
-  const queryFn = on(search, () => extractSearchParams(url())) as () => SearchParams;
+  const queryFn = createMemo(() => {
+    search();
+    return extractSearchParams(url());
+  }) as () => SearchParams;
 
   return {
     get pathname() {
@@ -455,45 +455,37 @@ export function createRouterContext(
     setSource({ value: basePath, replace: true, scroll: false });
   }
 
-  const [isRouting, setIsRouting] = createSignal(false);
+  const [isRouting, setIsRouting] = createSignal(false, { pureWrite: true });
 
-  // Keep track of last target, so that last call to transition wins
+  // Navigate override: written by navigateFromRoute from event handlers.
+  // When set, reference/state memos pick up this value instead of source.
+  const [navigateTarget, setNavigateTarget] = createSignal<LocationChange | undefined>(undefined, {
+    pureWrite: true
+  });
+
+  // Keep track of last target, so that last call to navigate wins
   let lastTransitionTarget: LocationChange | undefined;
 
-  // Transition the location to a new value
-  const transition = (newIntent: Intent, newTarget: LocationChange) => {
-    if (newTarget.value === reference() && newTarget.state === state()) return;
+  // reference and state are memos that derive from both source and navigateTarget.
+  // Native source changes (e.g., browser back/forward) propagate through source.
+  // Code-driven navigation writes navigateTarget, which overrides source.
+  const reference = createMemo<string>(() => {
+    const nav = navigateTarget();
+    if (nav !== undefined) return nav.value;
+    return source().value;
+  });
 
-    if (lastTransitionTarget === undefined) setIsRouting(true);
+  const state = createMemo<any>(() => {
+    const nav = navigateTarget();
+    if (nav !== undefined) return nav.state;
+    return source().state;
+  });
 
-    intent = newIntent;
-    lastTransitionTarget = newTarget;
-
-    startTransition(() => {
-      if (lastTransitionTarget !== newTarget) return;
-
-      setReference(lastTransitionTarget.value);
-      setState(lastTransitionTarget.state);
-      resetErrorBoundaries();
-      if (!isServer) submissions[1](subs => subs.filter(s => s.pending));
-    }).finally(() => {
-      if (lastTransitionTarget !== newTarget) return;
-
-      // Batch, in order for isRouting and final source update to happen together
-      batch(() => {
-        intent = undefined;
-        if (newIntent === "navigate") navigateEnd(lastTransitionTarget!);
-
-        setIsRouting(false);
-        lastTransitionTarget = undefined;
-      });
-    });
-  };
-  const [reference, setReference] = createSignal(source().value);
-  const [state, setState] = createSignal(source().state);
   const location = createLocation(reference, state, utils.queryWrapper);
   const referrers: LocationChange[] = [];
-  const submissions = createSignal<Submission<any, any>[]>(isServer ? initFromFlash() : []);
+  const submissions = createSignal<Submission<any, any>[]>(isServer ? initFromFlash() : [], {
+    pureWrite: true
+  });
 
   const matches = createMemo(() => {
     if (typeof options.transformUrl === "function") {
@@ -524,9 +516,6 @@ export function createRouterContext(
       return resolvePath(basePath, to);
     }
   };
-
-  // Create a native transition, when source updates
-  createRenderEffect(on(source, source => transition("native", source), { defer: true }));
 
   return {
     base: baseRoute,
@@ -593,10 +582,33 @@ export function createRouterContext(
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
         } else if (beforeLeave.confirm(resolvedTo, options)) {
           referrers.push({ value: current, replace, scroll, state: state() });
-          transition("navigate", {
+
+          const newTarget: LocationChange = {
             value: resolvedTo,
             state: nextState
-          });
+          };
+
+          if (lastTransitionTarget === undefined) setIsRouting(true);
+
+          intent = "navigate";
+          lastTransitionTarget = newTarget;
+
+          if (lastTransitionTarget === newTarget) {
+            setNavigateTarget({ ...lastTransitionTarget });
+            if (!isServer) submissions[1](subs => subs.filter(s => s.pending));
+
+            queueMicrotask(() => {
+              if (lastTransitionTarget !== newTarget) return;
+
+              intent = undefined;
+              navigateEnd(lastTransitionTarget!);
+
+              // Clear navigate override so future source changes propagate directly
+              setNavigateTarget(undefined);
+              setIsRouting(false);
+              lastTransitionTarget = undefined;
+            });
+          }
         }
       }
     });
@@ -604,7 +616,14 @@ export function createRouterContext(
 
   function navigatorFactory(route?: RouteContext): Navigator {
     // Workaround for vite issue (https://github.com/vitejs/vite/issues/3803)
-    route = route || useContext(RouteContextObj) || baseRoute;
+    if (!route) {
+      try {
+        route = useContext(RouteContextObj);
+      } catch (e) {
+        // In Solid 2.0, useContext throws if no provider and no default value
+      }
+    }
+    route = route || baseRoute;
     return (to: string | number, options?: Partial<NavigateOptions>) =>
       navigateFromRoute(route!, to, options);
   }
