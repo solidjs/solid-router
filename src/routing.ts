@@ -51,14 +51,24 @@ const MAX_REDIRECTS = 100;
 export const RouterContextObj = createContext<RouterContext>();
 export const RouteContextObj = createContext<RouteContext>();
 
-export const useRouter = () =>
-  invariant(
-    useContext(RouterContextObj),
-    "<A> and 'use' router primitives can be only used inside a Route."
-  );
+export const useRouter = () => {
+  const router = useContext(RouterContextObj);
+  return invariant(router, "<A> and 'use' router primitives can be only used inside a Route.");
+};
 
 let TempRoute: RouteContext | undefined;
-export const useRoute = () => TempRoute || useContext(RouteContextObj) || useRouter().base;
+export const useRoute = () => {
+  if (TempRoute) return TempRoute;
+
+  let route: RouteContext | undefined;
+  try {
+    route = useContext(RouteContextObj);
+  } catch (e) {
+    // In newer Solid versions, useContext throws if no provider and no default value
+  }
+
+  return route || useRouter().base;
+};
 
 export const useResolvedPath = (path: () => string) => {
   const route = useRoute();
