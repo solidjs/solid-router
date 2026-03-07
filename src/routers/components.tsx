@@ -1,7 +1,7 @@
 /*@refresh skip*/
 
 import type {Component, JSX, Owner} from "solid-js";
-import {children, createMemo, createRoot, getOwner, mergeProps, on, Show, untrack} from "solid-js";
+import {children, createMemo, createRoot, getOwner, mergeProps, on, Show, untrack, createSignal, createEffect, onMount} from "solid-js";
 import {getRequestEvent, isServer, type RequestEvent} from "solid-js/web";
 import {
     createBranches,
@@ -19,6 +19,7 @@ import type {
     RouteContext,
     RouteDefinition,
     RoutePreloadFunc,
+    RouteGuardFunc,
     RouterContext,
     RouterIntegration,
     RouteSectionProps
@@ -110,9 +111,43 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
 
   const disposers: (() => void)[] = [];
   let root: RouteContext | undefined;
+  const [guardPending, setGuardPending] = createSignal(true);
+  const [guardResult, setGuardResult] = createSignal<{ allowed: boolean; redirect?: string }>({ allowed: true });
+
+  // Check guards when matches change
+  createEffect(() => {
+    const matches = props.routerState.matches();
+    if (!matches.length) {
+      setGuardPending(false);
+      setGuardResult({ allowed: true });
+      return;
+    }
+    
+    setGuardPending(true);
+    props.routerState.checkRouteGuard(matches).then(result => {
+      setGuardResult(result);
+      setGuardPending(false);
+      
+      // Handle redirect if guard failed with a redirect path
+      if (!result.allowed && result.redirect) {
+        props.routerState.navigatorFactory()(result.redirect!, { replace: true });
+      }
+    });
+  });
 
   const routeStates = createMemo(
     on(props.routerState.matches, (nextMatches, prevMatches, prev: RouteContext[] | undefined) => {
+      // If guard check is pending or failed, don't create new route states
+      if (guardPending()) {
+        return prev || [];
+      }
+      
+      const result = guardResult();
+      if (!result.allowed) {
+        // Guard failed without redirect, keep previous or return empty
+        return prev || [];
+      }
+      
       let equal = prevMatches && nextMatches.length === prevMatches.length;
       const next: RouteContext[] = [];
       for (let i = 0, len = nextMatches.length; i < len; i++) {
@@ -166,6 +201,7 @@ export type RouteProps<S extends string, T = unknown> = {
   path?: S | S[];
   children?: JSX.Element;
   preload?: RoutePreloadFunc<T>;
+  guard?: RouteGuardFunc | boolean;
   matchFilters?: MatchFilters<S>;
   component?: Component<RouteSectionProps<T>>;
   info?: Record<string, any>;

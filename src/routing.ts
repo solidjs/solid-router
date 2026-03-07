@@ -34,7 +34,10 @@ import type {
   SetParams,
   Submission,
   SearchParams,
-  SetSearchParams
+  SetSearchParams,
+  RouteGuardFunc,
+  RouteGuardFuncArgs,
+  RouteGuardResult
 } from "./types.js";
 import {
   mockBase,
@@ -273,14 +276,97 @@ export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
   onCleanup(s);
 };
 
+/**
+ * A hook that evaluates a route guard and returns a reactive signal with the result.
+ * Useful for conditionally rendering content based on guard status.
+ *
+ * @param guard - The guard function or boolean to evaluate
+ * @returns A reactive signal with the guard result (allowed boolean and optional redirect)
+ *
+ * @example
+ * ```tsx
+ * function ProtectedComponent() {
+ *   const [guardResult] = useRouteGuard(isAuthenticated);
+ *
+ *   return (
+ *     <Show when={guardResult().allowed} fallback={<Navigate href="/login" />}>
+ *       <SensitiveContent />
+ *     </Show>
+ *   );
+ * }
+ * ```
+ */
+export function useRouteGuard(guard: RouteGuardFunc | boolean) {
+  const location = useLocation();
+  const params = useParams();
+  const [result, setResult] = createSignal<{ allowed: boolean; redirect?: string }>({
+    allowed: true
+  });
+  const [pending, setPending] = createSignal(false);
+
+  createRenderEffect(async () => {
+    setPending(true);
+    const guardResult = await evaluateRouteGuard(guard, {
+      params,
+      location,
+      intent: getIntent() || "initial"
+    });
+    setResult(normalizeGuardResult(guardResult));
+    setPending(false);
+  });
+
+  return [result, { pending }] as const;
+}
+
+/**
+ * Evaluates a route guard function or boolean value.
+ * @param guard - The guard to evaluate (boolean or function)
+ * @param args - Arguments to pass to the guard function
+ * @returns A RouteGuardResult indicating whether access is allowed
+ */
+export async function evaluateRouteGuard(
+  guard: RouteGuardFunc | boolean | undefined,
+  args: RouteGuardFuncArgs
+): Promise<RouteGuardResult> {
+  if (guard === undefined || guard === true) {
+    return true;
+  }
+  if (guard === false) {
+    return false;
+  }
+  if (typeof guard === "function") {
+    return await guard(args);
+  }
+  return guard;
+}
+
+/**
+ * Normalizes a RouteGuardResult to a standardized format.
+ * @param result - The guard result to normalize
+ * @returns An object with `allowed` boolean and optional `redirect` string
+ */
+export function normalizeGuardResult(result: RouteGuardResult): {
+  allowed: boolean;
+  redirect?: string;
+} {
+  if (typeof result === "boolean") {
+    return { allowed: result };
+  }
+  if (typeof result === "string") {
+    return { allowed: false, redirect: result };
+  }
+  return { allowed: result.allowed, redirect: result.redirect };
+}
+
 export function createRoutes(routeDef: RouteDefinition, base: string = ""): RouteDescription[] {
-  const { component, preload, load, children, info } = routeDef;
+  const { component, preload, load, children, info, guard } = routeDef;
   const isLeaf = !children || (Array.isArray(children) && !children.length);
 
   const shared = {
     key: routeDef,
     component,
     preload: preload || load,
+    guard,
     info
   };
 
@@ -528,6 +614,29 @@ export function createRouterContext(
   // Create a native transition, when source updates
   createRenderEffect(on(source, source => transition("native", source), { defer: true }));
 
+  async function checkRouteGuard(matches: RouteMatch[]): Promise<{ allowed: boolean; redirect?: string }> {
+    // Evaluate all guards in the match chain (from root to leaf)
+    for (let i = 0; i < matches.length; i++) {
+      const { route, params } = matches[i];
+      const guard = route.guard;
+      
+      if (guard !== undefined && guard !== true) {
+        const result = await evaluateRouteGuard(guard, {
+          params,
+          location,
+          intent: intent || "initial"
+        });
+        
+        const normalized = normalizeGuardResult(result);
+        if (!normalized.allowed) {
+          return normalized;
+        }
+      }
+    }
+    
+    return { allowed: true };
+  }
+
   return {
     base: baseRoute,
     location,
@@ -539,6 +648,7 @@ export function createRouterContext(
     matches,
     beforeLeave,
     preloadRoute,
+    checkRouteGuard,
     singleFlight: options.singleFlight === undefined ? true : options.singleFlight,
     submissions
   };
@@ -625,8 +735,39 @@ export function createRouterContext(
     const matches = getRouteMatches(branches(), url.pathname);
     const prevIntent = intent;
     intent = "preload";
+    
     for (let match in matches) {
       const { route, params } = matches[match];
+      
+      // Check guard before preloading
+      const guard = route.guard;
+      if (guard !== undefined && guard !== true) {
+        // For preload, we evaluate the guard but don't block if it's async
+        // We just skip preloading if the guard is synchronously false
+        const guardResult = evaluateRouteGuard(guard, {
+          params,
+          location: {
+            pathname: url.pathname,
+            search: url.search,
+            hash: url.hash,
+            query: extractSearchParams(url),
+            state: null,
+            key: ""
+          },
+          intent: "preload"
+        });
+        
+        // If guard result is synchronously false or a redirect string, skip preload
+        if (guardResult instanceof Promise) {
+          // For async guards, we still preload but the guard will be re-checked on navigation
+        } else {
+          const normalized = normalizeGuardResult(guardResult);
+          if (!normalized.allowed) {
+            continue; // Skip preloading this route
+          }
+        }
+      }
+      
       route.component &&
         (route.component as MaybePreloadableComponent).preload &&
         (route.component as MaybePreloadableComponent).preload!();

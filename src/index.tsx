@@ -12,7 +12,10 @@ export {
   useResolvedPath,
   useSearchParams,
   useBeforeLeave,
-  usePreloadRoute
+  usePreloadRoute,
+  useRouteGuard,
+  evaluateRouteGuard,
+  normalizeGuardResult
 } from "./routing.js";
 export { mergeSearchString as _mergeSearchString } from "./utils.js";
 export * from "./data/index.js";
@@ -30,6 +33,9 @@ export type {
   RouteSectionProps,
   RoutePreloadFunc,
   RoutePreloadFuncArgs,
+  RouteGuardFunc,
+  RouteGuardFuncArgs,
+  RouteGuardResult,
   RouteDefinition,
   RouteDescription,
   RouteMatch,
