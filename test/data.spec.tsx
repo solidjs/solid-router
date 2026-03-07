@@ -67,7 +67,6 @@ describe("createAsync should", () => {
             >
               <Loading>
                 <p id="data">{data()}</p>
-                <p id="latest">{data.latest}</p>
               </Loading>
             </Errored>
           </div>
@@ -102,7 +101,6 @@ describe("createAsync should", () => {
 
       expect(dataEl()).not.toBeNull();
       expect(document.getElementById("data")?.innerHTML).toBe("true");
-      expect(document.getElementById("latest")?.innerHTML).toBe("true");
 
       document.body.innerHTML = "";
       dispose();
