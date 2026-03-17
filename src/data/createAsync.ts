@@ -11,6 +11,7 @@ import {
 } from "solid-js";
 import { createStore, reconcile, type ReconcileOptions, unwrap } from "solid-js/store";
 import { isServer } from "solid-js/web";
+import { setFunctionName } from "../utils";
 
 /**
  * As `createAsync` and `createAsyncStore` are wrappers for `createResource`,
@@ -49,7 +50,6 @@ export function createAsync<T>(
   let resource: () => T;
   let prev = () =>
     !resource || (resource as any).state === "unresolved" ? undefined : (resource as any).latest;
-
   [resource] = createResource(
     () =>
       subFetch(
@@ -64,6 +64,7 @@ export function createAsync<T>(
   );
 
   const resultAccessor: AccessorWithLatest<T> = (() => resource()) as any;
+  if (options?.name) setFunctionName(resultAccessor, options.name);
   Object.defineProperty(resultAccessor, "latest", {
     get() {
       return (resource as any).latest;
@@ -101,7 +102,6 @@ export function createAsyncStore<T>(
   } = {}
 ): AccessorWithLatest<T | undefined> {
   let resource: () => T;
-
   let prev = () =>
     !resource || (resource as any).state === "unresolved"
       ? undefined
