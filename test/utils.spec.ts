@@ -6,7 +6,7 @@ import {
   expandOptionals,
   mergeSearchString,
   extractSearchParams
-} from "../src/utils";
+} from "../src/utils.js";
 
 describe("resolvePath should", () => {
   test("normalize the base arg", () => {
