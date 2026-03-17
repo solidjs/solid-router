@@ -447,6 +447,7 @@ describe("form submit handling", () => {
   let mockRouter: RouterContext;
   let submitHandler: Function;
   let originalDocument: any;
+  let disposeEvents: (() => void) | undefined;
 
   beforeEach(() => {
     mockRouter = createMockRouter();
@@ -470,10 +471,14 @@ describe("form submit handling", () => {
       }
     } as any;
 
-    setupNativeEvents()(mockRouter);
+    disposeEvents = createRoot(dispose => {
+      setupNativeEvents()(mockRouter);
+      return dispose;
+    });
   });
 
   afterEach(() => {
+    disposeEvents?.();
     global.document = originalDocument;
   });
 

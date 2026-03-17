@@ -51,6 +51,7 @@ import {
 
 const MAX_REDIRECTS = 100;
 
+/** Consider this API opaque and internal. It is likely to change in the future. */
 export const RouterContextObj = createContext<RouterContext>();
 export const RouteContextObj = createContext<RouteContext>();
 

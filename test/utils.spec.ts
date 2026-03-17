@@ -7,6 +7,7 @@ import {
   mergeSearchString,
   extractSearchParams
 } from "../src/utils.js";
+import { createRoot } from "solid-js";
 
 describe("resolvePath should", () => {
   test("normalize the base arg", () => {
@@ -355,38 +356,44 @@ describe("joinPaths should", () => {
 
 describe("createMemoObject should", () => {
   test("allow listing its own keys", () => {
-    const actual = createMemoObject(() => ({
-      hello: "world",
-      get throws() {
-        throw new Error("throws");
-      }
-    }));
-    expect(Object.getOwnPropertyNames(actual)).toEqual(["hello", "throws"]);
+    createRoot(() => {
+      const actual = createMemoObject(() => ({
+        hello: "world",
+        get throws() {
+          throw new Error("throws");
+        }
+      }));
+      expect(Object.getOwnPropertyNames(actual)).toEqual(["hello", "throws"]);
+    });
   });
 
   test("allow listing its keys", () => {
-    const actual = createMemoObject(() => ({
-      hello: "world",
-      get throws() {
-        throw new Error("throws");
-      }
-    }));
-    expect(Object.keys(actual)).toEqual(["hello", "throws"]);
+    createRoot(() => {
+      const actual = createMemoObject(() => ({
+        hello: "world",
+        get throws() {
+          throw new Error("throws");
+        }
+      }));
+      expect(Object.keys(actual)).toEqual(["hello", "throws"]);
+    });
   });
 
   test("stringify into JSON", () => {
-    const actual = createMemoObject(() => ({
-      hello: "world",
-      get getter() {
-        return "works too";
-      }
-    }));
-    expect(JSON.stringify(actual)).toEqual(
-      JSON.stringify({
+    createRoot(() => {
+      const actual = createMemoObject(() => ({
         hello: "world",
-        getter: "works too"
-      })
-    );
+        get getter() {
+          return "works too";
+        }
+      }));
+      expect(JSON.stringify(actual)).toEqual(
+        JSON.stringify({
+          hello: "world",
+          getter: "works too"
+        })
+      );
+    });
   });
 });
 
