@@ -1,4 +1,4 @@
-import { redirect, reload, json } from "./response.js";
+import { redirect, reload, json } from "../../src/data/response.js";
 
 describe("redirect", () => {
   test("should create redirect response with default `302` status", () => {

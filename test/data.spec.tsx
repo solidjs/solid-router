@@ -2,11 +2,11 @@ import {
   ErrorBoundary,
   ParentProps,
   Suspense,
-  catchError,
   createRoot,
   createSignal
 } from "solid-js";
 import { render } from "solid-js/web";
+import { vi } from "vitest";
 import { createAsync } from "../src/data/createAsync.js";
 import { awaitPromise } from "./helpers.js";
 
@@ -22,36 +22,76 @@ async function getError(arg?: any): Promise<any> {
 }
 
 describe("createAsync should", () => {
-  test("return 'fallback'", () => {
-    createRoot(() => {
-      const data = createAsync(() => getText());
-      setTimeout(() => expect(data()).toBe("fallback"), 1);
-    });
+  test("return 'fallback'", async () => {
+    let dispose!: () => void;
+    try {
+      await new Promise<void>(resolve => {
+        createRoot(cleanup => {
+          dispose = cleanup;
+          const data = createAsync(() => getText());
+          setTimeout(() => {
+            expect(data()).toBe("fallback");
+            resolve();
+          }, 1);
+        });
+      });
+    } finally {
+      dispose?.();
+    }
   });
-  test("return 'text'", () => {
-    createRoot(() => {
-      const data = createAsync(() => getText("text"));
-      setTimeout(() => expect(data()).toBe("text"), 1);
-    });
+  test("return 'text'", async () => {
+    let dispose!: () => void;
+    try {
+      await new Promise<void>(resolve => {
+        createRoot(cleanup => {
+          dispose = cleanup;
+          const data = createAsync(() => getText("text"));
+          setTimeout(() => {
+            expect(data()).toBe("text");
+            resolve();
+          }, 1);
+        });
+      });
+    } finally {
+      dispose?.();
+    }
   });
-  test("initial error to be caught ", () => {
-    createRoot(() => {
+  test("initial error to be caught ", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const dispose = render(() => {
       const data = createAsync(() => getError());
-      setTimeout(() => catchError(data, err => expect(err).toBeInstanceOf(Error)), 1);
-    });
+
+      return (
+        <ErrorBoundary fallback={<div id="childError" />}>
+          <Suspense>{data()}</Suspense>
+        </ErrorBoundary>
+      );
+    }, document.body);
+
+    try {
+      await awaitPromise();
+      expect(document.getElementById("childError")).not.toBeNull();
+    } finally {
+      consoleError.mockRestore();
+      document.body.innerHTML = "";
+      dispose();
+    }
   });
-  test("catch error after arg change - initial valid", () =>
-    createRoot(async dispose => {
-      async function throwWhenError(arg: string): Promise<string> {
-        if (arg === "error") throw new Error("error");
-        return arg;
-      }
+  test("catch error after arg change - initial valid", async () => {
+    async function throwWhenError(arg: string): Promise<string> {
+      if (arg === "error") throw new Error("error");
+      return arg;
+    }
 
-      const [arg, setArg] = createSignal("");
-      function Child() {
-        const data = createAsync(() => throwWhenError(arg()));
+    let setArg!: (value: string) => string;
+    const dispose = render(() => {
+      const [arg, updateArg] = createSignal("");
+      setArg = updateArg;
 
-        return (
+      const data = createAsync(() => throwWhenError(arg()));
+
+      return (
+        <Parent>
           <div id="child">
             <ErrorBoundary
               fallback={(_, reset) => (
@@ -72,48 +112,45 @@ describe("createAsync should", () => {
               </Suspense>
             </ErrorBoundary>
           </div>
-        );
-      }
-      await render(
-        () => (
-          <Parent>
-            <Child />
-          </Parent>
-        ),
-        document.body
+        </Parent>
       );
+    }, document.body);
+
+    try {
       const childErrorElement = () => document.getElementById("childError");
       const parentErrorElement = document.getElementById("parentError");
       expect(childErrorElement()).toBeNull();
       expect(parentErrorElement).toBeNull();
+
       setArg("error");
       await awaitPromise();
 
-      // after changing the arg the error should still be caught by the Child's ErrorBoundary
       expect(childErrorElement()).not.toBeNull();
       expect(parentErrorElement).toBeNull();
 
-      //reset ErrorBoundary
       document.getElementById("reset")?.click();
 
       expect(childErrorElement()).toBeNull();
       await awaitPromise();
-      const dataEl = () => document.getElementById("data");
 
-      expect(dataEl()).not.toBeNull();
+      expect(document.getElementById("data")).not.toBeNull();
       expect(document.getElementById("data")?.innerHTML).toBe("true");
       expect(document.getElementById("latest")?.innerHTML).toBe("true");
-
+    } finally {
       document.body.innerHTML = "";
       dispose();
-    }));
-  test("catch consecutive error after initial error change to be caught after arg change", () =>
-    createRoot(async cleanup => {
-      const [arg, setArg] = createSignal("error");
-      function Child() {
-        const data = createAsync(() => getError(arg()));
+    }
+  });
+  test("catch consecutive error after initial error change to be caught after arg change", async () => {
+    let setArg!: (value: string) => string;
+    const dispose = render(() => {
+      const [arg, updateArg] = createSignal("error");
+      setArg = updateArg;
 
-        return (
+      const data = createAsync(() => getError(arg()));
+
+      return (
+        <Parent>
           <div id="child">
             <ErrorBoundary
               fallback={(_, reset) => (
@@ -125,23 +162,18 @@ describe("createAsync should", () => {
               <Suspense>{data()}</Suspense>
             </ErrorBoundary>
           </div>
-        );
-      }
-      await render(
-        () => (
-          <Parent>
-            <Child />
-          </Parent>
-        ),
-        document.body
+        </Parent>
       );
+    }, document.body);
 
-      // Child's ErrorBoundary should catch the error
+    try {
+      await awaitPromise();
       expect(document.getElementById("childError")).not.toBeNull();
       expect(document.getElementById("parentError")).toBeNull();
+
       setArg("error_2");
       await awaitPromise();
-      // after changing the arg the error should still be caught by the Child's ErrorBoundary
+
       expect(document.getElementById("childError")).not.toBeNull();
       expect(document.getElementById("parentError")).toBeNull();
 
@@ -149,8 +181,9 @@ describe("createAsync should", () => {
       await awaitPromise();
       expect(document.getElementById("childError")).not.toBeNull();
       expect(document.getElementById("parentError")).toBeNull();
-
+    } finally {
       document.body.innerHTML = "";
-      cleanup();
-    }));
+      dispose();
+    }
+  });
 });

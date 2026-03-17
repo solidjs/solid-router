@@ -1,16 +1,26 @@
 import { createRoot } from "solid-js";
 import { vi } from "vitest";
-import { action, useAction, useSubmission, useSubmissions, actions } from "./action.js";
-import type { RouterContext } from "../types.js";
-import { createMockRouter } from "../../test/helpers.js";
+import {
+  action,
+  useAction,
+  useSubmission,
+  useSubmissions,
+  actions
+} from "../../src/data/action.js";
+import type { RouterContext } from "../../src/types.js";
+import { createMockRouter } from "../helpers.js";
 
-vi.mock("../src/utils.js", () => ({
-  mockBase: "https://action"
-}));
+vi.mock("../../src/utils.js", async importOriginal => {
+  const actual = await importOriginal<typeof import("../../src/utils.js")>();
+  return {
+    ...actual,
+    mockBase: "https://action"
+  };
+});
 
 let mockRouterContext: RouterContext;
 
-vi.mock("../routing.js", () => ({
+vi.mock("../../src/routing.js", () => ({
   useRouter: () => mockRouterContext,
   createRouterContext: () => createMockRouter(),
   RouterContextObj: {},

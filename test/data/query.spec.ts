@@ -1,11 +1,17 @@
 import { createRoot } from "solid-js";
 import { vi } from "vitest";
-import { query, revalidate, cacheKeyOp, hashKey, cache } from "./query.js";
-import { createMockRouter } from "../../test/helpers.js";
+import {
+  query,
+  revalidate,
+  cacheKeyOp,
+  hashKey,
+  cache
+} from "../../src/data/query.js";
+import { createMockRouter } from "../helpers.js";
 
 const mockRouter = createMockRouter();
 
-vi.mock("../routing.js", () => ({
+vi.mock("../../src/routing.js", () => ({
   useRouter: () => mockRouter,
   useNavigate: () => vi.fn(),
   getIntent: () => "navigate",
@@ -229,7 +235,7 @@ describe("revalidate", () => {
       expect(result1).toBe("data-1");
       expect(callCount).toBe(1);
 
-      await revalidate(); // Force revalidation and wait for transition
+      await revalidate();
       vi.runAllTimers();
 
       const result2 = await cachedFn();
@@ -385,7 +391,7 @@ describe("cacheKeyOp should", () => {
         operationCount++;
       });
 
-      expect(operationCount).toBe(2); // Should match both query1[1] and query1[2]
+      expect(operationCount).toBe(2);
     });
   });
 });

@@ -1,6 +1,6 @@
 import { createRoot } from "solid-js";
 import { vi } from "vitest";
-import { createAsync, createAsyncStore } from "./createAsync.js";
+import { createAsync, createAsyncStore } from "../../src/data/createAsync.js";
 
 vi.mock("solid-js", async () => {
   const actual = await vi.importActual("solid-js");

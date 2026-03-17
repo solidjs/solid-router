@@ -1,16 +1,16 @@
 import { createRoot, createSignal } from "solid-js";
 import { vi } from "vitest";
-import { setupNativeEvents } from "./events.js";
-import type { RouterContext } from "../types.js";
-import { createMockRouter } from "../../test/helpers.js";
+import { setupNativeEvents } from "../../src/data/events.js";
+import type { RouterContext } from "../../src/types.js";
+import { createMockRouter } from "../helpers.js";
 
-vi.mock("../src/data/action.js", () => ({
+vi.mock("../../src/data/action.js", () => ({
   actions: new Map()
 }));
 
-import { actions } from "./action.js";
+import { actions } from "../../src/data/action.js";
 
-vi.mock("../src/utils.js", () => ({
+vi.mock("../../src/utils.js", () => ({
   mockBase: "https://action"
 }));
 

@@ -29,7 +29,7 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "tsc && rollup -c",
+    "build": "rm -rf dist && tsc && rollup -c",
     "prepublishOnly": "npm run build",
     "test": "vitest run && npm run test:types",
     "test:watch": "vitest",
