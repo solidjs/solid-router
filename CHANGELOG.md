@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 0.15.5
+
+### Patch Changes
+
+- f9b6dc6: Make useHref return a string with string param
+
 ## 0.15.4
 
 ### Patch Changes
