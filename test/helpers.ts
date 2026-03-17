@@ -1,5 +1,5 @@
 import { createEffect, createMemo, createRoot, createSignal } from "solid-js";
-import { RouterContext } from "../src/types";
+import { RouterContext } from "../src/types.js";
 import { vi } from "vitest";
 
 export function createCounter(fn: () => void, start: number = -1) {

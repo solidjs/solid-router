@@ -11,7 +11,7 @@ import {
 } from "solid-js";
 import { createStore, reconcile, type ReconcileOptions, unwrap } from "solid-js/store";
 import { isServer } from "solid-js/web";
-import { setFunctionName } from "../utils";
+import { setFunctionName } from "../utils.js";
 
 /**
  * As `createAsync` and `createAsyncStore` are wrappers for `createResource`,
