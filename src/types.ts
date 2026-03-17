@@ -83,6 +83,32 @@ export interface RoutePreloadFuncArgs {
 
 export type RoutePreloadFunc<T = unknown> = (args: RoutePreloadFuncArgs) => T;
 
+/**
+ * Arguments passed to a route guard function.
+ */
+export interface RouteGuardFuncArgs {
+  params: Params;
+  location: Location;
+  intent: Intent;
+}
+
+/**
+ * Return type for route guard functions.
+ * - `true`: Allow access to the route
+ * - `false`: Deny access (show nothing or stay on current route)
+ * - `string`: Redirect to the specified path
+ */
+export type RouteGuardResult = boolean | string | { allowed: boolean; redirect?: string };
+
+/**
+ * Route guard function that determines if a route can be accessed.
+ * Can return a boolean, redirect path, or a RouteGuardResult object.
+ * Supports both synchronous and asynchronous guards.
+ */
+export type RouteGuardFunc = (
+  args: RouteGuardFuncArgs
+) => RouteGuardResult | Promise<RouteGuardResult>;
+
 export interface RouteSectionProps<T = unknown> {
   params: Params;
   location: Location;
@@ -94,6 +120,7 @@ export type RouteDefinition<S extends string | string[] = any, T = unknown> = {
   path?: S;
   matchFilters?: MatchFilters<S>;
   preload?: RoutePreloadFunc<T>;
+  guard?: RouteGuardFunc | boolean;
   children?: RouteDefinition | RouteDefinition[];
   component?: Component<RouteSectionProps<T>>;
   info?: Record<string, any>;
@@ -141,6 +168,7 @@ export interface RouteDescription {
   pattern: string;
   component?: Component<RouteSectionProps>;
   preload?: RoutePreloadFunc;
+  guard?: RouteGuardFunc | boolean;
   matcher: (location: string) => PathMatch | null;
   matchFilters?: MatchFilters;
   info?: Record<string, any>;
@@ -181,6 +209,7 @@ export interface RouterContext {
   parsePath(str: string): string;
   beforeLeave: BeforeLeaveLifecycle;
   preloadRoute: (url: URL, preloadData?: boolean) => void;
+  checkRouteGuard: (matches: RouteMatch[]) => Promise<{ allowed: boolean; redirect?: string }>;
   singleFlight: boolean;
   submissions: Signal<Submission<any, any>[]>;
 }
