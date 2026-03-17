@@ -1,5 +1,23 @@
 # @solidjs/router
 
+## 0.15.4
+
+### Patch Changes
+
+- da5e1f9: allow URLSearchParams type for when enctype is not set to multipart/form-data
+- 1aa664e: - Improve route matching fallback
+  - Optimize imports
+- fa46b67: fix(type): allow value from `Params` and `SearchParams` to be optional
+- bd89541: Support `in` operator for useParams()
+- 0a2f556: preserve headers in `query()`'s `handleResponse()`
+- ac97470: added `SearchParams` to the exported types
+- 8885abf: fix: createAsync - catch errors of prev to avoid bubbling error up
+- d665cc9: Fix Router popstate event handling logic
+
+  - Simplified delta check logic for history navigation
+  - Improved reliability of forward navigation detection
+  - Fixed window.history.forward() navigation handling
+
 ## 0.15.3
 
 ### Patch Changes

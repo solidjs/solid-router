@@ -177,6 +177,17 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     function handleResponse(error: boolean) {
       return async (v: any | Response) => {
         if (v instanceof Response) {
+          const e = getRequestEvent();
+          
+          if (e) {
+            for (const [ key, value ] of v.headers) {
+              if (key == "set-cookie")
+                e.response.headers.append("set-cookie", value);
+              else
+                e.response.headers.set(key, value);
+            }
+          }
+          
           const url = v.headers.get(LocationHeader);
 
           if (url !== null) {
@@ -186,10 +197,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
                 navigate(url, { replace: true });
               });
             else if (!isServer) window.location.href = url;
-            else if (isServer) {
-              const e = getRequestEvent();
-              if (e) e.response = { status: 302, headers: new Headers({ Location: url }) };
-            }
+            else if (e) e.response.status = 302;
 
             return;
           }

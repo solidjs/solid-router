@@ -8,7 +8,7 @@ import type {
   SearchParams,
   SetParams,
   SetSearchParams
-} from "./types.ts";
+} from "./types.js";
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|(\/)\/+$/g;
@@ -158,6 +158,9 @@ export function createMemoObject<T extends Record<string | symbol, unknown>>(fn:
     },
     ownKeys() {
       return Reflect.ownKeys(fn());
+    },
+    has(_, property) {
+      return property in fn();
     }
   });
 }

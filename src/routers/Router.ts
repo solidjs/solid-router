@@ -32,7 +32,7 @@ export function Router(props: RouterProps): JSX.Element {
     },
     init: notify => bindEvent(window, "popstate",
         notifyIfNotBlocked(notify, delta => {
-          if (delta && delta < 0) {
+          if (delta) {
             return !beforeLeave.confirm(delta);
           } else {
             const s = getSource();

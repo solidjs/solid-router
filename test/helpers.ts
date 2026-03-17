@@ -51,3 +51,7 @@ export function createMockRouter(): RouterContext {
     }
   } as any;
 }
+
+export async function awaitPromise() {
+  return new Promise(resolve => setTimeout(resolve, 100));
+}

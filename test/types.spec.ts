@@ -1,7 +1,7 @@
-import { RouteProps } from "../src/routers/components";
-import { useMatch } from "../src/routing";
-import { MatchFilters } from "../src/types";
-import { createMatcher } from "../src/utils";
+import { RouteProps } from "../src/routers/components.jsx";
+import { useMatch } from "../src/routing.js";
+import { MatchFilters } from "../src/types.js";
+import { createMatcher } from "../src/utils.js";
 
 // mock route type
 const Route = <S extends string>(props: RouteProps<S>) => {};

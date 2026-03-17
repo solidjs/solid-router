@@ -1,7 +1,14 @@
 /**
  * This is mock of the eventual Solid 2.0 primitive. It is not fully featured.
  */
-import { type Accessor, createResource, sharedConfig, type Setter, untrack } from "solid-js";
+import {
+  type Accessor,
+  createResource,
+  sharedConfig,
+  type Setter,
+  untrack,
+  catchError
+} from "solid-js";
 import { createStore, reconcile, type ReconcileOptions, unwrap } from "solid-js/store";
 import { isServer } from "solid-js/web";
 import { setFunctionName } from "../utils";
@@ -44,7 +51,14 @@ export function createAsync<T>(
   let prev = () =>
     !resource || (resource as any).state === "unresolved" ? undefined : (resource as any).latest;
   [resource] = createResource(
-    () => subFetch(fn, untrack(prev)),
+    () =>
+      subFetch(
+        fn,
+        catchError(
+          () => untrack(prev),
+          () => undefined
+        )
+      ),
     v => v,
     options as any
   );
@@ -93,7 +107,14 @@ export function createAsyncStore<T>(
       ? undefined
       : unwrap((resource as any).latest);
   [resource] = createResource(
-    () => subFetch(fn, untrack(prev)),
+    () =>
+      subFetch(
+        fn,
+        catchError(
+          () => untrack(prev),
+          () => undefined
+        )
+      ),
     v => v,
     {
       ...options,
