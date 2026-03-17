@@ -1,5 +1,21 @@
 # @solidjs/router
 
+## 0.16.0
+
+### Minor Changes
+
+- 8f0a8c3: Re-export context
+- 9e85fe2: Update `moduleResolution`
+
+### Patch Changes
+
+- 63940c5: Use `name` in `action` and `createAsync`
+
+  `action()` and `createAsync()` were not respecting user defined name.
+  Moreover, action was not applying the hashed name and only naming the action "mutate".
+
+- f9b6dc6: Make useHref return a string with string param
+
 ## 0.15.4
 
 ### Patch Changes
