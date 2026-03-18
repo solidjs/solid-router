@@ -1,6 +1,6 @@
 import type { Component, JSX, Signal } from "solid-js";
 
-declare module "solid-js/web" {
+declare module "@solidjs/web" {
   interface RequestEvent {
     response: {
       status?: number;
@@ -97,8 +97,6 @@ export type RouteDefinition<S extends string | string[] = any, T = unknown> = {
   children?: RouteDefinition | RouteDefinition[];
   component?: Component<RouteSectionProps<T>>;
   info?: Record<string, any>;
-  /** @deprecated use preload */
-  load?: RoutePreloadFunc;
 };
 
 export type MatchFilter = readonly string[] | RegExp | ((s: string) => boolean);
@@ -240,7 +238,3 @@ export type CustomResponse<T> = Omit<Response, "clone"> & {
   clone(...args: readonly unknown[]): CustomResponse<T>;
 };
 
-/** @deprecated */
-export type RouteLoadFunc = RoutePreloadFunc;
-/** @deprecated */
-export type RouteLoadFuncArgs = RoutePreloadFuncArgs;

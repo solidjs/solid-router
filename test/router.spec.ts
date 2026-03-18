@@ -1,10 +1,12 @@
-import { createComputed, createRoot, createSignal } from "solid-js";
+import { createEffect, createRoot, createSignal as createSignalBase } from "solid-js";
 import { createRouterContext } from "../src/routing.js";
 import type { LocationChange } from "../src/types.js";
 import { createAsyncRoot, createCounter, waitFor } from "./helpers.js";
 
 const fakeBranches = () => [];
 const fakeContext = () => ({});
+const createSignal = <T extends LocationChange>(value: T) =>
+  createSignalBase<T>(value as Exclude<T, Function>, { pureWrite: true } as any);
 
 describe("Router should", () => {
   describe("have member `base` which should", () => {
@@ -364,11 +366,17 @@ describe("Router should", () => {
 
         //  capture location immediately after `isRouting` turns false
         let postRoutingValue: string | undefined;
-        createComputed(() => {
-          if (!isRouting() && !postRoutingValue) {
-            postRoutingValue = signal[0]().value;
+        createEffect(
+          () => ({
+            routing: isRouting(),
+            value: signal[0]().value
+          }),
+          state => {
+            if (!state.routing && !postRoutingValue) {
+              postRoutingValue = state.value;
+            }
           }
-        });
+        );
 
         return waitFor(() => !isRouting())
           .then(() => {

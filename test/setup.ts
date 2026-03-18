@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 
-vi.mock("solid-js/web", async importOriginal => {
-  const actual = await importOriginal<typeof import("solid-js/web")>();
+vi.mock("@solidjs/web", async importOriginal => {
+  const actual = await importOriginal<typeof import("@solidjs/web")>();
 
   return {
     ...actual,

@@ -4,8 +4,7 @@ import {
   query,
   revalidate,
   cacheKeyOp,
-  hashKey,
-  cache
+  hashKey
 } from "../../src/data/query.js";
 import { createMockRouter } from "../helpers.js";
 

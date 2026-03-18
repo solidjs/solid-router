@@ -1,18 +1,14 @@
-import { JSX, Accessor, runWithOwner, batch } from "solid-js";
+import { JSX, Accessor, flush, runWithOwner } from "solid-js";
 import {
   createComponent,
   createContext,
   createMemo,
-  createRenderEffect,
   createSignal,
-  on,
   onCleanup,
   untrack,
-  useContext,
-  startTransition,
-  resetErrorBoundaries
+  useContext
 } from "solid-js";
-import { isServer, getRequestEvent } from "solid-js/web";
+import { isServer, getRequestEvent } from "@solidjs/web";
 import { createBeforeLeave } from "./lifecycle.js";
 import type {
   BeforeLeaveEventArgs,
@@ -55,6 +51,14 @@ const MAX_REDIRECTS = 100;
 export const RouterContextObj = createContext<RouterContext>();
 export const RouteContextObj = createContext<RouteContext>();
 
+function useOptionalContext<T>(context: { defaultValue?: T }) {
+  try {
+    return useContext(context as never) as T | undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export const useRouter = () =>
   invariant(
     useContext(RouterContextObj),
@@ -62,7 +66,7 @@ export const useRouter = () =>
   );
 
 let TempRoute: RouteContext | undefined;
-export const useRoute = () => TempRoute || useContext(RouteContextObj) || useRouter().base;
+export const useRoute = () => TempRoute || useOptionalContext(RouteContextObj) || useRouter().base;
 
 export const useResolvedPath = (path: () => string) => {
   const route = useRoute();
@@ -275,13 +279,13 @@ export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
 };
 
 export function createRoutes(routeDef: RouteDefinition, base: string = ""): RouteDescription[] {
-  const { component, preload, load, children, info } = routeDef;
+  const { component, preload, children, info } = routeDef;
   const isLeaf = !children || (Array.isArray(children) && !children.length);
 
   const shared = {
     key: routeDef,
     component,
-    preload: preload || load,
+    preload,
     info
   };
 
@@ -400,7 +404,7 @@ function createLocation(
   const search = createMemo(() => url().search, true);
   const hash = createMemo(() => url().hash);
   const key = () => "";
-  const queryFn = on(search, () => extractSearchParams(url())) as () => SearchParams;
+  const queryFn = createMemo(() => extractSearchParams(url()));
 
   return {
     get pathname() {
@@ -456,45 +460,34 @@ export function createRouterContext(
     setSource({ value: basePath, replace: true, scroll: false });
   }
 
-  const [isRouting, setIsRouting] = createSignal(false);
+  const [isRouting, setIsRouting] = createSignal(false, { pureWrite: true });
 
-  // Keep track of last target, so that last call to transition wins
+  // Navigate override written from event handlers.
+  const [navigateTarget, setNavigateTarget] = createSignal<LocationChange | undefined>(undefined, {
+    pureWrite: true
+  });
+
+  // Keep track of last target, so that last call to navigate wins
   let lastTransitionTarget: LocationChange | undefined;
 
-  // Transition the location to a new value
-  const transition = (newIntent: Intent, newTarget: LocationChange) => {
-    if (newTarget.value === reference() && newTarget.state === state()) return;
+  // source() remains canonical for native history changes; navigateTarget()
+  // temporarily overrides it for in-flight programmatic navigation.
+  const reference = createMemo<string>(() => {
+    const nav = navigateTarget();
+    if (nav !== undefined) return nav.value;
+    return source().value;
+  });
 
-    if (lastTransitionTarget === undefined) setIsRouting(true);
-
-    intent = newIntent;
-    lastTransitionTarget = newTarget;
-
-    startTransition(() => {
-      if (lastTransitionTarget !== newTarget) return;
-
-      setReference(lastTransitionTarget.value);
-      setState(lastTransitionTarget.state);
-      resetErrorBoundaries();
-      if (!isServer) submissions[1](subs => subs.filter(s => s.pending));
-    }).finally(() => {
-      if (lastTransitionTarget !== newTarget) return;
-
-      // Batch, in order for isRouting and final source update to happen together
-      batch(() => {
-        intent = undefined;
-        if (newIntent === "navigate") navigateEnd(lastTransitionTarget!);
-
-        setIsRouting(false);
-        lastTransitionTarget = undefined;
-      });
-    });
-  };
-  const [reference, setReference] = createSignal(source().value);
-  const [state, setState] = createSignal(source().state);
+  const state = createMemo(() => {
+    const nav = navigateTarget();
+    if (nav !== undefined) return nav.state;
+    return source().state;
+  });
   const location = createLocation(reference, state, utils.queryWrapper);
   const referrers: LocationChange[] = [];
-  const submissions = createSignal<Submission<any, any>[]>(isServer ? initFromFlash() : []);
+  const submissions = createSignal<Submission<any, any>[]>(isServer ? initFromFlash() : [], {
+    pureWrite: true
+  });
 
   const matches = createMemo(() => {
     if (typeof options.transformUrl === "function") {
@@ -525,9 +518,6 @@ export function createRouterContext(
       return resolvePath(basePath, to);
     }
   };
-
-  // Create a native transition, when source updates
-  createRenderEffect(on(source, source => transition("native", source), { defer: true }));
 
   return {
     base: baseRoute,
@@ -594,10 +584,33 @@ export function createRouterContext(
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
         } else if (beforeLeave.confirm(resolvedTo, options)) {
           referrers.push({ value: current, replace, scroll, state: state() });
-          transition("navigate", {
+          const newTarget: LocationChange = {
             value: resolvedTo,
             state: nextState
-          });
+          };
+
+          if (lastTransitionTarget === undefined) {
+            setIsRouting(true);
+            flush();
+          }
+
+          intent = "navigate";
+          lastTransitionTarget = newTarget;
+
+          if (lastTransitionTarget === newTarget) {
+            setNavigateTarget({ ...lastTransitionTarget });
+            if (!isServer) submissions[1](subs => subs.filter(s => s.pending));
+
+            queueMicrotask(() => {
+              if (lastTransitionTarget !== newTarget) return;
+
+              intent = undefined;
+              navigateEnd(lastTransitionTarget);
+              setNavigateTarget(undefined);
+              setIsRouting(false);
+              lastTransitionTarget = undefined;
+            });
+          }
         }
       }
     });
@@ -605,7 +618,7 @@ export function createRouterContext(
 
   function navigatorFactory(route?: RouteContext): Navigator {
     // Workaround for vite issue (https://github.com/vitejs/vite/issues/3803)
-    route = route || useContext(RouteContextObj) || baseRoute;
+    route = route || useOptionalContext(RouteContextObj) || baseRoute;
     return (to: string | number, options?: Partial<NavigateOptions>) =>
       navigateFromRoute(route!, to, options);
   }

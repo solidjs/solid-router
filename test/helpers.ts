@@ -11,12 +11,17 @@ export function createCounter(fn: () => void, start: number = -1) {
 
 export function waitFor(fn: () => boolean) {
   return new Promise<number>(resolve => {
-    createEffect<number>((n = 0) => {
-      if (fn()) {
-        resolve(n);
+    let count = 0;
+    createEffect(
+      () => fn(),
+      value => {
+        if (value) {
+          resolve(count);
+          return;
+        }
+        count += 1;
       }
-      return n + 1;
-    });
+    );
   });
 }
 
@@ -27,7 +32,7 @@ export function createAsyncRoot(fn: (resolve: () => void, disposer: () => void) 
 }
 
 export function createMockRouter(): RouterContext {
-  const [submissions, setSubmissions] = createSignal([]);
+  const [submissions, setSubmissions] = createSignal([], { pureWrite: true });
   const [singleFlight] = createSignal(false);
 
   return {

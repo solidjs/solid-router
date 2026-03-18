@@ -1,4 +1,4 @@
-import { getRequestEvent } from "solid-js/web";
+import { getRequestEvent } from "@solidjs/web";
 import { type BaseRouterProps, createRouterComponent } from "./components.jsx";
 import type { JSX } from "solid-js";
 

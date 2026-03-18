@@ -1,5 +1,5 @@
-import { $TRACK, createMemo, createSignal, JSX, onCleanup, getOwner } from "solid-js";
-import { isServer } from "solid-js/web";
+import { $TRACK, createMemo, createSignal, flush, JSX, onCleanup, getOwner } from "solid-js";
+import { isServer } from "@solidjs/web";
 import { useRouter } from "../routing.js";
 import type {
   RouterContext,
@@ -86,7 +86,12 @@ export function action<T extends Array<any>, U = void>(
         ? (fn as any).withOptions({ headers: { "X-Single-Flight": "true" } })
         : fn
     )(...variables);
-    const [result, setResult] = createSignal<{ data?: U; error?: any }>();
+    const [result, setResult] = createSignal<{ data?: U; error?: any } | undefined>(
+      undefined,
+      {
+        pureWrite: true
+      }
+    );
     let submission: Submission<T, U>;
     function handler(error?: boolean) {
       return async (res: any) => {
@@ -132,6 +137,7 @@ export function action<T extends Array<any>, U = void>(
         }
       })
     ]);
+    flush();
     return p.then(handler(), handler(true));
   }
   const o = typeof options === "string" ? { name: options } : options;

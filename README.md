@@ -64,7 +64,7 @@ npm add @solidjs/router
 Install `@solidjs/router`, then start your application by rendering the router component
 
 ```jsx
-import { render } from "solid-js/web";
+import { render } from "@solidjs/web";
 import { Router } from "@solidjs/router";
 
 render(() => <Router />, document.getElementById("app"));
@@ -79,7 +79,7 @@ Solid Router allows you to configure your routes using JSX:
 1. Add each route to a `<Router>` using the `Route` component, specifying a path and a component to render when the user navigates to that path.
 
 ```jsx
-import { render } from "solid-js/web";
+import { render } from "@solidjs/web";
 import { Router, Route } from "@solidjs/router";
 
 import Home from "./pages/Home";
@@ -101,7 +101,7 @@ render(
 This will always be there and won't update on page change. It is the ideal place to put top level navigation and Context Providers
 
 ```jsx
-import { render } from "solid-js/web";
+import { render } from "@solidjs/web";
 import { Router, Route } from "@solidjs/router";
 
 import Home from "./pages/Home";
@@ -130,7 +130,7 @@ render(
 We can create catch-all routes for pages not found at any nested level of the router. We use `*` and optionally the name of a parameter to retrieve the rest of the path.
 
 ```jsx
-import { render } from "solid-js/web";
+import { render } from "@solidjs/web";
 import { Router, Route } from "@solidjs/router";
 
 import Home from "./pages/Home";
@@ -162,7 +162,7 @@ This way, the `Users` and `Home` components will only be loaded if you're naviga
 
 ```jsx
 import { lazy } from "solid-js";
-import { render } from "solid-js/web";
+import { render } from "@solidjs/web";
 import { Router, Route } from "@solidjs/router";
 
 const Users = lazy(() => import("./pages/Users"));
@@ -192,7 +192,7 @@ Use an anchor tag that takes you to a route:
 
 ```jsx
 import { lazy } from "solid-js";
-import { render } from "solid-js/web";
+import { render } from "@solidjs/web";
 import { Router, Route } from "@solidjs/router";
 
 const Users = lazy(() => import("./pages/Users"));
@@ -226,7 +226,7 @@ If you don't know the path ahead of time, you might want to treat part of the pa
 
 ```jsx
 import { lazy } from "solid-js";
-import { render } from "solid-js/web";
+import { render } from "@solidjs/web";
 import { Router, Route } from "@solidjs/router";
 
 const Users = lazy(() => import("./pages/Users"));
@@ -265,7 +265,7 @@ This allows for more complex routing descriptions than just checking the presenc
 
 ```jsx
 import { lazy } from "solid-js";
-import { render } from "solid-js/web";
+import { render } from "@solidjs/web";
 import { Router, Route } from "@solidjs/router";
 import type { MatchFilters } from "@solidjs/router";
 
@@ -498,9 +498,10 @@ Inside your page component you:
 ```jsx
 // pages/users/[id].js
 import { getUser } from ... // the query function
+import { createMemo } from "solid-js";
 
 export default function User(props) {
-  const user = createAsync(() => getUser(props.params.id));
+  const user = createMemo(() => getUser(props.params.id));
   return <h1>{user().name}</h1>;
 }
 ```
@@ -518,30 +519,19 @@ You can revalidate the query using the `revalidate` method or you can set `reval
 
 `query` can be defined anywhere and then used inside your components with:
 
-### `createAsync`
+### Async reads in Solid 2
 
-This is light wrapper over `createResource` that aims to serve as stand-in for a future primitive we intend to bring to Solid core in 2.0. It is a simpler async primitive where the function tracks like `createMemo` and it expects a promise back that it turns into a Signal. Reading it before it is ready causes Suspense/Transitions to trigger.
+On this Solid 2 branch, `query()` results are meant to be consumed directly with Solid primitives like `createMemo` and `createProjection`.
 
 ```jsx
-const user = createAsync((currentValue) => getUser(params.id));
+const user = createMemo(() => getUser(params.id));
+return <h1>{user().name}</h1>;
 ```
 
-It also preserves `latest` field from `createResource`. Note that it will be removed in the future.
+For object-shaped data where you want a deeply reactive result, use `createProjection`.
 
 ```jsx
-const user = createAsync((currentValue) => getUser(params.id));
-return <h1>{user.latest.name}</h1>;
-```
-
-Using `query` in `createResource` directly won't work properly as the fetcher is not reactive and it won't invalidate properly.
-
-### `createAsyncStore`
-
-Similar to `createAsync` except it uses a deeply reactive store. Perfect for applying fine-grained changes to large model data that updates.
-It also supports `latest` field which will be removed in the future.
-
-```jsx
-const todos = createAsyncStore(() => getTodos());
+const todos = createProjection(() => getTodos(), []);
 ```
 
 ### `action`
@@ -670,7 +660,7 @@ You don't have to use JSX to set up your routes; you can pass an array of route 
 
 ```jsx
 import { lazy } from "solid-js";
-import { render } from "solid-js/web";
+import { render } from "@solidjs/web";
 import { Router } from "@solidjs/router";
 
 const routes = [
@@ -713,7 +703,7 @@ Also you can pass a single route definition object for a single route:
 
 ```jsx
 import { lazy } from "solid-js";
-import { render } from "solid-js/web";
+import { render } from "@solidjs/web";
 import { Router } from "@solidjs/router";
 
 const route = {
@@ -751,7 +741,7 @@ import { MemoryRouter } from "@solidjs/router";
 For SSR you can use the static router directly or the browser Router defaults to it on the server, just pass in the url.
 
 ```jsx
-import { isServer } from "solid-js/web";
+import { isServer } from "@solidjs/web";
 import { Router } from "@solidjs/router";
 
 <Router url={isServer ? req.url : ""} />;
@@ -1002,9 +992,9 @@ And then in your component taking the page props and putting them in a Context.
 
 ```js
 function User(props) {
-  <UserContext.Provider value={props.data}>
+  <UserContext value={props.data}>
     {/* my component content  */}
-  </UserContext.Provider>;
+  </UserContext>;
 }
 
 // Somewhere else

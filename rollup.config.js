@@ -9,7 +9,7 @@ export default {
       format: "es"
     }
   ],
-  external: ["solid-js", "solid-js/web", "solid-js/store"],
+  external: ["solid-js", "@solidjs/web"],
   plugins: [
     nodeResolve({
       extensions: [".js", ".ts", ".tsx"]

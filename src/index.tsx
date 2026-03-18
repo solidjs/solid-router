@@ -39,8 +39,6 @@ export type {
   SetParams,
   Submission,
   BeforeLeaveEventArgs,
-  RouteLoadFunc,
-  RouteLoadFuncArgs,
   RouterResponseInit,
   CustomResponse
 } from "./types.js";

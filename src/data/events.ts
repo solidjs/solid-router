@@ -1,4 +1,4 @@
-import { delegateEvents } from "solid-js/web";
+import { delegateEvents } from "@solidjs/web";
 import { onCleanup } from "solid-js";
 import type { RouterContext } from "../types.js";
 import { actions } from "./action.js";

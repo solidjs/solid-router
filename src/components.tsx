@@ -1,6 +1,6 @@
 /*@refresh skip*/
 import type { JSX } from "solid-js";
-import { createMemo, mergeProps, splitProps } from "solid-js";
+import { createMemo, merge, omit } from "solid-js";
 import {
   useHref,
   useLocation,
@@ -34,16 +34,31 @@ export interface AnchorProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorEle
   activeClass?: string | undefined;
   end?: boolean | undefined;
 }
+
+function toClassName(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (Array.isArray(value)) return value.map(toClassName).filter(Boolean).join(" ");
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, boolean>)
+      .filter(([, enabled]) => enabled)
+      .map(([name]) => name)
+      .join(" ");
+  }
+  return "";
+}
+
 export function A(props: AnchorProps) {
-  props = mergeProps({ inactiveClass: "inactive", activeClass: "active" }, props);
-  const [, rest] = splitProps(props, [
+  props = merge({ inactiveClass: "inactive", activeClass: "active" }, props);
+  const rest = omit(
+    props,
     "href",
     "state",
     "class",
     "activeClass",
     "inactiveClass",
     "end"
-  ]);
+  );
   const to = useResolvedPath(() => props.href);
   const href = useHref(to);
   const location = useLocation();
@@ -54,18 +69,18 @@ export function A(props: AnchorProps) {
     const loc = decodeURI(normalizePath(location.pathname).toLowerCase());
     return [props.end ? path === loc : loc.startsWith(path + "/") || loc === path, path === loc];
   });
+  const className = createMemo(() =>
+    [toClassName(props.class), isActive()[0] ? props.activeClass : props.inactiveClass]
+      .filter(Boolean)
+      .join(" ")
+  );
 
   return (
     <a
       {...rest}
       href={href() || props.href}
       state={JSON.stringify(props.state)}
-      classList={{
-        ...(props.class && { [props.class]: true }),
-        [props.inactiveClass!]: !isActive()[0],
-        [props.activeClass!]: isActive()[0],
-        ...rest.classList
-      }}
+      class={className()}
       link
       aria-current={isActive()[1] ? "page" : undefined}
     />

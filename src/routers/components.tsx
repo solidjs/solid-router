@@ -1,8 +1,8 @@
 /*@refresh skip*/
 
 import type {Component, JSX, Owner} from "solid-js";
-import {children, createMemo, createRoot, getOwner, mergeProps, on, Show, untrack} from "solid-js";
-import {getRequestEvent, isServer, type RequestEvent} from "solid-js/web";
+import {children, createMemo, createRoot, getOwner, merge, untrack} from "solid-js";
+import {getRequestEvent, isServer, type RequestEvent} from "@solidjs/web";
 import {
     createBranches,
     createRouteContext,
@@ -18,6 +18,7 @@ import type {
     MatchFilters,
     RouteContext,
     RouteDefinition,
+    RouteMatch,
     RoutePreloadFunc,
     RouterContext,
     RouterIntegration,
@@ -34,8 +35,6 @@ export type BaseRouterProps = {
   singleFlight?: boolean;
   children?: JSX.Element | RouteDefinition | RouteDefinition[];
   transformUrl?: (url: string) => string;
-  /** @deprecated use rootPreload */
-  rootLoad?: RoutePreloadFunc;
 };
 
 export const createRouterComponent = (router: RouterIntegration) => (props: BaseRouterProps) => {
@@ -53,12 +52,12 @@ export const createRouterComponent = (router: RouterIntegration) => (props: Base
   });
   router.create && router.create(routerState);
   return (
-    <RouterContextObj.Provider value={routerState}>
-      <Root routerState={routerState} root={props.root} preload={props.rootPreload || props.rootLoad}>
+    <RouterContextObj value={routerState}>
+      <Root routerState={routerState} root={props.root} preload={props.rootPreload}>
         {(context = getOwner()!) && null}
         <Routes routerState={routerState} branches={branches()} />
       </Root>
-    </RouterContextObj.Provider>
+    </RouterContextObj>
   );
 };
 
@@ -79,15 +78,15 @@ function Root(props: {
         setInPreloadFn(false);
       })
   );
-  return (
-    <Show when={props.root} keyed fallback={props.children}>
-      {Root => (
-        <Root params={params} location={location} data={data()}>
-          {props.children}
-        </Root>
-      )}
-    </Show>
-  );
+  const RootComp = props.root;
+  if (RootComp) {
+    return (
+      <RootComp params={params} location={location} data={data()}>
+        {props.children}
+      </RootComp>
+    );
+  }
+  return props.children;
 }
 
 function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
@@ -110,13 +109,15 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
 
   const disposers: (() => void)[] = [];
   let root: RouteContext | undefined;
+  let prevMatches: RouteMatch[] | undefined;
 
-  const routeStates = createMemo(
-    on(props.routerState.matches, (nextMatches, prevMatches, prev: RouteContext[] | undefined) => {
-      let equal = prevMatches && nextMatches.length === prevMatches.length;
+  const routeStates = createMemo((prev: RouteContext[] | undefined) => {
+      const nextMatches = props.routerState.matches();
+      const previousMatches = prevMatches;
+      let equal = previousMatches && nextMatches.length === previousMatches.length;
       const next: RouteContext[] = [];
       for (let i = 0, len = nextMatches.length; i < len; i++) {
-        const prevMatch = prevMatches && prevMatches[i];
+        const prevMatch = previousMatches && previousMatches[i];
         const nextMatch = nextMatches[i];
 
         if (prev && prevMatch && nextMatch.route.key === prevMatch.route.key) {
@@ -132,7 +133,7 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
             next[i] = createRouteContext(
               props.routerState,
               next[i - 1] || props.routerState.base,
-              createOutlet(() => routeStates()[i + 1]),
+              createOutlet(() => routeStates()?.[i + 1]),
               () => {
                 const routeMatches = props.routerState.matches();
                 return routeMatches[i] ?? routeMatches[0];
@@ -145,21 +146,24 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
       disposers.splice(nextMatches.length).forEach(dispose => dispose());
 
       if (prev && equal) {
+        prevMatches = nextMatches;
         return prev;
       }
       root = next[0];
+      prevMatches = nextMatches;
       return next;
-    })
-  );
+    }, undefined);
   return createOutlet(() => routeStates() && root)();
 }
 
 const createOutlet = (child: () => RouteContext | undefined) => {
-  return () => (
-    <Show when={child()} keyed>
-      {child => <RouteContextObj.Provider value={child}>{child.outlet()}</RouteContextObj.Provider>}
-    </Show>
-  );
+  return () => {
+    const c = child();
+    if (c) {
+      return <RouteContextObj value={c}>{c.outlet()}</RouteContextObj>;
+    }
+    return undefined;
+  };
 };
 
 export type RouteProps<S extends string, T = unknown> = {
@@ -169,13 +173,11 @@ export type RouteProps<S extends string, T = unknown> = {
   matchFilters?: MatchFilters<S>;
   component?: Component<RouteSectionProps<T>>;
   info?: Record<string, any>;
-  /** @deprecated use preload */
-  load?: RoutePreloadFunc<T>;
 };
 
 export const Route = <S extends string, T = unknown>(props: RouteProps<S, T>) => {
   const childRoutes = children(() => props.children);
-  return mergeProps(props, {
+  return merge(props, {
     get children() {
       return childRoutes();
     }

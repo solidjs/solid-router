@@ -1,4 +1,4 @@
-import { isServer } from "solid-js/web";
+import { isServer } from "@solidjs/web";
 import { createRouter, scrollToHash, bindEvent } from "./createRouter.js";
 import { StaticRouter } from "./StaticRouter.js";
 import { setupNativeEvents } from "../data/events.js";
