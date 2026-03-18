@@ -1,0 +1,24 @@
+---
+description: Solid 2 router data APIs and mutation patterns
+globs: src/data/**
+alwaysApply: false
+---
+
+# Router Data
+
+## Current Solid 2 Model
+
+- `query()` is the cached read primitive; consume it with Solid primitives like `createMemo`, `createProjection`, and optimistic helpers.
+- `action()` wraps Solid 2 actions and owns router integration like submissions, redirects, and invalidation.
+- `useSubmissions()` is settled history, not in-flight optimistic state.
+
+## Guardrails
+
+- Do not reintroduce removed compatibility APIs like `createAsync`, `createAsyncStore`, `useSubmission`, or cache aliases unless explicitly requested.
+- Prefer returned values for expected application results; thrown errors are secondary/legacy behavior.
+- Preserve owner-scoped `onSubmit(...)` and `onSettled(...)` behavior when touching action internals.
+
+## Documentation
+
+- Keep `README.md` aligned with the current API surface when changing data behavior.
+- If action/query semantics change, update both runtime tests and usage examples together.

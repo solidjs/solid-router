@@ -1,0 +1,26 @@
+---
+description: Test conventions and validation workflow for solid-router
+globs: test/**
+alwaysApply: false
+---
+
+# Testing Patterns
+
+## Test Stack
+
+- Vitest runs in `jsdom`; globals are enabled in `vitest.config.ts`.
+- `pnpm test` runs both Vitest and `tsc --project tsconfig.test.json`.
+- Use focused runs like `pnpm vitest run test/router.spec.ts` or `test/data/action.spec.ts` while iterating.
+
+## Repo Conventions
+
+- Use `createTestRoot(...)` from `test/helpers.ts` for async/reactive tests that need controlled cleanup.
+- `waitFor(...)` is the standard helper for reactive settling in tests.
+- Some router internals rely on `pureWrite: true`; preserve existing helpers when tests are warning-sensitive.
+- Keep behavior tests in the closest existing spec (`router.spec.ts`, `route.spec.ts`, `data/*.spec.ts`) rather than creating ad hoc files.
+
+## Expectations
+
+- When changing routing behavior, validate both direct state (`location`, `matches`, `isRouting`) and integration effects.
+- When changing data APIs, validate runtime behavior and type-level expectations.
+- If a bug report is being fixed, prefer adding or updating a regression test before the implementation change.

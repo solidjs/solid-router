@@ -1,0 +1,33 @@
+---
+description: Core engineering standards for solid-router
+alwaysApply: true
+---
+
+# Engineering Standards
+
+This router is infrastructure. Favor correctness, explicitness, and behavioral safety over speed.
+
+## Approach
+
+- Understand the model before changing it. Ask when navigation, location, or data semantics are unclear.
+- Never present a rename as an architectural simplification. If the mechanism is the same, say so.
+- Preserve public behavior intentionally; when changing semantics, update tests and docs together.
+- Reproduce behavioral issues in tests before iterating on fixes when practical.
+
+## When Comparing Approaches
+
+- Spell out the structural difference between approaches before coding.
+- If two approaches collapse to the same implementation, stop and report that finding.
+- Do not quietly substitute an easier design when the requested model is still unresolved.
+
+## Changesets
+
+Every commit that changes public API or source behavior under `src/` should include a changeset for `@solidjs/router`.
+
+Before committing:
+
+1. Check whether staged changes touch `src/` or materially change documented behavior.
+2. Add a `.changeset/*.md` file for `@solidjs/router`.
+3. Stage the changeset with the code change before running `git commit`.
+
+Use `patch` for fixes, `minor` for features, and `major` for breaking changes.

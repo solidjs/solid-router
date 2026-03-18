@@ -1,0 +1,28 @@
+---
+description: Core architecture and mental model for solid-router
+alwaysApply: true
+---
+
+# Architecture
+
+`@solidjs/router` is a single-package routing library for Solid. Treat it as foundational infrastructure: preserve behavior first, then improve structure.
+
+## Main Areas
+
+- `src/routing.ts`: Core router state, location, matching, navigation, `beforeLeave`, preload flow.
+- `src/routers/`: Environment adapters (`Router`, `HashRouter`, `MemoryRouter`, `StaticRouter`) plus `createRouter.ts` and component wiring.
+- `src/data/`: `query()`, `action()`, submissions, redirects/revalidation, and native event integration.
+- `src/components.tsx` / `src/lifecycle.ts`: Public components and lifecycle helpers.
+- `test/`: Behavioral specs for router, route matching, data APIs, utils, and integration behavior.
+
+## Mental Model
+
+- Browser/integration state and router state are intentionally coupled in subtle ways; do not assume a rename is a refactor.
+- `location`, `matches`, `params`, and route data flow from the router core; changes in `src/routing.ts` usually have broad consequences.
+- Data APIs are on the Solid 2 branch: prefer Solid primitives over router-specific wrappers unless the router truly owns the behavior.
+
+## Commands
+
+- `pnpm test` — full test suite plus type tests.
+- `pnpm build` — typecheck and bundle.
+- `pnpm vitest run test/router.spec.ts` — focused router validation when touching navigation internals.

@@ -1,0 +1,24 @@
+---
+description: Routing core invariants and navigation semantics
+globs: src/{routing.ts,lifecycle.ts,components.tsx,types.ts,routers/**}
+alwaysApply: false
+---
+
+# Router Core
+
+## Treat `src/routing.ts` as high-risk
+
+- Changes to `location`, `matches`, `params`, `navigate`, `beforeLeave`, or integration flow usually affect the whole library.
+- Do not change public location semantics casually; validate whether a change is a real model shift or only a rename.
+- Preserve the distinction between browser-initiated and library-initiated navigation unless you are intentionally redesigning it.
+
+## Navigation Work
+
+- Check `beforeLeave`, retry behavior, redirects, query-only navigations, and integration synchronization together.
+- Be explicit about `flush()` usage. If it remains, justify why the synchronous visibility is required.
+- When refactoring router internals, call out whether the result is truly simpler or only repackaged.
+
+## Validation
+
+- Prefer `test/router.spec.ts` for router-core behavior changes.
+- If changing integration behavior, check `test/integration.spec.ts` too.
