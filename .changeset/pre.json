@@ -1,0 +1,8 @@
+{
+  "mode": "pre",
+  "tag": "next",
+  "initialVersions": {
+    "@solidjs/router": "0.16.1"
+  },
+  "changesets": []
+}
