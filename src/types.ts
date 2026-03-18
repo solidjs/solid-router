@@ -13,6 +13,7 @@ declare module "@solidjs/web" {
       submission?: {
         input: any;
         result: any;
+        error?: any;
         url: string;
       };
       dataOnly?: boolean | string[];
@@ -207,18 +208,7 @@ export type Submission<T, U> = {
   readonly input: T;
   readonly result?: U;
   readonly error: any;
-  readonly pending: boolean;
   readonly url: string;
-  clear: () => void;
-  retry: () => void;
-};
-
-export type SubmissionStub = {
-  readonly input: undefined;
-  readonly result: undefined;
-  readonly error: undefined;
-  readonly pending: undefined;
-  readonly url: undefined;
   clear: () => void;
   retry: () => void;
 };

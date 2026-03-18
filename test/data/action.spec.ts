@@ -3,20 +3,23 @@ import { vi } from "vitest";
 import {
   action,
   useAction,
-  useSubmission,
   useSubmissions,
   actions
 } from "../../src/data/action.js";
 import type { RouterContext } from "../../src/types.js";
 import { createMockRouter } from "../helpers.js";
 
-vi.mock("../../src/utils.js", async importOriginal => {
-  const actual = await importOriginal<typeof import("../../src/utils.js")>();
-  return {
-    ...actual,
-    mockBase: "https://action"
-  };
-});
+vi.mock("../../src/utils.js", () => ({
+  mockBase: "https://action",
+  setFunctionName<T>(obj: T, value: string) {
+    Object.defineProperty(obj, "name", {
+      value,
+      writable: false,
+      configurable: false
+    });
+    return obj;
+  }
+}));
 
 let mockRouterContext: RouterContext;
 
@@ -105,17 +108,22 @@ describe("action", () => {
       const boundAction = useAction(testAction);
       const promise = boundAction("test-data");
 
-      const submissions = mockRouterContext.submissions[0]();
-      expect(submissions).toHaveLength(1);
-      expect(submissions[0].input).toEqual(["test-data"]);
-      expect(submissions[0].pending).toBe(true);
+      expect(mockRouterContext.submissions[0]()).toHaveLength(0);
 
       const result = await promise;
       expect(result).toBe("processed: test-data");
+      expect(mockRouterContext.submissions[0]()).toEqual([
+        expect.objectContaining({
+          input: ["test-data"],
+          result: "processed: test-data",
+          error: undefined,
+          url: testAction.url
+        })
+      ]);
     });
   });
 
-  test("should handle action errors", async () => {
+  test("should still record thrown action errors for legacy usage", async () => {
     return createRoot(async () => {
       const errorAction = action(async () => {
         throw new Error("Test error");
@@ -134,25 +142,159 @@ describe("action", () => {
     });
   });
 
-  test("should support `onComplete` callback", async () => {
+  test("should support `onSettled` callback", async () => {
     return createRoot(async () => {
-      const onComplete = vi.fn();
+      const onSettled = vi.fn();
       const testAction = action(async (data: string) => `result: ${data}`, {
-        name: "callback-test",
-        onComplete
-      });
+        name: "callback-test"
+      }).onSettled(onSettled);
 
       const boundAction = useAction(testAction);
       await boundAction("test");
 
-      expect(onComplete).toHaveBeenCalledWith(
+      expect(onSettled).toHaveBeenCalledWith(
         expect.objectContaining({
           result: "result: test",
-          error: undefined,
-          pending: false
+          error: undefined
         })
       );
     });
+  });
+
+  test("should run onSubmit hook before mutation settles", async () => {
+    return createRoot(async () => {
+      const order: string[] = [];
+      let current = "initial";
+      const testAction = action(async (next: string) => {
+          order.push("mutation");
+          expect(current).toBe(next);
+          return next;
+        }, "on-submit-test").onSubmit(next => {
+          order.push("onSubmit");
+          current = next;
+        });
+
+      const boundAction = useAction(testAction);
+      const result = await boundAction("updated");
+
+      expect(result).toBe("updated");
+      expect(order).toEqual(["onSubmit", "mutation"]);
+    });
+  });
+
+  test("should preserve onSubmit hook for curried actions", async () => {
+    return createRoot(async () => {
+      const onSubmit = vi.fn();
+      const baseAction = action(async (prefix: string, value: string) => `${prefix}:${value}`, "curried-on-submit")
+        .onSubmit(onSubmit);
+
+      await useAction(baseAction.with("pre"))("value");
+
+      expect(onSubmit).toHaveBeenCalledWith("pre", "value");
+    });
+  });
+
+  test("should support onSubmit writing to an optimistic primitive", async () => {
+    return createRoot(async () => {
+      const solid = (await import("solid-js")) as any;
+      const [value, setValue] = solid.createOptimistic("initial");
+      const testAction = action(async (next: string) => {
+          expect(value()).toBe(next);
+          return next;
+        }, "optimistic-primitive-test").onSubmit((next: string) => setValue(next));
+
+      const result = await useAction(testAction)("updated");
+
+      expect(result).toBe("updated");
+    });
+  });
+
+  test("should notify all live onSubmit registrations for an action", async () => {
+    const calls: string[] = [];
+    const testAction = action(async (value: string) => value, "shared-on-submit");
+
+    createRoot(dispose => {
+      testAction.onSubmit(value => calls.push(`one:${value}`));
+      return dispose;
+    });
+
+    createRoot(dispose => {
+      testAction.onSubmit(value => calls.push(`two:${value}`));
+      return dispose;
+    });
+
+    await testAction.call({ r: createMockRouter() }, "value");
+
+    expect(calls).toEqual(["one:value", "two:value"]);
+  });
+
+  test("should clean up onSubmit registrations with owner disposal", async () => {
+    const calls: string[] = [];
+    const testAction = action(async (value: string) => value, "cleanup-on-submit");
+    let disposeFirst!: () => void;
+    let disposeSecond!: () => void;
+
+    createRoot(dispose => {
+      disposeFirst = dispose;
+      testAction.onSubmit(value => calls.push(`one:${value}`));
+    });
+
+    createRoot(dispose => {
+      disposeSecond = dispose;
+      testAction.onSubmit(value => calls.push(`two:${value}`));
+    });
+
+    await testAction.call({ r: createMockRouter() }, "first");
+    disposeFirst();
+    await testAction.call({ r: createMockRouter() }, "second");
+    disposeSecond();
+    await testAction.call({ r: createMockRouter() }, "third");
+
+    expect(calls).toEqual(["one:first", "two:first", "two:second"]);
+  });
+
+  test("should notify all live onSettled registrations for an action", async () => {
+    const calls: string[] = [];
+    const testAction = action(async (value: string) => value, "shared-on-settled");
+
+    createRoot(dispose => {
+      testAction.onSettled(submission => calls.push(`one:${submission.result}`));
+      return dispose;
+    });
+
+    createRoot(dispose => {
+      testAction.onSettled(submission => calls.push(`two:${submission.result}`));
+      return dispose;
+    });
+
+    await testAction.call({ r: createMockRouter() }, "value");
+
+    expect(calls).toEqual(["one:value", "two:value"]);
+  });
+
+  test("should clean up onSettled registrations with owner disposal", async () => {
+    const calls: string[] = [];
+    const testAction = action(async (value: string) => value, "cleanup-on-settled");
+    let disposeFirst!: () => void;
+    let disposeSecond!: () => void;
+
+    createRoot(dispose => {
+      disposeFirst = dispose;
+      testAction.onSettled(submission => calls.push(`one:${submission.result}`));
+    });
+
+    createRoot(dispose => {
+      disposeSecond = dispose;
+      testAction.onSettled(submission => calls.push(`two:${submission.result}`));
+    });
+
+    await testAction.call({ r: createMockRouter() }, "first");
+    disposeFirst();
+    await testAction.call({ r: createMockRouter() }, "second");
+    disposeSecond();
+    await testAction.call({ r: createMockRouter() }, "third");
+
+    expect(calls).toEqual(["one:first", "two:first", "two:second"]);
   });
 });
 
@@ -172,16 +314,14 @@ describe("useSubmissions", () => {
           url: testAction.url,
           result: "result1",
           error: undefined,
-          pending: false,
           clear: vi.fn(),
           retry: vi.fn()
         },
         {
           input: ["data2"],
           url: testAction.url,
-          result: undefined,
+          result: "result2",
           error: undefined,
-          pending: true,
           clear: vi.fn(),
           retry: vi.fn()
         }
@@ -192,7 +332,6 @@ describe("useSubmissions", () => {
       expect(submissions).toHaveLength(2);
       expect(submissions[0].input).toEqual(["data1"]);
       expect(submissions[1].input).toEqual(["data2"]);
-      expect(submissions.pending).toBe(true);
     });
   });
 
@@ -207,7 +346,6 @@ describe("useSubmissions", () => {
           url: testAction.url,
           result: "result1",
           error: undefined,
-          pending: false,
           clear: vi.fn(),
           retry: vi.fn()
         },
@@ -216,7 +354,6 @@ describe("useSubmissions", () => {
           url: testAction.url,
           result: "result2",
           error: undefined,
-          pending: false,
           clear: vi.fn(),
           retry: vi.fn()
         }
@@ -229,35 +366,16 @@ describe("useSubmissions", () => {
     });
   });
 
-  test("should return pending false when no pending submissions", () => {
+  test("should return an empty array when no submissions match", () => {
     return createRoot(() => {
       const testAction = action(async () => "result", "no-pending-test");
 
-      mockRouterContext.submissions[1](submissions => [
-        ...submissions,
-        {
-          input: ["data"],
-          url: testAction.url,
-          result: "result",
-          error: undefined,
-          pending: false,
-          clear: vi.fn(),
-          retry: vi.fn()
-        }
-      ]);
-
-      const submissions = useSubmissions(testAction);
-      expect(submissions.pending).toBe(false);
+      const submissions = useSubmissions(testAction, () => false);
+      expect(submissions).toHaveLength(0);
     });
   });
-});
 
-describe("useSubmission", () => {
-  beforeEach(() => {
-    mockRouterContext = createMockRouter();
-  });
-
-  test("should return latest submission for action", () => {
+  test("should allow reading the latest submission with at(-1)", () => {
     return createRoot(() => {
       const testAction = action(async () => "result", "latest-test");
 
@@ -268,7 +386,6 @@ describe("useSubmission", () => {
           url: testAction.url,
           result: "result1",
           error: undefined,
-          pending: false,
           clear: vi.fn(),
           retry: vi.fn()
         },
@@ -277,32 +394,28 @@ describe("useSubmission", () => {
           url: testAction.url,
           result: "result2",
           error: undefined,
-          pending: false,
           clear: vi.fn(),
           retry: vi.fn()
         }
       ]);
 
-      const submission = useSubmission(testAction);
+      const submission = useSubmissions(testAction).at(-1);
 
-      expect(submission.input).toEqual(["data2"]);
-      expect(submission.result).toBe("result2");
+      expect(submission?.input).toEqual(["data2"]);
+      expect(submission?.result).toBe("result2");
     });
   });
 
-  test("should return stub when no submissions exist", () => {
+  test("should return undefined from at(-1) when no submissions exist", () => {
     return createRoot(() => {
-      const testAction = action(async () => "result", "stub-test");
-      const submission = useSubmission(testAction);
+      const testAction = action(async () => "result", "empty-latest-test");
+      const submission = useSubmissions(testAction).at(-1);
 
-      expect(submission.clear).toBeDefined();
-      expect(submission.retry).toBeDefined();
-      expect(typeof submission.clear).toBe("function");
-      expect(typeof submission.retry).toBe("function");
+      expect(submission).toBeUndefined();
     });
   });
 
-  test("should filter submissions when filter function provided", () => {
+  test("should allow filtering before reading the latest submission", () => {
     return createRoot(() => {
       const testAction = action(async (data: string) => data, "filter-submission-test");
 
@@ -313,7 +426,6 @@ describe("useSubmission", () => {
           url: testAction.url,
           result: "result1",
           error: undefined,
-          pending: false,
           clear: vi.fn(),
           retry: vi.fn()
         },
@@ -322,16 +434,15 @@ describe("useSubmission", () => {
           url: testAction.url,
           result: "result2",
           error: undefined,
-          pending: false,
           clear: vi.fn(),
           retry: vi.fn()
         }
       ]);
 
-      const submission = useSubmission(testAction, input => input[0] === "keep");
+      const submission = useSubmissions(testAction, input => input[0] === "keep").at(-1);
 
-      expect(submission.input).toEqual(["keep"]);
-      expect(submission.result).toBe("result2");
+      expect(submission?.input).toEqual(["keep"]);
+      expect(submission?.result).toBe("result2");
     });
   });
 });

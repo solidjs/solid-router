@@ -25,7 +25,7 @@ export function waitFor(fn: () => boolean) {
   });
 }
 
-export function createAsyncRoot(fn: (resolve: () => void, disposer: () => void) => void) {
+export function createTestRoot(fn: (resolve: () => void, disposer: () => void) => void) {
   return new Promise<void>(resolve => {
     createRoot(disposer => fn(resolve, disposer));
   });

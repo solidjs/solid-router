@@ -1,10 +1,9 @@
-import { $TRACK, createMemo, createSignal, flush, JSX, onCleanup, getOwner } from "solid-js";
+import { $TRACK, action as createSolidAction, createMemo, JSX, onCleanup, getOwner } from "solid-js";
 import { isServer } from "@solidjs/web";
 import { useRouter } from "../routing.js";
 import type {
   RouterContext,
   Submission,
-  SubmissionStub,
   Navigator,
   NarrowResponse
 } from "../types.js";
@@ -20,22 +19,57 @@ export type Action<T extends Array<any>, U, V = T> = (T extends [FormData | URLS
       this: (this: any, ...args: [...A, ...B]) => Promise<NarrowResponse<U>>,
       ...args: A
     ): Action<B, U, V>;
+    onSubmit(hook: (...args: V extends Array<any> ? V : T) => void): Action<T, U, V>;
+    onSettled(hook: (submission: Submission<V extends Array<any> ? V : T, NarrowResponse<U>>) => void): Action<
+      T,
+      U,
+      V
+    >;
   };
+
+type ActionFactory = {
+  <T extends Array<any>, U = void>(fn: (...args: T) => Promise<U>, name?: string): Action<T, U>;
+  <T extends Array<any>, U = void>(fn: (...args: T) => Promise<U>, options?: { name?: string }): Action<T, U>;
+};
+
+type InternalAction<T extends Array<any>, U, V = T> = {
+  (this: { r: RouterContext; f?: HTMLFormElement }, ...args: T): Promise<NarrowResponse<U>>;
+  url: string;
+  with<A extends any[], B extends any[]>(
+    this: InternalAction<[...A, ...B], U, V>,
+    ...args: A
+  ): InternalAction<B, U, V>;
+  onSubmit(hook: (...args: V extends Array<any> ? V : T) => void): InternalAction<T, U, V>;
+  onSettled(
+    hook: (submission: Submission<V extends Array<any> ? V : T, NarrowResponse<U>>) => void
+  ): InternalAction<T, U, V>;
+  base: string;
+  [submitHooksSymbol]: Map<symbol, (...args: any[]) => void>;
+  [settledHooksSymbol]: Map<symbol, (submission: Submission<any, any>) => void>;
+  [invokeSymbol]: (
+    this: { r: RouterContext; f?: HTMLFormElement },
+    args: any[],
+    current: InternalAction<any, any, any>
+  ) => Promise<any>;
+};
+
+const submitHooksSymbol = Symbol("routerActionSubmitHooks");
+const settledHooksSymbol = Symbol("routerActionSettledHooks");
+const invokeSymbol = Symbol("routerActionInvoke");
 
 export const actions = /* #__PURE__ */ new Map<string, Action<any, any>>();
 
 export function useSubmissions<T extends Array<any>, U, V>(
   fn: Action<T, U, V>,
   filter?: (input: V) => boolean
-): Submission<T, NarrowResponse<U>>[] & { pending: boolean } {
+): Submission<V, NarrowResponse<U>>[] {
   const router = useRouter();
   const subs = createMemo(() =>
     router.submissions[0]().filter(s => s.url === (fn as any).base && (!filter || filter(s.input)))
   );
-  return new Proxy<Submission<any, any>[] & { pending: boolean }>([] as any, {
+  return new Proxy<Submission<any, any>[]>([] as any, {
     get(_, property) {
       if (property === $TRACK) return subs();
-      if (property === "pending") return subs().some(sub => !sub.result);
       return subs()[property as any];
     },
     has(_, property) {
@@ -44,140 +78,161 @@ export function useSubmissions<T extends Array<any>, U, V>(
   });
 }
 
-export function useSubmission<T extends Array<any>, U, V>(
-  fn: Action<T, U, V>,
-  filter?: (input: V) => boolean
-): Submission<T, NarrowResponse<U>> | SubmissionStub {
-  const submissions = useSubmissions(fn, filter);
-  return new Proxy(
-    {},
-    {
-      get(_, property) {
-        if ((submissions.length === 0 && property === "clear") || property === "retry")
-          return () => {};
-        return submissions[submissions.length - 1]?.[property as keyof Submission<T, U>];
-      }
-    }
-  ) as Submission<T, NarrowResponse<U>>;
-}
-
 export function useAction<T extends Array<any>, U, V>(action: Action<T, U, V>) {
   const r = useRouter();
   return (...args: Parameters<Action<T, U, V>>) => action.apply({ r }, args);
 }
 
-export function action<T extends Array<any>, U = void>(
+function actionImpl<T extends Array<any>, U = void>(
   fn: (...args: T) => Promise<U>,
-  name?: string
-): Action<T, U>;
-export function action<T extends Array<any>, U = void>(
-  fn: (...args: T) => Promise<U>,
-  options?: { name?: string; onComplete?: (s: Submission<T, U>) => void }
-): Action<T, U>;
-export function action<T extends Array<any>, U = void>(
-  fn: (...args: T) => Promise<U>,
-  options: string | { name?: string; onComplete?: (s: Submission<T, U>) => void } = {}
+  options: string | { name?: string } = {}
 ): Action<T, U> {
-  function mutate(this: { r: RouterContext; f?: HTMLFormElement }, ...variables: T) {
+  async function invoke(
+    this: { r: RouterContext; f?: HTMLFormElement },
+    variables: T,
+    current: InternalAction<T, U>
+  ): Promise<NarrowResponse<U>> {
     const router = this.r;
     const form = this.f;
-    const p = (
-      router.singleFlight && (fn as any).withOptions
+    const submitHooks = current[submitHooksSymbol];
+    const settledHooks = current[settledHooksSymbol];
+    const runMutation = () =>
+      (router.singleFlight && (fn as any).withOptions
         ? (fn as any).withOptions({ headers: { "X-Single-Flight": "true" } })
-        : fn
-    )(...variables);
-    const [result, setResult] = createSignal<{ data?: U; error?: any } | undefined>(
-      undefined,
-      {
-        pureWrite: true
+        : fn)(...variables);
+    const run = createSolidAction(
+      async function* (context: { call: () => Promise<U>; optimistic?: () => void }) {
+        context.optimistic?.();
+        try {
+          const value = await context.call();
+          yield;
+          return { error: false, value };
+        } catch (error) {
+          yield;
+          return { error: true, value: error };
+        }
       }
     );
-    let submission: Submission<T, U>;
-    function handler(error?: boolean) {
-      return async (res: any) => {
-        const result = await handleResponse(res, error, router.navigatorFactory());
-        let retry = null;
-        o.onComplete?.({
-          ...submission,
-          result: result?.data,
-          error: result?.error,
-          pending: false,
-          retry() {
-            return (retry = submission.retry());
-          }
-        });
-        if (retry) return retry;
-        if (!result) return submission.clear();
-        setResult(result);
-        if (result.error && !form) throw result.error;
-        return result.data;
-      };
-    }
-    router.submissions[1](s => [
-      ...s,
-      (submission = {
-        input: variables,
-        url,
-        get result() {
-          return result()?.data;
-        },
-        get error() {
-          return result()?.error;
-        },
-        get pending() {
-          return !result();
-        },
-        clear() {
-          router.submissions[1](v => v.filter(i => i !== submission));
-        },
-        retry() {
-          setResult(undefined);
-          const p = fn(...variables);
-          return p.then(handler(), handler(true));
-        }
+
+    const settled = await settleActionResult(
+      run({
+        call: runMutation,
+        optimistic: submitHooks.size
+          ? () => {
+              for (const hook of submitHooks.values()) hook(...variables);
+            }
+          : undefined
       })
-    ]);
-    flush();
-    return p.then(handler(), handler(true));
+    );
+    const response = await handleResponse(settled.value, settled.error, router.navigatorFactory());
+
+    if (!response) return undefined as NarrowResponse<U>;
+
+    let submission!: Submission<T, NarrowResponse<U>>;
+    submission = {
+      input: variables,
+      url,
+      result: response.data,
+      error: response.error,
+      clear() {
+        router.submissions[1](entries => entries.filter(entry => entry !== submission));
+      },
+      retry() {
+        submission.clear();
+        return current[invokeSymbol].call({ r: router, f: form }, variables, current);
+      }
+    };
+    router.submissions[1](entries => [...entries, submission]);
+    for (const hook of settledHooks.values()) hook(submission);
+
+    if (response.error && !form) throw response.error;
+    return response.data as NarrowResponse<U>;
   }
   const o = typeof options === "string" ? { name: options } : options;
   const name = o.name || (!isServer ? String(hashString(fn.toString())) : undefined);
   const url: string = (fn as any).url || (name && `https://action/${name}`) || "";
-  mutate.base = url;
-  if (name) setFunctionName(mutate, name);
-  return toAction(mutate, url);
+  const wrapped = toAction<T, U, T>(invoke as InternalAction<T, U, T>[typeof invokeSymbol], url) as Action<T, U>;
+  if (name) setFunctionName(wrapped, name);
+  return wrapped;
 }
+export const action = actionImpl as ActionFactory;
 
-function toAction<T extends Array<any>, U, V = T>(fn: Function, url: string): Action<T, U, V> {
+function toAction<T extends Array<any>, U, V = T>(
+  invoke: InternalAction<T, U, V>[typeof invokeSymbol],
+  url: string,
+  boundArgs: unknown[] = [],
+  base = url,
+  submitHooks = new Map<symbol, (...args: any[]) => void>(),
+  settledHooks = new Map<symbol, (submission: Submission<any, any>) => void>()
+): Action<T, U, V> {
+  const fn = function (this: { r: RouterContext; f?: HTMLFormElement }, ...args: T) {
+    return invoke.call(this, [...boundArgs, ...args], fn);
+  } as InternalAction<T, U, V>;
+
   fn.toString = () => {
     if (!url) throw new Error("Client Actions need explicit names if server rendered");
     return url;
   };
-  (fn as any).with = function <A extends any[], B extends any[]>(
-    this: (...args: [...A, ...B]) => Promise<U>,
+  fn.with = function <A extends any[], B extends any[]>(
+    this: InternalAction<[...A, ...B], U, V>,
     ...args: A
   ) {
-    const newFn = function (this: RouterContext, ...passedArgs: B): U {
-      return fn.call(this, ...args, ...passedArgs);
-    };
-    newFn.base = (fn as any).base;
     const uri = new URL(url, mockBase);
     uri.searchParams.set("args", hashKey(args));
-    return toAction<B, U, V>(
-      newFn as any,
-      (uri.origin === "https://action" ? uri.origin : "") + uri.pathname + uri.search
-    );
+    const next = toAction<B, U, V>(
+      invoke,
+      (uri.origin === "https://action" ? uri.origin : "") + uri.pathname + uri.search,
+      [...boundArgs, ...args],
+      base,
+      submitHooks,
+      settledHooks
+    ) as unknown as InternalAction<B, U, V>;
+    return next;
   };
-  (fn as any).url = url;
+  fn.onSubmit = function (hook: (...args: V extends Array<any> ? V : T) => void) {
+    const id = Symbol("actionOnSubmitHook");
+    submitHooks.set(id, hook as (...args: any[]) => void);
+    getOwner() && onCleanup(() => submitHooks.delete(id));
+    return this;
+  };
+  fn.onSettled = function (
+    hook: (submission: Submission<V extends Array<any> ? V : T, NarrowResponse<U>>) => void
+  ) {
+    const id = Symbol("actionOnSettledHook");
+    settledHooks.set(id, hook as (submission: Submission<any, any>) => void);
+    getOwner() && onCleanup(() => settledHooks.delete(id));
+    return this;
+  };
+  fn.url = url;
+  fn.base = base;
+  fn[submitHooksSymbol] = submitHooks;
+  fn[settledHooksSymbol] = settledHooks;
+  fn[invokeSymbol] = invoke;
   if (!isServer) {
-    actions.set(url, fn as Action<T, U, V>);
+    actions.set(url, fn as unknown as Action<T, U, V>);
     getOwner() && onCleanup(() => actions.delete(url));
   }
-  return fn as Action<T, U, V>;
+  return fn as unknown as Action<T, U, V>;
 }
 
 const hashString = (s: string) =>
   s.split("").reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0);
+
+async function settleActionResult<T>(result: T | Promise<T> | AsyncIterable<T>) {
+  const value = result as any;
+  if (value && typeof value.then === "function") {
+    return (result as Promise<T>).then(value => value);
+  }
+  if (value && typeof value.next === "function") {
+    const iterator = value as AsyncIterator<T>;
+    let next = await iterator.next();
+    while (!next.done) {
+      next = await iterator.next();
+    }
+    return next.value;
+  }
+  return result as T;
+}
 
 async function handleResponse(response: unknown, error: boolean | undefined, navigate: Navigator) {
   let data: any;

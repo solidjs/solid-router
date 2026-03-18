@@ -536,7 +536,7 @@ const todos = createProjection(() => getTodos(), []);
 
 ### `action`
 
-Actions are data mutations that can trigger invalidations and further routing. A list of prebuilt response helpers can be found below.
+Router `action()` is the router-aware mutation wrapper for Solid 2. It keeps form submission, redirects, and invalidation wired into the router while letting you compose optimistic UI with Solid's built-in primitives.
 
 ```jsx
 import { action, revalidate, redirect } from "@solidjs/router"
@@ -555,6 +555,29 @@ const myAction = action(async (data) => {
 ```
 
 Actions only work with post requests, so make sure to put `method="post"` on your form.
+
+For optimistic updates, use Solid's optimistic primitives for the rendered state and attach owner-scoped submit hooks to the router action:
+
+```jsx
+import { createOptimisticStore } from "solid-js";
+import { action, query } from "@solidjs/router";
+
+const getTodos = query(async () => fetchTodos(), "todos");
+const [todos, setTodos] = createOptimisticStore(() => getTodos(), []);
+
+const addTodo = action(async (todo) => {
+    await saveTodo(todo);
+    return { ok: true, todo };
+  }, "add-todo").onSubmit(todo => {
+    setTodos(items => {
+      items.push({ ...todo, pending: true });
+    });
+  });
+```
+
+`myAction.onSubmit(...)` registers a listener for that action in the current reactive owner. Multiple components can register hooks against the same action, and those hooks are automatically removed when their owner is disposed. `myAction.onSettled(...)` works the same way for observing completed submissions.
+
+The preferred pattern is for actions to return values and let the client interpret the result. Throwing errors is still supported, but `Submission.error` is mainly an escape hatch for that legacy style.
 
 Sometimes it might be easier to deal with typed data instead of `FormData` and adding additional hidden fields. For that reason Actions have a with method. That works similar to `bind` which applies the arguments in order.
 
@@ -582,7 +605,7 @@ const deleteTodo = action(api.deleteTodo)
 </form>
 ```
 
-Actions also take a second argument which can be the name or an option object with `name` and `onComplete`. `name` is used to identify SSR actions that aren't server functions (see note below). `onComplete` allows you to configure behavior when `action`s complete. Keep in mind `onComplete` does not work when JavaScript is disabled.
+Actions also take a second argument which can be the name or an option object with `name`. `name` is used to identify SSR actions that aren't server functions (see note below).
 
 #### Notes on `<form>` implementation and SSR
 
@@ -604,23 +627,25 @@ submit(...args);
 
 The outside of a form context you can use custom data instead of formData, and these helpers preserve types. However, even when used with server functions (in projects like SolidStart) this requires client side javascript and is not Progressive Enhanceable like forms are.
 
-### `useSubmission`/`useSubmissions`
+### `useSubmissions`
 
-Are used to injecting the optimistic updates while actions are in flight. They either return a single Submission(latest) or all that match with an optional filter function.
+This returns settled submission records for an action. It is useful for reading completed results, clearing old submissions, retrying a prior submission, or replaying settled errors. It is not the optimistic state layer.
 
 ```jsx
 type Submission<T, U> = {
   readonly input: T;
   readonly result?: U;
-  readonly pending: boolean;
+  readonly error: any;
   readonly url: string;
   clear: () => void;
   retry: () => void;
 };
 
 const submissions = useSubmissions(action, (input) => filter(input));
-const submission = useSubmission(action, (input) => filter(input));
+const latestSubmission = submissions.at(-1);
 ```
+
+Use Solid's `createOptimistic` or `createOptimisticStore` for in-flight UI, and use submissions as the durable settled record layer.
 
 ### Response Helpers
 
@@ -874,13 +899,13 @@ return (
 
 ### useIsRouting
 
-Retrieves signal that indicates whether the route is currently in a Transition. Useful for showing stale/pending state when the route resolution is Suspended during concurrent rendering.
+Retrieves a signal that indicates whether the router is currently processing a navigation. Useful for showing pending navigation state while the next route and its data settle.
 
 ```js
 const isRouting = useIsRouting();
 
 return (
-  <div classList={{ "grey-out": isRouting() }}>
+  <div class={{ "grey-out": isRouting() }}>
     <MyAwesomeContent />
   </div>
 );
@@ -893,7 +918,7 @@ return (
 ```js
 const match = useMatch(() => props.href);
 
-return <div classList={{ active: Boolean(match()) }} />;
+return <div class={{ active: Boolean(match()) }} />;
 ```
 
 ### useCurrentMatches
@@ -948,60 +973,51 @@ useBeforeLeave((e: BeforeLeaveEventArgs) => {
 });
 ```
 
-## Migrations from 0.9.x
+## Migration from 0.16.x
 
-v0.10.0 brings some big changes to support the future of routing including Islands/Partial Hydration hybrid solutions. Most notably there is no Context API available in non-hydrating parts of the application.
+This branch is the Solid 2 migration. Most route configuration stays the same, but the data APIs and recommended async patterns have changed.
 
-The biggest changes are around removed APIs that need to be replaced.
+### Async reads move to Solid 2 primitives
 
-### `<Outlet>`, `<Routes>`, `useRoutes`
+`createAsync` and `createAsyncStore` are gone. Read query results with Solid 2 primitives like `createMemo`, `createProjection`, `createOptimistic`, and `createOptimisticStore`.
 
-This is no longer used and instead will use `props.children` passed from into the page components for outlets. This keeps the outlet directly passed from its page and avoids oddness of trying to use context across Islands boundaries. Nested `<Routes>` components inherently cause waterfalls and are `<Outlets>` themselves so they have the same concerns.
-
-Keep in mind no `<Routes>` means the `<Router>` API is different. The `<Router>` acts as the `<Routes>` component and its children can only be `<Route>` components. Your top-level layout should go in the root prop of the router [as shown above](#configure-your-routes)
-
-## `element` prop removed from `Route`
-
-Related without Outlet component it has to be passed in manually. At which point the `element` prop has less value. Removing the second way to define route components to reduce confusion and edge cases.
-
-### `data` functions & `useRouteData`
-
-These have been replaced by a preload mechanism. This allows link hover preloads (as the preload function can be run as much as wanted without worry about reactivity). It support deduping/query APIs which give more control over how things are cached. It also addresses TS issues with getting the right types in the Component without `typeof` checks.
-
-That being said you can reproduce the old pattern largely by turning off preloads at the router level and then injecting your own Context:
-
-```js
-import { lazy } from "solid-js";
-import { Route } from "@solidjs/router";
-
-const User = lazy(() => import("./pages/users/[id].js"));
-
-// preload function
-function preloadUser({ params, location }) {
-  const [user] = createResource(() => params.id, fetchUser);
-  return user;
-}
-
-// Pass it in the route definition
-<Router preload={false}>
-  <Route path="/users/:id" component={User} preload={preloadUser} />
-</Router>;
+```jsx
+const user = createMemo(() => getUser(params.id));
+const [todos, setTodos] = createOptimisticStore(() => getTodos(), []);
 ```
 
-And then in your component taking the page props and putting them in a Context.
+### `query()` stays the source of truth
 
-```js
-function User(props) {
-  <UserContext value={props.data}>
-    {/* my component content  */}
-  </UserContext>;
-}
+Continue using `query()` for cached reads and invalidation, but consume the results directly through Solid 2's async primitives instead of router-specific wrappers.
 
-// Somewhere else
-function UserDetails() {
-  const user = useContext(UserContext);
-  // render stuff
-}
+### `action()` lifecycle hooks changed
+
+The action API is now centered around instance methods:
+
+```jsx
+const saveTodo = action(async (todo) => {
+  await api.saveTodo(todo);
+  return { ok: true, todo };
+}, "save-todo")
+  .onSubmit(todo => {
+    // optimistic write
+  })
+  .onSettled(submission => {
+    // observe settled result or retry state
+  });
+```
+
+- Use `onSubmit(...)` for owner-scoped optimistic/pre-submit work.
+- Use `onSettled(...)` for owner-scoped observation of completed submissions.
+- Use returned values for expected application-level results. Thrown errors are still captured on `Submission.error` when something fails unexpectedly.
+
+### `useSubmissions()` is the submission API
+
+Submissions are now settled history, not in-flight mutation state. Read them through `useSubmissions()` and select the latest entry with `at(-1)` when needed.
+
+```jsx
+const submissions = useSubmissions(saveTodo);
+const latestSubmission = submissions.at(-1);
 ```
 
 ## SPAs in Deployed Environments

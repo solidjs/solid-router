@@ -115,8 +115,8 @@ export const useNavigate = () => useRouter().navigatorFactory();
 export const useLocation = <S = unknown>() => useRouter().location as Location<S>;
 
 /**
- * Retrieves signal that indicates whether the route is currently in a *Transition*.
- * Useful for showing stale/pending state when the route resolution is *Suspended* during concurrent rendering.
+ * Retrieves a signal that indicates whether the router is currently processing a navigation.
+ * Useful for showing pending navigation state while the next route and its data settle.
  * 
  * @example
  * ```js
@@ -599,7 +599,6 @@ export function createRouterContext(
 
           if (lastTransitionTarget === newTarget) {
             setNavigateTarget({ ...lastTransitionTarget });
-            if (!isServer) submissions[1](subs => subs.filter(s => s.pending));
 
             queueMicrotask(() => {
               if (lastTransitionTarget !== newTarget) return;
@@ -669,9 +668,14 @@ export function createRouterContext(
 
   function initFromFlash() {
     const e = getRequestEvent();
-    return (e && e.router && e.router.submission ? [e.router.submission] : []) as Array<
-      Submission<any, any>
-    >;
+    if (!(e && e.router && e.router.submission)) return [];
+    return [
+      {
+        ...e.router.submission,
+        clear() {},
+        retry() {}
+      }
+    ] as Array<Submission<any, any>>;
   }
 }
 

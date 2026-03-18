@@ -8,7 +8,7 @@ export default defineConfig({
   },
   ssr: {
     resolve: {
-      conditions: ["module", "node", "development|production"]
+      conditions: ["module", "browser", "development|production"]
     }
   },
   server: {

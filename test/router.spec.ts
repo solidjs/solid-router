@@ -1,7 +1,7 @@
 import { createEffect, createRoot, createSignal as createSignalBase } from "solid-js";
 import { createRouterContext } from "../src/routing.js";
 import type { LocationChange } from "../src/types.js";
-import { createAsyncRoot, createCounter, waitFor } from "./helpers.js";
+import { createTestRoot, createCounter, waitFor } from "./helpers.js";
 
 const fakeBranches = () => [];
 const fakeContext = () => ({});
@@ -52,7 +52,7 @@ describe("Router should", () => {
 
     describe(`contain property 'pathname' which should`, () => {
       test(`be reactive to the path part of the integration signal`, () =>
-        createAsyncRoot(resolve => {
+        createTestRoot(resolve => {
           const expected = "/fizz/buzz";
           const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
@@ -91,7 +91,7 @@ describe("Router should", () => {
 
     describe(`contain property 'search' which should`, () => {
       test(`be reactive to the search part of the integration signal`, () =>
-        createAsyncRoot(resolve => {
+        createTestRoot(resolve => {
           const expected = "?fizz=buzz";
           const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
@@ -155,7 +155,7 @@ describe("Router should", () => {
       });
 
       test(`be reactive to location.search`, () =>
-        createAsyncRoot(resolve => {
+        createTestRoot(resolve => {
           const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
@@ -171,7 +171,7 @@ describe("Router should", () => {
         }));
 
       test(`have fine-grain reactivity`, () =>
-        createAsyncRoot(resolve => {
+        createTestRoot(resolve => {
           const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
@@ -191,7 +191,7 @@ describe("Router should", () => {
         }));
 
       test(`have properties which are reactive`, () =>
-        createAsyncRoot(resolve => {
+        createTestRoot(resolve => {
           const signal = createSignal<LocationChange>({
             value: "/foo/bar?hello=world"
           });
@@ -213,7 +213,7 @@ describe("Router should", () => {
 
   describe("have member `navigate` which should", () => {
     test(`update the location in the next microtask`, () => {
-      createAsyncRoot(resolve => {
+      createTestRoot(resolve => {
         const signal = createSignal<LocationChange>({
           value: "/"
         });
@@ -230,7 +230,7 @@ describe("Router should", () => {
     });
 
     test(`do nothing if the new path is the same`, () =>
-      createAsyncRoot(resolve => {
+      createTestRoot(resolve => {
         const signal = createSignal<LocationChange>({
           value: "/foo/bar"
         });
@@ -248,7 +248,7 @@ describe("Router should", () => {
       }));
 
     test(`update the integrationSignal`, () =>
-      createAsyncRoot(resolve => {
+      createTestRoot(resolve => {
         const signal = createSignal<LocationChange>({
           value: "/"
         });
@@ -265,7 +265,7 @@ describe("Router should", () => {
       }));
 
     test(`pass state to location`, () =>
-      createAsyncRoot(resolve => {
+      createTestRoot(resolve => {
         const state = { foo: "bar" };
         const signal = createSignal<LocationChange>({ value: "/" });
 
@@ -283,7 +283,7 @@ describe("Router should", () => {
       }));
 
     test(`allow state replacement without location change`, () =>
-      createAsyncRoot(resolve => {
+      createTestRoot(resolve => {
         const state = { foo: "bar" };
         const signal = createSignal<LocationChange>({ value: "/" });
 
@@ -301,7 +301,7 @@ describe("Router should", () => {
       }));
 
     test(`be able to be called many times before it updates the integrationSignal`, () =>
-      createAsyncRoot(resolve => {
+      createTestRoot(resolve => {
         const signal = createSignal<LocationChange>({
           value: "/"
         });
@@ -341,7 +341,7 @@ describe("Router should", () => {
 
   describe("have member `isRouting` which should", () => {
     test("be true when the push or replace causes transition", () =>
-      createAsyncRoot(resolve => {
+      createTestRoot(resolve => {
         const signal = createSignal<LocationChange>({
           value: "/"
         });
@@ -355,7 +355,7 @@ describe("Router should", () => {
       }));
 
     test("turn false, only after location has changed", () =>
-      createAsyncRoot(resolve => {
+      createTestRoot(resolve => {
         const signal = createSignal<LocationChange>({
           value: "/"
         });
