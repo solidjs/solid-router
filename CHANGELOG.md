@@ -1,5 +1,13 @@
 # @solidjs/router
 
+## 0.17.0-next.0
+
+### Minor Changes
+
+- afc50c5: Update the router for the Solid 2 beta runtime and align its data APIs with the new async and action model.
+
+  This release removes deprecated async wrappers, updates action and submission behavior around Solid 2 actions, refreshes the documented optimistic patterns, and includes the related router/runtime compatibility changes needed for the beta branch.
+
 ## 0.16.1
 
 ### Patch Changes

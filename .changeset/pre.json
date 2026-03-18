@@ -4,5 +4,7 @@
   "initialVersions": {
     "@solidjs/router": "0.16.1"
   },
-  "changesets": []
+  "changesets": [
+    "solid-2-beta-router-migration"
+  ]
 }
