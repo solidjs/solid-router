@@ -454,9 +454,10 @@ export function createRouterContext(
   const beforeLeave = utils.beforeLeave || createBeforeLeave();
 
   const basePath = resolvePath("", options.base || "");
+  const initialSource = untrack(source);
   if (basePath === undefined) {
     throw new Error(`${basePath} is not a valid base path`);
-  } else if (basePath && !source().value) {
+  } else if (basePath && !initialSource.value) {
     setSource({ value: basePath, replace: true, scroll: false });
   }
 

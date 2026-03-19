@@ -37,23 +37,30 @@ export type BaseRouterProps = {
   transformUrl?: (url: string) => string;
 };
 
-export const createRouterComponent = (router: RouterIntegration) => (props: BaseRouterProps) => {
-  const { base } = props;
-  const routeDefs = children(() => props.children as JSX.Element) as unknown as () =>
+export const createRouterComponent = (router: RouterIntegration) => function IntegratedRouter(props: BaseRouterProps) {
+  const { base, singleFlight, transformUrl, root, rootPreload, routeChildren } = untrack(() => ({
+    base: props.base,
+    singleFlight: props.singleFlight,
+    transformUrl: props.transformUrl,
+    root: props.root,
+    rootPreload: props.rootPreload,
+    routeChildren: props.children
+  }));
+  const routeDefs = children(() => routeChildren as JSX.Element) as unknown as () =>
     | RouteDefinition
     | RouteDefinition[];
 
-  const branches = createMemo(() => createBranches(routeDefs(), props.base || ""));
+  const branches = createMemo(() => createBranches(routeDefs(), base || ""));
   let context: Owner;
   const routerState = createRouterContext(router, branches, () => context, {
     base,
-    singleFlight: props.singleFlight,
-    transformUrl: props.transformUrl,
+    singleFlight,
+    transformUrl,
   });
   router.create && router.create(routerState);
   return (
     <RouterContextObj value={routerState}>
-      <Root routerState={routerState} root={props.root} preload={props.rootPreload}>
+      <Root routerState={routerState} root={root} preload={rootPreload}>
         {(context = getOwner()!) && null}
         <Routes routerState={routerState} branches={branches()} />
       </Root>
@@ -153,7 +160,8 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
       prevMatches = nextMatches;
       return next;
     }, undefined);
-  return createOutlet(() => routeStates() && root)();
+  const outlet = createOutlet(() => routeStates() && root);
+  return <>{outlet()}</>;
 }
 
 const createOutlet = (child: () => RouteContext | undefined) => {
