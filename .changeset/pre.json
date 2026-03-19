@@ -5,6 +5,7 @@
     "@solidjs/router": "0.16.1"
   },
   "changesets": [
+    "router-navigation-warning-fix",
     "solid-2-beta-router-migration"
   ]
 }
