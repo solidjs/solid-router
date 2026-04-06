@@ -7,7 +7,6 @@
  * and exposes a `.latest` convenience property.
  */
 import { createMemo, latest as solidLatest } from "solid-js";
-import { isServer } from "@solidjs/web";
 
 export type AccessorWithLatest<T> = {
   (): T;
