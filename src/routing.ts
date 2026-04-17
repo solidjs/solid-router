@@ -193,7 +193,7 @@ export const useCurrentMatches = () => useRouter().matches;
  * const params = useParams();
  * 
  * // fetch user based on the id path parameter
- * const [user] = createResource(() => params.id, fetchUser);
+ * const getUser = query(() => fetchUser(params.id), "user");
  * ```
  */
 export const useParams = <T extends Params>() => useRouter().params as T;
@@ -385,7 +385,7 @@ function createLocation(
 ): Location {
   const origin = new URL(mockBase);
   const url = createMemo<URL>(
-    prev => {
+    (prev = origin) => {
       const path_ = path();
       try {
         return new URL(path_, origin);
@@ -394,14 +394,13 @@ function createLocation(
         return prev;
       }
     },
-    origin,
     {
       equals: (a, b) => a.href === b.href
     }
   );
 
   const pathname = createMemo(() => url().pathname);
-  const search = createMemo(() => url().search, true);
+  const search = createMemo(() => url().search);
   const hash = createMemo(() => url().hash);
   const key = () => "";
   const queryFn = createMemo(() => extractSearchParams(url()));
@@ -461,11 +460,11 @@ export function createRouterContext(
     setSource({ value: basePath, replace: true, scroll: false });
   }
 
-  const [isRouting, setIsRouting] = createSignal(false, { pureWrite: true });
+  const [isRouting, setIsRouting] = createSignal(false, { ownedWrite: true });
 
   // Navigate override written from event handlers.
   const [navigateTarget, setNavigateTarget] = createSignal<LocationChange | undefined>(undefined, {
-    pureWrite: true
+    ownedWrite: true
   });
 
   // Keep track of last target, so that last call to navigate wins
@@ -473,21 +472,11 @@ export function createRouterContext(
 
   // source() remains canonical for native history changes; navigateTarget()
   // temporarily overrides it for in-flight programmatic navigation.
-  const reference = createMemo<string>(() => {
-    const nav = navigateTarget();
-    if (nav !== undefined) return nav.value;
-    return source().value;
-  });
-
-  const state = createMemo(() => {
-    const nav = navigateTarget();
-    if (nav !== undefined) return nav.state;
-    return source().state;
-  });
-  const location = createLocation(reference, state, utils.queryWrapper);
+  const effective = createMemo(() => navigateTarget() ?? source());
+  const location = createLocation(() => effective().value, () => effective().state, utils.queryWrapper);
   const referrers: LocationChange[] = [];
   const submissions = createSignal<Submission<any, any>[]>(isServer ? initFromFlash() : [], {
-    pureWrite: true
+    ownedWrite: true
   });
 
   const matches = createMemo(() => {
@@ -576,15 +565,15 @@ export function createRouterContext(
         throw new Error("Too many redirects");
       }
 
-      const current = reference();
+      const current = effective();
 
-      if (resolvedTo !== current || nextState !== state()) {
+      if (resolvedTo !== current.value || nextState !== current.state) {
         if (isServer) {
           const e = getRequestEvent();
           e && (e.response = { status: 302, headers: new Headers({ Location: resolvedTo }) });
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
         } else if (beforeLeave.confirm(resolvedTo, options)) {
-          referrers.push({ value: current, replace, scroll, state: state() });
+          referrers.push({ value: current.value, replace, scroll, state: current.state });
           const newTarget: LocationChange = {
             value: resolvedTo,
             state: nextState

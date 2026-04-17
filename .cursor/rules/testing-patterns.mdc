@@ -16,7 +16,7 @@ alwaysApply: false
 
 - Use `createTestRoot(...)` from `test/helpers.ts` for async/reactive tests that need controlled cleanup.
 - `waitFor(...)` is the standard helper for reactive settling in tests.
-- Some router internals rely on `pureWrite: true`; preserve existing helpers when tests are warning-sensitive.
+- Some router internals rely on `ownedWrite: true`; preserve existing helpers when tests are warning-sensitive.
 - Keep behavior tests in the closest existing spec (`router.spec.ts`, `route.spec.ts`, `data/*.spec.ts`) rather than creating ad hoc files.
 
 ## Expectations

@@ -159,7 +159,7 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
       root = next[0];
       prevMatches = nextMatches;
       return next;
-    }, undefined);
+    });
   const outlet = createOutlet(() => routeStates() && root);
   return <>{outlet()}</>;
 }

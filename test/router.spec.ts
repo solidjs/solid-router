@@ -6,7 +6,7 @@ import { createTestRoot, createCounter, waitFor } from "./helpers.js";
 const fakeBranches = () => [];
 const fakeContext = () => ({});
 const createSignal = <T extends LocationChange>(value: T) =>
-  createSignalBase<T>(value as Exclude<T, Function>, { pureWrite: true } as any);
+  createSignalBase<T>(value as Exclude<T, Function>, { ownedWrite: true });
 
 describe("Router should", () => {
   describe("have member `base` which should", () => {

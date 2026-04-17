@@ -3,10 +3,10 @@ import { RouterContext } from "../src/types.js";
 import { vi } from "vitest";
 
 export function createCounter(fn: () => void, start: number = -1) {
-  return createMemo((n: number) => {
+  return createMemo((n: number = start) => {
     fn();
     return n + 1;
-  }, start);
+  });
 }
 
 export function waitFor(fn: () => boolean) {
@@ -32,7 +32,7 @@ export function createTestRoot(fn: (resolve: () => void, disposer: () => void) =
 }
 
 export function createMockRouter(): RouterContext {
-  const [submissions, setSubmissions] = createSignal([], { pureWrite: true });
+  const [submissions, setSubmissions] = createSignal([], { ownedWrite: true });
   const [singleFlight] = createSignal(false);
 
   return {
