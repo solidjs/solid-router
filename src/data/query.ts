@@ -56,12 +56,12 @@ export type CachedFunction<T extends (...args: any) => any> = T extends (
   ...args: infer A
 ) => infer R
   ? ([] extends { [K in keyof A]-?: A[K] } // A tuple full of optional values is equivalent to an empty tuple
-      ? (
-          ...args: never[]
-        ) => R extends Promise<infer P> ? Promise<NarrowResponse<P>> : NarrowResponse<R>
-      : (
-          ...args: A
-        ) => R extends Promise<infer P> ? Promise<NarrowResponse<P>> : NarrowResponse<R>) & {
+    ? (
+      ...args: never[]
+    ) => R extends Promise<infer P> ? Promise<NarrowResponse<P>> : NarrowResponse<R>
+    : (
+      ...args: A
+    ) => R extends Promise<infer P> ? Promise<NarrowResponse<P>> : NarrowResponse<R>) & {
       keyFor: (...args: A) => string;
       key: string;
     }
@@ -122,7 +122,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
             : handleResponse(false)(cached[1]);
         !isServer && intent === "navigate" && cached[4][1](cached[0]); // update version
       }
-      inPreloadFn && "then" in res && res.catch(() => {});
+      inPreloadFn && "then" in res && res.catch(() => { });
       return res;
     }
     let res;
@@ -140,7 +140,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     } else {
       cache.set(
         key,
-        (cached = [now, res, , intent, createSignal(now) as Signal<number> & { count: number }])
+        (cached = [now, res, , intent, createSignal(now, { ownedWrite: true }) as Signal<number> & { count: number }])
       );
       cached[4].count = 0;
     }
@@ -158,7 +158,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
           ? res.then(handleResponse(false), handleResponse(true))
           : handleResponse(false)(res);
     }
-    inPreloadFn && "then" in res && res.catch(() => {});
+    inPreloadFn && "then" in res && res.catch(() => { });
     // serialize on server
     if (
       isServer &&
@@ -175,16 +175,16 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
       return async (v: any | Response) => {
         if (v instanceof Response) {
           const e = getRequestEvent();
-          
+
           if (e) {
-            for (const [ key, value ] of v.headers) {
+            for (const [key, value] of v.headers) {
               if (key == "set-cookie")
                 e.response.headers.append("set-cookie", value);
               else
                 e.response.headers.set(key, value);
             }
           }
-          
+
           const url = v.headers.get(LocationHeader);
 
           if (url !== null) {
@@ -227,7 +227,7 @@ query.set = <T>(key: string, value: T extends Promise<any> ? never : T) => {
   } else {
     cache.set(
       key,
-      (cached = [now, Promise.resolve(value), value, "preload", createSignal(now) as Signal<number> & { count: number }])
+      (cached = [now, Promise.resolve(value), value, "preload", createSignal(now, { ownedWrite: true }) as Signal<number> & { count: number }])
     );
     cached[4].count = 0;
   }
@@ -250,11 +250,11 @@ export function hashKey<T extends Array<any>>(args: T): string {
   return JSON.stringify(args, (_, val) =>
     isPlainObject(val)
       ? Object.keys(val)
-          .sort()
-          .reduce((result, key) => {
-            result[key] = val[key];
-            return result;
-          }, {} as any)
+        .sort()
+        .reduce((result, key) => {
+          result[key] = val[key];
+          return result;
+        }, {} as any)
       : val
   );
 }
