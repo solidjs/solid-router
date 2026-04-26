@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 0.17.0-next.3
+
+### Patch Changes
+
+- 988dcce: fix error with cache signal setter
+
 ## 0.17.0-next.2
 
 ### Patch Changes
