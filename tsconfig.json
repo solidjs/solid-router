@@ -6,7 +6,7 @@
     "moduleResolution": "NodeNext",
     "strict": true,
     "jsx": "preserve",
-    "jsxImportSource": "solid-js",
+    "jsxImportSource": "@solidjs/web",
     "rootDir": "./src",
     "outDir": "./dist",
     "module": "NodeNext",

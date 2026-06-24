@@ -1,4 +1,5 @@
-import type { Component, JSX, Signal } from "solid-js";
+import type { Accessor, Component, Setter, Signal } from "solid-js";
+import type { JSX } from "@solidjs/web";
 
 declare module "@solidjs/web" {
   interface RequestEvent {
@@ -70,7 +71,7 @@ export interface LocationChange<S = unknown> {
   rawPath?: string;
 }
 export interface RouterIntegration {
-  signal: Signal<LocationChange>;
+  signal: [Accessor<LocationChange>, Setter<LocationChange>];
   create?: (router: RouterContext) => void;
   utils?: Partial<RouterUtils>;
 }

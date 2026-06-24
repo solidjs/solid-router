@@ -1,8 +1,8 @@
 /*@refresh skip*/
 
-import type {Component, JSX, Owner} from "solid-js";
+import type {Component, Owner} from "solid-js";
 import {children, createMemo, createRoot, getOwner, merge, untrack} from "solid-js";
-import {getRequestEvent, isServer, type RequestEvent} from "@solidjs/web";
+import {getRequestEvent, isServer, type JSX, type RequestEvent} from "@solidjs/web";
 import {
     createBranches,
     createRouteContext,

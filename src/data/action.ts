@@ -1,5 +1,5 @@
-import { $TRACK, action as createSolidAction, createMemo, JSX, onCleanup, getOwner } from "solid-js";
-import { isServer } from "@solidjs/web";
+import { $TRACK, action as createSolidAction, createMemo, onCleanup, getOwner } from "solid-js";
+import { isServer, type JSX } from "@solidjs/web";
 import { useRouter } from "../routing.js";
 import type {
   RouterContext,

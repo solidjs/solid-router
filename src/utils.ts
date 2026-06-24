@@ -2,11 +2,9 @@ import { createMemo, getOwner, runWithOwner } from "solid-js";
 import type {
   MatchFilter,
   MatchFilters,
-  Params,
   PathMatch,
   RouteDescription,
   SearchParams,
-  SetParams,
   SetSearchParams
 } from "./types.js";
 

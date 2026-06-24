@@ -2,7 +2,7 @@ import { createRouter, scrollToHash } from "./createRouter.js";
 import { setupNativeEvents } from "../data/events.js";
 import type { LocationChange } from "../types.js";
 import type { BaseRouterProps } from "./components.jsx";
-import type { JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 
 export type MemoryHistory = {
   get: () => string;

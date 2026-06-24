@@ -1,6 +1,5 @@
-import { getRequestEvent } from "@solidjs/web";
+import { getRequestEvent, type JSX } from "@solidjs/web";
 import { type BaseRouterProps, createRouterComponent } from "./components.jsx";
-import type { JSX } from "solid-js";
 
 function getPath(url: string) {
   const u = new URL(url);

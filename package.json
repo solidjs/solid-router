@@ -38,7 +38,7 @@
     "release": "pnpm build && changeset publish"
   },
   "devDependencies": {
-    "@solidjs/web": "2.0.0-beta.7",
+    "@solidjs/web": "2.0.0-beta.14",
     "@babel/core": "^7.26.0",
     "@babel/preset-typescript": "^7.26.0",
     "@changesets/cli": "^2.27.10",
@@ -47,14 +47,14 @@
     "@rollup/plugin-terser": "0.4.4",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.10.0",
-    "babel-preset-solid": "2.0.0-beta.7",
+    "babel-preset-solid": "2.0.0-beta.14",
     "jsdom": "^25.0.1",
     "prettier": "^3.4.1",
     "rollup": "^4.27.4",
-    "solid-js": "2.0.0-beta.7",
+    "solid-js": "2.0.0-beta.14",
     "typescript": "^5.7.2",
     "vite": "^6.0.0",
-    "vite-plugin-solid": "3.0.0-next.4",
+    "vite-plugin-solid": "3.0.0-next.5",
     "vitest": "^2.1.6"
   },
   "peerDependencies": {

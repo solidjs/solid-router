@@ -1,4 +1,4 @@
-import type { JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import { setupNativeEvents } from "../data/events.js";
 import type { BaseRouterProps } from "./components.jsx";
 import { createRouter, scrollToHash, bindEvent } from "./createRouter.js";

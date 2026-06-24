@@ -1,14 +1,16 @@
-import { JSX, Accessor, flush, runWithOwner } from "solid-js";
 import {
+  type Accessor,
   createComponent,
   createContext,
   createMemo,
   createSignal,
+  flush,
   onCleanup,
+  runWithOwner,
   untrack,
-  useContext
+  useContext,
 } from "solid-js";
-import { isServer, getRequestEvent } from "@solidjs/web";
+import { isServer, getRequestEvent, type JSX } from "@solidjs/web";
 import { createBeforeLeave } from "./lifecycle.js";
 import type {
   BeforeLeaveEventArgs,
