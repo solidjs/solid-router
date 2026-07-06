@@ -1,7 +1,7 @@
 /*@refresh skip*/
 
 import type {Component, JSX, Owner} from "solid-js";
-import {children, createMemo, createRoot, getOwner, merge, untrack} from "solid-js";
+import {children, createMemo, createRoot, getOwner, merge, runWithOwner, untrack} from "solid-js";
 import {getRequestEvent, isServer, type RequestEvent} from "@solidjs/web";
 import {
     createBranches,
@@ -117,6 +117,10 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
   const disposers: (() => void)[] = [];
   let root: RouteContext | undefined;
   let prevMatches: RouteMatch[] | undefined;
+  // Route roots must outlive re-runs of the `routeStates` memo below, so they
+  // are created under the owner of this component rather than the memo's
+  // computation (which disposes its children every time it re-runs).
+  const owner = getOwner()!;
 
   const routeStates = createMemo((prev: RouteContext[] | undefined) => {
       const nextMatches = props.routerState.matches();
@@ -135,18 +139,27 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
             disposers[i]();
           }
 
-          createRoot(dispose => {
-            disposers[i] = dispose;
-            next[i] = createRouteContext(
-              props.routerState,
-              next[i - 1] || props.routerState.base,
-              createOutlet(() => routeStates()?.[i + 1]),
-              () => {
+          runWithOwner(owner, () =>
+            createRoot(dispose => {
+              disposers[i] = dispose;
+              const routeKey = nextMatch.route.key;
+              // Retain the last matches in which this route participated so
+              // that its components and preloads never observe another
+              // route's params/path while this route is being torn down.
+              const matchesAtLevel = createMemo((prev?: RouteMatch[]) => {
                 const routeMatches = props.routerState.matches();
-                return routeMatches[i] ?? routeMatches[0];
-              }
-            );
-          });
+                const m = routeMatches[i];
+                return m && m.route.key === routeKey ? routeMatches : prev || nextMatches;
+              });
+              next[i] = createRouteContext(
+                props.routerState,
+                next[i - 1] || props.routerState.base,
+                createOutlet(() => routeStates()?.[i + 1]),
+                () => matchesAtLevel()[i],
+                matchesAtLevel
+              );
+            })
+          );
         }
       }
 

@@ -155,6 +155,7 @@ export interface RouteContext {
   parent?: RouteContext;
   child?: RouteContext;
   pattern: string;
+  params: Params;
   path: () => string;
   outlet: () => JSX.Element;
   resolvePath(to: string): string | undefined;
@@ -173,6 +174,7 @@ export interface RouterContext {
   base: RouteContext;
   location: Location;
   params: Params;
+  wrapParams: (getParams: () => Params) => Params;
   navigatorFactory: NavigatorFactory;
   isRouting: () => boolean;
   matches: () => RouteMatch[];

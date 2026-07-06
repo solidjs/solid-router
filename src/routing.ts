@@ -196,7 +196,7 @@ export const useCurrentMatches = () => useRouter().matches;
  * const getUser = query(() => fetchUser(params.id), "user");
  * ```
  */
-export const useParams = <T extends Params>() => useRouter().params as T;
+export const useParams = <T extends Params>() => useRoute().params as T;
 
 /**
  * Retrieves a tuple containing a reactive object to read the current location's query parameters and a method to update them.
@@ -378,6 +378,14 @@ export function getRouteMatches(branches: Branch[], location: string): RouteMatc
   return [];
 }
 
+function mergeParams(matches: RouteMatch[]): Params {
+  const params: Params = {};
+  for (let i = 0; i < matches.length; i++) {
+    Object.assign(params, matches[i].params);
+  }
+  return params;
+}
+
 function createLocation(
   path: Accessor<string>,
   state: Accessor<any>,
@@ -487,21 +495,17 @@ export function createRouterContext(
     return getRouteMatches(branches(), location.pathname);
   });
 
-  const buildParams = () => {
-    const m = matches();
-    const params: Params = {};
-    for (let i = 0; i < m.length; i++) {
-      Object.assign(params, m[i].params);
-    }
-    return params;
-  };
+  const buildParams = () => mergeParams(matches());
 
-  const params = utils.paramsWrapper
-    ? utils.paramsWrapper(buildParams, branches)
-    : createMemoObject(buildParams);
+  const wrapParams = utils.paramsWrapper
+    ? (getParams: () => Params) => utils.paramsWrapper!(getParams, branches)
+    : (getParams: () => Params) => createMemoObject(getParams);
+
+  const params = wrapParams(buildParams);
 
   const baseRoute: RouteContext = {
     pattern: basePath,
+    params,
     path: () => basePath,
     outlet: () => null,
     resolvePath(to: string) {
@@ -513,6 +517,7 @@ export function createRouterContext(
     base: baseRoute,
     location,
     params,
+    wrapParams,
     isRouting,
     renderPath,
     parsePath,
@@ -673,11 +678,16 @@ export function createRouteContext(
   router: RouterContext,
   parent: RouteContext,
   outlet: () => JSX.Element,
-  match: () => RouteMatch
+  match: () => RouteMatch,
+  matches: () => RouteMatch[] = () => [match()]
 ): RouteContext {
-  const { base, location, params } = router;
+  const { base, location, wrapParams } = router;
   const { pattern, component, preload } = match().route;
   const path = createMemo(() => match().path);
+  // Params scoped to this route's lifetime. `matches` is expected to retain
+  // its last valid value while this route is being torn down, so outgoing
+  // components and preloads never observe another route's params.
+  const params = wrapParams(() => mergeParams(matches()));
 
   component &&
     (component as MaybePreloadableComponent).preload &&
@@ -689,6 +699,7 @@ export function createRouteContext(
   const route: RouteContext = {
     parent,
     pattern,
+    params,
     path,
     outlet: () =>
       component
