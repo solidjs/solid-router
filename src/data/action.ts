@@ -210,7 +210,10 @@ function toAction<T extends Array<any>, U, V = T>(
   fn[invokeSymbol] = invoke;
   if (!isServer) {
     actions.set(url, fn as unknown as Action<T, U, V>);
-    getOwner() && onCleanup(() => actions.delete(url));
+    getOwner() &&
+      onCleanup(() => {
+        if (actions.get(url) === fn) actions.delete(url);
+      });
   }
   return fn as unknown as Action<T, U, V>;
 }

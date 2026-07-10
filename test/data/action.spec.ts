@@ -88,6 +88,31 @@ describe("action", () => {
     expect(actions.get(testAction.url)).toBe(testAction);
   });
 
+  test("should not unregister a replacement action with the same URL", () => {
+    const testAction = action(async (value: string) => value, "replacement-test");
+    let disposeFirst!: () => void;
+    let disposeSecond!: () => void;
+
+    const first = createRoot(dispose => {
+      disposeFirst = dispose;
+      return testAction.with("value");
+    });
+    const second = createRoot(dispose => {
+      disposeSecond = dispose;
+      return testAction.with("value");
+    });
+
+    expect(first.url).toBe(second.url);
+    expect(actions.get(second.url)).toBe(second);
+
+    disposeFirst();
+
+    expect(actions.get(second.url)).toBe(second);
+
+    disposeSecond();
+    expect(actions.has(second.url)).toBe(false);
+  });
+
   test("should support `.with` method for currying arguments", () => {
     const baseAction = action(async (prefix: string, data: string) => {
       return `${prefix}: ${data}`;
