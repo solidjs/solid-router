@@ -1,4 +1,5 @@
 import type { Component, VoidComponent } from "solid-js";
+import type { AnchorProps } from "../src/components.jsx";
 import { RouteProps } from "../src/routers/components.jsx";
 import { useMatch } from "../src/routing.js";
 import { MatchFilters, RouteDefinition, RouteSectionProps } from "../src/types.js";
@@ -147,5 +148,11 @@ describe("Type checking on various route definitions", () => {
       // @ts-expect-error components requiring props the router doesn't pass are rejected
       { path: "/", component: WrongProps }
     ];
+  };
+
+  // <A> accepts children like the underlying <a> element (#562)
+  () => {
+    const _text: AnchorProps = { href: "/", children: "home" };
+    const _element: AnchorProps = { href: "/", children: [1, "two"] };
   };
 });
