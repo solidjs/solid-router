@@ -176,6 +176,8 @@ export interface RouterContext {
   params: Params;
   navigatorFactory: NavigatorFactory;
   isRouting: () => boolean;
+  /** The target of the in-flight navigation transition, if any. Not reactive. */
+  readonly pendingTarget?: LocationChange;
   matches: () => RouteMatch[];
   renderPath(path: string): string;
   parsePath(str: string): string;

@@ -563,4 +563,21 @@ describe("createBranches should", () => {
 
     expect(branchPaths).toEqual(["/root/%E3%81%BB%E3%81%92/:ふが/*ぴよ"]);
   });
+
+  test(`not encode RFC 3986 pchar characters in static segments`, () => {
+    // browsers keep sub-delims / ":" / "@" literal in location.pathname,
+    // so encoding them made these routes unmatchable (#559, #509)
+    const route = createRoute({ path: "+foo/@user/a=b" });
+
+    expect(route.pattern).toBe("/+foo/@user/a=b");
+    expect(route.matcher("/+foo/@user/a=b")).not.toBeNull();
+    expect(route.matcher("/%2Bfoo/@user/a=b")).toBeNull();
+  });
+
+  test(`still encode non-pchar characters in static segments`, () => {
+    const route = createRoute({ path: "foo bar/ほげ" });
+
+    expect(route.pattern).toBe("/foo%20bar/%E3%81%BB%E3%81%92");
+    expect(route.matcher("/foo%20bar/%E3%81%BB%E3%81%92")).not.toBeNull();
+  });
 });

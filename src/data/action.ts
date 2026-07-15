@@ -53,7 +53,7 @@ export function useSubmission<T extends Array<any>, U, V>(
     {},
     {
       get(_, property) {
-        if ((submissions.length === 0 && property === "clear") || property === "retry")
+        if (submissions.length === 0 && (property === "clear" || property === "retry"))
           return () => {};
         return submissions[submissions.length - 1]?.[property as keyof Submission<T, U>];
       }
@@ -165,7 +165,10 @@ function toAction<T extends Array<any>, U, V = T>(fn: Function, url: string): Ac
   (fn as any).url = url;
   if (!isServer) {
     actions.set(url, fn as Action<T, U, V>);
-    getOwner() && onCleanup(() => actions.delete(url));
+    // Only remove the registration if it still belongs to this instance —
+    // a re-created action (e.g. a new `.with()` binding after revalidation)
+    // may have registered itself under the same URL since.
+    getOwner() && onCleanup(() => actions.get(url) === fn && actions.delete(url));
   }
   return fn as Action<T, U, V>;
 }
