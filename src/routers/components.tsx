@@ -21,6 +21,7 @@ import type {
     RoutePreloadFunc,
     RouterContext,
     RouterIntegration,
+    RouteSectionComponent,
     RouteSectionProps
 } from "../types.js";
 
@@ -170,7 +171,7 @@ export type RouteProps<S extends string, T = unknown> = {
   children?: JSX.Element;
   preload?: RoutePreloadFunc<T>;
   matchFilters?: MatchFilters<S>;
-  component?: Component<RouteSectionProps<T>>;
+  component?: RouteSectionComponent<T>;
   info?: Record<string, any>;
   /** @deprecated use preload */
   load?: RoutePreloadFunc<T>;

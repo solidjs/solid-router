@@ -1,6 +1,7 @@
+import type { Component, VoidComponent } from "solid-js";
 import { RouteProps } from "../src/routers/components.jsx";
 import { useMatch } from "../src/routing.js";
-import { MatchFilters } from "../src/types.js";
+import { MatchFilters, RouteDefinition, RouteSectionProps } from "../src/types.js";
 import { createMatcher } from "../src/utils.js";
 
 // mock route type
@@ -107,5 +108,44 @@ describe("Type checking on various route definitions", () => {
       // @ts-expect-error 'id' is not a defined paramter
       checkedMatchFilters
     });
+  };
+
+  // Typed components/preloads are assignable in annotated configs (#454)
+  () => {
+    const TypedComponent = (() => null) as Component<RouteSectionProps<{ x: string; y: string }>>;
+    const loadFunc = () => ({ x: "x", y: "y" });
+
+    const _routes: RouteDefinition[] = [
+      {
+        path: "/",
+        component: TypedComponent,
+        preload: loadFunc
+      }
+    ];
+
+    const _explicit: RouteDefinition<"/", { x: string; y: string }> = {
+      path: "/",
+      component: TypedComponent,
+      preload: loadFunc
+    };
+  };
+
+  // VoidComponent pages are accepted as route components (#347)
+  () => {
+    const Page = (() => null) as VoidComponent;
+    const TypedPage = (() => null) as VoidComponent<{ data: number }>;
+
+    const _routes: RouteDefinition[] = [
+      { path: "/", component: Page },
+      { path: "/typed", component: TypedPage, preload: () => 1 }
+    ];
+
+    const _route = Route({ path: "/", component: Page });
+
+    const WrongProps = (() => null) as Component<{ foo: string }>;
+    const _invalid: RouteDefinition[] = [
+      // @ts-expect-error components requiring props the router doesn't pass are rejected
+      { path: "/", component: WrongProps }
+    ];
   };
 });
