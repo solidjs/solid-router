@@ -1,5 +1,25 @@
 # @solidjs/router
 
+## 0.16.2
+
+### Patch Changes
+
+- 676db85: fix #451 - dispose per-route roots when the route tree unmounts; leaked roots stayed subscribed to route matches and crashed with `TypeError: ... (evaluating 'match().path')` on a later navigation (e.g. when a `<Show>` in the root component hid the outlet during login/logout flows)
+- cae1d15: Fix a batch of long-standing bugs:
+
+  - `useSubmission().retry` was always a no-op due to an operator-precedence bug (#504)
+  - disposing an older owner no longer unregisters a newer action bound to the same URL, which caused forms to fall through to native submission after revalidation (#542)
+  - `useBeforeLeave` listeners now observe `defaultPrevented` set by other listeners (#530)
+  - `<A>` active state now ignores trailing slashes on `href` (#532)
+  - `useCurrentMatches` returns a copy so user mutation can't corrupt router state (#516)
+  - static path segments no longer percent-encode RFC 3986 pchar characters (`+`, `@`, `:`, `$`, `&`, `,`, `;`, `=`), so routes like `/+foo` or `/@user` match the browser's raw pathname (#559, #509)
+  - consecutive synchronous `setSearchParams` calls now compose: the merge applies to the in-flight navigation target instead of the stale committed location (#547)
+
+- e9acd69: fix #454 - default `RouteDefinition`'s data generic to `any` so typed components and preload functions are assignable in annotated configs like `const routes: RouteDefinition[]`, where no inference site for the generic exists
+- 9d80d4e: Paths with empty interior segments (doubled slashes, e.g. `//dash` or `/foo//bar`) no longer match routes and now render the not-found state instead of silently matching their collapsed form (#567). A single trailing slash is still tolerated. Doubled leading slashes are also no longer normalized away by the browser integration and parse correctly instead of being treated as protocol-relative URLs.
+- b308c21: fix #497 - `revalidate` now forces the cache miss synchronously instead of deferring it into the transition microtask, so a same-tick `refetch()` after an un-awaited `revalidate()` refetches fresh data
+- e9acd69: fix #347 - accept `VoidComponent` pages as route components; `component` now takes a `RouteSectionComponent` union so components that don't declare `children` type-check, while components requiring props the router doesn't pass are still rejected
+
 ## 0.16.1
 
 ### Patch Changes
