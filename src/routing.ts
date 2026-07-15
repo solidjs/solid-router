@@ -404,7 +404,9 @@ function createLocation(
     prev => {
       const path_ = path();
       try {
-        return new URL(path_, origin);
+        // anchor rooted paths against the origin explicitly - a path with
+        // doubled leading slashes would otherwise parse as protocol-relative
+        return new URL(path_[0] === "/" ? mockBase + path_ : path_, origin);
       } catch (err) {
         console.error(`Invalid path ${path_}`);
         return prev;

@@ -85,6 +85,15 @@ describe("Router should", () => {
           const { location } = createRouterContext({ signal }, fakeBranches);
           expect(location.pathname).toBe("/foo%20bar+baz");
         }));
+
+      test(`preserve doubled leading slashes instead of parsing as protocol-relative`, () =>
+        createRoot(() => {
+          const signal = createSignal<LocationChange>({
+            value: "//dash"
+          });
+          const { location } = createRouterContext({ signal }, fakeBranches);
+          expect(location.pathname).toBe("//dash");
+        }));
     }); // end of "contain property 'pathname'"
 
     describe(`contain property 'search' which should`, () => {
