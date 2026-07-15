@@ -136,99 +136,91 @@ describe("action", () => {
     expect(curriedAction.url).toMatch(/with-test\?args=/);
   });
 
+  // actions are invoked outside `createRoot` — as of Solid 2.0.0-beta.18 calling an
+  // action inside an owned scope throws ACTION_CALLED_IN_OWNED_SCOPE in dev
   test("should execute action and create submission", async () => {
-    return createRoot(async () => {
-      const testAction = action(async (data: string) => {
-        return `processed: ${data}`;
-      }, "execute-test");
+    const testAction = action(async (data: string) => {
+      return `processed: ${data}`;
+    }, "execute-test");
 
-      const boundAction = useAction(testAction);
-      const promise = boundAction("test-data");
+    const boundAction = useAction(testAction);
+    const promise = boundAction("test-data");
 
-      expect(mockRouterContext.submissions[0]()).toHaveLength(0);
+    expect(mockRouterContext.submissions[0]()).toHaveLength(0);
 
-      const result = await promise;
-      expect(result).toBe("processed: test-data");
-      expect(mockRouterContext.submissions[0]()).toEqual([
-        expect.objectContaining({
-          input: ["test-data"],
-          result: "processed: test-data",
-          error: undefined,
-          url: testAction.url
-        })
-      ]);
-    });
+    const result = await promise;
+    expect(result).toBe("processed: test-data");
+    expect(mockRouterContext.submissions[0]()).toEqual([
+      expect.objectContaining({
+        input: ["test-data"],
+        result: "processed: test-data",
+        error: undefined,
+        url: testAction.url
+      })
+    ]);
   });
 
   test("should still record thrown action errors for legacy usage", async () => {
-    return createRoot(async () => {
-      const errorAction = action(async () => {
-        throw new Error("Test error");
-      }, "error-test");
+    const errorAction = action(async () => {
+      throw new Error("Test error");
+    }, "error-test");
 
-      const boundAction = useAction(errorAction);
+    const boundAction = useAction(errorAction);
 
-      try {
-        await boundAction();
-      } catch (error) {
-        expect((error as Error).message).toBe("Test error");
-      }
+    try {
+      await boundAction();
+    } catch (error) {
+      expect((error as Error).message).toBe("Test error");
+    }
 
-      const submissions = mockRouterContext.submissions[0]();
-      expect(submissions[0].error.message).toBe("Test error");
-    });
+    const submissions = mockRouterContext.submissions[0]();
+    expect(submissions[0].error.message).toBe("Test error");
   });
 
   test("should support `onSettled` callback", async () => {
-    return createRoot(async () => {
-      const onSettled = vi.fn();
-      const testAction = action(async (data: string) => `result: ${data}`, {
-        name: "callback-test"
-      }).onSettled(onSettled);
+    const onSettled = vi.fn();
+    const testAction = action(async (data: string) => `result: ${data}`, {
+      name: "callback-test"
+    }).onSettled(onSettled);
 
-      const boundAction = useAction(testAction);
-      await boundAction("test");
+    const boundAction = useAction(testAction);
+    await boundAction("test");
 
-      expect(onSettled).toHaveBeenCalledWith(
-        expect.objectContaining({
-          result: "result: test",
-          error: undefined
-        })
-      );
-    });
+    expect(onSettled).toHaveBeenCalledWith(
+      expect.objectContaining({
+        result: "result: test",
+        error: undefined
+      })
+    );
   });
 
   test("should run onSubmit hook before mutation settles", async () => {
-    return createRoot(async () => {
-      const order: string[] = [];
-      let current = "initial";
-      const testAction = action(async (next: string) => {
-          order.push("mutation");
-          expect(current).toBe(next);
-          return next;
-        }, "on-submit-test").onSubmit(next => {
-          order.push("onSubmit");
-          current = next;
-        });
+    const order: string[] = [];
+    let current = "initial";
+    const testAction = action(async (next: string) => {
+        order.push("mutation");
+        expect(current).toBe(next);
+        return next;
+      }, "on-submit-test").onSubmit(next => {
+        order.push("onSubmit");
+        current = next;
+      });
 
-      const boundAction = useAction(testAction);
-      const result = await boundAction("updated");
+    const boundAction = useAction(testAction);
+    const result = await boundAction("updated");
 
-      expect(result).toBe("updated");
-      expect(order).toEqual(["onSubmit", "mutation"]);
-    });
+    expect(result).toBe("updated");
+    expect(order).toEqual(["onSubmit", "mutation"]);
   });
 
   test("should preserve onSubmit hook for curried actions", async () => {
-    return createRoot(async () => {
-      const onSubmit = vi.fn();
-      const baseAction = action(async (prefix: string, value: string) => `${prefix}:${value}`, "curried-on-submit")
-        .onSubmit(onSubmit);
+    const onSubmit = vi.fn();
+    const baseAction = action(async (prefix: string, value: string) => `${prefix}:${value}`, "curried-on-submit")
+      .onSubmit(onSubmit);
 
-      await useAction(baseAction.with("pre"))("value");
+    await useAction(baseAction.with("pre"))("value");
 
-      expect(onSubmit).toHaveBeenCalledWith("pre", "value");
-    });
+    expect(onSubmit).toHaveBeenCalledWith("pre", "value");
   });
 
   test("should support onSubmit writing to an optimistic primitive", async () => {
@@ -499,16 +491,14 @@ describe("useAction", () => {
   });
 
   test("should execute action through useAction", async () => {
-    return createRoot(async () => {
-      const testAction = action(async (data: string) => {
-        await new Promise(resolve => setTimeout(resolve, 1));
-        return `result: ${data}`;
-      }, "context-test");
+    const testAction = action(async (data: string) => {
+      await new Promise(resolve => setTimeout(resolve, 1));
+      return `result: ${data}`;
+    }, "context-test");
 
-      const boundAction = useAction(testAction);
-      const result = await boundAction("test-data");
+    const boundAction = useAction(testAction);
+    const result = await boundAction("test-data");
 
-      expect(result).toBe("result: test-data");
-    });
+    expect(result).toBe("result: test-data");
   });
 });

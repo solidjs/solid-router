@@ -5,10 +5,10 @@ vi.mock("@solidjs/web", async importOriginal => {
 
   return {
     ...actual,
-    delegateEvents: ((eventNames, document) => {
-      const target = document ?? globalThis.window?.document ?? globalThis.document;
-      if (!target) return;
-      return actual.delegateEvents(eventNames, target);
+    delegateEvents: ((eventNames: string[]) => {
+      // no-op when jsdom hasn't installed a document yet
+      if (!(globalThis.window?.document ?? (globalThis as any).document)) return;
+      return actual.delegateEvents(eventNames);
     }) as typeof actual.delegateEvents,
     isServer: false,
     getRequestEvent: () => null

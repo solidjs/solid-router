@@ -1,6 +1,7 @@
 /*@refresh skip*/
 
-import type {Component, JSX, Owner} from "solid-js";
+import type {Component, Owner} from "solid-js";
+import type {JSX} from "@solidjs/web";
 import {children, createMemo, createRoot, getOwner, merge, onCleanup, untrack} from "solid-js";
 import {getRequestEvent, isServer, type RequestEvent} from "@solidjs/web";
 import {

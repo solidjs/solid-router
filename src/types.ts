@@ -1,4 +1,5 @@
-import type { Component, JSX, Signal } from "solid-js";
+import type { Component, Signal } from "solid-js";
+import type { JSX } from "@solidjs/web";
 
 declare module "@solidjs/web" {
   interface RequestEvent {
@@ -70,7 +71,9 @@ export interface LocationChange<S = unknown> {
   rawPath?: string;
 }
 export interface RouterIntegration {
-  signal: Signal<LocationChange>;
+  // Structural getter/setter pair rather than solid's `Signal` — integrations like
+  // StaticRouter provide plain functions that can't carry the `$REFRESH` brand.
+  signal: [get: () => LocationChange, set: (next: LocationChange) => void];
   create?: (router: RouterContext) => void;
   utils?: Partial<RouterUtils>;
 }

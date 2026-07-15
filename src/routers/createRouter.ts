@@ -1,5 +1,5 @@
-import { type Signal, createSignal, onCleanup, sharedConfig } from "solid-js";
-import type { LocationChange, RouterContext, RouterUtils } from "../types.js";
+import { createSignal, onCleanup, sharedConfig } from "solid-js";
+import type { LocationChange, RouterContext, RouterIntegration, RouterUtils } from "../types.js";
 import { createRouterComponent } from "./components.jsx";
 
 export function createRouter(config: {
@@ -15,11 +15,11 @@ export function createRouter(config: {
     equals: (a, b) => a.value === b.value && a.state === b.state,
     ownedWrite: true
   });
-  const signal = [read, (next: LocationChange) => {
+  const signal: RouterIntegration["signal"] = [read, (next: LocationChange) => {
     !ignore && config.set(next);
     if (sharedConfig.registry && !sharedConfig.done) sharedConfig.done = true;
     write(next);
-  }] as Signal<LocationChange>;
+  }];
 
   config.init &&
     onCleanup(

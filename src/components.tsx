@@ -1,5 +1,5 @@
 /*@refresh skip*/
-import type { JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import { createMemo, merge, omit } from "solid-js";
 import {
   useHref,
@@ -13,7 +13,8 @@ import type {
 } from "./types.js";
 import { normalizePath } from "./utils.js";
 
-declare module "solid-js" {
+// the JSX namespace lives in @solidjs/web's jsx-runtime module as of 2.0
+declare module "@solidjs/web/jsx-runtime" {
   namespace JSX {
     interface AnchorHTMLAttributes<T> {
       state?: string;
