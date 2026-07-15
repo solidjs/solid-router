@@ -1,5 +1,15 @@
 # @solidjs/router
 
+## 0.17.0-next.4
+
+### Patch Changes
+
+- 2596327: Fix params becoming undefined in outgoing components during navigation.
+
+  Route roots are now created under the `Routes` component owner so they survive re-runs of the route state memo (Solid 2 disposes roots created inside a computation when it re-runs). Each route context also gets params scoped to its own lifetime: they retain their last values while the route is being torn down, so effects and async fetches in outgoing components (e.g. kept alive by a `<Loading>` boundary) never observe another route's params. This also removes the incorrect fallback that could hand a route context another route's match during teardown.
+
+- bc38fb2: Update to Solid 2.0.0-beta.18. JSX types now come from `@solidjs/web` (core `solid-js` no longer exports the `JSX` namespace), so the `<A>` anchor attribute augmentation moved to `@solidjs/web/jsx-runtime` and `RouterIntegration.signal` is now a plain getter/setter pair instead of solid's branded `Signal` type. Peer dependency floor raised to `2.0.0-beta.18`.
+
 ## 0.17.0-next.3
 
 ### Patch Changes

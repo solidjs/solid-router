@@ -5,9 +5,11 @@
     "@solidjs/router": "0.16.1"
   },
   "changesets": [
+    "fix-stale-params-on-navigation",
     "popular-pears-boil",
     "router-navigation-warning-fix",
     "solid-2-beta-router-migration",
+    "update-solid-beta-18",
     "update-solid-beta-7"
   ]
 }
