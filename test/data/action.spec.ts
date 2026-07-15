@@ -4,7 +4,8 @@ import {
   action,
   useAction,
   useSubmissions,
-  actions
+  actions,
+  type Action
 } from "../../src/data/action.js";
 import type { RouterContext } from "../../src/types.js";
 import { createMockRouter } from "../helpers.js";
@@ -86,6 +87,42 @@ describe("action", () => {
 
     expect(actions.has(testAction.url)).toBe(true);
     expect(actions.get(testAction.url)).toBe(testAction);
+  });
+
+  test("disposing an older owner should not unregister a newer action with the same URL", () => {
+    const base = action(async (id: string, data: string) => `${id}: ${data}`, "cleanup-test");
+
+    let disposeFirst!: () => void;
+    let first!: ReturnType<typeof base.with>;
+    createRoot(dispose => {
+      disposeFirst = dispose;
+      first = base.with("same-args");
+    });
+
+    let second!: ReturnType<typeof base.with>;
+    createRoot(() => {
+      second = base.with("same-args");
+    });
+
+    expect(first.url).toBe(second.url);
+    expect(actions.get(second.url)).toBe(second);
+
+    // the older owner disposing must not delete the newer registration
+    disposeFirst();
+    expect(actions.get(second.url)).toBe(second);
+  });
+
+  test("disposing the current owner should unregister its action", () => {
+    let dispose!: () => void;
+    let registered!: Action<[], string>;
+    createRoot(d => {
+      dispose = d;
+      registered = action(async () => "result", "self-cleanup-test");
+    });
+
+    expect(actions.get(registered.url)).toBe(registered);
+    dispose();
+    expect(actions.has(registered.url)).toBe(false);
   });
 
   test("should support `.with` method for currying arguments", () => {

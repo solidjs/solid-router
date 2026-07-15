@@ -68,7 +68,12 @@ export function createMatcher<S extends string>(
   const len = segments.length;
 
   return (location: string): PathMatch | null => {
-    const locSegments = location.split("/").filter(Boolean);
+    const locSegments = location.split("/");
+    // tolerate a single leading and trailing slash, but reject empty interior
+    // segments so `/foo//bar` doesn't silently match `/foo/bar` (#567)
+    if (locSegments[0] === "") locSegments.shift();
+    if (locSegments.length && locSegments[locSegments.length - 1] === "") locSegments.pop();
+    if (locSegments.includes("")) return null;
     const lenDiff = locSegments.length - len;
     if (lenDiff < 0 || (lenDiff > 0 && splat === undefined && !partial)) {
       return null;

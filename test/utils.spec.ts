@@ -185,6 +185,30 @@ describe("createMatcher should", () => {
     expect(match).toEqual(expected);
   });
 
+  test("tolerate a single trailing slash", () => {
+    const matcher = createMatcher("/foo/bar");
+    expect(matcher("/foo/bar/")).not.toBe(null);
+  });
+
+  test("not match locations with empty interior segments", () => {
+    const matcher = createMatcher("/foo/bar");
+    expect(matcher("/foo//bar")).toBe(null);
+    expect(matcher("//foo/bar")).toBe(null);
+    expect(matcher("/foo/bar//")).toBe(null);
+  });
+
+  test("not match root route against doubled slashes", () => {
+    const matcher = createMatcher("/");
+    expect(matcher("/")).not.toBe(null);
+    expect(matcher("//")).toBe(null);
+  });
+
+  test("not match splat routes across empty interior segments", () => {
+    const matcher = createMatcher("/files/*rest");
+    expect(matcher("/files/a/b")).not.toBe(null);
+    expect(matcher("/files/a//b")).toBe(null);
+  });
+
   test("return params collection when location matches parameterized path", () => {
     const expected = { path: "/foo/abc-123", params: { id: "abc-123" } };
     const matcher = createMatcher("/foo/:id");

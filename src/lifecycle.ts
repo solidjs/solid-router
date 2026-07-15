@@ -20,7 +20,14 @@ export function createBeforeLeave(): BeforeLeaveLifecycle {
     };
     for (const l of listeners)
       l.listener({
-        ...e,
+        to,
+        options,
+        // delegate to the shared event so later listeners' preventDefault
+        // calls are observable from earlier listeners
+        get defaultPrevented() {
+          return e.defaultPrevented;
+        },
+        preventDefault: e.preventDefault,
         from: l.location,
         retry: (force?: boolean) => {
           force && (ignore = true);

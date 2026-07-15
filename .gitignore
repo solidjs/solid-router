@@ -4,3 +4,4 @@ dist/
 coverage/
 solid-router-*.tgz
 .DS_Store
+.pnpm-store/

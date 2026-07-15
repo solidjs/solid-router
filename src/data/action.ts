@@ -210,7 +210,11 @@ function toAction<T extends Array<any>, U, V = T>(
   fn[invokeSymbol] = invoke;
   if (!isServer) {
     actions.set(url, fn as unknown as Action<T, U, V>);
-    getOwner() && onCleanup(() => actions.delete(url));
+    // Only remove the registration if it still belongs to this instance —
+    // a re-created action (e.g. a new `.with()` binding after revalidation)
+    // may have registered itself under the same URL since.
+    getOwner() &&
+      onCleanup(() => actions.get(url) === (fn as unknown) && actions.delete(url));
   }
   return fn as unknown as Action<T, U, V>;
 }

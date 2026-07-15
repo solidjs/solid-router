@@ -183,7 +183,11 @@ export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFi
  * const breadcrumbs = createMemo(() => matches().map(m => m.route.info.breadcrumb))
  * ```
  */
-export const useCurrentMatches = () => useRouter().matches;
+export const useCurrentMatches = () => {
+  const router = useRouter();
+  // return a copy so user mutations (eg. `.reverse()`) can't corrupt router state
+  return () => router.matches().slice();
+};
 
 /**
  * Retrieves a reactive, store-like object containing the current route path parameters as defined in the Route.
@@ -229,11 +233,20 @@ export const useSearchParams = <T extends SearchParams>(): [
   Partial<T>,
   (params: SetSearchParams, options?: Partial<NavigateOptions>) => void
 ] => {
-  const location = useLocation();
+  const router = useRouter();
+  const location = router.location;
   const navigate = useNavigate();
   const setSearchParams = (params: SetSearchParams, options?: Partial<NavigateOptions>) => {
-    const searchString = untrack(() => mergeSearchString(location.search, params) + location.hash);
-    navigate(searchString, {
+    const to = untrack(() => {
+      // merge onto the in-flight navigation target (if any) so consecutive
+      // synchronous calls compose instead of the later one winning
+      const pending = router.pendingTarget && new URL(router.pendingTarget.value, mockBase);
+      const pathname = pending ? pending.pathname : location.pathname;
+      const search = pending ? pending.search : location.search;
+      const hash = pending ? pending.hash : location.hash;
+      return pathname + mergeSearchString(search, params) + hash;
+    });
+    navigate(to, {
       scroll: false,
       resolve: false,
       ...options
@@ -278,6 +291,13 @@ export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
   onCleanup(s);
 };
 
+// Encodes a static path segment like `encodeURIComponent`, but leaves RFC 3986
+// pchar characters (sub-delims / ":" / "@") literal, matching how browsers
+// report them in `location.pathname`. Non-ASCII characters (eg. CJK paths) are
+// still percent-encoded exactly as before, since browsers encode those too.
+const encodeSegment = (s: string) =>
+  encodeURIComponent(s).replace(/%(2B|40|3A|24|26|2C|3B|3D)/g, m => decodeURIComponent(m));
+
 export function createRoutes(routeDef: RouteDefinition, base: string = ""): RouteDescription[] {
   const { component, preload, children, info } = routeDef;
   const isLeaf = !children || (Array.isArray(children) && !children.length);
@@ -296,7 +316,7 @@ export function createRoutes(routeDef: RouteDefinition, base: string = ""): Rout
       pattern = pattern
         .split("/")
         .map((s: string) => {
-          return s.startsWith(":") || s.startsWith("*") ? s : encodeURIComponent(s);
+          return s.startsWith(":") || s.startsWith("*") ? s : encodeSegment(s);
         })
         .join("/");
       acc.push({
@@ -388,7 +408,9 @@ function createLocation(
     (prev = origin) => {
       const path_ = path();
       try {
-        return new URL(path_, origin);
+        // anchor rooted paths against the origin explicitly - a path with
+        // doubled leading slashes would otherwise parse as protocol-relative
+        return new URL(path_[0] === "/" ? mockBase + path_ : path_, origin);
       } catch (err) {
         console.error(`Invalid path ${path_}`);
         return prev;
@@ -514,6 +536,9 @@ export function createRouterContext(
     location,
     params,
     isRouting,
+    get pendingTarget() {
+      return lastTransitionTarget;
+    },
     renderPath,
     parsePath,
     navigatorFactory,

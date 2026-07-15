@@ -91,12 +91,25 @@ export interface RouteSectionProps<T = unknown> {
   children?: JSX.Element;
 }
 
-export type RouteDefinition<S extends string | string[] = any, T = unknown> = {
+// Accept components that don't take children (eg. `VoidComponent` pages) as well
+// as layout components that render an outlet via `props.children` (#347).
+// The `Component<{}>` member admits components whose props are all optional -
+// most notably a bare `VoidComponent`, whose `{ children?: undefined }` props
+// would otherwise fail TypeScript's weak-type check against the other members.
+export type RouteSectionComponent<T = unknown> =
+  | Component<RouteSectionProps<T>>
+  | Component<Omit<RouteSectionProps<T>, "children">>
+  | Component<{}>;
+
+// `T` defaults to `any` (not `unknown`) so typed components/preloads are assignable
+// in annotated configs like `const routes: RouteDefinition[]`, where no inference
+// site for `T` exists (#454)
+export type RouteDefinition<S extends string | string[] = any, T = any> = {
   path?: S;
   matchFilters?: MatchFilters<S>;
   preload?: RoutePreloadFunc<T>;
   children?: RouteDefinition | RouteDefinition[];
-  component?: Component<RouteSectionProps<T>>;
+  component?: RouteSectionComponent<T>;
   info?: Record<string, any>;
 };
 
@@ -175,6 +188,8 @@ export interface RouterContext {
   params: Params;
   navigatorFactory: NavigatorFactory;
   isRouting: () => boolean;
+  /** The target of the in-flight navigation transition, if any. Not reactive. */
+  readonly pendingTarget?: LocationChange;
   matches: () => RouteMatch[];
   renderPath(path: string): string;
   parsePath(str: string): string;

@@ -274,6 +274,28 @@ describe("revalidate", () => {
     });
   });
 
+  test("should force a cache miss synchronously, before the transition applies (#497)", async () => {
+    return createRoot(async () => {
+      let callCount = 0;
+      const testFn = async () => {
+        callCount++;
+        return `data-${callCount}`;
+      };
+      const cachedFn = query(testFn, "testQuery");
+
+      const result1 = await cachedFn();
+      expect(result1).toBe("data-1");
+
+      // deliberately NOT awaited — a same-tick refetch must still see the cache miss
+      const pending = revalidate(cachedFn.key);
+      const result2 = await cachedFn();
+
+      expect(result2).toBe("data-2");
+      expect(callCount).toBe(2);
+      await pending;
+    });
+  });
+
   test("should revalidate multiple keys", async () => {
     return createRoot(async () => {
       let callCount1 = 0;

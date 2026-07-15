@@ -1,7 +1,7 @@
 /*@refresh skip*/
 
 import type {Component, JSX, Owner} from "solid-js";
-import {children, createMemo, createRoot, getOwner, merge, untrack} from "solid-js";
+import {children, createMemo, createRoot, getOwner, merge, onCleanup, untrack} from "solid-js";
 import {getRequestEvent, isServer, type RequestEvent} from "@solidjs/web";
 import {
     createBranches,
@@ -22,6 +22,7 @@ import type {
     RoutePreloadFunc,
     RouterContext,
     RouterIntegration,
+    RouteSectionComponent,
     RouteSectionProps
 } from "../types.js";
 
@@ -117,6 +118,9 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
   const disposers: (() => void)[] = [];
   let root: RouteContext | undefined;
   let prevMatches: RouteMatch[] | undefined;
+  // dispose the detached per-route roots when this component unmounts, otherwise
+  // they stay subscribed to `matches` and crash on a later navigation (#451)
+  onCleanup(() => disposers.forEach(dispose => dispose()));
 
   const routeStates = createMemo((prev: RouteContext[] | undefined) => {
       const nextMatches = props.routerState.matches();
@@ -179,7 +183,7 @@ export type RouteProps<S extends string, T = unknown> = {
   children?: JSX.Element;
   preload?: RoutePreloadFunc<T>;
   matchFilters?: MatchFilters<S>;
-  component?: Component<RouteSectionProps<T>>;
+  component?: RouteSectionComponent<T>;
   info?: Record<string, any>;
 };
 

@@ -65,8 +65,9 @@ export function A(props: AnchorProps) {
   const isActive = createMemo(() => {
     const to_ = to();
     if (to_ === undefined) return [false, false];
-    const path = normalizePath(to_.split(/[?#]/, 1)[0]).toLowerCase();
-    const loc = decodeURI(normalizePath(location.pathname).toLowerCase());
+    // trailing slashes are ignored so `/route` and `/route/` share active state
+    const path = normalizePath(to_.split(/[?#]/, 1)[0]).toLowerCase().replace(/\/$/, "");
+    const loc = decodeURI(normalizePath(location.pathname).toLowerCase().replace(/\/$/, ""));
     return [props.end ? path === loc : loc.startsWith(path + "/") || loc === path, path === loc];
   });
   const className = createMemo(() =>
