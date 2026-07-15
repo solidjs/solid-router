@@ -46,10 +46,11 @@ describe("#385 error from cached preload stays an error", () => {
     };
     const Root = (props: ParentProps) => {
       nav = useNavigate();
+      // the fallback receives an error *accessor* in Solid 2, not the error itself
       const content = createErrorBoundary(
         () => props.children,
-        (err): any => {
-          caught.push(err);
+        (error): any => {
+          caught.push(error());
           return <p>caught</p>;
         }
       );
@@ -72,6 +73,7 @@ describe("#385 error from cached preload stays an error", () => {
     await wait(50);
     expect(root.innerHTML).toContain("caught");
     expect(caught.length).toBeGreaterThan(0);
+    expect((caught[0] as Error).message).toBe("boom-385-render");
 
     // navigate away and back within the cache window — the cached rejected
     // promise is served from cache on the return trip
