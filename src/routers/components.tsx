@@ -1,7 +1,7 @@
 /*@refresh skip*/
 
 import type {Component, JSX, Owner} from "solid-js";
-import {children, createMemo, createRoot, getOwner, mergeProps, on, Show, untrack} from "solid-js";
+import {children, createMemo, createRoot, getOwner, mergeProps, on, onCleanup, Show, untrack} from "solid-js";
 import {getRequestEvent, isServer, type RequestEvent} from "solid-js/web";
 import {
     createBranches,
@@ -110,6 +110,9 @@ function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
 
   const disposers: (() => void)[] = [];
   let root: RouteContext | undefined;
+  // dispose the detached per-route roots when this component unmounts, otherwise
+  // they stay subscribed to `matches` and crash on a later navigation (#451)
+  onCleanup(() => disposers.forEach(dispose => dispose()));
 
   const routeStates = createMemo(
     on(props.routerState.matches, (nextMatches, prevMatches, prev: RouteContext[] | undefined) => {
