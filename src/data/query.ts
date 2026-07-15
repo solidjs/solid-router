@@ -39,12 +39,12 @@ function getCache() {
  * Revalidates the given cache entry/entries.
  */
 export function revalidate(key?: string | string[] | void, force = true) {
+  const now = Date.now();
+  // force the cache miss synchronously so a `refetch` in the same tick sees it —
+  // startTransition defers its callback to a microtask (#497)
+  force && cacheKeyOp(key, entry => (entry[0] = 0));
   return startTransition(() => {
-    const now = Date.now();
-    cacheKeyOp(key, entry => {
-      force && (entry[0] = 0); //force cache miss
-      entry[4][1](now); // retrigger live signals
-    });
+    cacheKeyOp(key, entry => entry[4][1](now)); // retrigger live signals
   });
 }
 
