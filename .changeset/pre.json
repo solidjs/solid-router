@@ -5,6 +5,7 @@
     "@solidjs/router": "0.16.1"
   },
   "changesets": [
+    "adopt-core-server-function-protocol",
     "fix-stale-params-on-navigation",
     "popular-pears-boil",
     "router-navigation-warning-fix",
