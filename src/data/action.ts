@@ -1,5 +1,6 @@
 import { $TRACK, action as createSolidAction, createMemo, onCleanup, getOwner } from "solid-js";
-import { isServer, type JSX } from "@solidjs/web";
+import { isResponseEnvelope, isServer, type JSX } from "@solidjs/web";
+import { decodeResponse } from "@solidjs/web/server-functions";
 import { useRouter } from "../routing.js";
 import type {
   RouterContext,
@@ -243,27 +244,38 @@ async function handleResponse(response: unknown, error: boolean | undefined, nav
   let custom: any;
   let keys: string[] | undefined;
   let flightKeys: string[] | undefined;
-  if (response instanceof Response) {
-    if (response.headers.has("X-Revalidate"))
-      keys = response.headers.get("X-Revalidate")!.split(",");
-    if ((response as any).customBody) {
-      data = custom = await (response as any).customBody();
+  let metadata: Response | undefined;
+  if (isResponseEnvelope(response)) {
+    // client-only respond(): the value rides in memory beside the metadata
+    data = response.value;
+    metadata = response.response;
+  } else if (response instanceof Response) {
+    metadata = response;
+    // responses the transport hands over whole (redirects, revalidation,
+    // single-flight) carry a codec-encoded body the router decodes itself
+    if (response.body) {
+      data = await decodeResponse(response);
       if (response.headers.has("X-Single-Flight")) {
-        data = data._$value;
+        custom = data;
+        data = custom._$value;
         delete custom._$value;
         flightKeys = Object.keys(custom);
       }
     }
-    if (response.headers.has("Location")) {
-      const locationUrl = response.headers.get("Location") || "/";
+  } else if (error) return { error: response };
+  else data = response;
+  if (metadata) {
+    if (metadata.headers.has("X-Revalidate"))
+      keys = metadata.headers.get("X-Revalidate")!.split(",");
+    if (metadata.headers.has("Location")) {
+      const locationUrl = metadata.headers.get("Location") || "/";
       if (locationUrl.startsWith("http")) {
         window.location.href = locationUrl;
       } else {
         navigate(locationUrl);
       }
     }
-  } else if (error) return { error: response };
-  else data = response;
+  }
   // invalidate
   cacheKeyOp(keys, entry => (entry[0] = 0));
   // set cache

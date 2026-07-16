@@ -6,7 +6,8 @@ import {
   sharedConfig,
   type Signal
 } from "solid-js";
-import { getRequestEvent, isServer } from "@solidjs/web";
+import { getRequestEvent, isResponseEnvelope, isServer } from "@solidjs/web";
+import { decodeResponse } from "@solidjs/web/server-functions";
 import { useNavigate, getIntent, getInPreloadFn } from "../routing.js";
 import type { CacheEntry, NarrowResponse } from "../types.js";
 
@@ -172,7 +173,15 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     return res;
 
     function handleResponse(error: boolean) {
-      return async (v: any | Response) => {
+      return async (v: any) => {
+        let enveloped: any;
+        let hasEnveloped = false;
+        if (isResponseEnvelope(v)) {
+          // respond(): the value rides in memory beside the metadata
+          enveloped = v.value;
+          hasEnveloped = true;
+          v = v.response;
+        }
         if (v instanceof Response) {
           const e = getRequestEvent();
 
@@ -197,7 +206,13 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
             return;
           }
 
-          if ((v as any).customBody) v = await (v as any).customBody();
+          if (hasEnveloped) v = enveloped;
+          else if (v.body) {
+            // responses the transport hands over whole (revalidation) carry a
+            // codec-encoded body; anything else (a raw user Response) stays whole
+            const decoded = await decodeResponse(v);
+            if (decoded !== undefined) v = decoded;
+          }
         }
         if (error) throw v;
         cached[2] = v;

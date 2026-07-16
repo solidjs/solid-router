@@ -1,5 +1,5 @@
 import type { Component, Signal } from "solid-js";
-import type { JSX } from "@solidjs/web";
+import type { JSX, ResponseEnvelope } from "@solidjs/web";
 
 declare module "@solidjs/web" {
   interface RequestEvent {
@@ -239,12 +239,5 @@ export interface MaybePreloadableComponent extends Component {
 
 export type CacheEntry = [number, Promise<any>, any, Intent | undefined, Signal<number> & { count: number }];
 
-export type NarrowResponse<T> = T extends CustomResponse<infer U> ? U : Exclude<T, Response>;
-export type RouterResponseInit = Omit<ResponseInit, "body"> & { revalidate?: string | string[] };
-// export type CustomResponse<T> = Response & { customBody: () => T };
-// hack to avoid it thinking it inherited from Response
-export type CustomResponse<T> = Omit<Response, "clone"> & {
-  customBody: () => T;
-  clone(...args: readonly unknown[]): CustomResponse<T>;
-};
+export type NarrowResponse<T> = T extends ResponseEnvelope<infer U> ? U : Exclude<T, Response>;
 
