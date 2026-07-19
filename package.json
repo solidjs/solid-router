@@ -1,63 +1,15 @@
 {
-  "name": "@solidjs/router",
-  "description": "Universal router for SolidJS",
-  "author": "Ryan Carniato",
-  "contributors": [
-    "Ryan Turnquist"
-  ],
-  "license": "MIT",
-  "version": "0.16.2",
-  "homepage": "https://github.com/solidjs/solid-router#readme",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/solidjs/solid-router"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "solid": "./dist/index.jsx",
-      "default": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
-  "sideEffects": false,
+  "name": "solid-router-monorepo",
+  "private": true,
   "scripts": {
-    "build": "rm -rf dist && tsc && rollup -c",
-    "prepublishOnly": "npm run build",
-    "test": "vitest run && npm run test:types",
-    "test:watch": "vitest",
-    "test:types": "tsc --project tsconfig.test.json",
-    "pretty": "prettier --write \"{src,test}/**/*.{ts,tsx}\"",
+    "build": "pnpm --recursive --if-present run build",
+    "test": "pnpm --recursive --if-present run test",
+    "pretty": "pnpm --recursive --if-present run pretty",
+    "typecheck:dist": "pnpm --recursive --if-present run typecheck:dist",
     "release": "pnpm build && changeset publish"
   },
   "devDependencies": {
-    "@babel/core": "^7.26.0",
-    "@babel/preset-typescript": "^7.26.0",
-    "@changesets/cli": "^2.27.10",
-    "@rollup/plugin-babel": "6.0.4",
-    "@rollup/plugin-node-resolve": "15.3.0",
-    "@rollup/plugin-terser": "0.4.4",
-    "@types/jest": "^29.5.14",
-    "@types/node": "^22.10.0",
-    "babel-preset-solid": "^1.9.3",
-    "jsdom": "^25.0.1",
-    "prettier": "^3.4.1",
-    "rollup": "^4.27.4",
-    "solid-js": "^1.9.3",
-    "typescript": "^5.7.2",
-    "vite": "^6.0.0",
-    "vite-plugin-solid": "^2.11.0",
-    "vitest": "^2.1.6"
-  },
-  "peerDependencies": {
-    "solid-js": "^1.8.6"
+    "@changesets/cli": "^2.27.10"
   },
   "packageManager": "pnpm@10.19.0+sha512.c9fc7236e92adf5c8af42fd5bf1612df99c2ceb62f27047032f4720b33f8eacdde311865e91c411f2774f618d82f320808ecb51718bfa82c060c4ba7c76a32b8"
 }
