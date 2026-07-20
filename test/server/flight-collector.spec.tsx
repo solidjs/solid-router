@@ -93,6 +93,23 @@ describe("createFlightDataCollector (preload runner)", () => {
 
 });
 
+describe("createFlightDataCollector (router instance)", () => {
+  test("accepts a createRouter instance: routes, base, and preload come from its config", async () => {
+    const { createRouter } = await import("../../src/routers/factory.jsx");
+    const rootIntents: string[] = [];
+    const Router = createRouter({
+      routes,
+      preload: ({ intent }) => void rootIntents.push(intent)
+    });
+    const collect = createFlightDataCollector(Router);
+    const event = createEvent();
+    const data: any = await collect(event as any, createOutcome(event) as any);
+    expect(Object.keys(data)).toEqual(["notes[]"]);
+    expect(await data["notes[]"]).toEqual(["note-1"]);
+    expect(rootIntents).toEqual(["initial"]);
+  });
+});
+
 describe("createFlightDataCollector (JSX route trees)", () => {
   // the same nested <Route> tree an app passes as <Router> children — on the
   // server Route evaluates to its definition, no render pass involved

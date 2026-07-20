@@ -4,6 +4,7 @@ export * from "./lifecycle.js";
 export {
   useHref,
   useIsRouting,
+  useLinkState,
   useLocation,
   useMatch,
   useCurrentMatches,
@@ -15,6 +16,7 @@ export {
   usePreloadRoute,
   RouterContextObj as RouterContext
 } from "./routing.js";
+export type { LinkState } from "./routing.js";
 export { mergeSearchString as _mergeSearchString } from "./utils.js";
 export { int } from "./paths.js";
 export type { RoutePaths, PathParamsOf, PathEnd, TypedMatchFilter } from "./paths.js";

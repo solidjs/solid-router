@@ -50,11 +50,12 @@ export interface FlightDataCollectorOptions {
   routes:
     | JSX.Element
     | RouteDefinition
-    | RouteDefinition[]
-    | (() => JSX.Element | RouteDefinition | RouteDefinition[]);
+    | readonly RouteDefinition[]
+    | (() => JSX.Element | RouteDefinition | readonly RouteDefinition[]);
   /**
-   * The root layout's preload — the same function the app passes to
-   * `<Router rootPreload>`. Runs before the matched routes' preloads with
+   * The root layout's preload — the same function the app passes to the
+   * `createRouter` factory's `preload` option (`rootPreload` on the legacy
+   * `<Router>` component). Runs before the matched routes' preloads with
    * the semantics the root gets during a real server render: the merged
    * params of every match and `intent: "initial"`.
    */
@@ -63,10 +64,28 @@ export interface FlightDataCollectorOptions {
   base?: string;
 }
 
+/** A `createRouter` instance carries everything the collector needs. */
+interface RouterInstanceLike {
+  (props: any): JSX.Element;
+  readonly routes: readonly RouteDefinition[];
+  readonly config: { base?: string; preload?: RoutePreloadFunc };
+}
+
+// the instance is the provider component, so it (unlike an options object) is a function
+function isRouterInstance(
+  options: FlightDataCollectorOptions | RouterInstanceLike
+): options is RouterInstanceLike {
+  return typeof options === "function";
+}
+
 /**
  * Produces the `collectFlightData` implementation for
  * `configureServerFunctionsServer` (or `handleServerFunctionRequest`
- * options). Strategy: rerun the route data for the URL the client will show
+ * options). Accepts a `createRouter` instance directly — its routes, base,
+ * and `preload` are the single source of truth — or an options object for
+ * trees not created through the factory.
+ *
+ * Strategy: rerun the route data for the URL the client will show
  * after the mutation — the redirect `Location` when the outcome carries
  * one, the referring page otherwise — collecting each `query` result under
  * its cache key, scoped to the outcome's `X-Revalidate` keys when present
@@ -75,9 +94,11 @@ export interface FlightDataCollectorOptions {
  * flight-data consumer.
  */
 export function createFlightDataCollector(
-  options: FlightDataCollectorOptions
+  options: FlightDataCollectorOptions | RouterInstanceLike
 ): CollectFlightDataHook {
-  const { routes, rootPreload, base = "" } = options;
+  const { routes, rootPreload, base = "" } = isRouterInstance(options)
+    ? { routes: options.routes, rootPreload: options.config.preload, base: options.config.base }
+    : options;
   if (!routes) throw new Error("createFlightDataCollector requires `routes`");
   let branches: Branch[] | undefined;
   // resolveRouteDefinitions handles every accepted shape — thunks are called

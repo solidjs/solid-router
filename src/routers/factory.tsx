@@ -53,6 +53,8 @@ export interface RouterInstance<R extends readonly RouteDefinition[] = RouteDefi
   /** Typed path proxy — builds URLs through property access and calls. */
   readonly paths: RoutePaths<R>;
   readonly routes: R;
+  /** The config the instance was created with — lets server integrations (flight collector, no-JS handler) consume the instance directly. */
+  readonly config: RouterConfig<R>;
   /** Pure matching against an arbitrary URL — no rendering or request context involved. Root→leaf; `[]` when nothing matches. */
   match(url: string): OutputMatch[];
 }
@@ -140,6 +142,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
   return Object.assign(RouterComponent, {
     paths: createPathsProxy(renderPath, basePath) as RoutePaths<R>,
     routes: config.routes,
+    config,
     match(url: string): OutputMatch[] {
       const u = new URL(url, mockBase);
       const pathname = config.transformUrl ? config.transformUrl(u.pathname) : u.pathname;

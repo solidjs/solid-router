@@ -41,6 +41,7 @@ import {
   createMemoObject,
   extractSearchParams,
   invariant,
+  normalizePath,
   resolvePath,
   createMatcher,
   joinPaths,
@@ -292,6 +293,63 @@ export function useSearchParams(
     : location.query;
   return [query, setSearchParams];
 }
+
+export interface LinkState {
+  /** The location matches this link or lives under it (exact-only when `end`). Styling: `data-active`. */
+  active: () => boolean;
+  /** The location matches this link exactly — what `aria-current="page"` reflects. */
+  current: () => boolean;
+  /** This link is the target of an in-flight navigation. Styling: `data-pending`. */
+  pending: () => boolean;
+}
+
+const comparablePath = (path: string) =>
+  normalizePath(path.split(/[?#]/, 1)[0]).toLowerCase().replace(/\/$/, "");
+
+/**
+ * Reactive link state for custom link components — the programmatic
+ * counterpart of the attribute vocabulary plain anchors receive
+ * (`aria-current`, `data-active`, `data-pending`).
+ *
+ * @example
+ * ```tsx
+ * function TabLink(props: { href: string; children: JSX.Element }) {
+ *   const link = useLinkState(() => props.href);
+ *   return (
+ *     <a href={props.href} class="tab" data-selected={link.active() || undefined}>
+ *       {props.children}
+ *     </a>
+ *   );
+ * }
+ * ```
+ */
+export const useLinkState = (
+  href: () => string | TypedPath,
+  options: { end?: boolean } = {}
+): LinkState => {
+  const router = useRouter();
+  const location = router.location;
+  const to = useResolvedPath(() => String(href()));
+  // trailing slashes are ignored so `/route` and `/route/` share state
+  const path = createMemo(() => {
+    const to_ = to();
+    return to_ === undefined ? undefined : comparablePath(to_);
+  });
+  const matches = (loc: string) => {
+    const path_ = path();
+    if (path_ === undefined) return [false, false] as const;
+    const exact = loc === path_;
+    return [exact || (!options.end && loc.startsWith(path_ + "/")), exact] as const;
+  };
+  // location already reflects the navigation target while routing (the
+  // navigate override feeds it), so "pending" is simply active-while-routing
+  const state = createMemo(() => matches(decodeURI(comparablePath(location.pathname))));
+  return {
+    active: () => state()[0],
+    current: () => state()[1],
+    pending: createMemo(() => router.isRouting() && state()[0])
+  };
+};
 
 /**
  * useBeforeLeave takes a function that will be called prior to leaving a route.

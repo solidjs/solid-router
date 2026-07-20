@@ -1,6 +1,14 @@
 import { render } from "@solidjs/web";
 import { vi } from "vitest";
-import { createRouter, memoryHistory, useNavigate, useParams, useSearchParams, int } from "../src/index.js";
+import {
+  createRouter,
+  memoryHistory,
+  useLinkState,
+  useNavigate,
+  useParams,
+  useSearchParams,
+  int
+} from "../src/index.js";
 import type { Navigator, StandardSchemaV1 } from "../src/index.js";
 
 /** A tiny hand-rolled Standard Schema: parses `page` to a number (default 1), requires `q` to be a string (default ""). */
@@ -233,6 +241,66 @@ describe("createRouter factory", () => {
         setSearch({ page: "abc" as any });
         await settle();
         expect(search.page as any).toBe("abc");
+      } finally {
+        dispose();
+        div.remove();
+      }
+    });
+
+    test("exposes reactive link state for custom link components", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+
+      let navigate!: Navigator;
+      let usersLink!: ReturnType<typeof useLinkState>;
+      let settingsLink!: ReturnType<typeof useLinkState>;
+      let exactUsersLink!: ReturnType<typeof useLinkState>;
+
+      const Router = createRouter({
+        routes: [
+          {
+            path: "/users/:id",
+            component: (props: any) => props.children,
+            children: [
+              { path: "/", component: () => <div data-route="overview" /> },
+              { path: "/settings", component: () => <div data-route="settings" /> }
+            ]
+          }
+        ] as const,
+        history: memoryHistory("/users/2")
+      });
+
+      const dispose = render(
+        () => (
+          <Router>
+            {props => {
+              navigate = useNavigate();
+              usersLink = useLinkState(() => String(Router.paths.users(2)));
+              settingsLink = useLinkState(() => String(Router.paths.users(2).settings));
+              exactUsersLink = useLinkState(() => String(Router.paths.users(2)), { end: true });
+              return props.children;
+            }}
+          </Router>
+        ),
+        div
+      );
+      try {
+        // on /users/2: the users link is current, settings is not active
+        expect(usersLink.active()).toBe(true);
+        expect(usersLink.current()).toBe(true);
+        expect(exactUsersLink.active()).toBe(true);
+        expect(settingsLink.active()).toBe(false);
+
+        navigate(Router.paths.users(2).settings);
+        await settle();
+
+        // on /users/2/settings: prefix-active but no longer current; `end` opts out
+        expect(usersLink.active()).toBe(true);
+        expect(usersLink.current()).toBe(false);
+        expect(exactUsersLink.active()).toBe(false);
+        expect(settingsLink.active()).toBe(true);
+        expect(settingsLink.current()).toBe(true);
+        expect(settingsLink.pending()).toBe(false);
       } finally {
         dispose();
         div.remove();

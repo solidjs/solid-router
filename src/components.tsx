@@ -3,6 +3,7 @@ import type { JSX } from "@solidjs/web";
 import { createMemo, merge, omit } from "solid-js";
 import {
   useHref,
+  useLinkState,
   useLocation,
   useNavigate,
   useResolvedPath
@@ -11,7 +12,6 @@ import type {
   Location,
   Navigator
 } from "./types.js";
-import { normalizePath } from "./utils.js";
 
 // the JSX namespace lives in @solidjs/web's jsx-runtime module as of 2.0
 declare module "@solidjs/web/jsx-runtime" {
@@ -62,17 +62,12 @@ export function A(props: AnchorProps) {
   );
   const to = useResolvedPath(() => props.href);
   const href = useHref(to);
-  const location = useLocation();
-  const isActive = createMemo(() => {
-    const to_ = to();
-    if (to_ === undefined) return [false, false];
-    // trailing slashes are ignored so `/route` and `/route/` share active state
-    const path = normalizePath(to_.split(/[?#]/, 1)[0]).toLowerCase().replace(/\/$/, "");
-    const loc = decodeURI(normalizePath(location.pathname).toLowerCase().replace(/\/$/, ""));
-    return [props.end ? path === loc : loc.startsWith(path + "/") || loc === path, path === loc];
-  });
+  const link = useLinkState(
+    () => props.href,
+    { get end() { return props.end; } }
+  );
   const className = createMemo(() =>
-    [toClassName(props.class), isActive()[0] ? props.activeClass : props.inactiveClass]
+    [toClassName(props.class), link.active() ? props.activeClass : props.inactiveClass]
       .filter(Boolean)
       .join(" ")
   );
@@ -84,7 +79,7 @@ export function A(props: AnchorProps) {
       state={JSON.stringify(props.state)}
       class={className()}
       link
-      aria-current={isActive()[1] ? "page" : undefined}
+      aria-current={link.current() ? "page" : undefined}
     />
   );
 }
