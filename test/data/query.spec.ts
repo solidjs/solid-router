@@ -1,5 +1,6 @@
 import { createRoot } from "solid-js";
 import { vi } from "vitest";
+import { GET, getServerFunctionMetadata } from "@solidjs/web/server-functions";
 import {
   query,
   revalidate,
@@ -118,6 +119,94 @@ describe("query", () => {
       const result = await cachedFn();
 
       expect(result).toBe("GET result");
+    });
+  });
+
+  test("auto-declares GET for undeclared server functions (query implies GET)", async () => {
+    return createRoot(async () => {
+      // an undeclared server-function reference (metadata brand, no method):
+      // query() wraps it with core GET at creation time, so calls go out
+      // over the GET transport instead of the reference's default POST
+      let bodyCalled = false;
+      const serverFn = (() => {
+        bodyCalled = true;
+        return Promise.resolve("wrong transport");
+      }) as any;
+      serverFn[Symbol.for("solid.ServerFunctionMetadata")] = {};
+      serverFn.id = "auto-get-0";
+
+      const seen: { url?: string; method?: string } = {};
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (async (url: any, init?: RequestInit) => {
+        seen.url = String(url);
+        seen.method = init?.method;
+        // BodyFormat.String — the transport decodes the body as plain text
+        return new Response("GET result", {
+          headers: { "X-Server-Function-Format": "1", "Content-Type": "text/plain" }
+        });
+      }) as typeof fetch;
+      try {
+        const cachedFn = query(serverFn, "autoGetQuery");
+        const result = await cachedFn();
+
+        expect(result).toBe("GET result");
+        expect(bodyCalled).toBe(false);
+        expect(seen.method).toBe("GET");
+        expect(seen.url).toContain("id=auto-get-0");
+        // the declaration lives on the wrapped reference; the original's
+        // metadata is untouched (copy-on-declare)
+        expect(getServerFunctionMetadata(serverFn)).toEqual({});
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+  });
+
+  test("passes explicitly GET-declared references through (idempotent)", async () => {
+    return createRoot(async () => {
+      const ref = (() => Promise.resolve("unused")) as any;
+      ref[Symbol.for("solid.ServerFunctionMetadata")] = {};
+      ref.id = "explicit-get-0";
+      const declared = GET(ref);
+      expect(getServerFunctionMetadata(declared)?.method).toBe("GET");
+
+      const methods: (string | undefined)[] = [];
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (async (_url: any, init?: RequestInit) => {
+        methods.push(init?.method);
+        return new Response("ok", {
+          headers: { "X-Server-Function-Format": "1", "Content-Type": "text/plain" }
+        });
+      }) as typeof fetch;
+      try {
+        const cachedFn = query(declared as any, "explicitGetQuery");
+        const result = await cachedFn();
+
+        expect(result).toBe("ok");
+        // exactly one GET fetch: query used the declared reference as-is
+        expect(methods).toEqual(["GET"]);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+  });
+
+  test("leaves plain functions untouched (no GET declaration)", async () => {
+    return createRoot(async () => {
+      const fetchSpy = vi.fn();
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = fetchSpy as any;
+      try {
+        const plain = async () => "plain result";
+        const cachedFn = query(plain, "plainQuery");
+        const result = await cachedFn();
+
+        expect(result).toBe("plain result");
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(getServerFunctionMetadata(plain)).toBeUndefined();
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
     });
   });
 });

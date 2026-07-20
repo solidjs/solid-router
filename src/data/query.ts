@@ -7,7 +7,12 @@ import {
   type Signal
 } from "solid-js";
 import { getRequestEvent, isResponseEnvelope, isServer } from "@solidjs/web";
-import { decodeResponse } from "@solidjs/web/server-functions";
+import {
+  GET,
+  decodeResponse,
+  getServerFunctionMetadata,
+  isServerFunction
+} from "@solidjs/web/server-functions";
 import { useNavigate, getIntent, getInPreloadFn } from "../routing.js";
 import type { CacheEntry, NarrowResponse } from "../types.js";
 
@@ -69,10 +74,16 @@ export type CachedFunction<T extends (...args: any) => any> = T extends (
   : never;
 
 export function query<T extends (...args: any) => any>(fn: T, name: string): CachedFunction<T> {
-  // GET-ness is a declaration now (core's `GET(fn)`): a declared reference
-  // already calls over GET, so there is no transport to swap — the metadata
-  // channel (`getServerFunctionMetadata(fn)?.method === "GET"`) replaces the
-  // old `.GET` property sniffing wherever the router needs to know.
+  // query implies GET: the router primitive is the declaration site, so a
+  // server function handed to query() is wrapped with core `GET(fn)` here,
+  // at query-creation (module scope) — the server half records the method
+  // declaration for dispatch, the client half swaps in the GET transport.
+  // An explicit `GET(fn)` already carries the declaration on the metadata
+  // channel (`getServerFunctionMetadata(fn)?.method === "GET"`) and passes
+  // through; non-server functions are untouched.
+  if (isServerFunction(fn) && !getServerFunctionMetadata(fn)?.method) {
+    fn = GET(fn) as unknown as T;
+  }
   const cachedFn = ((...args: Parameters<T>) => {
     const cache = getCache();
     const intent = getIntent();

@@ -7,7 +7,7 @@
 declaration now — a core `GET(fn)` reference already calls over GET, so
 there is no transport to swap; where the router needs to *know*, the
 detection contract is `getServerFunctionMetadata(fn)?.method === "GET"`
-from `@solidjs/web/server-functions`. Note this also retires the implicit
-GET upgrade of undeclared server functions passed to `query()` — with the
-handler now enforcing declared methods (405), declare reads with `GET(fn)`
-to get cacheable GET transport.
+from `@solidjs/web/server-functions`. Undeclared server functions passed
+to `query()` still get GET transport — query implies GET (see the
+companion changeset): the upgrade is now a real `GET(fn)` declaration
+instead of a property swap.
