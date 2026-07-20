@@ -104,13 +104,17 @@ describe("query", () => {
     });
   });
 
-  test("should prioritize GET method for server functions", async () => {
+  test("should call GET-declared server functions as-is (no property swap)", async () => {
     return createRoot(async () => {
-      const postFn = () => Promise.resolve("POST result");
-      const getFn = () => Promise.resolve("GET result");
-      (postFn as any).GET = getFn;
+      // a core `GET(fn)` reference already calls over GET — the reference
+      // itself is the right transport, detected by metadata, not by the
+      // legacy `.GET` property (which no longer exists)
+      const declared = () => Promise.resolve("GET result");
+      (declared as any)[Symbol.for("solid.ServerFunctionMetadata")] = { method: "GET" };
+      // a leftover legacy-style property must not be consulted
+      (declared as any).GET = () => Promise.resolve("wrong transport");
 
-      const cachedFn = query(postFn, "serverQuery");
+      const cachedFn = query(declared, "serverQuery");
       const result = await cachedFn();
 
       expect(result).toBe("GET result");

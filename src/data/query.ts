@@ -69,8 +69,10 @@ export type CachedFunction<T extends (...args: any) => any> = T extends (
   : never;
 
 export function query<T extends (...args: any) => any>(fn: T, name: string): CachedFunction<T> {
-  // prioritize GET for server functions
-  if ((fn as any).GET) fn = (fn as any).GET;
+  // GET-ness is a declaration now (core's `GET(fn)`): a declared reference
+  // already calls over GET, so there is no transport to swap — the metadata
+  // channel (`getServerFunctionMetadata(fn)?.method === "GET"`) replaces the
+  // old `.GET` property sniffing wherever the router needs to know.
   const cachedFn = ((...args: Parameters<T>) => {
     const cache = getCache();
     const intent = getIntent();
