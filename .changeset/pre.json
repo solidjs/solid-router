@@ -7,10 +7,14 @@
   "changesets": [
     "adopt-core-server-function-protocol",
     "fix-stale-params-on-navigation",
+    "metadata-detection-for-get",
+    "own-single-flight-and-nojs",
     "popular-pears-boil",
+    "query-implies-get",
     "router-navigation-warning-fix",
     "solid-2-beta-router-migration",
     "update-solid-beta-18",
+    "update-solid-beta-21",
     "update-solid-beta-7"
   ]
 }
