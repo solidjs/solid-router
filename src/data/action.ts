@@ -5,7 +5,9 @@ import {
   subscribeFlightData,
   type SingleFlightPayload
 } from "@solidjs/web/server-functions";
-import { useRouter } from "../routing.js";
+import { provideFlashDecoder, provideFlightConsumer, useRouter } from "../routing.js";
+import { setRouterFormHandler } from "./events.js";
+import { decodeFlashCookie } from "./flash.js";
 import type {
   RouterContext,
   Submission,
@@ -63,6 +65,59 @@ const settledHooksSymbol = Symbol("routerActionSettledHooks");
 const invokeSymbol = Symbol("routerActionInvoke");
 
 export const actions = /* #__PURE__ */ new Map<string, Action<any, any>>();
+
+/**
+ * The document-delegation submit handler for router actions. Lives here —
+ * not in events.ts — so the router's event wiring holds no static reference
+ * to the action module; `installRouterIntegrations` slots it in when the
+ * first action is created on the client.
+ */
+export function handleFormAction(evt: SubmitEvent, router: RouterContext, actionBase: string) {
+  if (evt.defaultPrevented) return;
+  let actionRef =
+    evt.submitter && evt.submitter.hasAttribute("formaction")
+      ? evt.submitter.getAttribute("formaction")
+      : (evt.target as HTMLElement).getAttribute("action");
+  if (!actionRef) return;
+  if (!actionRef.startsWith("https://action/")) {
+    // normalize server actions
+    const url = new URL(actionRef, mockBase);
+    actionRef = router.parsePath(url.pathname + url.search);
+    if (!actionRef.startsWith(actionBase)) return;
+  }
+  if ((evt.target as HTMLFormElement).method.toUpperCase() !== "POST")
+    throw new Error("Only POST forms are supported for Actions");
+  const handler = actions.get(actionRef);
+  if (handler) {
+    evt.preventDefault();
+    const data = new FormData(evt.target as HTMLFormElement, evt.submitter);
+    handler.call(
+      { r: router, f: evt.target },
+      (evt.target as HTMLFormElement).enctype === "multipart/form-data"
+        ? data
+        : new URLSearchParams(data as any)
+    );
+  }
+}
+
+// Wires the action layer into the router's slots exactly once, triggered by
+// the first action creation. Not an import side effect — with
+// `sideEffects: false`, module evaluation only happens when action() is
+// actually used, which is precisely when the wiring is wanted: no action in
+// the graph means no form interception, no single-flight subscription (the
+// server is never asked to collect), and no flash cookies to decode. On the
+// server, actions are created at module scope, so the flash decoder is
+// always installed before useSubmission can read the submissions signal.
+let integrationsInstalled = false;
+function installRouterIntegrations() {
+  if (integrationsInstalled) return;
+  integrationsInstalled = true;
+  provideFlashDecoder(decodeFlashCookie);
+  if (!isServer) {
+    setRouterFormHandler(handleFormAction);
+    provideFlightConsumer(setupFlightDataConsumer);
+  }
+}
 
 export function useSubmissions<T extends Array<any>, U, V>(
   fn: Action<T, U, V>,
@@ -213,6 +268,7 @@ function toAction<T extends Array<any>, U, V = T>(
   fn[submitHooksSymbol] = submitHooks;
   fn[settledHooksSymbol] = settledHooks;
   fn[invokeSymbol] = invoke;
+  installRouterIntegrations();
   if (!isServer) {
     actions.set(url, fn as unknown as Action<T, U, V>);
     // Only remove the registration if it still belongs to this instance —

@@ -1,8 +1,24 @@
 import { delegateEvents } from "@solidjs/web";
 import { onCleanup } from "solid-js";
 import type { RouterContext } from "../types.js";
-import { actions } from "./action.js";
-import { mockBase } from "../utils.js";
+
+/**
+ * The submit delegation consults this slot instead of importing the action
+ * module: the action side installs its handler on first action creation
+ * (see data/action.ts), so an app that never creates an action never pulls
+ * the data layer into its bundle through the router's event wiring.
+ */
+export type RouterFormHandler = (
+  evt: SubmitEvent,
+  router: RouterContext,
+  actionBase: string
+) => void;
+
+let formHandler: RouterFormHandler | undefined;
+
+export function setRouterFormHandler(handler: RouterFormHandler | undefined) {
+  formHandler = handler;
+}
 
 type NativeEventConfig = {
   preload?: boolean; // defaults `true`
@@ -102,31 +118,7 @@ export function setupNativeEvents({
     }
 
     function handleFormSubmit(evt: SubmitEvent) {
-      if (evt.defaultPrevented) return;
-      let actionRef =
-        evt.submitter && evt.submitter.hasAttribute("formaction")
-          ? evt.submitter.getAttribute("formaction")
-          : (evt.target as HTMLElement).getAttribute("action");
-      if (!actionRef) return;
-      if (!actionRef.startsWith("https://action/")) {
-        // normalize server actions
-        const url = new URL(actionRef, mockBase);
-        actionRef = router.parsePath(url.pathname + url.search);
-        if (!actionRef.startsWith(actionBase)) return;
-      }
-      if ((evt.target as HTMLFormElement).method.toUpperCase() !== "POST")
-        throw new Error("Only POST forms are supported for Actions");
-      const handler = actions.get(actionRef);
-      if (handler) {
-        evt.preventDefault();
-        const data = new FormData(evt.target as HTMLFormElement, evt.submitter);
-        handler.call(
-          { r: router, f: evt.target },
-          (evt.target as HTMLFormElement).enctype === "multipart/form-data"
-            ? data
-            : new URLSearchParams(data as any)
-        );
-      }
+      formHandler && formHandler(evt, router, actionBase);
     }
 
     // ensure delegated event run first

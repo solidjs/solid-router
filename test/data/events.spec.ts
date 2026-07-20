@@ -1,18 +1,8 @@
 import { createRoot, createSignal } from "solid-js";
 import { vi } from "vitest";
-import { setupNativeEvents } from "../../src/data/events.js";
+import { setRouterFormHandler, setupNativeEvents } from "../../src/data/events.js";
 import type { RouterContext } from "../../src/types.js";
 import { createMockRouter } from "../helpers.js";
-
-vi.mock("../../src/data/action.js", () => ({
-  actions: new Map()
-}));
-
-import { actions } from "../../src/data/action.js";
-
-vi.mock("../../src/utils.js", () => ({
-  mockBase: "https://action"
-}));
 
 class MockNode {
   nodeName: string;
@@ -71,7 +61,6 @@ describe("setupNativeEvents", () => {
     mockRouter = createMockRouter();
     addEventListener = vi.fn();
     removeEventListener = vi.fn();
-    actions.clear();
 
     originalDocument = global.document;
     global.document = {
@@ -443,6 +432,10 @@ describe("anchor link handling", () => {
   });
 });
 
+// The action-lookup/invocation behavior these events used to exercise moved
+// with the handler into data/action.ts (see `handleFormAction` in
+// test/data/action.spec.ts). Delegation's remaining job is consulting the
+// registered form-handler slot.
 describe("form submit handling", () => {
   let mockRouter: RouterContext;
   let submitHandler: Function;
@@ -451,7 +444,6 @@ describe("form submit handling", () => {
 
   beforeEach(() => {
     mockRouter = createMockRouter();
-    actions.clear();
 
     originalDocument = global.document;
     global.document = {
@@ -460,232 +452,65 @@ describe("form submit handling", () => {
       },
       removeEventListener: vi.fn()
     } as any;
-
-    global.URL = class MockURL {
-      pathname: string;
-      search: string;
-
-      constructor(url: string, base?: string) {
-        this.pathname = url.startsWith("/") ? url : "/action";
-        this.search = "";
-      }
-    } as any;
-
-    disposeEvents = createRoot(dispose => {
-      setupNativeEvents()(mockRouter);
-      return dispose;
-    });
   });
 
   afterEach(() => {
     disposeEvents?.();
+    disposeEvents = undefined;
+    setRouterFormHandler(undefined);
     global.document = originalDocument;
   });
 
-  test("handle action form submission", () => {
-    return createRoot(() => {
-      const mockActionFn = vi.fn();
-      const mockAction = {
-        url: "https://action/test-action",
-        with: vi.fn(),
-        call: mockActionFn
-      };
-      actions.set("https://action/test-action", mockAction as any);
-
-      const form = {
-        getAttribute: (name: string) => (name === "action" ? "https://action/test-action" : null),
-        method: "POST",
-        enctype: "application/x-www-form-urlencoded"
-      };
-
-      const event = {
-        defaultPrevented: false,
-        target: form,
-        submitter: null,
-        preventDefault: vi.fn()
-      };
-
-      // Mock FormData and URLSearchParams
-      global.FormData = vi.fn(() => ({})) as any;
-      global.URLSearchParams = vi.fn(() => ({})) as any;
-
-      submitHandler(event);
-
-      expect(event.preventDefault).toHaveBeenCalled();
-      expect(mockActionFn).toHaveBeenCalledWith({ r: mockRouter, f: form }, {});
+  const mount = (config?: Parameters<typeof setupNativeEvents>[0]) => {
+    disposeEvents = createRoot(dispose => {
+      setupNativeEvents(config)(mockRouter);
+      return dispose;
     });
+  };
+
+  test("consults the registered form handler with the router and default action base", () => {
+    const handler = vi.fn();
+    setRouterFormHandler(handler);
+    mount();
+
+    const event = {
+      defaultPrevented: false,
+      target: {},
+      submitter: null,
+      preventDefault: vi.fn()
+    };
+    submitHandler(event);
+
+    expect(handler).toHaveBeenCalledWith(event, mockRouter, "/_server");
   });
 
-  /**
-   * @todo ?
-   */
-  test("handle multipart form data", () => {
-    return createRoot(() => {
-      const mockActionFn = vi.fn();
-      const mockAction = {
-        url: "https://action/test-action",
-        with: vi.fn(),
-        call: mockActionFn
-      };
-      actions.set("https://action/test-action", mockAction as any);
+  test("passes a configured actionBase through to the handler", () => {
+    const handler = vi.fn();
+    setRouterFormHandler(handler);
+    mount({ actionBase: "/custom-base" });
 
-      const form = {
-        getAttribute: (name: string) => (name === "action" ? "https://action/test-action" : null),
-        method: "POST",
-        enctype: "multipart/form-data"
-      };
+    const event = {
+      defaultPrevented: false,
+      target: {},
+      submitter: null,
+      preventDefault: vi.fn()
+    };
+    submitHandler(event);
 
-      const event = {
-        defaultPrevented: false,
-        target: form,
-        submitter: null,
-        preventDefault: vi.fn()
-      };
-
-      const mockFormData = {};
-      global.FormData = vi.fn(() => mockFormData) as any;
-
-      submitHandler(event);
-
-      expect(event.preventDefault).toHaveBeenCalled();
-      expect(mockActionFn).toHaveBeenCalledWith({ r: mockRouter, f: form }, mockFormData);
-    });
+    expect(handler).toHaveBeenCalledWith(event, mockRouter, "/custom-base");
   });
 
-  test("Throw when using a `GET` action", () => {
-    return createRoot(() => {
-      const form = {
-        getAttribute: () => "https://action/test-action",
-        method: "GET"
-      };
+  test("does nothing when no form handler is registered", () => {
+    mount();
 
-      const event = {
-        defaultPrevented: false,
-        target: form,
-        submitter: null,
-        preventDefault: vi.fn()
-      };
+    const event = {
+      defaultPrevented: false,
+      target: {},
+      submitter: null,
+      preventDefault: vi.fn()
+    };
 
-      expect(() => submitHandler(event)).toThrow("Only POST forms are supported for Actions");
-    });
-  });
-
-  test("Throw when using a `PATCH` action", () => {
-    return createRoot(() => {
-      const form = {
-        getAttribute: () => "https://action/test-action",
-        method: "PATCH"
-      };
-
-      const event = {
-        defaultPrevented: false,
-        target: form,
-        submitter: null,
-        preventDefault: vi.fn()
-      };
-
-      expect(() => submitHandler(event)).toThrow("Only POST forms are supported for Actions");
-    });
-  });
-
-  test("Throw when using a `DELETE` action", () => {
-    return createRoot(() => {
-      const form = {
-        getAttribute: () => "https://action/test-action",
-        method: "DELETE"
-      };
-
-      const event = {
-        defaultPrevented: false,
-        target: form,
-        submitter: null,
-        preventDefault: vi.fn()
-      };
-
-      expect(() => submitHandler(event)).toThrow("Only POST forms are supported for Actions");
-    });
-  });
-
-  test("ignore forms without action handlers", () => {
-    return createRoot(() => {
-      const form = {
-        getAttribute: () => "https://action/unknown-action",
-        method: "POST"
-      };
-
-      const event = {
-        defaultPrevented: false,
-        target: form,
-        submitter: null,
-        preventDefault: vi.fn()
-      };
-
-      submitHandler(event);
-
-      expect(event.preventDefault).not.toHaveBeenCalled();
-    });
-  });
-
-  test("handle submitter formaction", () => {
-    return createRoot(() => {
-      const mockActionFn = vi.fn();
-      const mockAction = {
-        url: "https://action/submitter-action",
-        with: vi.fn(),
-        call: mockActionFn
-      };
-      actions.set("https://action/submitter-action", mockAction as any);
-
-      const form = {
-        getAttribute: () => "https://action/form-action",
-        method: "POST"
-      };
-
-      const submitter = {
-        hasAttribute: (name: string) => name === "formaction",
-        getAttribute: (name: string) =>
-          name === "formaction" ? "https://action/submitter-action" : null
-      };
-
-      const event = {
-        defaultPrevented: false,
-        target: form,
-        submitter,
-        preventDefault: vi.fn()
-      };
-
-      global.FormData = vi.fn(() => ({})) as any;
-      global.URLSearchParams = vi.fn(() => ({})) as any;
-
-      submitHandler(event);
-
-      expect(event.preventDefault).toHaveBeenCalled();
-      expect(mockActionFn).toHaveBeenCalled();
-    });
-  });
-
-  /**
-   * @todo ?
-   */
-  test("ignore forms with different action base", () => {
-    return createRoot(() => {
-      mockRouter.parsePath = path => path;
-
-      const form = {
-        getAttribute: () => "/different-base/action",
-        method: "POST"
-      };
-
-      const event = {
-        defaultPrevented: false,
-        target: form,
-        submitter: null,
-        preventDefault: vi.fn()
-      };
-
-      submitHandler(event);
-
-      expect(event.preventDefault).not.toHaveBeenCalled();
-    });
+    expect(() => submitHandler(event)).not.toThrow();
+    expect(event.preventDefault).not.toHaveBeenCalled();
   });
 });

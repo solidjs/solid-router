@@ -5,6 +5,7 @@ import {
   useAction,
   useSubmissions,
   actions,
+  handleFormAction,
   type Action
 } from "../../src/data/action.js";
 import type { RouterContext } from "../../src/types.js";
@@ -26,6 +27,8 @@ let mockRouterContext: RouterContext;
 
 vi.mock("../../src/routing.js", () => ({
   useRouter: () => mockRouterContext,
+  provideFlightConsumer: vi.fn(),
+  provideFlashDecoder: vi.fn(),
   createRouterContext: () => createMockRouter(),
   RouterContextObj: {},
   RouteContextObj: {},
@@ -500,5 +503,151 @@ describe("useAction", () => {
     const result = await boundAction("test-data");
 
     expect(result).toBe("result: test-data");
+  });
+});
+
+// Delegated form-submit behavior. The handler body lived in
+// data/events.ts's handleFormSubmit before the decoupling; delegation now
+// consults a slot (see test/data/events.spec.ts) and this is the handler
+// the action side installs into it.
+describe("handleFormAction", () => {
+  const ACTION_BASE = "/_server";
+  let originalFormData: any;
+  let originalURLSearchParams: any;
+
+  beforeEach(() => {
+    actions.clear();
+    mockRouterContext = createMockRouter();
+    originalFormData = global.FormData;
+    originalURLSearchParams = global.URLSearchParams;
+  });
+
+  afterEach(() => {
+    global.FormData = originalFormData;
+    global.URLSearchParams = originalURLSearchParams;
+  });
+
+  const registerMockAction = (url: string) => {
+    const mockActionFn = vi.fn();
+    actions.set(url, { url, with: vi.fn(), call: mockActionFn } as any);
+    return mockActionFn;
+  };
+
+  const createSubmitEvent = (form: any, submitter: any = null) =>
+    ({
+      defaultPrevented: false,
+      target: form,
+      submitter,
+      preventDefault: vi.fn()
+    }) as any;
+
+  test("invokes the registered action with the router and form", () => {
+    const mockActionFn = registerMockAction("https://action/test-action");
+    const form = {
+      getAttribute: (name: string) => (name === "action" ? "https://action/test-action" : null),
+      method: "POST",
+      enctype: "application/x-www-form-urlencoded"
+    };
+    const event = createSubmitEvent(form);
+
+    global.FormData = vi.fn(() => ({})) as any;
+    global.URLSearchParams = vi.fn(() => ({})) as any;
+
+    handleFormAction(event, mockRouterContext, ACTION_BASE);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(mockActionFn).toHaveBeenCalledWith({ r: mockRouterContext, f: form }, {});
+  });
+
+  test("passes FormData through for multipart forms", () => {
+    const mockActionFn = registerMockAction("https://action/test-action");
+    const form = {
+      getAttribute: (name: string) => (name === "action" ? "https://action/test-action" : null),
+      method: "POST",
+      enctype: "multipart/form-data"
+    };
+    const event = createSubmitEvent(form);
+
+    const mockFormData = {};
+    global.FormData = vi.fn(() => mockFormData) as any;
+
+    handleFormAction(event, mockRouterContext, ACTION_BASE);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(mockActionFn).toHaveBeenCalledWith({ r: mockRouterContext, f: form }, mockFormData);
+  });
+
+  test.each(["GET", "PATCH", "DELETE"])("throws for a `%s` form method", method => {
+    const form = {
+      getAttribute: () => "https://action/test-action",
+      method
+    };
+    const event = createSubmitEvent(form);
+
+    expect(() => handleFormAction(event, mockRouterContext, ACTION_BASE)).toThrow(
+      "Only POST forms are supported for Actions"
+    );
+  });
+
+  test("ignores forms without a registered action", () => {
+    const form = {
+      getAttribute: () => "https://action/unknown-action",
+      method: "POST"
+    };
+    const event = createSubmitEvent(form);
+
+    handleFormAction(event, mockRouterContext, ACTION_BASE);
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  test("ignores already-handled events", () => {
+    const mockActionFn = registerMockAction("https://action/test-action");
+    const form = {
+      getAttribute: () => "https://action/test-action",
+      method: "POST"
+    };
+    const event = createSubmitEvent(form);
+    event.defaultPrevented = true;
+
+    handleFormAction(event, mockRouterContext, ACTION_BASE);
+
+    expect(mockActionFn).not.toHaveBeenCalled();
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  test("prefers the submitter's formaction over the form's action", () => {
+    const mockActionFn = registerMockAction("https://action/submitter-action");
+    const form = {
+      getAttribute: () => "https://action/form-action",
+      method: "POST"
+    };
+    const submitter = {
+      hasAttribute: (name: string) => name === "formaction",
+      getAttribute: (name: string) =>
+        name === "formaction" ? "https://action/submitter-action" : null
+    };
+    const event = createSubmitEvent(form, submitter);
+
+    global.FormData = vi.fn(() => ({})) as any;
+    global.URLSearchParams = vi.fn(() => ({})) as any;
+
+    handleFormAction(event, mockRouterContext, ACTION_BASE);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(mockActionFn).toHaveBeenCalled();
+  });
+
+  test("ignores server actions outside the action base", () => {
+    mockRouterContext.parsePath = path => path;
+    const form = {
+      getAttribute: () => "/different-base/action",
+      method: "POST"
+    };
+    const event = createSubmitEvent(form);
+
+    handleFormAction(event, mockRouterContext, ACTION_BASE);
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
   });
 });

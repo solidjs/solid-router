@@ -10,12 +10,12 @@ import {
     createRouterContext,
     getIntent,
     getRouteMatches,
+    registerFlightRouter,
     resolveRouteDefinitions,
     RouteContextObj,
     RouterContextObj,
     setInPreloadFn
 } from "../routing.js";
-import {setupFlightDataConsumer} from "../data/action.js";
 import type {
     Branch,
     MatchFilters,
@@ -61,10 +61,13 @@ export const createRouterComponent = (router: RouterIntegration) => function Int
   });
   router.create && router.create(routerState);
   if (!isServer && routerState.singleFlight) {
-    // Registering the consumer IS the single-flight opt-in: the transport
-    // sends the request header while one is subscribed. `singleFlight={false}`
-    // simply never subscribes, so the server is never asked to collect.
-    onCleanup(setupFlightDataConsumer(routerState));
+    // Registration is the router's half of the single-flight rendezvous: the
+    // consumer subscribes once the action side provides it (first action
+    // creation), and subscribing is the opt-in — the transport sends the
+    // request header while subscribed. `singleFlight={false}` never
+    // registers, and a router-only app never receives a consumer, so the
+    // server is never asked to collect in either case.
+    onCleanup(registerFlightRouter(routerState));
   }
   return (
     <RouterContextObj value={routerState}>

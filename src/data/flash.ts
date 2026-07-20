@@ -1,13 +1,17 @@
 // The no-JS form convention's cookie codec. When a form posts to a server
 // function without the client runtime (no instance header), the server
 // handler redirects back carrying the outcome in a one-shot "flash" cookie;
-// the next SSR pass reads it here and seeds the router's submission state so
+// the next SSR pass reads it and seeds the router's submission state so
 // useSubmission() renders the result exactly as a scripted submission would.
-// Both halves live in this module so the write (src/server.ts, the handler's
-// handleNoJS) and the read (src/routing.ts, SSR initialization) can never
-// drift apart.
+// Both codec halves live in this module so the write (src/server.ts, the
+// handler's handleNoJS) and the read (provided to the router core by
+// data/action.ts) can never drift apart. The cookie's name/clearing live in
+// flashCookie.ts — the only piece the router core itself consumes — so this
+// codec stays out of bundles that never load the action layer.
 
-export const FLASH_COOKIE = "flash";
+import { FLASH_COOKIE, matchFlashCookie } from "./flashCookie.js";
+
+export { FLASH_COOKIE, hasFlashCookie, clearFlashCookie } from "./flashCookie.js";
 
 /** What rides the cookie: a Submission minus its lifecycle methods. */
 export interface FlashSubmission {
@@ -65,29 +69,16 @@ export function encodeFlashCookie(
   )}; Secure; HttpOnly; Path=/`;
 }
 
-/** The Set-Cookie value clearing the flash cookie after it has been read. */
-export function clearFlashCookie(): string {
-  return `${FLASH_COOKIE}=; Max-Age=0; Path=/`;
-}
-
-const FLASH_MATCHER = new RegExp(`(?:^|;\\s*)${FLASH_COOKIE}=([^;]+)`);
-
-/** Whether a Cookie header carries a flash cookie (readable or not). */
-export function hasFlashCookie(cookieHeader: string | null): boolean {
-  return !!cookieHeader && FLASH_MATCHER.test(cookieHeader);
-}
-
 /**
  * Decodes the flash cookie out of a request's Cookie header. Returns
  * undefined when absent or unreadable (a malformed cookie must never take
  * down SSR — it is cleared either way).
  */
 export function decodeFlashCookie(cookieHeader: string | null): FlashSubmission | undefined {
-  if (!cookieHeader) return;
-  const match = cookieHeader.match(FLASH_MATCHER);
+  const match = matchFlashCookie(cookieHeader);
   if (!match) return;
   try {
-    const payload = JSON.parse(decodeURIComponent(match[1]));
+    const payload = JSON.parse(decodeURIComponent(match));
     if (!payload || !payload.result) return;
     const result = payload.error ? new Error(payload.result) : payload.result;
     return {

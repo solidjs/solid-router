@@ -1,4 +1,4 @@
-import { Accessor, flush, runWithOwner } from "solid-js";
+import { Accessor, flush, runWithOwner, type Signal } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import {
   children,
@@ -46,7 +46,8 @@ import {
   mergeSearchString,
   expandOptionals
 } from "./utils.js";
-import { clearFlashCookie, decodeFlashCookie, hasFlashCookie } from "./data/flash.js";
+import { clearFlashCookie, hasFlashCookie } from "./data/flashCookie.js";
+import type { FlashSubmission } from "./data/flash.js";
 
 const MAX_REDIRECTS = 100;
 
@@ -473,6 +474,54 @@ function createLocation(
   };
 }
 
+/**
+ * Rendezvous between the router and the data layer's single-flight consumer.
+ * The Router registers itself at mount (unless `singleFlight={false}`); the
+ * action side provides the consumer factory when the first action is created
+ * (see data/action.ts). Whichever side arrives first waits for the other, so
+ * an action module loaded lazily (a code-split route) still attaches to the
+ * already-mounted router — and a router-only app, where no action ever
+ * loads, never subscribes to the transport, so the server is never asked to
+ * collect.
+ */
+let flightConsumerFactory: ((router: RouterContext) => () => void) | undefined;
+const flightRouters = new Map<RouterContext, (() => void) | undefined>();
+
+export function registerFlightRouter(router: RouterContext): () => void {
+  flightRouters.set(router, flightConsumerFactory && flightConsumerFactory(router));
+  return () => {
+    const unsubscribe = flightRouters.get(router);
+    flightRouters.delete(router);
+    unsubscribe && unsubscribe();
+  };
+}
+
+export function provideFlightConsumer(factory: (router: RouterContext) => () => void): void {
+  if (flightConsumerFactory) return;
+  flightConsumerFactory = factory;
+  for (const [router, unsubscribe] of flightRouters) {
+    if (!unsubscribe) flightRouters.set(router, factory(router));
+  }
+}
+
+/**
+ * The flash-cookie codec, provided by the action side (data/action.ts) so
+ * the router core never carries it: the core consumes the cookie eagerly
+ * per request (detection + one-shot clear via the tiny flashCookie.ts half)
+ * but defers decoding to this slot, read when the submissions signal
+ * initializes. Actions are created at module scope, so on the server the
+ * decoder is always installed before useSubmission can read — and a
+ * router-only app, where it never installs, has no actions that could have
+ * produced a flash cookie in the first place.
+ */
+let flashDecoder: ((cookieHeader: string | null) => FlashSubmission | undefined) | undefined;
+
+export function provideFlashDecoder(
+  decoder: (cookieHeader: string | null) => FlashSubmission | undefined
+): void {
+  flashDecoder || (flashDecoder = decoder);
+}
+
 let intent: Intent | undefined;
 export function getIntent() {
   return intent;
@@ -523,9 +572,26 @@ export function createRouterContext(
   const effective = createMemo(() => navigateTarget() ?? source());
   const location = createLocation(() => effective().value, () => effective().state, utils.queryWrapper);
   const referrers: LocationChange[] = [];
-  const submissions = createSignal<Submission<any, any>[]>(isServer ? initFromFlash() : [], {
-    ownedWrite: true
-  });
+  // The flash cookie is consumed eagerly: its one-shot clear (Set-Cookie)
+  // must be appended before streaming flushes the response headers, and an
+  // unread outcome must not haunt a later request's render. Only detection
+  // and clearing happen here (the tiny flashCookie.ts half); the raw header
+  // is stashed and decoding waits for the action-provided codec, read when
+  // the lazily allocated submissions signal below first initializes.
+  let flashCookieHeader: string | null | undefined;
+  if (isServer) {
+    const e = getRequestEvent();
+    if (e && !(e.router && e.router.submission)) {
+      const cookieHeader = e.request.headers.get("cookie");
+      if (hasFlashCookie(cookieHeader)) {
+        flashCookieHeader = cookieHeader;
+        // one-shot: clear it even when unreadable so it can't haunt later renders
+        if (e.response && e.response.headers)
+          e.response.headers.append("Set-Cookie", clearFlashCookie());
+      }
+    }
+  }
+  let submissions: Signal<Submission<any, any>[]> | undefined;
 
   const matches = createMemo(() => {
     if (typeof options.transformUrl === "function") {
@@ -569,7 +635,12 @@ export function createRouterContext(
     beforeLeave,
     preloadRoute,
     singleFlight: options.singleFlight === undefined ? true : options.singleFlight,
-    submissions
+    get submissions() {
+      return (submissions ||= createSignal<Submission<any, any>[]>(
+        isServer ? initSubmissions() : [],
+        { ownedWrite: true }
+      ));
+    }
   };
 
   function navigateFromRoute(
@@ -706,21 +777,17 @@ export function createRouterContext(
 
   // Seeds the initial submission from a no-JS form post: the server
   // function handler redirected back with the outcome in a one-shot flash
-  // cookie (see src/server.ts's handleNoJS), which is read here — and
-  // cleared — so the post-redirect SSR renders useSubmission() state
+  // cookie (see src/server.ts's handleNoJS), consumed eagerly above and
+  // decoded here — so the post-redirect SSR renders useSubmission() state
   // exactly as a scripted submission would. An explicitly pre-seeded
   // `event.router.submission` (framework integrations) takes precedence.
-  function initFromFlash() {
+  function initSubmissions() {
     const e = getRequestEvent();
-    if (!e) return [];
-    let submission = e.router && e.router.submission;
-    if (!submission) {
-      const cookieHeader = e.request.headers.get("cookie");
-      submission = decodeFlashCookie(cookieHeader);
-      // one-shot: clear it even when unreadable so it can't haunt later renders
-      if (hasFlashCookie(cookieHeader) && e.response && e.response.headers)
-        e.response.headers.append("Set-Cookie", clearFlashCookie());
-    }
+    const submission =
+      (e && e.router && e.router.submission) ||
+      (flashDecoder && flashCookieHeader !== undefined
+        ? flashDecoder(flashCookieHeader)
+        : undefined);
     if (!submission) return [];
     return [
       {

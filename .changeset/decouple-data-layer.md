@@ -1,0 +1,5 @@
+---
+"@solidjs/router": patch
+---
+
+Decouple the data layer from the router core so Router-only apps tree-shake query/action/flash entirely. The coupling inverts across three seams, each a slot the action side fills on first `action()` creation: form submits consult a handler slot in events.ts instead of importing the actions map; single-flight registration becomes a rendezvous in routing.ts (the Router registers, the action side provides the consumer — either order works, so lazily loaded action modules attach to an already-mounted router, and a router-only app never subscribes so the server is never asked to collect); and the submissions signal allocates lazily with the flash codec provided from the action side (the one-shot cookie clear stays eager per request via the new tiny flashCookie.ts half, so Set-Cookie still precedes streaming flushes and unread outcomes cannot haunt later renders). No behavior changes; bundle checks confirm a Router-only entry excludes action.ts, query.ts, the flash codec, and the @solidjs/web/server-functions import.
