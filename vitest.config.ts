@@ -22,6 +22,8 @@ export default defineConfig({
     globals: true,
     testTransformMode: { web: ["/\.[jt]sx?$/"] },
     setupFiles: ["./test/setup.ts"],
-    mockReset: true
+    mockReset: true,
+    // server-mode specs run under vitest.config.server.ts (node conditions)
+    exclude: ["**/node_modules/**", "test/server/**"]
   }
 });

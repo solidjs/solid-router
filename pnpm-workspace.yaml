@@ -1,0 +1,12 @@
+packages:
+  - '.'
+
+overrides:
+  # TEMPORARY: the router now consumes the single-flight core protocol
+  # (subscribeFlightData / collectFlightData / SingleFlightPayload) bridged
+  # through @solidjs/web/server-functions, which is not published yet
+  # (2.0.0-beta.19/20 predate it). Link the sibling checkout (branch `next`,
+  # which itself links ../dom-expressions/packages/runtime) until the next
+  # release, then remove these overrides and pin the released versions.
+  solid-js: link:../solid/packages/solid
+  '@solidjs/web': link:../solid/packages/solid-web

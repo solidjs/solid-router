@@ -1,6 +1,10 @@
 import { $TRACK, action as createSolidAction, createMemo, onCleanup, getOwner } from "solid-js";
 import { isResponseEnvelope, isServer, type JSX } from "@solidjs/web";
-import { decodeResponse } from "@solidjs/web/server-functions";
+import {
+  decodeResponse,
+  subscribeFlightData,
+  type SingleFlightPayload
+} from "@solidjs/web/server-functions";
 import { useRouter } from "../routing.js";
 import type {
   RouterContext,
@@ -97,10 +101,10 @@ function actionImpl<T extends Array<any>, U = void>(
     const form = this.f;
     const submitHooks = current[submitHooksSymbol];
     const settledHooks = current[settledHooksSymbol];
-    const runMutation = () =>
-      (router.singleFlight && (fn as any).withOptions
-        ? (fn as any).withOptions({ headers: { "X-Single-Flight": "true" } })
-        : fn)(...variables);
+    // Single-flight opt-in is no longer per call: the router's registered
+    // flight-data consumer (see setupFlightDataConsumer) makes the transport
+    // send the request header itself, so the mutation is just called.
+    const runMutation = () => fn(...variables);
     const run = createSolidAction(
       async function* (context: { call: () => Promise<U>; optimistic?: () => void }) {
         context.optimistic?.();
@@ -239,31 +243,36 @@ async function settleActionResult<T>(result: T | Promise<T> | AsyncIterable<T>) 
   return result as T;
 }
 
-async function handleResponse(response: unknown, error: boolean | undefined, navigate: Navigator) {
-  let data: any;
-  let custom: any;
+/**
+ * Registers the router as the single-flight consumer of the server function
+ * transport. Subscribing is the opt-in: while registered, the transport
+ * sends the `X-Single-Flight` request header on mutations and delivers the
+ * folded payload here — fresh route data is seeded into the `query` cache
+ * and the envelope metadata (redirect `Location`, `X-Revalidate` keys) is
+ * applied, all before the action sees its plain return value. Called by the
+ * Router component on the client unless `singleFlight={false}`, which now
+ * simply means "never subscribe" — no consumer, no request header, no
+ * collection work on the server. Returns the unsubscribe function.
+ */
+export function setupFlightDataConsumer(router: RouterContext) {
+  return subscribeFlightData<Record<string, any>>((data, { response }) =>
+    applyResponseMetadata(response, router.navigatorFactory(), data)
+  );
+}
+
+/**
+ * Applies a server function response's integration metadata: `X-Revalidate`
+ * keys invalidate, `Location` navigates (hard for absolute urls), flight
+ * data seeds the query cache, and matching entries revalidate. Shared by
+ * the flight-data consumer and the action response path (which still sees
+ * metadata-bearing responses when no flight data was collected).
+ */
+async function applyResponseMetadata(
+  metadata: Response | undefined,
+  navigate: Navigator,
+  flightData?: Record<string, any>
+) {
   let keys: string[] | undefined;
-  let flightKeys: string[] | undefined;
-  let metadata: Response | undefined;
-  if (isResponseEnvelope(response)) {
-    // client-only respond(): the value rides in memory beside the metadata
-    data = response.value;
-    metadata = response.response;
-  } else if (response instanceof Response) {
-    metadata = response;
-    // responses the transport hands over whole (redirects, revalidation,
-    // single-flight) carry a codec-encoded body the router decodes itself
-    if (response.body) {
-      data = await decodeResponse(response);
-      if (response.headers.has("X-Single-Flight")) {
-        custom = data;
-        data = custom._$value;
-        delete custom._$value;
-        flightKeys = Object.keys(custom);
-      }
-    }
-  } else if (error) return { error: response };
-  else data = response;
   if (metadata) {
     if (metadata.headers.has("X-Revalidate"))
       keys = metadata.headers.get("X-Revalidate")!.split(",");
@@ -279,8 +288,36 @@ async function handleResponse(response: unknown, error: boolean | undefined, nav
   // invalidate
   cacheKeyOp(keys, entry => (entry[0] = 0));
   // set cache
-  flightKeys && flightKeys.forEach(k => query.set(k, custom[k]));
+  flightData && Object.keys(flightData).forEach(k => query.set(k, flightData[k]));
   // trigger revalidation
   await revalidate(keys, false);
+}
+
+async function handleResponse(response: unknown, error: boolean | undefined, navigate: Navigator) {
+  let data: any;
+  let flightData: Record<string, any> | undefined;
+  let metadata: Response | undefined;
+  if (isResponseEnvelope(response)) {
+    // client-only respond(): the value rides in memory beside the metadata
+    data = response.value;
+    metadata = response.response;
+  } else if (response instanceof Response) {
+    metadata = response;
+    // responses the transport hands over whole (redirects, revalidation)
+    // carry a codec-encoded body the router decodes itself. With the
+    // flight-data consumer registered single-flight payloads never reach
+    // this path, but a manually opted-in call (no consumer) still can —
+    // unwrap the standardized { value, data } shape for it too.
+    if (response.body) {
+      data = await decodeResponse(response);
+      if (response.headers.has("X-Single-Flight")) {
+        const payload = data as SingleFlightPayload<any, Record<string, any>>;
+        data = payload.value;
+        flightData = payload.data;
+      }
+    }
+  } else if (error) return { error: response };
+  else data = response;
+  await applyResponseMetadata(metadata, navigate, flightData);
   return data != null ? { data } : undefined;
 }

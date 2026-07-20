@@ -13,7 +13,7 @@ declare module "@solidjs/web" {
       cache?: Map<string, CacheEntry>;
       submission?: {
         input: any;
-        result: any;
+        result?: any;
         error?: any;
         url: string;
       };

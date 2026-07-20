@@ -10,10 +10,12 @@ import {
     createRouterContext,
     getIntent,
     getRouteMatches,
+    resolveRouteDefinitions,
     RouteContextObj,
     RouterContextObj,
     setInPreloadFn
 } from "../routing.js";
+import {setupFlightDataConsumer} from "../data/action.js";
 import type {
     Branch,
     MatchFilters,
@@ -48,9 +50,7 @@ export const createRouterComponent = (router: RouterIntegration) => function Int
     rootPreload: props.rootPreload,
     routeChildren: props.children
   }));
-  const routeDefs = children(() => routeChildren as JSX.Element) as unknown as () =>
-    | RouteDefinition
-    | RouteDefinition[];
+  const routeDefs = resolveRouteDefinitions(routeChildren);
 
   const branches = createMemo(() => createBranches(routeDefs(), base || ""));
   let context: Owner;
@@ -60,6 +60,12 @@ export const createRouterComponent = (router: RouterIntegration) => function Int
     transformUrl,
   });
   router.create && router.create(routerState);
+  if (!isServer && routerState.singleFlight) {
+    // Registering the consumer IS the single-flight opt-in: the transport
+    // sends the request header while one is subscribed. `singleFlight={false}`
+    // simply never subscribes, so the server is never asked to collect.
+    onCleanup(setupFlightDataConsumer(routerState));
+  }
   return (
     <RouterContextObj value={routerState}>
       <Root routerState={routerState} root={root} preload={rootPreload}>

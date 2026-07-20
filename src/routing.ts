@@ -1,6 +1,7 @@
 import { Accessor, flush, runWithOwner } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import {
+  children,
   createComponent,
   createContext,
   createMemo,
@@ -45,6 +46,7 @@ import {
   mergeSearchString,
   expandOptionals
 } from "./utils.js";
+import { clearFlashCookie, decodeFlashCookie, hasFlashCookie } from "./data/flash.js";
 
 const MAX_REDIRECTS = 100;
 
@@ -357,6 +359,21 @@ function asArray<T>(value: T | T[]): T[] {
   return Array.isArray(value) ? value : [value];
 }
 
+/**
+ * Resolves the route tree an app hands the router — JSX `<Route>` children
+ * (`Route` is a data-holder component, evaluating to its merged props),
+ * config objects, arrays, or thunks producing either — into route
+ * definitions. Shared by the `<Router>` component (which keeps the
+ * resolution live) and the server integration's preload runner (one-shot).
+ */
+export function resolveRouteDefinitions(
+  routes: JSX.Element | RouteDefinition | RouteDefinition[]
+): () => RouteDefinition | RouteDefinition[] {
+  return children(() => routes as JSX.Element) as unknown as () =>
+    | RouteDefinition
+    | RouteDefinition[];
+}
+
 export function createBranches(
   routeDef: RouteDefinition | RouteDefinition[],
   base: string = "",
@@ -399,7 +416,7 @@ export function getRouteMatches(branches: Branch[], location: string): RouteMatc
   return [];
 }
 
-function mergeParams(matches: RouteMatch[]): Params {
+export function mergeParams(matches: RouteMatch[]): Params {
   const params: Params = {};
   for (let i = 0; i < matches.length; i++) {
     Object.assign(params, matches[i].params);
@@ -687,12 +704,27 @@ export function createRouterContext(
     intent = prevIntent;
   }
 
+  // Seeds the initial submission from a no-JS form post: the server
+  // function handler redirected back with the outcome in a one-shot flash
+  // cookie (see src/server.ts's handleNoJS), which is read here — and
+  // cleared — so the post-redirect SSR renders useSubmission() state
+  // exactly as a scripted submission would. An explicitly pre-seeded
+  // `event.router.submission` (framework integrations) takes precedence.
   function initFromFlash() {
     const e = getRequestEvent();
-    if (!(e && e.router && e.router.submission)) return [];
+    if (!e) return [];
+    let submission = e.router && e.router.submission;
+    if (!submission) {
+      const cookieHeader = e.request.headers.get("cookie");
+      submission = decodeFlashCookie(cookieHeader);
+      // one-shot: clear it even when unreadable so it can't haunt later renders
+      if (hasFlashCookie(cookieHeader) && e.response && e.response.headers)
+        e.response.headers.append("Set-Cookie", clearFlashCookie());
+    }
+    if (!submission) return [];
     return [
       {
-        ...e.router.submission,
+        ...submission,
         clear() {},
         retry() {}
       }

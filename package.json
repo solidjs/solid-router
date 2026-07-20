@@ -22,7 +22,8 @@
     ".": {
       "solid": "./dist/index.jsx",
       "default": "./dist/index.js"
-    }
+    },
+    "./server": "./dist/server.js"
   },
   "files": [
     "dist"
@@ -31,8 +32,9 @@
   "scripts": {
     "build": "rm -rf dist && tsc && rollup -c",
     "prepublishOnly": "npm run build",
-    "test": "vitest run && npm run test:types",
+    "test": "vitest run && vitest run --config vitest.config.server.ts && npm run test:types",
     "test:watch": "vitest",
+    "test:server": "vitest run --config vitest.config.server.ts",
     "test:types": "tsc --project tsconfig.test.json",
     "pretty": "prettier --write \"{src,test}/**/*.{ts,tsx}\"",
     "release": "pnpm build && changeset publish"
