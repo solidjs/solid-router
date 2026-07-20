@@ -37,6 +37,14 @@ export interface TypedPath<P extends Params = Params> {
   toString(): string;
 }
 
+// Companion brand for route ends: carries the search param types declared by
+// the route's Standard Schema (input for building URLs/setters, output for
+// reading parsed values).
+declare const PATH_SEARCH: unique symbol;
+export interface TypedSearchPath<In = SetSearchParams, Out = SearchParams> {
+  readonly [PATH_SEARCH]: { input: In; output: Out };
+}
+
 /**
  * The Standard Schema interface (https://standardschema.dev) — vendored as a
  * type so any conforming validator (Valibot, Zod, ArkType, ...) can type a

@@ -42,5 +42,6 @@ export type {
   Submission,
   BeforeLeaveEventArgs,
   TypedPath,
+  TypedSearchPath,
   StandardSchemaV1
 } from "./types.js";

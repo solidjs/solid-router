@@ -1,9 +1,11 @@
 import type {
   Params,
   RouteDefinition,
+  SearchParams,
   SetSearchParams,
   StandardSchemaV1,
-  TypedPath
+  TypedPath,
+  TypedSearchPath
 } from "./types.js";
 import { mergeSearchString, normalizePath } from "./utils.js";
 
@@ -72,18 +74,33 @@ type ParamRun<
     : { args: Args; params: PAcc; rest: Segs }
   : { args: Args; params: PAcc; rest: Segs };
 
-/** Terminating calls available on every route end: zero-arg, or search object plus optional hash. */
-export interface PathEnd<Search = SetSearchParams, P extends Params = Params>
-  extends TypedPath<P> {
-  (): string;
-  (search: Search, hash?: string): string;
+/** The search param types a route end carries: input builds URLs, output is what parsing returns. */
+export interface SearchTypes {
+  input: any;
+  output: any;
 }
 
-type SearchInputOf<Def> = Def extends { search: infer S }
+export interface DefaultSearchTypes {
+  input: SetSearchParams;
+  output: SearchParams;
+}
+
+/** Terminating calls available on every route end: zero-arg, or search object plus optional hash. */
+export interface PathEnd<Sch extends SearchTypes = DefaultSearchTypes, P extends Params = Params>
+  extends TypedPath<P>,
+    TypedSearchPath<Sch["input"], Sch["output"]> {
+  (): string;
+  (search: Sch["input"], hash?: string): string;
+}
+
+type SearchTypesOf<Def> = Def extends { search: infer S }
   ? S extends StandardSchemaV1<any, any>
-    ? NonNullable<S["~standard"]["types"]>["input"]
-    : SetSearchParams
-  : SetSearchParams;
+    ? {
+        input: NonNullable<S["~standard"]["types"]>["input"];
+        output: NonNullable<S["~standard"]["types"]>["output"];
+      }
+    : DefaultSearchTypes
+  : DefaultSearchTypes;
 
 type FiltersOf<Def> = Def extends { matchFilters: infer F } ? F : {};
 
@@ -102,28 +119,28 @@ type TuplePaths<R extends readonly unknown[], PAcc extends Params> = R extends r
   ? RouteContrib<H, PAcc> & TuplePaths<T, PAcc>
   : {};
 
-type PathLeaf<Search, C, PAcc extends Params> = PathEnd<Search, Flat<PAcc>> &
+type PathLeaf<Sch extends SearchTypes, C, PAcc extends Params> = PathEnd<Sch, Flat<PAcc>> &
   ChildPaths<C, PAcc>;
 
 type PathNode<
   Segs extends readonly string[],
   F,
-  Search,
+  Sch extends SearchTypes,
   C,
   PAcc extends Params
 > = Segs extends readonly [infer H extends string, ...infer R extends readonly string[]]
   ? H extends `:${infer N}?`
-    ? ((arg: ParamArg<N, F>) => PathNode<R, F, Search, C, PAcc & { [K in N]?: string }>) &
-        PathNode<R, F, Search, C, PAcc & { [K in N]?: string }>
+    ? ((arg: ParamArg<N, F>) => PathNode<R, F, Sch, C, PAcc & { [K in N]?: string }>) &
+        PathNode<R, F, Sch, C, PAcc & { [K in N]?: string }>
     : H extends `:${string}` | `*${string}`
-    ? ParamCallNode<Segs, F, Search, C, PAcc>
-    : { [K in H]: PathNode<R, F, Search, C, PAcc> }
-  : PathLeaf<Search, C, PAcc>;
+    ? ParamCallNode<Segs, F, Sch, C, PAcc>
+    : { [K in H]: PathNode<R, F, Sch, C, PAcc> }
+  : PathLeaf<Sch, C, PAcc>;
 
 type ParamCallNode<
   Segs extends readonly string[],
   F,
-  Search,
+  Sch extends SearchTypes,
   C,
   PAcc extends Params
 > = ParamRun<Segs, F> extends {
@@ -131,8 +148,8 @@ type ParamCallNode<
   params: infer P2 extends Params;
   rest: infer R2 extends readonly string[];
 }
-  ? ((...args: A) => PathNode<R2, F, Search, C, PAcc & P2>) &
-      (R2 extends readonly [] ? { (...args: [...A, Search, string?]): string } : {}) &
+  ? ((...args: A) => PathNode<R2, F, Sch, C, PAcc & P2>) &
+      (R2 extends readonly [] ? { (...args: [...A, Sch["input"], string?]): string } : {}) &
       TypedPath<Flat<PAcc & P2>>
   : never;
 
@@ -144,7 +161,7 @@ type RouteContrib<Def, PAcc extends Params> = Def extends { path: infer P }
     : P extends string
     ? string extends P
       ? any
-      : PathNode<SegmentsOf<P>, FiltersOf<Def>, SearchInputOf<Def>, ChildrenOf<Def>, PAcc>
+      : PathNode<SegmentsOf<P>, FiltersOf<Def>, SearchTypesOf<Def>, ChildrenOf<Def>, PAcc>
     : any
   : ChildPaths<ChildrenOf<Def>, PAcc>;
 
@@ -153,7 +170,7 @@ type MultiPathContrib<
   Def,
   PAcc extends Params
 > = Ps extends readonly [infer H extends string, ...infer T extends readonly string[]]
-  ? PathNode<SegmentsOf<H>, FiltersOf<Def>, SearchInputOf<Def>, ChildrenOf<Def>, PAcc> &
+  ? PathNode<SegmentsOf<H>, FiltersOf<Def>, SearchTypesOf<Def>, ChildrenOf<Def>, PAcc> &
       MultiPathContrib<T, Def, PAcc>
   : {};
 
@@ -164,7 +181,7 @@ type MultiPathContrib<
  */
 export type RoutePaths<R extends readonly RouteDefinition[]> = number extends R["length"]
   ? any
-  : PathEnd<SetSearchParams, {}> & TuplePaths<R, {}>;
+  : PathEnd<DefaultSearchTypes, {}> & TuplePaths<R, {}>;
 
 /** Extracts the params record a paths node binds, as runtime (string-valued) params. */
 export type PathParamsOf<N> = N extends TypedPath<infer P> ? Flat<P> : Params;

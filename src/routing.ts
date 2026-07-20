@@ -33,7 +33,8 @@ import type {
   Submission,
   SearchParams,
   SetSearchParams,
-  TypedPath
+  TypedPath,
+  TypedSearchPath
 } from "./types.js";
 import {
   mockBase,
@@ -238,10 +239,16 @@ export function useParams(_path?: TypedPath): Params {
  * );
  * ```
  */
-export const useSearchParams = <T extends SearchParams>(): [
+export function useSearchParams<In, Out>(
+  path: TypedSearchPath<In, Out>
+): [Out, (params: Partial<In>, options?: Partial<NavigateOptions>) => void];
+export function useSearchParams<T extends SearchParams>(): [
   Partial<T>,
   (params: SetSearchParams, options?: Partial<NavigateOptions>) => void
-] => {
+];
+export function useSearchParams(
+  path?: TypedSearchPath<any, any>
+): [SearchParams, (params: SetSearchParams, options?: Partial<NavigateOptions>) => void] {
   const router = useRouter();
   const location = router.location;
   const navigate = useNavigate();
@@ -261,8 +268,30 @@ export const useSearchParams = <T extends SearchParams>(): [
       ...options
     });
   };
-  return [location.query as Partial<T>, setSearchParams];
-};
+  // Passing a paths node opts into schema parsing. The node itself is a
+  // type-level reference; the schemas that run come from the currently
+  // matched routes (root→leaf), whose outputs merge over the raw query.
+  // A schema that reports issues is skipped, leaving raw values — search
+  // strings are user input, so defaults belong in the schema itself.
+  const query = path
+    ? createMemoObject(
+        createMemo(() => {
+          const raw: Record<string, any> = { ...location.query };
+          let result: Record<string, any> | undefined;
+          for (const match of router.matches()) {
+            const schema = (match.route.key as RouteDefinition).search;
+            if (!schema) continue;
+            const outcome = schema["~standard"].validate(raw);
+            if (outcome instanceof Promise)
+              throw new Error("Async Standard Schema validation is not supported for search params");
+            if (!outcome.issues) result = Object.assign(result || { ...raw }, outcome.value);
+          }
+          return result || raw;
+        })
+      )
+    : location.query;
+  return [query, setSearchParams];
+}
 
 /**
  * useBeforeLeave takes a function that will be called prior to leaving a route.

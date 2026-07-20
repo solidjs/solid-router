@@ -1,4 +1,4 @@
-import { createRouter, int, useNavigate, useParams } from "../src/index.js";
+import { createRouter, int, useNavigate, useParams, useSearchParams } from "../src/index.js";
 import type { StandardSchemaV1 } from "../src/index.js";
 
 describe("Type checking the typed path proxy", () => {
@@ -52,6 +52,19 @@ describe("Type checking the typed path proxy", () => {
     paths.search({ q: "solid", page: 2 });
     // @ts-expect-error page is a number
     paths.search({ page: "2" });
+
+    // useSearchParams reads the schema's output and writes its input
+    const [search, setSearch] = useSearchParams(paths.search);
+    const _page: number | undefined = search.page;
+    // @ts-expect-error no such search param
+    search.missing;
+    setSearch({ page: 2 });
+    // @ts-expect-error page is a number
+    setSearch({ page: "2" });
+
+    // untyped reads keep today's raw string-valued behavior
+    const [rawSearch] = useSearchParams();
+    const _raw: string | string[] | undefined = rawSearch.anything;
 
     // Hooks accept paths nodes
     const navigate = useNavigate();

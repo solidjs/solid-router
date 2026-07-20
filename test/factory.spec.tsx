@@ -1,7 +1,23 @@
 import { render } from "@solidjs/web";
 import { vi } from "vitest";
-import { createRouter, memoryHistory, useNavigate, useParams, int } from "../src/index.js";
-import type { Navigator } from "../src/index.js";
+import { createRouter, memoryHistory, useNavigate, useParams, useSearchParams, int } from "../src/index.js";
+import type { Navigator, StandardSchemaV1 } from "../src/index.js";
+
+/** A tiny hand-rolled Standard Schema: parses `page` to a number (default 1), requires `q` to be a string (default ""). */
+const searchSchema: StandardSchemaV1<
+  { q?: string; page?: number },
+  { q: string; page: number }
+> = {
+  "~standard": {
+    version: 1,
+    vendor: "test",
+    validate(value: any) {
+      const page = value.page === undefined ? 1 : Number(value.page);
+      if (Number.isNaN(page)) return { issues: [{ message: "page must be numeric" }] };
+      return { value: { q: String(value.q ?? ""), page } };
+    }
+  }
+};
 
 const settle = async (ms = 0) => {
   await new Promise<void>(resolve => queueMicrotask(() => resolve()));
@@ -173,6 +189,50 @@ describe("createRouter factory", () => {
         expect(shell.querySelector('[data-route="home"]')?.textContent).toBe("Home");
         expect(preload).toHaveBeenCalledTimes(1);
         expect(preload).toHaveBeenCalledWith(expect.objectContaining({ intent: "initial" }));
+      } finally {
+        dispose();
+        div.remove();
+      }
+    });
+
+    test("parses search params through the matched route's Standard Schema", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+
+      let search!: { q: string; page: number };
+      let setSearch!: (params: Partial<{ q?: string; page?: number }>) => void;
+
+      const Router = createRouter({
+        routes: [
+          {
+            path: "/search",
+            search: searchSchema,
+            component: () => {
+              const proxied = useSearchParams(Router.paths.search);
+              search = proxied[0];
+              setSearch = proxied[1];
+              return <div data-route="search" />;
+            }
+          }
+        ] as const,
+        history: memoryHistory("/search?q=solid")
+      });
+
+      const dispose = render(() => <Router />, div);
+      try {
+        // parsed output: defaults applied, page coerced to a number
+        expect(search.q).toBe("solid");
+        expect(search.page).toBe(1);
+
+        setSearch({ page: 2 });
+        await settle();
+        expect(search.page).toBe(2);
+        expect(typeof search.page).toBe("number");
+
+        // a failing schema leaves the raw values rather than throwing
+        setSearch({ page: "abc" as any });
+        await settle();
+        expect(search.page as any).toBe("abc");
       } finally {
         dispose();
         div.remove();
