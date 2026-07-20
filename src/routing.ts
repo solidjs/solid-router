@@ -32,7 +32,8 @@ import type {
   SetParams,
   Submission,
   SearchParams,
-  SetSearchParams
+  SetSearchParams,
+  TypedPath
 } from "./types.js";
 import {
   mockBase,
@@ -204,7 +205,11 @@ export const useCurrentMatches = () => {
  * const getUser = query(() => fetchUser(params.id), "user");
  * ```
  */
-export const useParams = <T extends Params>() => useRoute().params as T;
+export function useParams<T extends Params>(): T;
+export function useParams<P extends Params>(path: TypedPath<P>): { [K in keyof P]: P[K] };
+export function useParams(_path?: TypedPath): Params {
+  return useRoute().params;
+}
 
 /**
  * Retrieves a tuple containing a reactive object to read the current location's query parameters and a method to update them.
@@ -356,8 +361,8 @@ export function createBranch(routes: RouteDescription[], index: number = 0): Bra
   };
 }
 
-function asArray<T>(value: T | T[]): T[] {
-  return Array.isArray(value) ? value : [value];
+function asArray<T>(value: T | readonly T[]): readonly T[] {
+  return Array.isArray(value) ? value : [value as T];
 }
 
 /**
@@ -376,7 +381,7 @@ export function resolveRouteDefinitions(
 }
 
 export function createBranches(
-  routeDef: RouteDefinition | RouteDefinition[],
+  routeDef: RouteDefinition | readonly RouteDefinition[],
   base: string = "",
   stack: RouteDescription[] = [],
   branches: Branch[] = []
@@ -645,7 +650,7 @@ export function createRouterContext(
 
   function navigateFromRoute(
     route: RouteContext,
-    to: string | number,
+    to: string | TypedPath | number,
     options?: Partial<NavigateOptions>
   ) {
     // Untrack in case someone navigates in an effect - don't want to track `reference` or route paths
@@ -660,6 +665,8 @@ export function createRouterContext(
         }
         return;
       }
+      // typed path proxy nodes coerce to their href
+      if (typeof to !== "string") to = to.toString();
 
       const queryOnly = !to || to[0] === "?";
       const {
@@ -727,7 +734,7 @@ export function createRouterContext(
   function navigatorFactory(route?: RouteContext): Navigator {
     // Workaround for vite issue (https://github.com/vitejs/vite/issues/3803)
     route = route || useOptionalContext(RouteContextObj) || baseRoute;
-    return (to: string | number, options?: Partial<NavigateOptions>) =>
+    return (to: string | TypedPath | number, options?: Partial<NavigateOptions>) =>
       navigateFromRoute(route!, to, options);
   }
 

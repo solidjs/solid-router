@@ -28,6 +28,35 @@ declare module "@solidjs/web" {
 export type Params = Record<string, string | undefined>;
 export type SearchParams = Record<string, string | string[] | undefined>;
 
+// Phantom brand carried by every node of the typed path proxy (see paths.ts).
+// The symbol never exists at runtime; it lets `navigate()`/`useParams()`
+// accept a paths node and recover the params it binds.
+declare const PATH_PARAMS: unique symbol;
+export interface TypedPath<P extends Params = Params> {
+  readonly [PATH_PARAMS]: P;
+  toString(): string;
+}
+
+/**
+ * The Standard Schema interface (https://standardschema.dev) — vendored as a
+ * type so any conforming validator (Valibot, Zod, ArkType, ...) can type a
+ * route's `search` without the router depending on a validation library.
+ */
+export interface StandardSchemaV1<Input = unknown, Output = Input> {
+  readonly "~standard": {
+    readonly version: 1;
+    readonly vendor: string;
+    readonly validate: (
+      value: unknown
+    ) => StandardSchemaResult<Output> | Promise<StandardSchemaResult<Output>>;
+    readonly types?: { readonly input: Input; readonly output: Output } | undefined;
+  };
+}
+
+export type StandardSchemaResult<Output> =
+  | { readonly value: Output; readonly issues?: undefined }
+  | { readonly issues: ReadonlyArray<{ readonly message: string }> };
+
 export type SetParams = Record<
   string,
   string | number | boolean | null | undefined
@@ -57,7 +86,7 @@ export interface NavigateOptions<S = unknown> {
 }
 
 export interface Navigator {
-  (to: string | number, options?: Partial<NavigateOptions>): void;
+  (to: string | TypedPath | number, options?: Partial<NavigateOptions>): void;
   (delta: number): void;
 }
 
@@ -111,8 +140,10 @@ export type RouteDefinition<S extends string | string[] = any, T = any> = {
   path?: S;
   matchFilters?: MatchFilters<S>;
   preload?: RoutePreloadFunc<T>;
-  children?: RouteDefinition | RouteDefinition[];
+  children?: RouteDefinition | readonly RouteDefinition[];
   component?: RouteSectionComponent<T>;
+  /** Standard Schema validator for this route's search params; its input type flows into the typed path proxy. */
+  search?: StandardSchemaV1<any, any>;
   info?: Record<string, any>;
 };
 

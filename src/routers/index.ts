@@ -1,6 +1,9 @@
 export { Route } from "./components.jsx";
 export type { BaseRouterProps, RouteProps } from "./components.jsx";
-export { createRouter } from "./createRouter.js";
+export { createRouter } from "./factory.jsx";
+export type { RouterConfig, RouterInstance } from "./factory.jsx";
+export { browserHistory, hashHistory, memoryHistory } from "./history.js";
+export type { RouterHistory, MemoryHistoryAdapter } from "./history.js";
 export { Router } from "./Router.js";
 export type { RouterProps } from "./Router.js";
 export { HashRouter } from "./HashRouter.js";

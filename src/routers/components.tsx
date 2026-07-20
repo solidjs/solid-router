@@ -79,7 +79,7 @@ export const createRouterComponent = (router: RouterIntegration) => function Int
   );
 };
 
-function Root(props: {
+export function Root(props: {
   routerState: RouterContext;
   root?: Component<RouteSectionProps>;
   preload?: RoutePreloadFunc;
@@ -92,8 +92,11 @@ function Root(props: {
       props.preload &&
       untrack(() => {
         setInPreloadFn(true);
-        props.preload!({ params, location, intent: getIntent() || "initial" });
-        setInPreloadFn(false);
+        try {
+          return props.preload!({ params, location, intent: getIntent() || "initial" });
+        } finally {
+          setInPreloadFn(false);
+        }
       })
   );
   const RootComp = props.root;
@@ -107,7 +110,7 @@ function Root(props: {
   return props.children;
 }
 
-function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
+export function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
   if (isServer) {
     const e = getRequestEvent();
     if (e && e.router && e.router.dataOnly) {
