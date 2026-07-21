@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { createSignal, Show, type ParentProps } from "solid-js";
 import { render } from "@solidjs/web";
-import { MemoryRouter, Route, createMemoryHistory, useNavigate } from "../src/index.js";
+import { createRouter, memoryHistory, useNavigate } from "../src/index.js";
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -24,24 +24,23 @@ function captureUnhandled() {
 describe("Routes disposal (#451)", () => {
   test("navigating to an unmatched URL does not crash mounted route contexts", async () => {
     const capture = captureUnhandled();
-    const history = createMemoryHistory();
-    history.set({ value: "/a/b" });
     let nav!: ReturnType<typeof useNavigate>;
     const Layout = (props: ParentProps) => {
       nav = useNavigate();
       return <div>layout{props.children}</div>;
     };
+    const Router = createRouter({
+      routes: [
+        {
+          path: "/a",
+          component: Layout,
+          children: [{ path: "/b", component: () => <span>b</span> }]
+        }
+      ] as const,
+      history: memoryHistory("/a/b")
+    });
     const root = document.createElement("div");
-    const dispose = render(
-      () => (
-        <MemoryRouter history={history}>
-          <Route path="/a" component={Layout}>
-            <Route path="/b" component={() => <span>b</span>} />
-          </Route>
-        </MemoryRouter>
-      ),
-      root
-    );
+    const dispose = render(() => <Router />, root);
     await wait(10);
     expect(root.innerHTML).toContain("b");
 
@@ -55,27 +54,26 @@ describe("Routes disposal (#451)", () => {
 
   test("route roots are disposed when the route tree unmounts", async () => {
     const capture = captureUnhandled();
-    const history = createMemoryHistory();
-    history.set({ value: "/a/b" });
     let nav!: ReturnType<typeof useNavigate>;
     const [show, setShow] = createSignal(true);
     const Layout = (props: ParentProps) => {
       nav = useNavigate();
       return <div>layout{props.children}</div>;
     };
+    const Router = createRouter({
+      routes: [
+        {
+          path: "/a",
+          component: Layout,
+          children: [{ path: "/b", component: () => <span>b</span> }]
+        },
+        { path: "/login", component: () => <span>login</span> }
+      ] as const,
+      history: memoryHistory("/a/b")
+    });
     const root = document.createElement("div");
     const dispose = render(
-      () => (
-        <MemoryRouter
-          history={history}
-          root={props => <Show when={show()}>{props.children}</Show>}
-        >
-          <Route path="/a" component={Layout}>
-            <Route path="/b" component={() => <span>b</span>} />
-          </Route>
-          <Route path="/login" component={() => <span>login</span>} />
-        </MemoryRouter>
-      ),
+      () => <Router>{props => <Show when={show()}>{props.children}</Show>}</Router>,
       root
     );
     await wait(10);

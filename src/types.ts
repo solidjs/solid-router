@@ -109,10 +109,10 @@ export interface LocationChange<S = unknown> {
   rawPath?: string;
 }
 export interface RouterIntegration {
-  // Structural getter/setter pair rather than solid's `Signal` — integrations like
-  // StaticRouter provide plain functions that can't carry the `$REFRESH` brand.
+  // Structural getter/setter pair rather than solid's `Signal` — the server's
+  // static integration provides plain functions that can't carry the
+  // `$REFRESH` brand.
   signal: [get: () => LocationChange, set: (next: LocationChange) => void];
-  create?: (router: RouterContext) => void;
   utils?: Partial<RouterUtils>;
 }
 

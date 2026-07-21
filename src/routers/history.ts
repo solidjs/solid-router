@@ -1,6 +1,19 @@
 import type { LocationChange, RouterUtils } from "../types.js";
 import { createBeforeLeave, keepDepth, notifyIfNotBlocked, saveCurrentDepth } from "../lifecycle.js";
-import { bindEvent, scrollToHash } from "./createRouter.js";
+
+function bindEvent(target: EventTarget, type: string, handler: EventListener) {
+  target.addEventListener(type, handler);
+  return () => target.removeEventListener(type, handler);
+}
+
+function scrollToHash(hash: string, fallbackTop?: boolean) {
+  const el = hash && document.getElementById(hash);
+  if (el) {
+    el.scrollIntoView();
+  } else if (fallbackTop) {
+    window.scrollTo(0, 0);
+  }
+}
 
 /**
  * A history adapter: the source of truth for the current URL and how

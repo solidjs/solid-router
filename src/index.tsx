@@ -1,5 +1,4 @@
 export * from "./routers/index.js";
-export * from "./components.jsx";
 export * from "./lifecycle.js";
 export {
   useHref,
@@ -7,13 +6,11 @@ export {
   useLinkState,
   useLocation,
   useMatch,
-  useCurrentMatches,
   useNavigate,
   useParams,
   useResolvedPath,
   useSearchParams,
   useBeforeLeave,
-  usePreloadRoute,
   RouterContextObj as RouterContext
 } from "./routing.js";
 export type { LinkState } from "./routing.js";

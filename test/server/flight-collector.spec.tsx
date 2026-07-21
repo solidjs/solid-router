@@ -3,7 +3,6 @@
 // single-flight data collector, its cookie-forwarding headers, and the
 // no-JS flash-cookie handler.
 import { query } from "../../src/data/query.js";
-import { Route } from "../../src/routers/components.jsx";
 import {
   createFlightDataCollector,
   createNoJSHandler,
@@ -110,20 +109,17 @@ describe("createFlightDataCollector (router instance)", () => {
   });
 });
 
-describe("createFlightDataCollector (JSX route trees)", () => {
-  // the same nested <Route> tree an app passes as <Router> children — on the
-  // server Route evaluates to its definition, no render pass involved
-  const jsxRoutes = (
-    <>
-      <Route path="/notes" preload={() => getNotes()} />
-      <Route path="/users">
-        <Route path="/:id" preload={({ params }) => getUserById(params.id!)} />
-      </Route>
-    </>
-  );
+describe("createFlightDataCollector (nested trees and thunks)", () => {
+  const nestedRoutes: RouteDefinition[] = [
+    { path: "/notes", preload: () => getNotes() },
+    {
+      path: "/users",
+      children: [{ path: "/:id", preload: ({ params }) => getUserById(params.id!) }]
+    }
+  ];
 
-  test("matches nested <Route> trees and runs their preloads", async () => {
-    const collect = createFlightDataCollector({ routes: jsxRoutes });
+  test("matches nested route trees and runs their preloads", async () => {
+    const collect = createFlightDataCollector({ routes: nestedRoutes });
     const event = createEvent("http://localhost:3000/users/7");
     const data: any = await collect(event as any, createOutcome(event) as any);
     expect(Object.keys(data)).toEqual(['userById["7"]']);
@@ -131,7 +127,7 @@ describe("createFlightDataCollector (JSX route trees)", () => {
   });
 
   test("accepts a thunk producing the tree (lazily built)", async () => {
-    const collect = createFlightDataCollector({ routes: () => jsxRoutes });
+    const collect = createFlightDataCollector({ routes: () => nestedRoutes });
     const event = createEvent("http://localhost:3000/notes");
     const data: any = await collect(event as any, createOutcome(event) as any);
     expect(Object.keys(data)).toEqual(["notes[]"]);
@@ -144,11 +140,10 @@ describe("createFlightDataCollector (root preload)", () => {
   test("runs before route preloads with merged params and initial intent", async () => {
     const rootArgs: any[] = [];
     const collect = createFlightDataCollector({
-      routes: (
-        <Route path="/users">
-          <Route path="/:id" preload={({ params }) => getUserById(params.id!)} />
-        </Route>
-      ),
+      routes: {
+        path: "/users",
+        children: [{ path: "/:id", preload: ({ params }) => getUserById(params.id!) }]
+      },
       rootPreload: args => {
         rootArgs.push(args);
         getRootData();

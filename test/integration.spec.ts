@@ -1,4 +1,4 @@
-import { hashParser } from "../src/routers/HashRouter.js";
+import { hashParser } from "../src/routers/history.js";
 
 describe("Hash integration should", () => {
   test.each([

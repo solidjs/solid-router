@@ -1,5 +1,5 @@
 import { render } from "@solidjs/web";
-import { MemoryRouter, Route, useSearchParams, useNavigate, useLocation } from "../src/index.js";
+import { createRouter, memoryHistory, useSearchParams, useNavigate, useLocation } from "../src/index.js";
 import type { Location, Navigator } from "../src/index.js";
 import { awaitPromise } from "./helpers.js";
 
@@ -13,14 +13,12 @@ describe("useSearchParams", () => {
       return null;
     };
 
-    const dispose = render(
-      () => (
-        <MemoryRouter>
-          <Route path="/" component={Index} />
-        </MemoryRouter>
-      ),
-      document.body
-    );
+    const Router = createRouter({
+      routes: [{ path: "/", component: Index }] as const,
+      history: memoryHistory()
+    });
+
+    const dispose = render(() => <Router />, document.body);
 
     try {
       set({ a: "1" });
@@ -46,15 +44,15 @@ describe("useSearchParams", () => {
       return null;
     };
 
-    const dispose = render(
-      () => (
-        <MemoryRouter>
-          <Route path="/" component={Index} />
-          <Route path="/other" component={() => null} />
-        </MemoryRouter>
-      ),
-      document.body
-    );
+    const Router = createRouter({
+      routes: [
+        { path: "/", component: Index },
+        { path: "/other", component: () => null }
+      ] as const,
+      history: memoryHistory()
+    });
+
+    const dispose = render(() => <Router />, document.body);
 
     try {
       await awaitPromise();

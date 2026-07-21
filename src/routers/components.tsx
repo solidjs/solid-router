@@ -1,83 +1,24 @@
 /*@refresh skip*/
 
-import type {Component, Owner} from "solid-js";
+import type {Component} from "solid-js";
 import type {JSX} from "@solidjs/web";
-import {children, createMemo, createRoot, getOwner, merge, onCleanup, runWithOwner, untrack} from "solid-js";
+import {createMemo, createRoot, getOwner, onCleanup, runWithOwner, untrack} from "solid-js";
 import {getRequestEvent, isServer, type RequestEvent} from "@solidjs/web";
 import {
-    createBranches,
     createRouteContext,
-    createRouterContext,
     getIntent,
     getRouteMatches,
-    registerFlightRouter,
-    resolveRouteDefinitions,
     RouteContextObj,
-    RouterContextObj,
     setInPreloadFn
 } from "../routing.js";
 import type {
     Branch,
-    MatchFilters,
     RouteContext,
-    RouteDefinition,
     RouteMatch,
     RoutePreloadFunc,
     RouterContext,
-    RouterIntegration,
-    RouteSectionComponent,
     RouteSectionProps
 } from "../types.js";
-
-export type BaseRouterProps = {
-  base?: string;
-  /**
-   * A component that wraps the content of every route.
-   */
-  root?: Component<RouteSectionProps>;
-  rootPreload?: RoutePreloadFunc;
-  singleFlight?: boolean;
-  children?: JSX.Element | RouteDefinition | RouteDefinition[];
-  transformUrl?: (url: string) => string;
-};
-
-export const createRouterComponent = (router: RouterIntegration) => function IntegratedRouter(props: BaseRouterProps) {
-  const { base, singleFlight, transformUrl, root, rootPreload, routeChildren } = untrack(() => ({
-    base: props.base,
-    singleFlight: props.singleFlight,
-    transformUrl: props.transformUrl,
-    root: props.root,
-    rootPreload: props.rootPreload,
-    routeChildren: props.children
-  }));
-  const routeDefs = resolveRouteDefinitions(routeChildren);
-
-  const branches = createMemo(() => createBranches(routeDefs(), base || ""));
-  let context: Owner;
-  const routerState = createRouterContext(router, branches, () => context, {
-    base,
-    singleFlight,
-    transformUrl,
-  });
-  router.create && router.create(routerState);
-  if (!isServer && routerState.singleFlight) {
-    // Registration is the router's half of the single-flight rendezvous: the
-    // consumer subscribes once the action side provides it (first action
-    // creation), and subscribing is the opt-in — the transport sends the
-    // request header while subscribed. `singleFlight={false}` never
-    // registers, and a router-only app never receives a consumer, so the
-    // server is never asked to collect in either case.
-    onCleanup(registerFlightRouter(routerState));
-  }
-  return (
-    <RouterContextObj value={routerState}>
-      <Root routerState={routerState} root={root} preload={rootPreload}>
-        {(context = getOwner()!) && null}
-        <Routes routerState={routerState} branches={branches()} />
-      </Root>
-    </RouterContextObj>
-  );
-};
 
 export function Root(props: {
   routerState: RouterContext;
@@ -202,24 +143,6 @@ const createOutlet = (child: () => RouteContext | undefined) => {
     }
     return undefined;
   };
-};
-
-export type RouteProps<S extends string, T = unknown> = {
-  path?: S | S[];
-  children?: JSX.Element;
-  preload?: RoutePreloadFunc<T>;
-  matchFilters?: MatchFilters<S>;
-  component?: RouteSectionComponent<T>;
-  info?: Record<string, any>;
-};
-
-export const Route = <S extends string, T = unknown>(props: RouteProps<S, T>) => {
-  const childRoutes = children(() => props.children);
-  return merge(props, {
-    get children() {
-      return childRoutes();
-    }
-  }) as unknown as JSX.Element;
 };
 
 // for data only mode with single flight mutations

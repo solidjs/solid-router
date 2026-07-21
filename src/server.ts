@@ -26,8 +26,7 @@ import type {
 import {
   createBranches,
   getRouteMatches,
-  mergeParams,
-  resolveRouteDefinitions
+  mergeParams
 } from "./routing.js";
 import { extractSearchParams } from "./utils.js";
 import { encodeFlashCookie } from "./data/flash.js";
@@ -38,26 +37,21 @@ export type { CollectFlightDataHook, ServerFunctionOutcome };
 
 export interface FlightDataCollectorOptions {
   /**
-   * The app's route tree — the same thing the `<Router>` receives as
-   * children: JSX `<Route>` trees, config objects, arrays, or a thunk
-   * producing either (for lazily/per-request built trees). Normalized to
-   * route definitions the same way the `<Router>` normalizes its children
-   * (on the server `Route` evaluates to its props, so no render pass is
-   * needed). Flight data is produced by the pure preload runner: the target
-   * URL is matched against the tree and the matched routes' `preload`
-   * functions run in data-only mode.
+   * The app's route tree — the same config objects the `createRouter`
+   * factory receives, an array of them, or a thunk producing either (for
+   * lazily/per-request built trees). Flight data is produced by the pure
+   * preload runner: the target URL is matched against the tree and the
+   * matched routes' `preload` functions run in data-only mode.
    */
   routes:
-    | JSX.Element
     | RouteDefinition
     | readonly RouteDefinition[]
-    | (() => JSX.Element | RouteDefinition | readonly RouteDefinition[]);
+    | (() => RouteDefinition | readonly RouteDefinition[]);
   /**
    * The root layout's preload — the same function the app passes to the
-   * `createRouter` factory's `preload` option (`rootPreload` on the legacy
-   * `<Router>` component). Runs before the matched routes' preloads with
-   * the semantics the root gets during a real server render: the merged
-   * params of every match and `intent: "initial"`.
+   * `createRouter` factory's `preload` option. Runs before the matched
+   * routes' preloads with the semantics the root gets during a real server
+   * render: the merged params of every match and `intent: "initial"`.
    */
   rootPreload?: RoutePreloadFunc;
   /** The app's base path, for resolving redirect `Location`s and matching. */
@@ -101,11 +95,10 @@ export function createFlightDataCollector(
     : options;
   if (!routes) throw new Error("createFlightDataCollector requires `routes`");
   let branches: Branch[] | undefined;
-  // resolveRouteDefinitions handles every accepted shape — thunks are called
-  // during resolution, JSX <Route> elements evaluate to their definitions
+  // thunks are called at first collection so per-request trees build lazily
   const resolveBranches = () =>
     branches ||
-    (branches = createBranches(resolveRouteDefinitions(routes as JSX.Element)(), base));
+    (branches = createBranches(typeof routes === "function" ? routes() : routes, base));
 
   return async (sourceEvent, outcome) => {
     // no referrer, nothing to produce data for (e.g. non-browser callers)

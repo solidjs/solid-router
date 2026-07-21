@@ -1,12 +1,16 @@
 import type { Component, VoidComponent } from "solid-js";
-import type { AnchorProps } from "../src/components.jsx";
-import { RouteProps } from "../src/routers/components.jsx";
 import { useMatch } from "../src/routing.js";
 import { MatchFilters, RouteDefinition, RouteSectionProps } from "../src/types.js";
 import { createMatcher } from "../src/utils.js";
 
-// mock route type
-const Route = <S extends string>(props: RouteProps<S>) => {};
+// route config helper standing in for what apps hand `createRouter` —
+// array paths infer the union of their members so filters check either path
+const defineRoute = <S extends string>(
+  def: Omit<RouteDefinition<S>, "path" | "matchFilters"> & {
+    path?: S | S[];
+    matchFilters?: MatchFilters<S>;
+  }
+) => def;
 
 describe("Type checking on various route definitions", () => {
   test("Does not check implementations", () => {});
@@ -49,9 +53,9 @@ describe("Type checking on various route definitions", () => {
     });
   };
 
-  // Matchfilters on a Route are typechecked
+  // Matchfilters on a route definition are typechecked
   () => {
-    const _route = Route({
+    const _route = defineRoute({
       path: "/:parent/:birthDate/*extras",
       matchFilters: {
         parent: ["mom", "dad"],
@@ -60,7 +64,7 @@ describe("Type checking on various route definitions", () => {
       }
     });
 
-    const _invalid = Route({
+    const _invalid = defineRoute({
       path: "/:unknown",
       matchFilters: {
         // @ts-expect-error 'first' is not a path paramter
@@ -69,20 +73,20 @@ describe("Type checking on various route definitions", () => {
     });
 
     // allow disabling typechecks
-    const _asAny = Route({
+    const _asAny = defineRoute({
       path: "/:unknown" as any,
       matchFilters: {
         whatever: /^\d+$/
       }
     });
 
-    const _multiple = Route({
+    const _multiple = defineRoute({
       path: ["cars/:id/:plate", "vans/:id"],
       matchFilters: {
         id: /^\d+$/,
         plate: /^\d{2}-\w{3}-\d{2}$/,
         // @ts-expect-error 'something' is not a parameter in either path
-        something: s => true
+        something: (s: string) => true
       }
     });
 
@@ -92,7 +96,7 @@ describe("Type checking on various route definitions", () => {
       other: s => s.length > 4
     };
 
-    const _usingPredefined = Route({
+    const _usingPredefined = defineRoute({
       path: "/:id",
       matchFilters
     });
@@ -104,10 +108,10 @@ describe("Type checking on various route definitions", () => {
       other: s => s.length > 4
     };
 
-    const _usingPredefinedTypesafe = Route({
+    const _usingPredefinedTypesafe = defineRoute({
       path: "/:product",
-      // @ts-expect-error 'id' is not a defined paramter
-      checkedMatchFilters
+      // @ts-expect-error 'id' is not a parameter of '/:product'
+      matchFilters: checkedMatchFilters
     });
   };
 
@@ -141,18 +145,12 @@ describe("Type checking on various route definitions", () => {
       { path: "/typed", component: TypedPage, preload: () => 1 }
     ];
 
-    const _route = Route({ path: "/", component: Page });
+    const _route = defineRoute({ path: "/", component: Page });
 
     const WrongProps = (() => null) as Component<{ foo: string }>;
     const _invalid: RouteDefinition[] = [
       // @ts-expect-error components requiring props the router doesn't pass are rejected
       { path: "/", component: WrongProps }
     ];
-  };
-
-  // <A> accepts children like the underlying <a> element (#562)
-  () => {
-    const _text: AnchorProps = { href: "/", children: "home" };
-    const _element: AnchorProps = { href: "/", children: [1, "two"] };
   };
 });

@@ -1,13 +1,7 @@
 // @vitest-environment jsdom
 import { createErrorBoundary, createMemo, type ParentProps } from "solid-js";
 import { render } from "@solidjs/web";
-import {
-  MemoryRouter,
-  Route,
-  createMemoryHistory,
-  query,
-  useNavigate
-} from "../src/index.js";
+import { createRouter, memoryHistory, query, useNavigate } from "../src/index.js";
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -57,18 +51,15 @@ describe("#385 error from cached preload stays an error", () => {
       return <div>{content() as any}</div>;
     };
 
-    const history = createMemoryHistory();
-    history.set({ value: "/test" });
+    const Router = createRouter({
+      routes: [
+        { path: "/", component: () => <span>home</span> },
+        { path: "/test", component: Test, preload: () => failing() }
+      ] as const,
+      history: memoryHistory("/test")
+    });
     const root = document.createElement("div");
-    const dispose = render(
-      () => (
-        <MemoryRouter history={history} root={Root}>
-          <Route path="/" component={() => <span>home</span>} />
-          <Route path="/test" component={Test} preload={() => failing()} />
-        </MemoryRouter>
-      ),
-      root
-    );
+    const dispose = render(() => <Router>{props => <Root {...props} />}</Router>, root);
 
     await wait(50);
     expect(root.innerHTML).toContain("caught");

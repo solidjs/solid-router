@@ -42,7 +42,6 @@ vi.mock("../../src/routing.js", () => ({
   useParams: () => ({}),
   useSearchParams: () => [{}, vi.fn()],
   useIsRouting: () => false,
-  usePreloadRoute: () => vi.fn(),
   useBeforeLeave: () => vi.fn()
 }));
 

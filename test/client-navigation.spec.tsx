@@ -1,15 +1,7 @@
 import { render } from "@solidjs/web";
 import { createEffect, createMemo, Loading } from "solid-js";
 import { vi } from "vitest";
-import {
-  A,
-  MemoryRouter,
-  Route,
-  createMemoryHistory,
-  useNavigate,
-  useParams,
-  type Navigator
-} from "../src/index.js";
+import { createRouter, memoryHistory, useNavigate, useParams, type Navigator } from "../src/index.js";
 
 const settle = async (ms = 0) => {
   await new Promise<void>(resolve => queueMicrotask(() => resolve()));
@@ -29,23 +21,23 @@ describe("Client navigation should", () => {
     const div = document.createElement("div");
     document.body.appendChild(div);
 
-    const dispose = render(
-      () => (
-        <MemoryRouter>
-          <Route
-            path="/"
-            component={() => (
-              <>
-                <A href="/about">About</A>
-                <div data-route="home">Home page</div>
-              </>
-            )}
-          />
-          <Route path="/about" component={() => <div data-route="about">About page</div>} />
-        </MemoryRouter>
-      ),
-      div
-    );
+    const Router = createRouter({
+      routes: [
+        {
+          path: "/",
+          component: () => (
+            <>
+              <a href="/about">About</a>
+              <div data-route="home">Home page</div>
+            </>
+          )
+        },
+        { path: "/about", component: () => <div data-route="about">About page</div> }
+      ] as const,
+      history: memoryHistory()
+    });
+
+    const dispose = render(() => <Router />, div);
 
     try {
       expect(div.querySelector('[data-route="home"]')?.textContent).toBe("Home page");
@@ -82,9 +74,6 @@ describe("Client navigation should", () => {
     const observed: (string | undefined)[][] = [];
     let navigate!: Navigator;
 
-    const history = createMemoryHistory();
-    history.set({ value: "/users/1/comments" });
-
     const Users = () => {
       const params = useParams();
       navigate = useNavigate();
@@ -97,15 +86,15 @@ describe("Client navigation should", () => {
       return <div data-route="users">{params.id}</div>;
     };
 
-    const dispose = render(
-      () => (
-        <MemoryRouter history={history}>
-          <Route path="/users/:id/:view" component={Users} />
-          <Route path="/about" component={() => <div data-route="about">About page</div>} />
-        </MemoryRouter>
-      ),
-      div
-    );
+    const Router = createRouter({
+      routes: [
+        { path: "/users/:id/:view", component: Users },
+        { path: "/about", component: () => <div data-route="about">About page</div> }
+      ] as const,
+      history: memoryHistory("/users/1/comments")
+    });
+
+    const dispose = render(() => <Router />, div);
 
     try {
       await settle();
@@ -144,9 +133,6 @@ describe("Client navigation should", () => {
     const fetched: (string | undefined)[][] = [];
     let navigate!: Navigator;
 
-    const history = createMemoryHistory();
-    history.set({ value: "/users/1/comments" });
-
     const Users = () => {
       const params = useParams();
       navigate = useNavigate();
@@ -165,17 +151,19 @@ describe("Client navigation should", () => {
       return <div data-route="about">{data()}</div>;
     };
 
+    const Router = createRouter({
+      routes: [
+        { path: "/users/:id/:view", component: Users },
+        { path: "/about", component: About }
+      ] as const,
+      history: memoryHistory("/users/1/comments")
+    });
+
     const dispose = render(
       () => (
-        <MemoryRouter
-          history={history}
-          root={props => (
-            <Loading fallback={<div data-loading>loading</div>}>{props.children}</Loading>
-          )}
-        >
-          <Route path="/users/:id/:view" component={Users} />
-          <Route path="/about" component={About} />
-        </MemoryRouter>
+        <Router>
+          {props => <Loading fallback={<div data-loading>loading</div>}>{props.children}</Loading>}
+        </Router>
       ),
       div
     );
@@ -203,9 +191,6 @@ describe("Client navigation should", () => {
 
     let navigate!: Navigator;
 
-    const history = createMemoryHistory();
-    history.set({ value: "/users/1" });
-
     const Layout = (props: { children?: any }) => {
       const params = useParams();
       navigate = useNavigate();
@@ -217,17 +202,21 @@ describe("Client navigation should", () => {
       );
     };
 
-    const dispose = render(
-      () => (
-        <MemoryRouter history={history}>
-          <Route path="/users" component={Layout}>
-            <Route path="/" component={() => <div data-route="index">Index</div>} />
-            <Route path="/:id" component={() => <div data-route="user">User</div>} />
-          </Route>
-        </MemoryRouter>
-      ),
-      div
-    );
+    const Router = createRouter({
+      routes: [
+        {
+          path: "/users",
+          component: Layout,
+          children: [
+            { path: "/", component: () => <div data-route="index">Index</div> },
+            { path: "/:id", component: () => <div data-route="user">User</div> }
+          ]
+        }
+      ] as const,
+      history: memoryHistory("/users/1")
+    });
+
+    const dispose = render(() => <Router />, div);
 
     try {
       await settle();
@@ -254,29 +243,26 @@ describe("Client navigation should", () => {
     const preloadedParams: (string | undefined)[] = [];
     let navigate!: Navigator;
 
-    const history = createMemoryHistory();
-    history.set({ value: "/users/1" });
-
     const Home = () => {
       navigate = useNavigate();
       return <div data-route="users">Users</div>;
     };
 
-    const dispose = render(
-      () => (
-        <MemoryRouter history={history}>
-          <Route path="/users/:id" component={Home} />
-          <Route
-            path="/posts/:postId"
-            preload={({ params }) => {
-              preloadedParams.push(params.postId);
-            }}
-            component={() => <div data-route="post">Post</div>}
-          />
-        </MemoryRouter>
-      ),
-      div
-    );
+    const Router = createRouter({
+      routes: [
+        { path: "/users/:id", component: Home },
+        {
+          path: "/posts/:postId",
+          preload: ({ params }) => {
+            preloadedParams.push(params.postId);
+          },
+          component: () => <div data-route="post">Post</div>
+        }
+      ] as const,
+      history: memoryHistory("/users/1")
+    });
+
+    const dispose = render(() => <Router />, div);
 
     try {
       await settle();

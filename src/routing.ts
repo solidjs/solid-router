@@ -1,7 +1,6 @@
 import { Accessor, flush, runWithOwner, type Signal } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import {
-  children,
   createComponent,
   createContext,
   createMemo,
@@ -140,23 +139,6 @@ export const useLocation = <S = unknown>() => useRouter().location as Location<S
 export const useIsRouting = () => useRouter().isRouting;
 
 /**
- * usePreloadRoute returns a function that can be used to preload a route manual.
- * This is what happens automatically with link hovering and similar focus based behavior, but it is available here as an API.
- * 
- * @example
- * ```js
- * const preload = usePreloadRoute();
- * 
- * preload(`/users/settings`, { preloadData: true });
- * ```
- */
-export const usePreloadRoute = () => {
-  const pre = useRouter().preloadRoute
-  return (url: string | URL, options: { preloadData?: boolean } = {} ) =>
-    pre(url instanceof URL ? url : new URL(url, mockBase), options.preloadData)
-}
-
-/**
  * `useMatch` takes an accessor that returns the path and creates a `Memo` that returns match information if the current path matches the provided path.
  * Useful for determining if a given path matches the current route.
  * 
@@ -178,23 +160,6 @@ export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFi
       if (match) return match;
     }
   });
-};
-
-/**
- * `useCurrentMatches` returns all the matches for the current matched route.
- * Useful for getting all the route information.
- * 
- * @example
- * ```js
- * const matches = useCurrentMatches();
- * 
- * const breadcrumbs = createMemo(() => matches().map(m => m.route.info.breadcrumb))
- * ```
- */
-export const useCurrentMatches = () => {
-  const router = useRouter();
-  // return a copy so user mutations (eg. `.reverse()`) can't corrupt router state
-  return () => router.matches().slice();
 };
 
 /**
@@ -457,21 +422,6 @@ export function createBranch(routes: RouteDescription[], index: number = 0): Bra
 
 function asArray<T>(value: T | readonly T[]): readonly T[] {
   return Array.isArray(value) ? value : [value as T];
-}
-
-/**
- * Resolves the route tree an app hands the router — JSX `<Route>` children
- * (`Route` is a data-holder component, evaluating to its merged props),
- * config objects, arrays, or thunks producing either — into route
- * definitions. Shared by the `<Router>` component (which keeps the
- * resolution live) and the server integration's preload runner (one-shot).
- */
-export function resolveRouteDefinitions(
-  routes: JSX.Element | RouteDefinition | RouteDefinition[]
-): () => RouteDefinition | RouteDefinition[] {
-  return children(() => routes as JSX.Element) as unknown as () =>
-    | RouteDefinition
-    | RouteDefinition[];
 }
 
 export function createBranches(
