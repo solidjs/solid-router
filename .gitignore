@@ -5,3 +5,11 @@ coverage/
 solid-router-*.tgz
 .DS_Store
 .pnpm-store/
+
+# measurement tooling output (.shake-check/*.mjs and .type-bench/gen.mjs are the sources)
+.shake-check/*
+!.shake-check/*.mjs
+.shake-check/compare-entry.js
+.shake-check/entry.js
+.type-bench/*
+!.type-bench/gen.mjs
