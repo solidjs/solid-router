@@ -4,6 +4,7 @@ import type { Owner } from "solid-js";
 import { createSignal, getOwner, onCleanup, sharedConfig, untrack } from "solid-js";
 import { getRequestEvent, isServer } from "@solidjs/web";
 import type { JSX } from "@solidjs/web";
+import { setupLinkClaims } from "../claims.js";
 import { setupNativeEvents } from "../data/events.js";
 import { createPathsProxy } from "../paths.js";
 import type { RoutePaths } from "../paths.js";
@@ -127,6 +128,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
         actionBase: config.actionBase,
         transformUrl: config.transformUrl
       })(routerState);
+      setupLinkClaims(routerState, config.explicitLinks);
       if (routerState.singleFlight) onCleanup(registerFlightRouter(routerState));
     }
     return (

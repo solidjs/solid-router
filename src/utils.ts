@@ -17,6 +17,10 @@ export function normalizePath(path: string, omitSlash: boolean = false) {
   return s ? (omitSlash || /^[?#]/.test(s) ? s : "/" + s) : "";
 }
 
+/** Pathname stripped of search/hash and trailing slash, lowercased — the form link matching compares. */
+export const comparablePath = (path: string) =>
+  normalizePath(path.split(/[?#]/, 1)[0]).toLowerCase().replace(/\/$/, "");
+
 export function resolvePath(base: string, path: string, from?: string): string | undefined {
   if (hasSchemeRegex.test(path)) {
     return undefined;

@@ -38,6 +38,7 @@ import type {
 } from "./types.js";
 import {
   mockBase,
+  comparablePath,
   createMemoObject,
   extractSearchParams,
   invariant,
@@ -303,8 +304,6 @@ export interface LinkState {
   pending: () => boolean;
 }
 
-const comparablePath = (path: string) =>
-  normalizePath(path.split(/[?#]/, 1)[0]).toLowerCase().replace(/\/$/, "");
 
 /**
  * Reactive link state for custom link components — the programmatic
@@ -341,13 +340,21 @@ export const useLinkState = (
     const exact = loc === path_;
     return [exact || (!options.end && loc.startsWith(path_ + "/")), exact] as const;
   };
-  // location already reflects the navigation target while routing (the
-  // navigate override feeds it), so "pending" is simply active-while-routing
   const state = createMemo(() => matches(decodeURI(comparablePath(location.pathname))));
   return {
     active: () => state()[0],
     current: () => state()[1],
-    pending: createMemo(() => router.isRouting() && state()[0])
+    // match the in-flight target explicitly (rather than active-while-routing)
+    // so the answer is the same from pure reads and from effects, which
+    // observe the committed location during a transition
+    pending: createMemo(() => {
+      state(); // location dependency: mid-flight target swaps recompute
+      return (
+        router.isRouting() &&
+        !!router.pendingTarget &&
+        matches(decodeURI(comparablePath(router.pendingTarget.value)))[0]
+      );
+    })
   };
 };
 
@@ -792,13 +799,16 @@ export function createRouterContext(
             state: nextState
           };
 
-          if (lastTransitionTarget === undefined) {
+          const firstNavigation = lastTransitionTarget === undefined;
+          intent = "navigate";
+          // assign the target before flushing so effects that run for the
+          // isRouting flip (e.g. pending link state) can read it
+          lastTransitionTarget = newTarget;
+
+          if (firstNavigation) {
             setIsRouting(true);
             flush();
           }
-
-          intent = "navigate";
-          lastTransitionTarget = newTarget;
 
           if (lastTransitionTarget === newTarget) {
             setNavigateTarget({ ...lastTransitionTarget });

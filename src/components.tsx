@@ -13,19 +13,6 @@ import type {
   Navigator
 } from "./types.js";
 
-// the JSX namespace lives in @solidjs/web's jsx-runtime module as of 2.0
-declare module "@solidjs/web/jsx-runtime" {
-  namespace JSX {
-    interface AnchorHTMLAttributes<T> {
-      state?: string;
-      noScroll?: boolean;
-      replace?: boolean;
-      preload?: boolean;
-      link?: boolean;
-    }
-  }
-}
-
 export interface AnchorProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, "state"> {
   href: string;
   replace?: boolean | undefined;

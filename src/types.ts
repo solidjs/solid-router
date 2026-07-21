@@ -30,9 +30,10 @@ export type SearchParams = Record<string, string | string[] | undefined>;
 
 // Phantom brand carried by every node of the typed path proxy (see paths.ts).
 // The symbol never exists at runtime; it lets `navigate()`/`useParams()`
-// accept a paths node and recover the params it binds.
+// accept a paths node and recover the params it binds. Extending the JSX
+// serializable brand makes nodes valid `href`/`action` values directly.
 declare const PATH_PARAMS: unique symbol;
-export interface TypedPath<P extends Params = Params> {
+export interface TypedPath<P extends Params = Params> extends JSX.SerializableAttributeValue {
   readonly [PATH_PARAMS]: P;
   toString(): string;
 }
