@@ -118,7 +118,26 @@ export function setupNativeEvents({
     }
 
     function handleFormSubmit(evt: SubmitEvent) {
-      formHandler && formHandler(evt, router, actionBase);
+      if (formHandler) return formHandler(evt, router, actionBase);
+      // No form handler means no action module in the client graph at all
+      // (e.g. server components binding forms straight to server functions).
+      // A POST to a url under actionBase is self-describing, so delegation
+      // is still sufficient: intercept synchronously — the no-JS treatment
+      // is reserved for clients with no JS — capture the FormData, and load
+      // the handler lazily. Apps that never submit one never load it.
+      if (evt.defaultPrevented) return;
+      const form = evt.target as HTMLFormElement;
+      const ref =
+        evt.submitter && evt.submitter.hasAttribute("formaction")
+          ? evt.submitter.getAttribute("formaction")
+          : form.getAttribute("action");
+      if (!ref || ref.startsWith("https://action/")) return;
+      const url = new URL(ref, document.baseURI);
+      const path = router.parsePath(url.pathname + url.search);
+      if (!path.startsWith(actionBase) || form.method.toUpperCase() !== "POST") return;
+      evt.preventDefault();
+      const data = new FormData(form, evt.submitter);
+      import("./serverForms.js").then(m => m.submitServerForm(router, path, form, data));
     }
 
     // ensure delegated event run first

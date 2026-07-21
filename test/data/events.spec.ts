@@ -500,17 +500,136 @@ describe("form submit handling", () => {
     expect(handler).toHaveBeenCalledWith(event, mockRouter, "/custom-base");
   });
 
-  test("does nothing when no form handler is registered", () => {
+  test("does nothing when no form handler is registered and no action attribute", () => {
     mount();
 
     const event = {
       defaultPrevented: false,
-      target: {},
+      target: { getAttribute: () => null },
       submitter: null,
       preventDefault: vi.fn()
     };
 
     expect(() => submitHandler(event)).not.toThrow();
     expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+});
+
+// With no form handler installed at all — no action module in the client
+// graph — delegation still intercepts posts to server-action urls (server
+// components binding forms straight to server functions) and loads the
+// handler lazily. No-JS treatment is reserved for clients with no JS.
+describe("form submit lazy fallback", () => {
+  let mockRouter: RouterContext;
+  let submitHandler: Function;
+  let originalDocument: any;
+  let originalFormData: any;
+  let disposeEvents: (() => void) | undefined;
+
+  beforeEach(() => {
+    mockRouter = createMockRouter();
+
+    originalDocument = global.document;
+    global.document = {
+      addEventListener: (type: string, handler: Function) => {
+        if (type === "submit") submitHandler = handler;
+      },
+      removeEventListener: vi.fn(),
+      baseURI: "https://example.com/"
+    } as any;
+    originalFormData = global.FormData;
+    global.FormData = vi.fn(() => ({})) as any;
+  });
+
+  afterEach(() => {
+    disposeEvents?.();
+    disposeEvents = undefined;
+    setRouterFormHandler(undefined);
+    global.document = originalDocument;
+    global.FormData = originalFormData;
+    vi.restoreAllMocks();
+    vi.doUnmock("../../src/data/serverForms.js");
+  });
+
+  const mount = () => {
+    disposeEvents = createRoot(dispose => {
+      setupNativeEvents()(mockRouter);
+      return dispose;
+    });
+  };
+
+  const createSubmitEvent = (attributes: Record<string, string | null>, method = "POST") => ({
+    defaultPrevented: false,
+    target: {
+      getAttribute: (name: string) => attributes[name] ?? null,
+      method,
+      enctype: "application/x-www-form-urlencoded"
+    },
+    submitter: null,
+    preventDefault: vi.fn()
+  });
+
+  test("intercepts posts to server-action urls and loads the handler lazily", async () => {
+    const submitServerForm = vi.fn();
+    vi.doMock("../../src/data/serverForms.js", () => ({ submitServerForm }));
+    mount();
+
+    const event = createSubmitEvent({ action: "/_server?id=echo%230&args=%5B7%5D" });
+    submitHandler(event);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    await vi.waitFor(() => expect(submitServerForm).toHaveBeenCalled());
+    expect(submitServerForm).toHaveBeenCalledWith(
+      mockRouter,
+      "/_server?id=echo%230&args=%5B7%5D",
+      event.target,
+      expect.anything()
+    );
+    // the FormData is captured synchronously, before the module loads
+    expect(global.FormData).toHaveBeenCalledWith(event.target, null);
+  });
+
+  test("ignores client-only action urls", () => {
+    mount();
+
+    const event = createSubmitEvent({ action: "https://action/my-client-action" });
+    submitHandler(event);
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  test("ignores urls outside the action base", () => {
+    mount();
+
+    const event = createSubmitEvent({ action: "/api/legacy-endpoint" });
+    submitHandler(event);
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  test("ignores non-POST forms", () => {
+    mount();
+
+    const event = createSubmitEvent({ action: "/_server?id=echo%230" }, "GET");
+    submitHandler(event);
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  test("prefers the submitter's formaction", async () => {
+    const submitServerForm = vi.fn();
+    vi.doMock("../../src/data/serverForms.js", () => ({ submitServerForm }));
+    mount();
+
+    const event = createSubmitEvent({ action: "/elsewhere" });
+    (event as any).submitter = {
+      hasAttribute: (name: string) => name === "formaction",
+      getAttribute: (name: string) => (name === "formaction" ? "/_server?id=other%230" : null)
+    };
+    submitHandler(event);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    await vi.waitFor(() => expect(submitServerForm).toHaveBeenCalled());
+    expect(submitServerForm.mock.calls[0][1]).toBe("/_server?id=other%230");
   });
 });

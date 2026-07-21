@@ -1,6 +1,7 @@
 import { $TRACK, action as createSolidAction, createMemo, onCleanup, getOwner } from "solid-js";
 import { isResponseEnvelope, isServer, type JSX } from "@solidjs/web";
 import {
+  createServerReference,
   decodeResponse,
   subscribeFlightData,
   type SingleFlightPayload
@@ -91,7 +92,8 @@ export function handleFormAction(evt: SubmitEvent, router: RouterContext, action
       ? evt.submitter.getAttribute("formaction")
       : (evt.target as HTMLElement).getAttribute("action");
   if (!actionRef) return;
-  if (!actionRef.startsWith("https://action/")) {
+  const serverAction = !actionRef.startsWith("https://action/");
+  if (serverAction) {
     // normalize server actions
     const url = new URL(actionRef, mockBase);
     actionRef = router.parsePath(url.pathname + url.search);
@@ -99,7 +101,13 @@ export function handleFormAction(evt: SubmitEvent, router: RouterContext, action
   }
   if ((evt.target as HTMLFormElement).method.toUpperCase() !== "POST")
     throw new Error("Only POST forms are supported for Actions");
-  const handler = actions.get(actionRef);
+  // A registry miss on a server-action url is a direct bind whose module
+  // never loaded client-side (server components): the url is self-describing
+  // (`?id`, bound `?args`), so a generic invocation is synthesized from it —
+  // delegation alone is sufficient, the no-JS path stays a no-JS fallback.
+  // Client-only actions (`https://action/`) are their module's JS by
+  // definition, so a miss there falls through to native submission.
+  const handler = actions.get(actionRef) || (serverAction && createServerFormAction(actionRef));
   if (handler) {
     evt.preventDefault();
     const data = new FormData(evt.target as HTMLFormElement, evt.submitter);
@@ -110,6 +118,60 @@ export function handleFormAction(evt: SubmitEvent, router: RouterContext, action
         : new URLSearchParams(data as any)
     );
   }
+}
+
+/**
+ * Synthesizes a router action for a server-rendered action url. The url
+ * carries everything an invocation needs — the function id and any bound
+ * `.with()` arguments (plain JSON in `?args`, which the server prepends for
+ * natural-encoding bodies exactly as it does for no-JS posts) — so the
+ * FormData is posted to it verbatim through the server-function transport:
+ * submissions, `aria-busy`, redirects, revalidation, and single-flight all
+ * flow through the normal action machinery. Registered under the url, so
+ * repeat submits reuse it (and a later real registration overrides it).
+ */
+function createServerFormAction(
+  url: string
+): Action<[FormData | URLSearchParams], unknown> | undefined {
+  const id = new URL(url, mockBase).searchParams.get("id");
+  if (!id) return undefined;
+  // typecheck resolves the server half of the dual module; this path only
+  // runs in the browser, where the client transport's signature applies
+  const stub = (
+    createServerReference as unknown as (
+      id: string,
+      name?: string,
+      base?: string
+    ) => (...args: unknown[]) => Promise<unknown>
+  )(id, undefined, url);
+  const caller = Object.assign(
+    (form: FormData | URLSearchParams) => stub(form) as Promise<unknown>,
+    { url }
+  );
+  return actionImpl(caller);
+}
+
+/**
+ * Entry point for delegation's lazy fallback (data/events.ts): when no form
+ * handler was ever installed — no action module in the client graph at all —
+ * the router intercepts posts to server-action urls synchronously and loads
+ * this module to run them. The FormData was captured at submit time; only
+ * the enctype conversion and the generic invocation happen here.
+ */
+export function submitServerForm(
+  router: RouterContext,
+  url: string,
+  form: HTMLFormElement,
+  data: FormData
+) {
+  const handler = actions.get(url) || createServerFormAction(url);
+  // no `?id` — not the server function convention; nothing can run it,
+  // resubmit natively (submit() bypasses the delegated handler)
+  if (!handler) return form.submit();
+  handler.call(
+    { r: router, f: form },
+    form.enctype === "multipart/form-data" ? data : new URLSearchParams(data as any)
+  );
 }
 
 // Wires the action layer into the router's slots exactly once, triggered by
