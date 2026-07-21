@@ -64,6 +64,18 @@ const submitHooksSymbol = Symbol("routerActionSubmitHooks");
 const settledHooksSymbol = Symbol("routerActionSettledHooks");
 const invokeSymbol = Symbol("routerActionInvoke");
 
+// Forms submitted through delegation are marked `aria-busy` while their
+// action is in flight — the form half of the attribute vocabulary links get
+// (`data-active`/`data-pending`). Style with `form[aria-busy] button { ... }`.
+// A counter (not a boolean) keeps the attribute through overlapping
+// submissions from the same form.
+const busyForms = /* #__PURE__ */ new WeakMap<HTMLFormElement, number>();
+function setFormBusy(form: HTMLFormElement, delta: number) {
+  const count = (busyForms.get(form) || 0) + delta;
+  busyForms.set(form, count);
+  count > 0 ? form.setAttribute("aria-busy", "true") : form.removeAttribute("aria-busy");
+}
+
 export const actions = /* #__PURE__ */ new Map<string, Action<any, any>>();
 
 /**
@@ -174,17 +186,24 @@ function actionImpl<T extends Array<any>, U = void>(
       }
     );
 
-    const settled = await settleActionResult(
-      run({
-        call: runMutation,
-        optimistic: submitHooks.size
-          ? () => {
-              for (const hook of submitHooks.values()) hook(...variables);
-            }
-          : undefined
-      })
-    );
-    const response = await handleResponse(settled.value, settled.error, router.navigatorFactory());
+    form && setFormBusy(form, 1);
+    let settled;
+    let response;
+    try {
+      settled = await settleActionResult(
+        run({
+          call: runMutation,
+          optimistic: submitHooks.size
+            ? () => {
+                for (const hook of submitHooks.values()) hook(...variables);
+              }
+            : undefined
+        })
+      );
+      response = await handleResponse(settled.value, settled.error, router.navigatorFactory());
+    } finally {
+      form && setFormBusy(form, -1);
+    }
 
     if (!response) return undefined as NarrowResponse<U>;
 

@@ -506,6 +506,83 @@ describe("useAction", () => {
   });
 });
 
+// The form half of the attribute vocabulary: a form submitted through
+// delegation is `aria-busy` while its action is in flight — same CSS story
+// as `data-active`/`data-pending` on links.
+describe("form aria-busy", () => {
+  beforeEach(() => {
+    actions.clear();
+    mockRouterContext = createMockRouter();
+  });
+
+  // invoke the action the way handleFormAction does: with the form as context
+  const submitViaForm = (act: Action<any, any>, form: HTMLFormElement, data: any = {}) =>
+    (act as any).call({ r: mockRouterContext, f: form }, data);
+
+  test("marks the form while the action is in flight and clears after settle", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => (release = resolve));
+    const busyAction = action(async () => {
+      await gate;
+      return "done";
+    }, "busy-test");
+    const form = document.createElement("form");
+
+    const promise = submitViaForm(busyAction, form);
+    expect(form.getAttribute("aria-busy")).toBe("true");
+
+    release();
+    await promise;
+    expect(form.hasAttribute("aria-busy")).toBe(false);
+  });
+
+  test("clears even when the action errors", async () => {
+    let reject!: (e: Error) => void;
+    const gate = new Promise<void>((_, r) => (reject = r));
+    const failing = action(async () => {
+      await gate;
+    }, "busy-error-test");
+    const form = document.createElement("form");
+
+    const promise = submitViaForm(failing, form);
+    expect(form.getAttribute("aria-busy")).toBe("true");
+
+    reject(new Error("boom"));
+    // form submissions record errors on the submission instead of throwing
+    await promise;
+    expect(form.hasAttribute("aria-busy")).toBe(false);
+    expect(mockRouterContext.submissions[0]()[0].error.message).toBe("boom");
+  });
+
+  test("stays busy across overlapping submissions of the same form", async () => {
+    const releases: (() => void)[] = [];
+    const overlapping = action(
+      () => new Promise<void>(resolve => releases.push(resolve)),
+      "busy-overlap-test"
+    );
+    const form = document.createElement("form");
+
+    const first = submitViaForm(overlapping, form);
+    const second = submitViaForm(overlapping, form);
+    expect(form.getAttribute("aria-busy")).toBe("true");
+
+    releases[0]();
+    await first;
+    expect(form.getAttribute("aria-busy")).toBe("true");
+
+    releases[1]();
+    await second;
+    expect(form.hasAttribute("aria-busy")).toBe(false);
+  });
+
+  test("does not touch forms for programmatic (formless) calls", async () => {
+    const plain = action(async () => "ok", "busy-formless-test");
+    await useAction(plain)();
+    // nothing to assert on a form — the run simply must not throw without one
+    expect(mockRouterContext.submissions[0]()).toHaveLength(1);
+  });
+});
+
 // Delegated form-submit behavior. The handler body lived in
 // data/events.ts's handleFormSubmit before the decoupling; delegation now
 // consults a slot (see test/data/events.spec.ts) and this is the handler
