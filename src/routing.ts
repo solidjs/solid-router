@@ -5,16 +5,17 @@ import {
   createContext,
   createMemo,
   createSignal,
+  NotReadyError,
   onCleanup,
   untrack,
   useContext
 } from "solid-js";
 import { isServer, getRequestEvent } from "@solidjs/web";
-import { createBeforeLeave } from "./lifecycle.js";
 import type {
-  BeforeLeaveEventArgs,
   Branch,
   Intent,
+  LazyBoundary,
+  LazyRouteChildren,
   Location,
   LocationChange,
   MatchFilters,
@@ -58,7 +59,7 @@ const MAX_REDIRECTS = 100;
 export const RouterContextObj = createContext<RouterContext>();
 export const RouteContextObj = createContext<RouteContext>();
 
-function useOptionalContext<T>(context: { defaultValue?: T }) {
+export function useOptionalContext<T>(context: { defaultValue?: T }) {
   try {
     return useContext(context as never) as T | undefined;
   } catch {
@@ -361,48 +362,101 @@ export const useLinkState = (
   };
 };
 
-/**
- * useBeforeLeave takes a function that will be called prior to leaving a route.
- * The function will be called with:
- * 
- * - from (*Location*): current location (before change).
- * - to (*string | number*): path passed to `navigate`.
- * - options (*NavigateOptions*): options passed to navigate.
- * - preventDefault (*function*): call to block the route change.
- * - defaultPrevented (*readonly boolean*): `true` if any previously called leave handlers called `preventDefault`.
- * - retry (*function*, force?: boolean ): call to retry the same navigation, perhaps after confirming with the user. Pass `true` to skip running the leave handlers again (i.e. force navigate without confirming).
- * 
- * @example
- * ```js
- * useBeforeLeave((e: BeforeLeaveEventArgs) => {
- *   if (form.isDirty && !e.defaultPrevented) {
- *     // preventDefault to block immediately and prompt user async
- *     e.preventDefault();
- *     setTimeout(() => {
- *       if (window.confirm("Discard unsaved changes - are you sure?")) {
- *         // user wants to proceed anyway so retry with force=true
- *         e.retry(true);
- *       }
- *     }, 100);
- *   }
- * });
- * ```
- */
-export const useBeforeLeave = (listener: (e: BeforeLeaveEventArgs) => void) => {
-  const s = useRouter().beforeLeave.subscribe({
-    listener,
-    location: useLocation(),
-    navigate: useNavigate()
-  });
-  onCleanup(s);
-};
-
 // Encodes a static path segment like `encodeURIComponent`, but leaves RFC 3986
 // pchar characters (sub-delims / ":" / "@") literal, matching how browsers
 // report them in `location.pathname`. Non-ASCII characters (eg. CJK paths) are
 // still percent-encoded exactly as before, since browsers encode those too.
 const encodeSegment = (s: string) =>
   encodeURIComponent(s).replace(/%(2B|40|3A|24|26|2C|3B|3D)/g, m => decodeURIComponent(m));
+
+// ---------------------------------------------------------------------------
+// Lazy route subtrees
+// ---------------------------------------------------------------------------
+//
+// A `children` thunk (`() => import("./feature/routes")`) is a *boundary*:
+// until it resolves, the compiled tree carries a param-less catch-all
+// placeholder branch under the boundary's pattern (splat-scored, so static
+// siblings still win). Resolution is append-only and cached per thunk, then a
+// module-level version signal bumps and every `branches()` consumer
+// recompiles — matches, params, and route states all react. The placeholder's
+// component reads a memo of the resolution promise, which keeps the enclosing
+// navigation transition pending exactly like a `lazy()` route component; its
+// `preload` *is* the resolver, so hover-intent preloading kicks the table
+// load through the existing component-preload path.
+
+const lazyBoundaries = new WeakMap<LazyRouteChildren, LazyBoundary>();
+// Module scope: boundary resolution is global, deterministic state (same
+// thunk -> same routes), shared by every factory instance and the server's
+// flight collector.
+const [lazyTreeVersion, setLazyTreeVersion] = createSignal(0);
+
+/** Reactive read of the lazy-subtree version — recompile compiled branches when it changes. */
+export function trackLazySubtrees(): number {
+  return lazyTreeVersion();
+}
+
+/** Non-reactive read, for cache-busting outside the reactive graph (server collectors). */
+export function peekLazySubtrees(): number {
+  return untrack(lazyTreeVersion);
+}
+
+function getLazyBoundary(thunk: LazyRouteChildren): LazyBoundary {
+  let record = lazyBoundaries.get(thunk);
+  if (!record) lazyBoundaries.set(thunk, (record = { thunk }));
+  return record;
+}
+
+/**
+ * Kicks (or joins) a boundary's resolution. Returns the resolved routes
+ * synchronously once available, the in-flight promise otherwise. Commit is
+ * always async — even for thunks returning arrays — so the version bump
+ * never writes a signal from inside a render computation.
+ */
+export function resolveLazySubtree(
+  record: LazyBoundary
+): readonly RouteDefinition[] | Promise<readonly RouteDefinition[]> {
+  if (record.resolved) return record.resolved;
+  return (record.promise ||= Promise.resolve(record.thunk()).then(m => {
+    const routes = Array.isArray(m)
+      ? m
+      : (m as { default?: readonly RouteDefinition[]; routes?: readonly RouteDefinition[] })
+          .default ||
+        (m as { routes?: readonly RouteDefinition[] }).routes ||
+        [];
+    record.resolved = routes as readonly RouteDefinition[];
+    setLazyTreeVersion(v => v + 1);
+    return record.resolved;
+  }));
+}
+
+/**
+ * The unresolved boundaries in a match chain. Rendering gates on these (the
+ * route-states memo suspends until they land — see routers/components.tsx)
+ * and the server's flight collector awaits them before its preload pass.
+ */
+export function unresolvedLazyMatches(matches: RouteMatch[]): LazyBoundary[] {
+  const pending: LazyBoundary[] = [];
+  for (const match of matches)
+    if (match.route.lazy && !match.route.lazy.resolved) pending.push(match.route.lazy);
+  return pending;
+}
+
+function createLazyPlaceholder(pattern: string, record: LazyBoundary): RouteDescription {
+  // The placeholder never renders and needs no component — `matches` parks
+  // on unresolved boundaries before route contexts are created (kicking the
+  // resolver as it does), preloadRoute kicks it directly, and the version
+  // bump swaps in the real routes. `path + "/*"` with no splat name matches
+  // the boundary itself and everything beneath it without recording a param
+  // (createMatcher skips empty splat names).
+  const placeholderPattern = pattern + "/*";
+  return {
+    key: record,
+    originalPath: "*",
+    pattern: placeholderPattern,
+    matcher: createMatcher(placeholderPattern),
+    lazy: record
+  };
+}
 
 export function createRoutes(routeDef: RouteDefinition, base: string = ""): RouteDescription[] {
   const { component, preload, children, info } = routeDef;
@@ -477,9 +531,23 @@ export function createBranches(
       const routes = createRoutes(def, base);
       for (const route of routes) {
         stack.push(route);
-        const isEmptyArray = Array.isArray(def.children) && def.children.length === 0;
-        if (def.children && !isEmptyArray) {
-          createBranches(def.children, route.pattern, stack, branches);
+        let children = def.children;
+        if (typeof children === "function") {
+          const record = getLazyBoundary(children);
+          if (record.resolved) {
+            children = record.resolved;
+          } else {
+            // unresolved boundary: a catch-all placeholder holds its ground
+            stack.push(createLazyPlaceholder(route.pattern, record));
+            branches.push(createBranch([...stack], branches.length));
+            stack.pop();
+            stack.pop();
+            continue;
+          }
+        }
+        const isEmptyArray = Array.isArray(children) && children.length === 0;
+        if (children && !isEmptyArray) {
+          createBranches(children, route.pattern, stack, branches);
         } else {
           const branch = createBranch([...stack], branches.length);
           branches.push(branch);
@@ -634,7 +702,8 @@ export function createRouterContext(
 
   const parsePath = utils.parsePath || (p => p);
   const renderPath = utils.renderPath || (p => p);
-  const beforeLeave = utils.beforeLeave || createBeforeLeave();
+  // An empty slot until `useBeforeLeave` installs the guard on first use.
+  const beforeLeave = utils.beforeLeave || {};
 
   const basePath = resolvePath("", options.base || "");
   const initialSource = untrack(source);
@@ -681,11 +750,21 @@ export function createRouterContext(
   let submissions: Signal<Submission<any, any>[]> | undefined;
 
   const matches = createMemo(() => {
-    if (typeof options.transformUrl === "function") {
-      return getRouteMatches(branches(), options.transformUrl(location.pathname));
-    }
-
-    return getRouteMatches(branches(), location.pathname);
+    const pathname =
+      typeof options.transformUrl === "function"
+        ? options.transformUrl(location.pathname)
+        : location.pathname;
+    const m = getRouteMatches(branches(), pathname);
+    // An unresolved lazy subtree parks readers on not-ready semantics — the
+    // navigation transition (or the SSR stream) holds until the table lands.
+    // NotReadyError (not a returned promise) because a match chain is full
+    // of component functions the hydration serializer must never see. The
+    // recompute comes from the version-signal dependency on the client and
+    // from the carried promise's retry on the server; a boundary nested
+    // inside a boundary just parks the recomputed chain again.
+    const pending = unresolvedLazyMatches(m);
+    if (pending.length) throw new NotReadyError(Promise.all(pending.map(resolveLazySubtree)));
+    return m;
   });
 
   const buildParams = () => mergeParams(matches());
@@ -780,7 +859,7 @@ export function createRouterContext(
           const e = getRequestEvent();
           e && (e.response = { status: 302, headers: new Headers({ Location: resolvedTo }) });
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
-        } else if (beforeLeave.confirm(resolvedTo, options)) {
+        } else if (!beforeLeave.current || beforeLeave.current.confirm(resolvedTo, options)) {
           referrers.push({ value: current.value, replace, scroll, state: current.state });
           const newTarget: LocationChange = {
             value: resolvedTo,
@@ -837,6 +916,14 @@ export function createRouterContext(
 
   function preloadRoute(url: URL, preloadData?: boolean) {
     const matches = getRouteMatches(branches(), url.pathname);
+    // An unresolved lazy subtree in the chain: the placeholder's
+    // component.preload (below) kicks the table load; once it lands,
+    // preload again so the real inner routes warm too.
+    const boundary = matches.find(m => m.route.lazy && !m.route.lazy.resolved);
+    boundary &&
+      (resolveLazySubtree(boundary.route.lazy!) as Promise<unknown>).then(() =>
+        preloadRoute(url, preloadData)
+      );
     const prevIntent = intent;
     intent = "preload";
     for (let match in matches) {

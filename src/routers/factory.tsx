@@ -13,9 +13,12 @@ import {
   createRouterContext,
   getRouteMatches,
   registerFlightRouter,
-  RouterContextObj
+  RouterContextObj,
+  trackLazySubtrees,
+  useOptionalContext
 } from "../routing.js";
 import type {
+  Branch,
   LocationChange,
   OutputMatch,
   RouteDefinition,
@@ -123,18 +126,40 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
   config: RouterConfig<R>
 ): RouterInstance<R> {
   const basePath = config.base || "";
-  // Routes are immutable per instance, so matching compiles once at factory
-  // time and is shared by every mount, request, and `match()` call.
-  const branches = createBranches(config.routes as unknown as RouteDefinition[], basePath);
+  // Routes are immutable per instance, so compilation is shared by every
+  // mount, request, and `match()` call — recompiled only when a lazy subtree
+  // resolves (append-only: resolution, not mutation). Reading the version
+  // inside a computation subscribes it; plain calls just see current state.
+  let compiled: Branch[] | undefined;
+  let compiledVersion = -1;
+  const branches = () => {
+    const version = trackLazySubtrees();
+    if (!compiled || compiledVersion !== version) {
+      compiled = createBranches(config.routes as unknown as RouteDefinition[], basePath);
+      compiledVersion = version;
+    }
+    return compiled;
+  };
   const renderPath = (config.history && config.history.utils && config.history.utils.renderPath) || undefined;
 
   function RouterComponent(props: { children?: (props: RouteSectionProps) => JSX.Element }): JSX.Element {
+    // One router per app: the session (location, history, delegation, link
+    // claims, preloading) has a single owner, and a second instance would
+    // fight it — stale content on click navigations, conflicting link
+    // attributes. Compose route trees instead; lazy subtrees are the planned
+    // answer for definitions unknown at build time.
+    if (useOptionalContext(RouterContextObj)) {
+      console.warn(
+        "Mounting a router inside another router is not supported. " +
+          "Compose route trees in one createRouter config instead."
+      );
+    }
     const root = untrack(() => props.children);
     const integration = isServer
       ? staticIntegration(config.history)
       : createIntegration(config.history || browserHistory());
     let context: Owner;
-    const routerState = createRouterContext(integration, () => branches, () => context, {
+    const routerState = createRouterContext(integration, branches, () => context, {
       base: basePath,
       singleFlight: config.singleFlight,
       transformUrl: config.transformUrl
@@ -159,14 +184,13 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
     );
   }
 
-  return Object.assign(RouterComponent, {
-    paths: createPathsProxy(renderPath, basePath) as RoutePaths<R>,
+  const instance = Object.assign(RouterComponent, {
     routes: config.routes,
     config,
     match(url: string): OutputMatch[] {
       const u = new URL(url, mockBase);
       const pathname = config.transformUrl ? config.transformUrl(u.pathname) : u.pathname;
-      return getRouteMatches(branches, pathname).map(({ route, path, params }) => ({
+      return getRouteMatches(branches(), pathname).map(({ route, path, params }) => ({
         path: route.originalPath,
         pattern: route.pattern,
         match: path,
@@ -175,4 +199,12 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
       }));
     }
   });
+  // Built on first access (a getter via Object.assign would run during the
+  // copy) so runtimes without Proxy — some older TVs — can still route as
+  // long as they never touch typed paths.
+  let paths: RoutePaths<R> | undefined;
+  Object.defineProperty(instance, "paths", {
+    get: () => paths || (paths = createPathsProxy(renderPath, basePath) as RoutePaths<R>)
+  });
+  return instance as typeof instance & { readonly paths: RoutePaths<R> };
 }

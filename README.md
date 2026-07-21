@@ -34,6 +34,7 @@ Explore the official [documentation](https://docs.solidjs.com/solid-router) for 
   - [Wildcard Routes](#wildcard-routes)
   - [Multiple Paths](#multiple-paths)
   - [Nested Routes](#nested-routes)
+  - [Lazy Route Subtrees](#lazy-route-subtrees)
 - [Typed Paths](#typed-paths)
 - [Links](#links)
 - [Preload Functions](#preload-functions)
@@ -58,27 +59,40 @@ Define your routes as config objects and create the router outside JSX. The inst
 ```tsx
 // app/router.ts
 import { lazy } from "solid-js";
-import { createRouter, defineRoutes } from "@solidjs/router";
+import { createRouter } from "@solidjs/router";
 
-export const routes = defineRoutes([
-  { path: "/", component: lazy(() => import("./pages/Home")) },
-  { path: "/about", component: lazy(() => import("./pages/About")) },
-  {
-    path: "/users/:id",
-    component: lazy(() => import("./pages/User")),
-    children: [
-      { path: "/", component: lazy(() => import("./pages/UserOverview")) },
-      { path: "/settings", component: lazy(() => import("./pages/UserSettings")) }
-    ]
-  },
-  { path: "*404", component: lazy(() => import("./pages/NotFound")) }
-]);
+export const Router = createRouter({
+  routes: [
+    { path: "/", component: lazy(() => import("./pages/Home")) },
+    { path: "/about", component: lazy(() => import("./pages/About")) },
+    {
+      path: "/users/:id",
+      component: lazy(() => import("./pages/User")),
+      children: [
+        { path: "/", component: lazy(() => import("./pages/UserOverview")) },
+        { path: "/settings", component: lazy(() => import("./pages/UserSettings")) }
+      ]
+    },
+    { path: "*404", component: lazy(() => import("./pages/NotFound")) }
+  ]
+});
 
-export const Router = createRouter({ routes });
 export const { paths } = Router;
 ```
 
-`defineRoutes` is an identity function that preserves the literal types type inference feeds on — routes passed inline to `createRouter` infer automatically, but an extracted tree needs either `defineRoutes` or `as const`.
+This one module serves everything: the client renders the instance, and on the server the same instance reads its location from the request (or the configured history when there is none — SSG, tests). There is no separate "server router" and no need to export the raw route array.
+
+When a tree is composed across files (feature subtrees), wrap the extracted arrays in `defineRoutes` — an identity function that preserves the literal types inference feeds on (a bare extracted array silently widens to `string` paths without it or `as const`) and type-checks the definitions where they're written:
+
+```tsx
+// features/admin/routes.ts
+export const adminRoutes = defineRoutes([
+  { path: "/admin", component: Admin, children: [/* ... */] }
+]);
+
+// app/router.ts
+export const Router = createRouter({ routes: [...appRoutes, ...adminRoutes] });
+```
 
 Mount it by rendering the instance. The render-prop child is your root layout — it always stays mounted, receives the matched content as `props.children`, and is the ideal place for top-level navigation and context providers:
 
@@ -145,13 +159,13 @@ A route definition supports:
 | -------------- | --------------------------------------- | ------------------------------------------------------------------ |
 | `path`         | `string \| string[]`                    | Path partial for this route segment                                |
 | `component`    | `Component`                             | Component rendered for the matched segment                         |
-| `children`     | `RouteDefinition \| RouteDefinition[]`  | Nested route definitions                                           |
+| `children`     | `RouteDefinition \| RouteDefinition[] \| () => Promise<...>` | Nested route definitions, or a thunk for a [lazy subtree](#lazy-route-subtrees) |
 | `preload`      | `RoutePreloadFunc`                      | Called on preload intent (hover/focus) and navigation              |
 | `matchFilters` | `MatchFilters`                          | Additional constraints for matching parameters                     |
 | `search`       | `StandardSchemaV1`                      | Search-param validator; its types flow into `paths` and hooks      |
 | `info`         | `Record<string, any>`                   | Arbitrary metadata, readable via `useRouteMatches`                 |
 
-The tree is **immutable per instance** — that's what makes `paths` and the typed hooks truthful, and it lets matching compile once and be shared by every mount, request, and `match()` call. Sections that are genuinely unknown at build time (plugins, micro-frontends) are delegated through a static splat boundary (`/plugins/*rest`); instances are cheap, so a guarded lazy section can even create its own nested router from definitions fetched at runtime.
+The tree is **immutable and there is one router per app** — that's what makes `paths` and the typed hooks truthful, it lets matching compile once and be shared by every mount, request, and `match()` call, and it means delegation, link state, and preloading all have a single owner. Compose large apps by spreading subtrees into the config (see `defineRoutes` above); mounting a router inside another router is not supported (nested `<Routes>` has been gone since 0.10) and warns in development. Sections whose *code* shouldn't load up front are [lazy route subtrees](#lazy-route-subtrees) — still one tree, still typed.
 
 ### Dynamic Routes
 
@@ -272,6 +286,35 @@ You can nest indefinitely. In this example the only route created is `/layer1/la
   }]
 }
 ```
+
+### Lazy Route Subtrees
+
+`children` also accepts a thunk, so a whole section's route table (not just its components) stays out of the initial bundle:
+
+```tsx
+// admin/routes.ts
+export default defineRoutes([
+  { path: "/", component: lazy(() => import("./Dashboard")) },
+  { path: "/users/:id", matchFilters: { id: int }, component: lazy(() => import("./User")) }
+]);
+
+// app.ts
+const router = createRouter({
+  routes: [
+    { path: "/", component: Home },
+    { path: "/admin", component: AdminShell, children: () => import("./admin/routes") }
+  ]
+});
+```
+
+The import only fires when something needs the subtree — hovering a link into it, navigating into it, or the server matching a URL beneath it. Until then the tree carries a placeholder that knows every URL under `/admin` belongs to the subtree without knowing its contents (static sibling routes still win without triggering the load). Everything folds in as if the routes were inline:
+
+- **Types**: TypeScript never runs the thunk — inference flows through the import's promise type, so `paths.admin.users(2)` typechecks (match filters and search schemas included) before any of the subtree's code exists client-side. The module's `default` or `routes` export is used. Only tables genuinely built at runtime (typed as plain `RouteDefinition[]`) degrade to untyped.
+- **Navigation**: the table load folds into the navigation transition — the old screen holds until the subtree (and its matched components) are ready, exactly like a `lazy()` route component.
+- **Preloading**: hover intent kicks the table load, and when it lands the preload continues into the inner routes' components and `preload` functions — one cascading warm-up from the earliest possible moment.
+- **Server**: SSR resolves matched boundaries during the render (use the streaming entry points — `renderToStream`/`renderToStringAsync` — as with any async work), and the single-flight collector resolves them before its data pass.
+
+Resolution is cached per thunk and append-only: the tree never changes shape after a subtree lands, it just gets more specific. Keep thunks deterministic — `() => import(...)` — rather than switching tables on runtime state.
 
 ## Typed Paths
 
@@ -430,6 +473,8 @@ form[aria-busy] button { pointer-events: none; opacity: 0.6; }
 ```
 
 Forms work without JavaScript: a real POST, a redirect back, and the result seeded into submission state through a one-shot flash cookie. Single-flight mutations are on by default — the mutation response carries the refreshed route data in the same round trip.
+
+Delegation doesn't require the action's module on the client either. A form bound directly to a server action in a server-only module (a server component) renders a plain `action="/_server?id=...&args=..."` — a self-describing URL. On submit, the router synthesizes the invocation from it: the form data posts to that URL through the server-function transport, `.with()` arguments ride along in the query string, and submissions, `aria-busy`, redirects, revalidation, and single-flight data flow through the normal pipeline. The handler loads lazily on first such submit, so router-only bundles don't carry the data layer. The no-JS POST above remains the fallback only for clients that actually have no JavaScript. (Client-only actions — `action(fn, "name")` without `use server` — are their module's JS by definition and still require it on the client.)
 
 For optimistic UI, attach owner-scoped hooks to the action and use Solid's optimistic primitives for rendered state:
 
@@ -627,7 +672,7 @@ Reactive `active`/`current`/`pending` state for [custom link components](#links)
 
 ### useBeforeLeave
 
-Takes a function called before leaving a route, with:
+Takes a function called before leaving a route. The blocking machinery is installed lazily on first use, so apps that never call `useBeforeLeave` don't pay for it in their bundle. The handler receives:
 
 - `from` (_Location_): current location (before change)
 - `to` (_string | number_): path passed to `navigate`
@@ -661,6 +706,20 @@ const Router = createRouter({ routes, history: hashHistory() });
 
 // tests and non-browser environments
 const Router = createRouter({ routes, history: memoryHistory("/users/1") });
+```
+
+### Environments without Proxy
+
+On runtimes without `Proxy` support (some older smart TVs), the core router still works: typed `paths` are built lazily so they only require `Proxy` if you access them, and `params`/`location.query` can be swapped to a `Proxy`-free implementation through the history adapter's `paramsWrapper`/`queryWrapper` utils:
+
+```tsx
+const base = browserHistory();
+const history = {
+  ...base,
+  // wrappers build objects with defined getters instead of a Proxy
+  utils: { ...base.utils, paramsWrapper, queryWrapper }
+};
+const Router = createRouter({ routes, history });
 ```
 
 On the server the request URL drives rendering automatically. Without a request event (SSG scripts, server-side tests), the configured history adapter provides the location, so `memoryHistory("/page")` renders that page isomorphically.

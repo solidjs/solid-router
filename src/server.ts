@@ -26,7 +26,9 @@ import type {
 import {
   createBranches,
   getRouteMatches,
-  mergeParams
+  mergeParams,
+  peekLazySubtrees,
+  resolveLazySubtree
 } from "./routing.js";
 import { extractSearchParams } from "./utils.js";
 import { encodeFlashCookie } from "./data/flash.js";
@@ -95,10 +97,17 @@ export function createFlightDataCollector(
     : options;
   if (!routes) throw new Error("createFlightDataCollector requires `routes`");
   let branches: Branch[] | undefined;
-  // thunks are called at first collection so per-request trees build lazily
-  const resolveBranches = () =>
-    branches ||
-    (branches = createBranches(typeof routes === "function" ? routes() : routes, base));
+  let compiledVersion = -1;
+  // thunks are called at first collection so per-request trees build lazily;
+  // recompiled when a lazy subtree resolves (shared, append-only state)
+  const resolveBranches = () => {
+    const version = peekLazySubtrees();
+    if (!branches || compiledVersion !== version) {
+      branches = createBranches(typeof routes === "function" ? routes() : routes, base);
+      compiledVersion = version;
+    }
+    return branches;
+  };
 
   return async (sourceEvent, outcome) => {
     // no referrer, nothing to produce data for (e.g. non-browser callers)
@@ -134,6 +143,7 @@ export function createFlightDataCollector(
 
     return provideRequestEvent(event, async () => {
       try {
+        await resolveLazyMatches(resolveBranches, url, referrer);
         runPreloads(event, resolveBranches(), url, referrer, rootPreload);
       } catch (error) {
         console.error(error);
@@ -148,6 +158,28 @@ export function createFlightDataCollector(
       return containsKey ? data : undefined;
     });
   };
+}
+
+// Lazy subtrees matched by the target (or previous) URL must resolve before
+// the preload pass — the collector would otherwise be blind to inner routes'
+// data. Resolution is shared with the client-side machinery (append-only,
+// cached per thunk); the loop handles boundaries nested inside boundaries.
+async function resolveLazyMatches(
+  resolveBranches: () => Branch[],
+  url: string,
+  previousUrl: string
+) {
+  for (;;) {
+    const branches = resolveBranches();
+    const target = new URL(url);
+    const matches = [
+      ...getRouteMatches(branches, target.pathname),
+      ...getRouteMatches(branches, new URL(previousUrl, target).pathname)
+    ];
+    const pending = matches.filter(m => m.route.lazy && !m.route.lazy.resolved);
+    if (!pending.length) return;
+    await Promise.all(pending.map(m => resolveLazySubtree(m.route.lazy!)));
+  }
 }
 
 // The pure preload runner: the same collection loop the router's <Routes>

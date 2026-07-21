@@ -3,6 +3,7 @@ import { vi } from "vitest";
 import {
   createRouter,
   memoryHistory,
+  useBeforeLeave,
   useLinkState,
   useRouteMatches,
   useNavigate,
@@ -169,6 +170,27 @@ describe("createRouter factory", () => {
       }
     });
 
+    test("warns when mounted inside another router", () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const Inner = createRouter({ routes: [{ path: "/", component: () => <span /> }], history: memoryHistory() });
+      const Outer = createRouter({
+        routes: [{ path: "/", component: () => <Inner /> }],
+        history: memoryHistory()
+      });
+
+      const dispose = render(() => <Outer />, div);
+      try {
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining("not supported"));
+      } finally {
+        dispose();
+        div.remove();
+        warn.mockRestore();
+      }
+    });
+
     test("useRouteMatches exposes the matched chain's info reactively", async () => {
       const div = document.createElement("div");
       document.body.appendChild(div);
@@ -215,6 +237,49 @@ describe("createRouter factory", () => {
       }
     });
 
+    test("useBeforeLeave installs the lazy guard and can block navigation", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+
+      let navigate!: Navigator;
+      let calls = 0;
+      const Home = () => {
+        navigate = useNavigate();
+        // first leave is blocked, later ones sail through
+        useBeforeLeave(e => {
+          calls++;
+          if (calls === 1) e.preventDefault();
+        });
+        return <div data-route="home">Home</div>;
+      };
+
+      const Router = createRouter({
+        routes: [
+          { path: "/", component: Home },
+          { path: "/about", component: () => <div data-route="about">About</div> }
+        ] as const,
+        history: memoryHistory()
+      });
+
+      const dispose = render(() => <Router />, div);
+      try {
+        await settle();
+        navigate("/about");
+        await settle();
+        expect(calls).toBe(1);
+        expect(div.querySelector('[data-route="home"]')).toBeTruthy();
+        expect(div.querySelector('[data-route="about"]')).toBeNull();
+
+        navigate("/about");
+        await settle();
+        expect(calls).toBe(2);
+        expect(div.querySelector('[data-route="about"]')).toBeTruthy();
+      } finally {
+        dispose();
+        div.remove();
+      }
+    });
+
     test("usePreloadRoute warms a route's preload without navigating", async () => {
       const div = document.createElement("div");
       document.body.appendChild(div);
@@ -255,6 +320,81 @@ describe("createRouter factory", () => {
         expect(preloaded).toHaveBeenCalledTimes(1);
       } finally {
         dispose();
+        div.remove();
+      }
+    });
+
+    test("params/query work without Proxy via history utils wrappers", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+
+      // PR #478 / commit a3a36fb: non-Proxy environments (older TVs) supply
+      // paramsWrapper/queryWrapper through the integration. In v1 that rides
+      // on the history adapter. Keys are precollected from the route tree.
+      const defineKeys = (get: () => Record<string, any>, keys: string[]) => {
+        const target: Record<string, any> = {};
+        for (const key of keys)
+          Object.defineProperty(target, key, { get: () => get()[key], enumerable: true });
+        return target;
+      };
+      const paramsWrapper = vi.fn((getParams: () => Record<string, any>, branches: () => any[]) => {
+        const keys = new Set<string>();
+        for (const branch of branches())
+          for (const route of branch.routes)
+            for (const m of route.pattern.match(/:(\w+)/g) || []) keys.add(m.slice(1));
+        return defineKeys(getParams, [...keys]);
+      });
+      const queryWrapper = vi.fn((getQuery: () => Record<string, any>) =>
+        defineKeys(getQuery, ["tab"])
+      );
+
+      const base = memoryHistory("/users/1?tab=posts");
+      const history = { ...base, utils: { ...base.utils, paramsWrapper, queryWrapper } };
+
+      let navigate!: Navigator;
+      let params!: Record<string, string>;
+      let query!: Record<string, any>;
+      const User = () => {
+        navigate = useNavigate();
+        params = useParams();
+        [query] = useSearchParams();
+        return <div data-route="user" />;
+      };
+
+      const Router = createRouter({
+        routes: [{ path: "/users/:id", component: User }] as const,
+        history
+      });
+
+      // record every Proxy construction; jsdom builds them for DOM internals,
+      // so instead of throwing we assert none came from router source
+      const RealProxy = globalThis.Proxy;
+      const stacks: string[] = [];
+      (globalThis as any).Proxy = function (target: object, handler: ProxyHandler<object>) {
+        stacks.push(new Error().stack || "");
+        return new RealProxy(target, handler);
+      };
+      try {
+        const dispose = render(() => <Router />, div);
+        try {
+          await settle();
+          expect(params.id).toBe("1");
+          expect(query.tab).toBe("posts");
+          expect(paramsWrapper).toHaveBeenCalled();
+          expect(queryWrapper).toHaveBeenCalled();
+
+          navigate("/users/2?tab=likes");
+          await settle();
+          expect(params.id).toBe("2");
+          expect(query.tab).toBe("likes");
+
+          const fromRouter = stacks.filter(s => s.includes("/src/"));
+          expect(fromRouter).toEqual([]);
+        } finally {
+          dispose();
+        }
+      } finally {
+        (globalThis as any).Proxy = RealProxy;
         div.remove();
       }
     });

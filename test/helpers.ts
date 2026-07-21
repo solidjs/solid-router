@@ -52,7 +52,7 @@ export function createMockRouter(): RouterContext {
       go: vi.fn(),
       renderPath: vi.fn(),
       parsePath: vi.fn(),
-      beforeLeave: { listeners: new Set() }
+      beforeLeave: {}
     }
   } as any;
 }

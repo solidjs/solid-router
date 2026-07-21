@@ -8,8 +8,10 @@ import {
     createRouteContext,
     getIntent,
     getRouteMatches,
+    resolveLazySubtree,
     RouteContextObj,
-    setInPreloadFn
+    setInPreloadFn,
+    unresolvedLazyMatches
 } from "../routing.js";
 import type {
     Branch,
@@ -51,22 +53,30 @@ export function Root(props: {
   return props.children;
 }
 
-export function Routes(props: { routerState: RouterContext; branches: Branch[] }) {
+export function Routes(props: { routerState: RouterContext; branches: () => Branch[] }) {
   if (isServer) {
     const e = getRequestEvent();
     if (e && e.router && e.router.dataOnly) {
-      dataOnly(e, props.routerState, props.branches);
+      dataOnly(e, props.routerState, props.branches());
       return;
     }
-    e &&
-      ((e.router || (e.router = {})).matches ||
-        (e.router.matches = props.routerState.matches().map(({ route, path, params }) => ({
-          path: route.originalPath,
-          pattern: route.pattern,
-          match: path,
-          params,
-          info: route.info
-        }))));
+    if (e && !(e.router && e.router.matches)) {
+      // A lazy getter rather than a snapshot: unresolved lazy subtrees mean
+      // the match chain can still improve while the render streams, and
+      // frameworks read this after the render settles.
+      Object.defineProperty((e.router || (e.router = {})), "matches", {
+        configurable: true,
+        enumerable: true,
+        get: () =>
+          props.routerState.matches().map(({ route, path, params }) => ({
+            path: route.originalPath,
+            pattern: route.pattern,
+            match: path,
+            params,
+            info: route.info
+          }))
+      });
+    }
   }
 
   const disposers: (() => void)[] = [];
@@ -81,6 +91,9 @@ export function Routes(props: { routerState: RouterContext; branches: Branch[] }
   const owner = getOwner()!;
 
   const routeStates = createMemo((prev: RouteContext[] | undefined) => {
+      // While a lazy subtree resolves, `matches()` is not ready and this
+      // computation parks with it — no route contexts are created against
+      // placeholder matches.
       const nextMatches = props.routerState.matches();
       const previousMatches = prevMatches;
       let equal = previousMatches && nextMatches.length === previousMatches.length;
@@ -153,6 +166,10 @@ function dataOnly(event: RequestEvent, routerState: RouterContext, branches: Bra
     new URL(event.router!.previousUrl || event.request.url).pathname
   );
   const matches = getRouteMatches(branches, url.pathname);
+  // This pass is synchronous — an unresolved lazy subtree can only be
+  // kicked, not awaited (the flight collector's own runner awaits; see
+  // src/server.ts). Best effort so a subsequent pass sees the table.
+  unresolvedLazyMatches([...prevMatches, ...matches]).forEach(resolveLazySubtree);
   for (let match = 0; match < matches.length; match++) {
     if (!prevMatches[match] || matches[match].route !== prevMatches[match].route)
       event.router!.dataOnly = true;

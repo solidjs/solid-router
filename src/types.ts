@@ -142,6 +142,23 @@ export type RouteSectionComponent<T = unknown> =
   | Component<Omit<RouteSectionProps<T>, "children">>
   | Component<{}>;
 
+/**
+ * A lazy route subtree: a thunk producing the child definitions — typically
+ * `() => import("./feature/routes")` (the module's `default` or `routes`
+ * export is used). The subtree's code loads on demand (hover intent or
+ * navigation kicks it, and the load folds into the navigation transition)
+ * but its *types* still flow into `paths` through the import's promise type.
+ * Thunks must be deterministic — resolution is cached append-only and shared
+ * by every mount, request, and the server's flight collector.
+ */
+export type LazyRouteChildren = () =>
+  | readonly RouteDefinition[]
+  | Promise<
+      | readonly RouteDefinition[]
+      | { default: readonly RouteDefinition[] }
+      | { routes: readonly RouteDefinition[] }
+    >;
+
 // `T` defaults to `any` (not `unknown`) so typed components/preloads are assignable
 // in annotated configs like `const routes: RouteDefinition[]`, where no inference
 // site for `T` exists (#454)
@@ -149,7 +166,7 @@ export type RouteDefinition<S extends string | string[] = any, T = any> = {
   path?: S;
   matchFilters?: MatchFilters<S>;
   preload?: RoutePreloadFunc<T>;
-  children?: RouteDefinition | readonly RouteDefinition[];
+  children?: RouteDefinition | readonly RouteDefinition[] | LazyRouteChildren;
   component?: RouteSectionComponent<T>;
   /** Standard Schema validator for this route's search params; its input type flows into the typed path proxy. */
   search?: StandardSchemaV1<any, any>;
@@ -199,6 +216,15 @@ export interface RouteDescription {
   matcher: (location: string) => PathMatch | null;
   matchFilters?: MatchFilters;
   info?: Record<string, any>;
+  /** Present on the placeholder that stands in for an unresolved lazy subtree. */
+  lazy?: LazyBoundary;
+}
+
+/** Resolution state for a lazy subtree boundary, shared per thunk. */
+export interface LazyBoundary {
+  thunk: LazyRouteChildren;
+  promise?: Promise<readonly RouteDefinition[]>;
+  resolved?: readonly RouteDefinition[];
 }
 
 export interface Branch {
@@ -221,7 +247,7 @@ export interface RouterUtils {
   renderPath(path: string): string;
   parsePath(str: string): string;
   go(delta: number): void;
-  beforeLeave: BeforeLeaveLifecycle;
+  beforeLeave: BeforeLeaveSlot;
   paramsWrapper: (getParams: () => Params, branches: () => Branch[]) => Params;
   queryWrapper: (getQuery: () => SearchParams) => SearchParams;
 }
@@ -238,7 +264,7 @@ export interface RouterContext {
   matches: () => RouteMatch[];
   renderPath(path: string): string;
   parsePath(str: string): string;
-  beforeLeave: BeforeLeaveLifecycle;
+  beforeLeave: BeforeLeaveSlot;
   preloadRoute: (url: URL, preloadData?: boolean) => void;
   singleFlight: boolean;
   submissions: Signal<Submission<any, any>[]>;
@@ -262,6 +288,16 @@ export interface BeforeLeaveListener {
 export interface BeforeLeaveLifecycle {
   subscribe(listener: BeforeLeaveListener): () => void;
   confirm(to: string | number, options?: Partial<NavigateOptions>): boolean;
+}
+
+/**
+ * Lazily-filled holder for the beforeLeave guard. The router and history
+ * adapters only carry this empty object; `useBeforeLeave` installs the actual
+ * lifecycle on first use so its machinery tree-shakes out of apps that never
+ * block navigation.
+ */
+export interface BeforeLeaveSlot {
+  current?: BeforeLeaveLifecycle;
 }
 
 export type Submission<T, U> = {

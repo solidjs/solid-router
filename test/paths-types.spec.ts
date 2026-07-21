@@ -104,5 +104,41 @@ describe("Type checking the typed path proxy", () => {
     Extracted.paths.users("abc");
     // @ts-expect-error no such route segment
     Extracted.paths.missing;
+
+    // Lazy subtrees: types flow through the thunk's promise type — a module
+    // default export, a `routes` export, and a direct array all infer.
+    const lazyTable = defineRoutes([
+      { path: "/" },
+      { path: "/widgets/:id", matchFilters: { id: int } }
+    ]);
+    const Lazy = createRouter({
+      routes: [
+        { path: "/plugins", children: () => Promise.resolve({ default: lazyTable }) },
+        { path: "/tools", children: () => Promise.resolve({ routes: lazyTable }) },
+        { path: "/inline", children: () => lazyTable }
+      ]
+    });
+    const _pluginRoot: string = Lazy.paths.plugins();
+    const _widget: string = Lazy.paths.plugins.widgets(2)();
+    Lazy.paths.tools.widgets(2);
+    Lazy.paths.inline.widgets(2);
+    // @ts-expect-error id is numeric (int filter flows through the import)
+    Lazy.paths.plugins.widgets("abc");
+    // @ts-expect-error no such route segment inside the lazy table
+    Lazy.paths.plugins.missing;
+
+    // Runtime-built tables (plain RouteDefinition[]) degrade to untyped,
+    // definitionally — the subtree contributes no typed nodes.
+    const Runtime = createRouter({
+      routes: [
+        {
+          path: "/remote",
+          children: () => Promise.resolve([] as { path: string }[])
+        }
+      ]
+    });
+    const _remote: string = Runtime.paths.remote();
+    // @ts-expect-error unknown-at-build-time subtree stays unspellable
+    Runtime.paths.remote.anything;
   };
 });
