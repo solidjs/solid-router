@@ -58,9 +58,9 @@ Define your routes as config objects and create the router outside JSX. The inst
 ```tsx
 // app/router.ts
 import { lazy } from "solid-js";
-import { createRouter } from "@solidjs/router";
+import { createRouter, defineRoutes } from "@solidjs/router";
 
-export const routes = [
+export const routes = defineRoutes([
   { path: "/", component: lazy(() => import("./pages/Home")) },
   { path: "/about", component: lazy(() => import("./pages/About")) },
   {
@@ -72,11 +72,13 @@ export const routes = [
     ]
   },
   { path: "*404", component: lazy(() => import("./pages/NotFound")) }
-] as const;
+]);
 
 export const Router = createRouter({ routes });
 export const { paths } = Router;
 ```
+
+`defineRoutes` is an identity function that preserves the literal types type inference feeds on — routes passed inline to `createRouter` infer automatically, but an extracted tree needs either `defineRoutes` or `as const`.
 
 Mount it by rendering the instance. The render-prop child is your root layout — it always stays mounted, receives the matched content as `props.children`, and is the ideal place for top-level navigation and context providers:
 
@@ -156,10 +158,10 @@ The tree is **immutable per instance** — that's what makes `paths` and the typ
 Treat part of the path as a parameter with a colon:
 
 ```tsx
-const routes = [
+const routes = defineRoutes([
   { path: "/users", component: Users },
   { path: "/users/:id", component: User }
-] as const;
+]);
 ```
 
 As long as the URL fits the pattern, the `User` component shows, and `id` is available via `useParams`.
@@ -185,9 +187,9 @@ const filters: MatchFilters = {
   withHtmlExtension: (v: string) => v.length > 5 && v.endsWith(".html")
 };
 
-const routes = [
+const routes = defineRoutes([
   { path: "/users/:parent/:id/:withHtmlExtension", component: User, matchFilters: filters }
-] as const;
+]);
 ```
 
 So `/users/mom/123/contact.html` matches, while `/users/aunt/123/contact.html` (invalid `parent`) and `/users/mom/me/contact.html` (non-numeric `id`) don't.
@@ -245,7 +247,7 @@ function PageWrapper(props) {
   );
 }
 
-const routes = [
+const routes = defineRoutes([
   {
     path: "/users",
     component: PageWrapper,
@@ -254,7 +256,7 @@ const routes = [
       { path: "/:id", component: User }
     ]
   }
-] as const;
+]);
 ```
 
 You can nest indefinitely. In this example the only route created is `/layer1/layer2`, rendered as three nested divs:
@@ -344,7 +346,7 @@ function preloadUser({ params, location }) {
   void getUser(params.id);
 }
 
-const routes = [{ path: "/users/:id", component: User, preload: preloadUser }] as const;
+const routes = defineRoutes([{ path: "/users/:id", component: User, preload: preloadUser }]);
 ```
 
 The preload function receives:
@@ -492,7 +494,7 @@ Give a route a [Standard Schema](https://github.com/standard-schema/standard-sch
 ```tsx
 import * as v from "valibot";
 
-const routes = [
+const routes = defineRoutes([
   {
     path: "/search",
     component: Search,
@@ -501,7 +503,7 @@ const routes = [
       page: v.optional(v.pipe(v.unknown(), v.transform(Number)), 1)
     })
   }
-] as const;
+]);
 ```
 
 ```tsx
@@ -522,7 +524,7 @@ createRouter(config);
 
 | option          | type                       | description                                                                                            |
 | --------------- | -------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `routes`        | `RouteDefinition[]`        | The route tree — declare `as const` for full type inference                                             |
+| `routes`        | `RouteDefinition[]`        | The route tree — inline arrays infer literally; wrap extracted trees in `defineRoutes`                   |
 | `base`          | `string`                   | Base url to use for matching routes                                                                     |
 | `preload`       | `RoutePreloadFunc`         | App-wide preload: once per mount/request, result reaches the root render-prop as `props.data`           |
 | `history`       | `RouterHistory`            | History adapter; defaults to browser history on the client and the request URL on the server            |
@@ -707,7 +709,7 @@ const Router = createRouter({
   routes: [
     { path: "/users", component: Users },
     { path: "/users/:id", component: User }
-  ] as const
+  ]
 });
 
 <Router>{props => <App {...props} />}</Router>
@@ -720,7 +722,7 @@ const Router = createRouter({
 
 ### JSX `<Route>` → config objects
 
-Route props map 1:1 onto definition keys (`path`, `component`, `preload`, `matchFilters`, `info`); nesting becomes `children` arrays. Declare the array `as const` to get typed `paths`. File-based routing generates config.
+Route props map 1:1 onto definition keys (`path`, `component`, `preload`, `matchFilters`, `info`); nesting becomes `children` arrays. Wrap extracted route trees in `defineRoutes` to get typed `paths`. File-based routing generates config.
 
 ### `<A>` → plain `<a>`
 

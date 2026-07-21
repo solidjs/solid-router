@@ -1,4 +1,11 @@
-import { createRouter, int, useNavigate, useParams, useSearchParams } from "../src/index.js";
+import {
+  createRouter,
+  defineRoutes,
+  int,
+  useNavigate,
+  useParams,
+  useSearchParams
+} from "../src/index.js";
 import type { StandardSchemaV1 } from "../src/index.js";
 
 describe("Type checking the typed path proxy", () => {
@@ -84,5 +91,18 @@ describe("Type checking the typed path proxy", () => {
     // Untyped trees fall back to a loose proxy
     const Loose = createRouter({ routes: [{ path: "/a" }] as { path: string }[] });
     const _anything: string = String(Loose.paths.whatever.deeply.nested);
+
+    // defineRoutes preserves literals for extracted route trees — no `as const`
+    const extracted = defineRoutes([
+      { path: "/about" },
+      { path: "/users/:id", matchFilters: { id: int } }
+    ]);
+    const Extracted = createRouter({ routes: extracted });
+    const _extractedAbout: string = Extracted.paths.about();
+    Extracted.paths.users(2);
+    // @ts-expect-error id is numeric (int filter survives extraction)
+    Extracted.paths.users("abc");
+    // @ts-expect-error no such route segment
+    Extracted.paths.missing;
   };
 });

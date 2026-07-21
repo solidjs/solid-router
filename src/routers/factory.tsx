@@ -28,6 +28,17 @@ import { Root, Routes } from "./components.jsx";
 import { browserHistory } from "./history.js";
 import type { RouterHistory } from "./history.js";
 
+/**
+ * Identity helper that preserves literal types when the route tree is
+ * declared as a separate variable. `createRouter` infers literally from
+ * inline arrays, but an extracted `const routes = [...]` widens paths to
+ * `string` and silently degrades `paths` and the typed hooks unless it is
+ * declared `as const` — `defineRoutes` makes that impossible to forget.
+ */
+export function defineRoutes<const R extends readonly RouteDefinition[]>(routes: R): R {
+  return routes;
+}
+
 export interface RouterConfig<R extends readonly RouteDefinition[] = RouteDefinition[]> {
   /** The route tree. Immutable per instance — it is the source of truth for matching *and* types. */
   routes: R;
