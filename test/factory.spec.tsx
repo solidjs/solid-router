@@ -4,7 +4,7 @@ import {
   createRouter,
   memoryHistory,
   useLinkState,
-  useMatches,
+  useRouteMatches,
   useNavigate,
   useParams,
   usePreloadRoute,
@@ -169,15 +169,15 @@ describe("createRouter factory", () => {
       }
     });
 
-    test("useMatches exposes the matched chain's info reactively", async () => {
+    test("useRouteMatches exposes the matched chain's info reactively", async () => {
       const div = document.createElement("div");
       document.body.appendChild(div);
 
       let navigate!: Navigator;
-      let matches!: ReturnType<typeof useMatches>;
+      let matches!: ReturnType<typeof useRouteMatches>;
       const Shell = (props: any) => {
         navigate = useNavigate();
-        matches = useMatches();
+        matches = useRouteMatches();
         return props.children;
       };
 

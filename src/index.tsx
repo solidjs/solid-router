@@ -6,11 +6,11 @@ export {
   useLinkState,
   useLocation,
   useMatch,
-  useMatches,
   useNavigate,
   usePreloadRoute,
   useParams,
   useResolvedPath,
+  useRouteMatches,
   useSearchParams,
   useBeforeLeave,
   RouterContextObj as RouterContext

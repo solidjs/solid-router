@@ -28,8 +28,10 @@ Removed:
 
 Renamed:
 
-- `useCurrentMatches` is now `useMatches` — same behavior, an accessor of
-  every match for the current location, outermost first.
+- `useCurrentMatches` is now `useRouteMatches` — same behavior, an accessor
+  of the router's resolved matches for the current location, outermost
+  first. The name draws the line against `useMatch`: one reflects the route
+  tree, the other tests a path pattern you supply.
 - `usePreloadRoute` keeps its name and now also accepts typed path nodes
   (`paths.users(2).settings`) alongside strings and URLs.
 

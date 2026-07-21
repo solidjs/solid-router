@@ -163,18 +163,20 @@ export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFi
 };
 
 /**
- * `useMatches` returns an accessor of every route match for the current
- * location, outermost first. Useful for reading `info` metadata off the
- * matched chain (previously `useCurrentMatches`).
+ * `useRouteMatches` returns an accessor of the router's resolved matches for
+ * the current location — the chain of route definitions producing the current
+ * render, outermost first. Useful for reading `info` metadata off the matched
+ * chain. Unlike `useMatch`, which tests a path pattern you supply against the
+ * location, this reflects the route tree itself.
  *
  * @example
  * ```js
- * const matches = useMatches();
+ * const matches = useRouteMatches();
  *
  * const breadcrumbs = createMemo(() => matches().map(m => m.route.info.breadcrumb));
  * ```
  */
-export const useMatches = () => {
+export const useRouteMatches = () => {
   const router = useRouter();
   // return a copy so user mutations (eg. `.reverse()`) can't corrupt router state
   return () => router.matches().slice();
