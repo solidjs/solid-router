@@ -89,16 +89,23 @@ function createIntegration(history: RouterHistory): RouterIntegration {
   return { signal, utils: history.utils };
 }
 
-/** Server default: a static view of the request URL — no signal machinery needed. */
-function staticIntegration(): RouterIntegration {
+/**
+ * Server default: a static view of the request URL — no signal machinery, a
+ * server render never navigates. Without a request event (SSG scripts,
+ * server-side tests) the configured history adapter provides the location,
+ * so e.g. `memoryHistory("/page")` works isomorphically.
+ */
+function staticIntegration(history?: RouterHistory): RouterIntegration {
   const e = getRequestEvent();
-  let value = "";
+  let value: string | LocationChange = "";
   if (e) {
     const url = new URL(e.request.url);
     value = url.pathname + url.search;
+  } else if (history) {
+    value = history.get();
   }
-  const obj: LocationChange = { value };
-  return { signal: [() => obj, next => Object.assign(obj, next)] };
+  const obj: LocationChange = typeof value === "string" ? { value } : { ...value };
+  return { signal: [() => obj, next => Object.assign(obj, next)], utils: history && history.utils };
 }
 
 export function createRouter<const R extends readonly RouteDefinition[]>(
@@ -113,7 +120,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
   function RouterComponent(props: { children?: (props: RouteSectionProps) => JSX.Element }): JSX.Element {
     const root = untrack(() => props.children);
     const integration = isServer
-      ? staticIntegration()
+      ? staticIntegration(config.history)
       : createIntegration(config.history || browserHistory());
     let context: Owner;
     const routerState = createRouterContext(integration, () => branches, () => context, {
