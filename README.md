@@ -687,11 +687,11 @@ const collectFlightData = createFlightDataCollector(Router);
 const handleNoJS = createNoJSHandler();
 ```
 
-`createFlightDataCollector` produces the single-flight hook: after a mutation it reruns the route data the mutation invalidated for the page the client is on (or is redirected to), folding fresh data into the same response. `createNoJSHandler` implements the no-JS form convention: form posts without the client runtime redirect back with the outcome in a one-shot flash cookie that SSR reads into submission state.
+`createFlightDataCollector` produces the single-flight hook: after a mutation it reruns the route data the mutation invalidated for the page the client is on (or is redirected to), folding fresh data into the same response. `createNoJSHandler` implements the no-JS form convention: form posts without the client runtime redirect back with the outcome in a one-shot flash cookie that SSR reads into submission state. Both policies previously lived inside SolidStart; the router now owns them, so custom server setups get single-flight mutations and progressive enhancement without a framework.
 
 ## Migration from 0.x
 
-1.0 removes the component-based API. The `createRouter` factory is the only way to set up the router, and plain `<a>` elements are the only link primitive.
+This guide maps from the stable 0.x releases (Solid 1). 1.0 removes the component-based API — the `createRouter` factory is the only way to set up the router, and plain `<a>` elements are the only link primitive. 1.0 also targets Solid 2, so the async data patterns change alongside the router API.
 
 ### Router components → `createRouter`
 
@@ -715,7 +715,7 @@ const Router = createRouter({
 
 - `<HashRouter>` → `createRouter({ routes, history: hashHistory() })`
 - `<MemoryRouter>` / `createMemoryHistory` → `createRouter({ routes, history: memoryHistory("/initial") })`
-- `<StaticRouter url>` → automatic from the request URL; without a request event, pass `memoryHistory(url)`
+- `<StaticRouter url>` / `<Router url>` for SSR → automatic from the request URL; without a request event, pass `memoryHistory(url)`
 - `root` prop → the render-prop child; `rootPreload` → the factory's `preload` option
 
 ### JSX `<Route>` → config objects
@@ -734,15 +734,40 @@ Route props map 1:1 onto definition keys (`path`, `component`, `preload`, `match
 
 - `<Navigate>` → call `useNavigate()` during component setup, or redirect from a preload
 - `useCurrentMatches` → `useRouteMatches` (same behavior)
-- `redirect` / `reload` → import from `@solidjs/web` (protocol-level, no router required)
-- `createFlightDataCollector({ routes: <Route>... })` → pass config objects or the router instance
+- `redirect` / `reload` → import from `@solidjs/web`; they're protocol-level and work without the router
+- `json(data, init)` → `respond(data, init)` from `@solidjs/web`
+- `cache` (deprecated alias) → `query`
 
 ### Data APIs (Solid 2)
 
 - `createAsync` / `createAsyncStore` are gone — read `query()` results with Solid 2 primitives: `createMemo`, `createProjection`, `createOptimistic`, `createOptimisticStore`.
+
+```tsx
+// 0.x
+const user = createAsync(() => getUser(params.id));
+
+// 1.0
+const user = createMemo(() => getUser(params.id));
+```
+
 - `query()` stays the source of truth for cached reads and invalidation.
+- `useSubmission` (singular) is gone, and submissions are now settled history rather than in-flight state. Pending/optimistic UI moves to Solid's optimistic primitives fed by the action's `.onSubmit(...)` hook; read settled results with `useSubmissions()` and select the latest with `.at(-1)`.
+
+```tsx
+// 0.x — read in-flight state off the submission
+const submitting = useSubmission(addTodo);
+<span>{submitting.pending && "Saving..."}</span>;
+
+// 1.0 — optimistic primitives own in-flight state
+const [todos, setTodos] = createOptimisticStore(() => getTodos(), []);
+const addTodo = action(saveTodo).onSubmit(todo =>
+  setTodos(items => {
+    items.push({ ...todo, pending: true });
+  })
+);
+```
+
 - Action lifecycle centers on instance methods: `.onSubmit(...)` for owner-scoped optimistic work, `.onSettled(...)` for observing completions. Returned values are the expected result channel; thrown errors land on `Submission.error`.
-- Submissions are settled history, not in-flight state — read them with `useSubmissions()` and select the latest with `.at(-1)`.
 
 ## SPAs in Deployed Environments
 
