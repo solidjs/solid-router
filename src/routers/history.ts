@@ -1,9 +1,51 @@
-import type { LocationChange, RouterUtils } from "../types.js";
-import { createBeforeLeave, keepDepth, notifyIfNotBlocked, saveCurrentDepth } from "../lifecycle.js";
+import { isServer } from "@solidjs/web";
+import type { BeforeLeaveSlot, LocationChange, RouterUtils } from "../types.js";
 
 function bindEvent(target: EventTarget, type: string, handler: EventListener) {
   target.addEventListener(type, handler);
   return () => target.removeEventListener(type, handler);
+}
+
+// Depth stamping supports blocking browser-initiated navigation (back/forward)
+// for `useBeforeLeave`. It stays always-on — a couple of history.state writes —
+// so blocking stays exact no matter when the first guard subscribes, while the
+// guard machinery itself lives behind the lazy `beforeLeave` slot.
+
+let depth: number;
+function saveCurrentDepth() {
+  if (!window.history.state || window.history.state._depth == null) {
+    window.history.replaceState({ ...window.history.state, _depth: window.history.length - 1 }, "");
+  }
+  depth = window.history.state._depth;
+}
+
+function keepDepth(state: any) {
+  return {
+    ...state,
+    _depth: window.history.state && window.history.state._depth
+  };
+}
+
+function notifyIfNotBlocked(
+  notify: (value?: string | LocationChange) => void,
+  block: (delta: number | null) => boolean
+) {
+  let ignore = false;
+  return () => {
+    const prevDepth = depth;
+    saveCurrentDepth();
+    const delta = prevDepth == null ? null : depth - prevDepth;
+    if (ignore) {
+      ignore = false;
+      return;
+    }
+    if (delta && block(delta)) {
+      ignore = true;
+      window.history.go(-delta);
+    } else {
+      notify();
+    }
+  };
 }
 
 function scrollToHash(hash: string, fallbackTop?: boolean) {
@@ -42,7 +84,8 @@ export function browserHistory(): RouterHistory {
       state
     };
   };
-  const beforeLeave = createBeforeLeave();
+  const beforeLeave: BeforeLeaveSlot = {};
+  if (!isServer) saveCurrentDepth();
   return {
     get: getSource,
     set({ value, replace, scroll, state }) {
@@ -59,11 +102,13 @@ export function browserHistory(): RouterHistory {
         window,
         "popstate",
         notifyIfNotBlocked(notify, delta => {
+          const guard = beforeLeave.current;
+          if (!guard) return false;
           if (delta) {
-            return !beforeLeave.confirm(delta);
+            return !guard.confirm(delta);
           } else {
             const s = getSource();
-            return !beforeLeave.confirm(s.value, { state: s.state });
+            return !guard.confirm(s.value, { state: s.state });
           }
         })
       ),
@@ -88,7 +133,8 @@ export function hashParser(str: string) {
 
 export function hashHistory(): RouterHistory {
   const getSource = () => window.location.hash.slice(1);
-  const beforeLeave = createBeforeLeave();
+  const beforeLeave: BeforeLeaveSlot = {};
+  if (!isServer) saveCurrentDepth();
   return {
     get: getSource,
     set({ value, replace, scroll, state }) {
@@ -106,7 +152,10 @@ export function hashHistory(): RouterHistory {
       bindEvent(
         window,
         "hashchange",
-        notifyIfNotBlocked(notify, delta => !beforeLeave.confirm(delta && delta < 0 ? delta : getSource()))
+        notifyIfNotBlocked(notify, delta => {
+          const guard = beforeLeave.current;
+          return !!guard && !guard.confirm(delta && delta < 0 ? delta : getSource());
+        })
       ),
     utils: {
       go: delta => window.history.go(delta),

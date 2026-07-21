@@ -12,7 +12,6 @@ export {
   useResolvedPath,
   useRouteMatches,
   useSearchParams,
-  useBeforeLeave,
   RouterContextObj as RouterContext
 } from "./routing.js";
 export type { LinkState } from "./routing.js";

@@ -106,11 +106,30 @@ type FiltersOf<Def> = Def extends { matchFilters: infer F } ? F : {};
 
 type ChildrenOf<Def> = Def extends { children: infer C } ? C : undefined;
 
+/**
+ * Sees through a lazy `children` thunk: the routes the import's promise
+ * resolves to (its `default` or `routes` export, matching the runtime) type
+ * exactly like inline children. Only tables genuinely built at runtime —
+ * where the thunk's return type is a plain `RouteDefinition[]` — degrade to
+ * untyped, definitionally.
+ */
+type ResolvedChildren<C> = C extends () => infer R
+  ? Awaited<R> extends infer M
+    ? M extends { default: infer D }
+      ? D
+      : M extends { routes: infer D }
+      ? D
+      : M
+    : never
+  : C;
+
 type ChildPaths<C, PAcc extends Params> = [C] extends [undefined]
   ? {}
-  : C extends readonly unknown[]
-  ? TuplePaths<C, PAcc>
-  : RouteContrib<C, PAcc>;
+  : ResolvedChildren<C> extends infer RC
+  ? RC extends readonly unknown[]
+    ? TuplePaths<RC, PAcc>
+    : RouteContrib<RC, PAcc>
+  : never;
 
 type TuplePaths<R extends readonly unknown[], PAcc extends Params> = R extends readonly [
   infer H,
