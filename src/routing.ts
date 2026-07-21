@@ -163,6 +163,42 @@ export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFi
 };
 
 /**
+ * `useMatches` returns an accessor of every route match for the current
+ * location, outermost first. Useful for reading `info` metadata off the
+ * matched chain (previously `useCurrentMatches`).
+ *
+ * @example
+ * ```js
+ * const matches = useMatches();
+ *
+ * const breadcrumbs = createMemo(() => matches().map(m => m.route.info.breadcrumb));
+ * ```
+ */
+export const useMatches = () => {
+  const router = useRouter();
+  // return a copy so user mutations (eg. `.reverse()`) can't corrupt router state
+  return () => router.matches().slice();
+};
+
+/**
+ * `usePreloadRoute` returns a function for warming a route by hand — the same
+ * work link hover/focus intent triggers automatically: the matched routes'
+ * lazy components load, and with `preloadData` their `preload` functions run.
+ *
+ * @example
+ * ```js
+ * const preload = usePreloadRoute();
+ *
+ * preload(paths.users(2).settings, { preloadData: true });
+ * ```
+ */
+export const usePreloadRoute = () => {
+  const pre = useRouter().preloadRoute;
+  return (url: string | URL | TypedPath, options: { preloadData?: boolean } = {}) =>
+    pre(url instanceof URL ? url : new URL(String(url), mockBase), options.preloadData);
+};
+
+/**
  * Retrieves a reactive, store-like object containing the current route path parameters as defined in the Route.
  * 
  * @example

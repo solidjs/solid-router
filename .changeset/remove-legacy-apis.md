@@ -23,12 +23,15 @@ Removed:
   `data-pending` automatically, and `useLinkState` remains the escape hatch
   for custom client links. For `Navigate`-style declarative redirects, call
   `useNavigate()` in the route component or redirect from a preload.
-- `usePreloadRoute` and `useCurrentMatches`. Preloading still happens
-  automatically on link hover/focus intent; for matching against arbitrary
-  URLs use the instance's `match(url)`, and for the current location use
-  `useMatch`.
 - The `create` hook on `RouterIntegration` (only the legacy components
   called it).
+
+Renamed:
+
+- `useCurrentMatches` is now `useMatches` — same behavior, an accessor of
+  every match for the current location, outermost first.
+- `usePreloadRoute` keeps its name and now also accepts typed path nodes
+  (`paths.users(2).settings`) alongside strings and URLs.
 
 `hashParser` moved to `src/routers/history.ts` (exported for integrations);
 `createMemoryHistory` is replaced by the `memoryHistory(initialPath)` adapter,

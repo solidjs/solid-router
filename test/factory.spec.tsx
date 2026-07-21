@@ -4,8 +4,10 @@ import {
   createRouter,
   memoryHistory,
   useLinkState,
+  useMatches,
   useNavigate,
   useParams,
+  usePreloadRoute,
   useSearchParams,
   int
 } from "../src/index.js";
@@ -161,6 +163,96 @@ describe("createRouter factory", () => {
 
         expect(div.querySelector('[data-route="home"]')).toBeNull();
         expect(div.querySelector('[data-route="user"]')?.textContent).toBe("2");
+      } finally {
+        dispose();
+        div.remove();
+      }
+    });
+
+    test("useMatches exposes the matched chain's info reactively", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+
+      let navigate!: Navigator;
+      let matches!: ReturnType<typeof useMatches>;
+      const Shell = (props: any) => {
+        navigate = useNavigate();
+        matches = useMatches();
+        return props.children;
+      };
+
+      const Router = createRouter({
+        routes: [
+          {
+            path: "/users",
+            info: { breadcrumb: "Users" },
+            component: (props: any) => props.children,
+            children: [
+              { path: "/", info: { breadcrumb: "All" }, component: () => null },
+              { path: "/:id", info: { breadcrumb: "Profile" }, component: () => null }
+            ]
+          }
+        ] as const,
+        history: memoryHistory("/users")
+      });
+
+      const dispose = render(() => <Router>{props => <Shell {...props} />}</Router>, div);
+      try {
+        await settle();
+        expect(matches().map(m => m.route.info!.breadcrumb)).toEqual(["Users", "All"]);
+
+        navigate("/users/2");
+        await settle();
+        expect(matches().map(m => m.route.info!.breadcrumb)).toEqual(["Users", "Profile"]);
+        expect(matches()[1].params).toEqual({ id: "2" });
+
+        // mutating the returned array must not corrupt router state
+        matches().reverse();
+        expect(matches().map(m => m.route.info!.breadcrumb)).toEqual(["Users", "Profile"]);
+      } finally {
+        dispose();
+        div.remove();
+      }
+    });
+
+    test("usePreloadRoute warms a route's preload without navigating", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+
+      const preloaded = vi.fn();
+      let preload!: ReturnType<typeof usePreloadRoute>;
+      const Home = () => {
+        preload = usePreloadRoute();
+        return <div data-route="home">Home</div>;
+      };
+
+      const Router = createRouter({
+        routes: [
+          { path: "/", component: Home },
+          {
+            path: "/users/:id",
+            preload: ({ params, intent }) => preloaded(params.id, intent),
+            component: () => <div data-route="user">User</div>
+          }
+        ] as const,
+        history: memoryHistory()
+      });
+
+      const dispose = render(() => <Router />, div);
+      try {
+        await settle();
+        // typed path nodes are accepted alongside strings and URLs
+        preload(Router.paths.users(7), { preloadData: true });
+        expect(preloaded).toHaveBeenCalledWith("7", "preload");
+
+        // preloading is not a navigation
+        await settle();
+        expect(div.querySelector('[data-route="home"]')).toBeTruthy();
+        expect(div.querySelector('[data-route="user"]')).toBeNull();
+
+        // without preloadData only lazy components load, not route data
+        preload("/users/9");
+        expect(preloaded).toHaveBeenCalledTimes(1);
       } finally {
         dispose();
         div.remove();
