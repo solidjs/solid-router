@@ -14,18 +14,20 @@ import { comparablePath } from "./utils.js";
  * - `data-pending` — the link is the target of an in-flight navigation
  *
  * Elements are claimed at creation, so late mounts (`<Show>`, `<For>`,
- * portals) are correct immediately. Each anchor gets one render effect owned
- * by the component that created it, so state tracks the location live and is
- * disposed with the element's owner. Re-claims are one-shot untracked
- * recomputes: the effect already subscribed to the location on its first run
- * and reads the element's current `href` from the DOM each time, so a new
- * `href` only needs the immediate refresh.
+ * portals) are correct immediately. One render effect (owned by the router)
+ * subscribes to the location and sweeps a registry of claimed anchors —
+ * anchors themselves carry no reactive machinery, just a registry entry
+ * removed by their creating owner's cleanup. State is applied once at claim
+ * so it is correct before the next navigation; re-claims (an `href` write)
+ * are the same one-shot untracked refresh, reading the element's current
+ * `href` from the DOM.
  */
 export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) {
   const basePath = router.base.path();
   // per-element record; `current` remembers whether we set `aria-current`,
   // so user-authored values (steppers, breadcrumbs) are never stripped
   const claimed = new WeakMap<Node, { current: boolean }>();
+  const registry = new Set<HTMLAnchorElement | SVGAElement>();
 
   function isSvg<T extends SVGElement>(el: T | HTMLElement): el is T {
     return el.namespaceURI === "http://www.w3.org/2000/svg";
@@ -91,6 +93,15 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
   const refresh = (a: HTMLAnchorElement | SVGAElement, rec: { current: boolean }) =>
     untrack(() => apply(a, rec, linkState(a)));
 
+  // The one subscription for every anchor: compute tracks the sources
+  // linkState derives from (the in-flight pendingTarget is readable in the
+  // effect phase because the isRouting write flushes after the target is
+  // assigned), the effect phase sweeps the registry untracked.
+  createRenderEffect(
+    () => (router.location.pathname, router.isRouting()),
+    () => registry.forEach(a => refresh(a, claimed.get(a)!))
+  );
+
   onCleanup(
     registerElementClaim(node => {
       if (node.nodeName.toUpperCase() !== "A") return;
@@ -102,13 +113,13 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
       const rec = { current: false };
       claimed.set(a, rec);
       // claims fire during component setup, so an owner is present in
-      // practice; without one, state is still correct at creation
-      getOwner()
-        ? createRenderEffect(
-            () => linkState(a),
-            state => apply(a, rec, state)
-          )
-        : refresh(a, rec);
+      // practice to bound the registry entry's lifetime; without one, state
+      // is still applied once at creation
+      if (getOwner()) {
+        registry.add(a);
+        onCleanup(() => registry.delete(a));
+      }
+      refresh(a, rec);
     })
   );
 }
