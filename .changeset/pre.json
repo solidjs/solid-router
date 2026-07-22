@@ -6,15 +6,31 @@
   },
   "changesets": [
     "adopt-core-server-function-protocol",
+    "claims-registry-sweep",
+    "compiler-claimed-anchors",
+    "decouple-data-layer",
+    "define-routes-helper",
     "fix-stale-params-on-navigation",
+    "form-aria-busy",
+    "lazy-before-leave",
+    "lazy-paths-proxy",
+    "lazy-route-subtrees",
+    "link-state-collector-instance",
     "metadata-detection-for-get",
     "own-single-flight-and-nojs",
     "popular-pears-boil",
     "query-implies-get",
+    "remove-legacy-apis",
+    "require-solid-beta-22",
+    "router-factory-typed-paths",
     "router-navigation-warning-fix",
+    "server-component-form-delegation",
     "solid-2-beta-router-migration",
+    "static-render-history-fallback",
+    "typed-search-params",
     "update-solid-beta-18",
     "update-solid-beta-21",
-    "update-solid-beta-7"
+    "update-solid-beta-7",
+    "warn-nested-router-mounts"
   ]
 }

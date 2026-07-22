@@ -1,5 +1,127 @@
 # @solidjs/router
 
+## 1.0.0-next.7
+
+### Major Changes
+
+- 9b66caf: Remove the legacy component API. The `createRouter` factory (routes as config
+  objects, the instance as the provider component) is now the only way to set up
+  the router, and plain `<a>` elements — managed by the compiler-claimed anchor
+  integration — are the only link primitive.
+
+  Removed:
+
+  - `<Router>`, `<HashRouter>`, `<MemoryRouter>`, `<StaticRouter>` and the
+    `createRouterComponent` integration wrapper. Use
+    `createRouter({ routes, history })` with the `browserHistory` (default),
+    `hashHistory`, or `memoryHistory` adapters; on the server the request URL
+    drives a static integration automatically.
+  - JSX `<Route>` (and its `RouteProps` type). Routes are config objects —
+    the single source of truth the typed path proxy infers from.
+    `createFlightDataCollector` likewise no longer accepts JSX trees; hand it
+    config objects, an array, a thunk, or a router instance.
+  - `<A>` and `Navigate`. Anchors are plain `<a href>` elements: the claims
+    integration applies `aria-current="page"`, `data-active`, and
+    `data-pending` automatically, and `useLinkState` remains the escape hatch
+    for custom client links. For `Navigate`-style declarative redirects, call
+    `useNavigate()` in the route component or redirect from a preload.
+  - The `create` hook on `RouterIntegration` (only the legacy components
+    called it).
+
+  Renamed:
+
+  - `useCurrentMatches` is now `useRouteMatches` — same behavior, an accessor
+    of the router's resolved matches for the current location, outermost
+    first. The name draws the line against `useMatch`: one reflects the route
+    tree, the other tests a path pattern you supply.
+  - `usePreloadRoute` keeps its name and now also accepts typed path nodes
+    (`paths.users(2).settings`) alongside strings and URLs.
+
+  `hashParser` moved to `src/routers/history.ts` (exported for integrations);
+  `createMemoryHistory` is replaced by the `memoryHistory(initialPath)` adapter,
+  which carries `go`/`back`/`forward`/`listen` for tests and tools.
+
+- d642c49: Begin the 1.0 API redesign: routes become config objects created outside JSX through a `createRouter` factory, and the route tree becomes the single source of truth for matching _and_ types.
+
+  - `createRouter({ routes, ... })` returns an instance that is itself the provider component (`<Router>{props => ...}</Router>`); the render-prop child replaces the `root` prop and receives the matched content as `props.children`. The factory's `preload` option replaces `rootPreload`.
+  - `Router.paths` is a typed path proxy derived from the route tree: property access descends static segments, calls bind params (`paths.users(id).settings`), and zero-arg or search-object calls terminate to a string (`paths.search({ q, page })`). Param types flow from `matchFilters` (new `int` filter types params as numbers) and search types from an optional per-route Standard Schema `search` validator. Every node coerces via `toString`, and `navigate()`/`useParams()` accept paths nodes.
+  - `Router.match(url)` matches arbitrary URLs against the instance with no rendering or request context — for middleware, sitemaps, and tests.
+  - History adapters are imported values (`hashHistory()`, `memoryHistory(initialUrl?)`, `browserHistory()`) passed as `config.history`, so unused adapters never enter the bundle; the default is browser history on the client and the request URL on the server.
+  - BREAKING: the low-level `createRouter` integration factory export is replaced by the new factory (custom integrations become history adapters). The JSX `<Router>`/`<HashRouter>`/`<MemoryRouter>`/`<StaticRouter>` components and `<Route>` remain for now and will be removed later in the 1.0 line.
+  - Fixes `rootPreload`'s return value being dropped: the root section's `data` prop now receives the preload result.
+
+### Minor Changes
+
+- dff457e: Plain `<a>` elements now carry link state automatically — no `<A>` wrapper needed. The Solid compiler claims every `a[href]` at creation and re-claims when a dynamic `href` changes; the router consumes those claims (for routers created through `createRouter`) and maintains:
+
+  - `aria-current="page"` — the location matches the link exactly
+  - `data-active` — exact or prefix match (root `/` matches exactly only)
+  - `data-pending` — the link is the target of an in-flight navigation
+
+  State is correct at creation, so late mounts (`<Show>`, `<For>`, portals) are never stale, and it stays live per element with automatic disposal. External, `target`ed, `download`, and `rel="external"` links are left alone; with `explicitLinks` only anchors with the `link` attribute participate; base-path scoping matches click delegation. Style with CSS attribute selectors:
+
+  ```css
+  nav a[aria-current="page"] {
+    font-weight: 600;
+  }
+  nav a[data-active] {
+    color: var(--accent);
+  }
+  a[data-pending] {
+    opacity: 0.6;
+  }
+  ```
+
+  Typed path nodes are now valid `href` values directly (`<a href={paths.users(2)}>`): `TypedPath` carries the JSX serializable-attribute brand and SSR stringifies the node into markup.
+
+  `useLinkState`'s (and claimed anchors') `pending` now matches the in-flight navigation target explicitly instead of "active while routing", so it reads consistently from both pure computations and effects — effects observe the committed location during a transition and previously could never see the pending state.
+
+  Requires the element-claim runtime from `@solidjs/web` (dom-expressions 0.50.0-next.25+).
+
+- 2abd13b: Add `defineRoutes`, an identity helper with a `const` type parameter that
+  preserves route literal types for extracted route trees. Inline arrays passed
+  to `createRouter` already infer literally; `defineRoutes` removes the need
+  for `as const` on the common pattern of exporting the tree as a separate
+  value — and makes the silent type degradation of forgetting it impossible.
+- c55d6bf: Forms submitted through delegation are marked `aria-busy="true"` while their action is in flight — the form half of the attribute vocabulary links get (`data-active`/`data-pending`). The attribute covers the mutation and its response handling (revalidation included), survives overlapping submissions of the same form via a counter, and always clears, error or not. Programmatic `useAction` calls have no form and set nothing. Style with CSS:
+
+  ```css
+  form[aria-busy] button {
+    pointer-events: none;
+    opacity: 0.6;
+  }
+  ```
+
+- 08d35de: Lazy route subtrees: `children` accepts a thunk (`children: () => import("./feature/routes")`) so a section's route table loads on demand while staying part of the one typed tree. Types flow through the import's promise type into `paths` and the typed hooks; hover-intent preloading kicks the table load and cascades into inner route preloads when it lands; navigation into an unresolved subtree folds the load into the transition (old screen holds); SSR and the single-flight collector resolve matched boundaries server-side. Resolution is cached per thunk and append-only. Async boundaries require the streaming render entry points (`renderToStream`/`renderToStringAsync`); the module's `default` or `routes` export (or a direct array) is used.
+- ff75957: Add `useLinkState` — reactive `active`/`current`/`pending` state for custom link components, the programmatic counterpart of the attribute vocabulary plain anchors will receive (`aria-current`, `data-active`, `data-pending`). `<A>` now derives its active/current state from it, so both share one semantics (trailing-slash and case handling, `end` for exact-only). Accepts typed paths nodes as well as strings.
+
+  `createFlightDataCollector` also accepts a `createRouter` instance directly: its routes, base, and `preload` are read off the instance config, so server wiring stays a one-liner (`createFlightDataCollector(Router)`).
+
+- 6655835: Typed, parsed search params. Passing a paths node to `useSearchParams(paths.search)` opts into Standard Schema parsing: the schemas of the currently matched routes run root→leaf over the raw query and their outputs merge over it, so reads return the schema's output type (defaults applied, values coerced) and the setter is typed by the schema's input. A schema that reports issues is skipped, leaving raw values — search strings are user input, so defaults belong in the schema. Zero-arg `useSearchParams()` keeps today's raw string-valued behavior. Async schema validation throws.
+
+### Patch Changes
+
+- 5bf9f13: Rework link-claim state to a single render effect that sweeps a registry of claimed anchors, replacing the per-anchor render effect. Behavior is unchanged — every anchor still depends on the same location sources, so nothing was gained from per-element granularity — but each claimed anchor now costs a registry entry and a cleanup hook instead of a full reactive node with dependency links, cutting per-anchor memory roughly 6x and making claim/unclaim on link-heavy pages cheaper.
+- 366e130: Decouple the data layer from the router core so Router-only apps tree-shake query/action/flash entirely. The coupling inverts across three seams, each a slot the action side fills on first `action()` creation: form submits consult a handler slot in events.ts instead of importing the actions map; single-flight registration becomes a rendezvous in routing.ts (the Router registers, the action side provides the consumer — either order works, so lazily loaded action modules attach to an already-mounted router, and a router-only app never subscribes so the server is never asked to collect); and the submissions signal allocates lazily with the flash codec provided from the action side (the one-shot cookie clear stays eager per request via the new tiny flashCookie.ts half, so Set-Cookie still precedes streaming flushes and unread outcomes cannot haunt later renders). No behavior changes; bundle checks confirm a Router-only entry excludes action.ts, query.ts, the flash codec, and the @solidjs/web/server-functions import.
+- 1e3427a: Make the `beforeLeave` guard machinery tree-shakeable. The router and history adapters now carry an empty slot instead of eagerly creating the guard; `useBeforeLeave` installs it on first use. Apps that never block navigation shed the whole confirm/retry/event machinery (~0.85 KB min / 0.27 KB gzip on the router-only client bundle). Depth stamping on history state stays always-on so back/forward blocking remains exact regardless of when the first guard subscribes.
+- 1e3427a: Construct the typed `paths` proxy lazily on first access instead of eagerly in `createRouter`. On runtimes without `Proxy` support (some older smart TVs), creating a router no longer throws — only touching `instance.paths` does.
+- 7e312af: Require `solid-js` / `@solidjs/web` `2.0.0-beta.22` — the first published beta carrying the element-claim runtime contract (`registerElementClaim`, compiler claim emission) and the self-describing action url support the claims consumer and server-component form delegation build on.
+- 73f3f00: Delegate form submissions for server-rendered action urls without client-side registration. A form bound directly to a server action in a server component ships no client JS of its own — its `action="/_server?id=...&args=..."` url is self-describing, so the router now synthesizes the invocation from the url instead of falling back to a native (no-JS) post:
+
+  - `handleFormAction` on a registry miss for a url under `actionBase` creates a generic action from the url's `?id` (bound `.with()` arguments stay in `?args`, which the server reads for natural-encoding bodies exactly as it does for no-JS posts) and posts the form data to it verbatim through the server-function transport. Submissions, `aria-busy`, redirects, revalidation, and single-flight data all flow through the normal action pipeline, so invalidation falls through the client router as usual. The synthesized action registers under the url, so repeat submits reuse it and a real registration takes precedence.
+  - Delegation now intercepts POSTs to `actionBase` urls even when no action module is in the client graph at all, loading the handler lazily on first submit (a new `serverForms` split point in the `solid` condition's per-module graph — router-only bundles stay lean, the initial-chunk cost is ~0.4 KB gzip for the synchronous intercept). No-JS submission remains the fallback only for clients with no JS. The no-build flat bundle inlines the import instead of splitting.
+
+  Client-only actions (`https://action/...`) still require their module — they are user JS by definition.
+
+- f64713c: Server renders without a request event (SSG scripts, server-side tests) take
+  the location from the configured history adapter, so
+  `createRouter({ routes, history: memoryHistory("/page") })` renders that page
+  isomorphically — the replacement for `<StaticRouter url>`. With a request
+  event the URL still comes from the request; the fallback stays a static read
+  (no signal machinery), so server bundles are unchanged and history adapters
+  remain opt-in imports.
+- 08d35de: Warn in development when a router instance mounts inside another router. One router owns the session per app — location, history, delegation, link claims, preloading — and a second live instance fights it (stale content on click navigations, conflicting link attributes). Nested routing hasn't been supported since nested `<Routes>` was removed in 0.10; compose route trees in one `createRouter` config instead. Lazy route subtrees are the planned mechanism for definitions unknown at build time.
+
 ## 0.17.0-next.6
 
 ### Patch Changes
