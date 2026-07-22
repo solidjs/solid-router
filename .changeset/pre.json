@@ -7,6 +7,7 @@
   "changesets": [
     "adopt-core-server-function-protocol",
     "claims-registry-sweep",
+    "claims-sweep-hydration-transparent",
     "compiler-claimed-anchors",
     "decouple-data-layer",
     "define-routes-helper",
