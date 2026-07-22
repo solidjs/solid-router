@@ -1,5 +1,0 @@
-# v1 development builds against local sibling checkouts of solid and
-# dom-expressions until the element-claim runtime ships in published betas.
-overrides:
-  '@solidjs/web': link:../solid/packages/solid-web
-  '@dom-expressions/babel-plugin-jsx': link:../dom-expressions/packages/babel-plugin-jsx
