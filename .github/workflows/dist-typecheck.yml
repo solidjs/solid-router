@@ -28,8 +28,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build package and dependencies
+      - name: Build packages
         run: pnpm build
 
-      - name: Check types
-        run: pnpx @arethetypeswrong/cli --pack . --profile esm-only
+      - name: Check package types
+        run: pnpm typecheck:dist

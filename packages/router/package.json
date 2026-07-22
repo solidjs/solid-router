@@ -1,0 +1,66 @@
+{
+  "name": "@solidjs/router",
+  "description": "Universal router for SolidJS",
+  "author": "Ryan Carniato",
+  "contributors": [
+    "Ryan Turnquist"
+  ],
+  "license": "MIT",
+  "version": "0.16.2",
+  "homepage": "https://github.com/solidjs/solid-router#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/solidjs/solid-router",
+    "directory": "packages/router"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "solid": "./dist/index.jsx",
+      "default": "./dist/index.js"
+    },
+    "./fs": {
+      "types": "./dist/fs.d.ts",
+      "default": "./dist/fs.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "rm -rf dist && tsc && rollup -c",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run && npm run test:types",
+    "test:watch": "vitest",
+    "test:types": "tsc --project tsconfig.test.json",
+    "pretty": "prettier --write \"{src,test}/**/*.{ts,tsx}\"",
+    "typecheck:dist": "pnpx @arethetypeswrong/cli --pack . --profile esm-only"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@babel/preset-typescript": "^7.26.0",
+    "@rollup/plugin-babel": "6.0.4",
+    "@rollup/plugin-node-resolve": "15.3.0",
+    "@rollup/plugin-terser": "0.4.4",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.0",
+    "babel-preset-solid": "^1.9.3",
+    "jsdom": "^25.0.1",
+    "prettier": "^3.4.1",
+    "rollup": "^4.27.4",
+    "solid-js": "^1.9.3",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0",
+    "vite-plugin-solid": "^2.11.0",
+    "vitest": "^2.1.6"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.8.6"
+  }
+}
