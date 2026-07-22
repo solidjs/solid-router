@@ -5,6 +5,6 @@
     "skipLibCheck": true,
     "rootDir": "."
   },
-  "include": ["test"],
+  "include": ["test", "src/file-routes.d.ts"],
   "exclude": ["node_modules"]
 }

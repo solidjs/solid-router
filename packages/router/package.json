@@ -23,6 +23,10 @@
     ".": {
       "solid": "./dist/index.jsx",
       "default": "./dist/index.js"
+    },
+    "./fs": {
+      "types": "./dist/fs.d.ts",
+      "default": "./dist/fs.js"
     }
   },
   "files": [

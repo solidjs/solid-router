@@ -1,0 +1,63 @@
+{
+  "name": "@solidjs/file-routes",
+  "description": "Router-neutral file-system routing: scans a route directory into a neutral route manifest with pluggable conventions and delivery adapters",
+  "license": "MIT",
+  "version": "0.1.0",
+  "homepage": "https://github.com/solidjs/solid-router#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/solidjs/solid-router",
+    "directory": "packages/file-routes"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./vite": {
+      "types": "./dist/vite/index.d.ts",
+      "default": "./dist/vite/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "pretty": "prettier --write \"{src,test}/**/*.ts\"",
+    "typecheck:dist": "pnpx @arethetypeswrong/cli --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@babel/core": "^7.29.0",
+    "@types/babel__core": "^7.20.5",
+    "@types/babel__traverse": "^7.28.0",
+    "@types/micromatch": "^4.0.10",
+    "fast-glob": "^3.3.3",
+    "micromatch": "^4.0.8",
+    "oxc-parser": "^0.139.0"
+  },
+  "peerDependencies": {
+    "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "prettier": "^3.4.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.6"
+  }
+}

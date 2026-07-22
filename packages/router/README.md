@@ -724,6 +724,34 @@ const route = {
 render(() => <Router>{route}</Router>, document.getElementById("app"));
 ```
 
+## File-System Routing
+
+Solid Router ships an emission adapter for [`@solidjs/file-routes`](../file-routes) under `@solidjs/router/fs`. With the `@solidjs/file-routes/vite` plugin serving a route manifest from your `src/routes` directory, `<FileRoutes>` renders it as lazy, code-split route definitions:
+
+```js
+// vite.config.ts
+import { fileRoutes } from "@solidjs/file-routes/vite";
+import { defineConfig } from "vite";
+import solid from "vite-plugin-solid";
+
+export default defineConfig({
+  plugins: [solid({ extensions: [".jsx", ".tsx"] }), fileRoutes()]
+});
+```
+
+```jsx
+import { Router } from "@solidjs/router";
+import { FileRoutes } from "@solidjs/router/fs";
+
+const App = () => (
+  <Router root={props => <Suspense>{props.children}</Suspense>}>
+    <FileRoutes />
+  </Router>
+);
+```
+
+See the [`@solidjs/file-routes` README](../file-routes/README.md) for the filename conventions and how to plug in your own.
+
 ## Alternative Routers
 
 ### Hash Mode Router

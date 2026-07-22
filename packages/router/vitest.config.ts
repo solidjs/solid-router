@@ -4,7 +4,12 @@ import solidPlugin from "vite-plugin-solid";
 export default defineConfig({
   plugins: [solidPlugin() as Plugin],
   resolve: {
-    conditions: ["module", "browser", "development|production"]
+    conditions: ["module", "browser", "development|production"],
+    alias: {
+      // the virtual manifest module a file-routes delivery adapter serves
+      "solid:file-routes": new URL("./test/fixtures/file-routes-manifest.ts", import.meta.url)
+        .pathname
+    }
   },
   ssr: {
     resolve: {
