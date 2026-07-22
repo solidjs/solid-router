@@ -97,9 +97,17 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
   // linkState derives from (the in-flight pendingTarget is readable in the
   // effect phase because the isRouting write flushes after the target is
   // assigned), the effect phase sweeps the registry untracked.
+  //
+  // `transparent` keeps the effect invisible to the hydration id scheme.
+  // This setup is client-only, so an id-consuming node here has no server
+  // counterpart and every subsequent hydration id would shift by one child
+  // slot — lazy-route lookups miss and hydration leaves server nodes
+  // unclaimed. (The option is honored by the runtime but missing from the
+  // published EffectOptions type, hence the cast.)
   createRenderEffect(
     () => (router.location.pathname, router.isRouting()),
-    () => registry.forEach(a => refresh(a, claimed.get(a)!))
+    () => registry.forEach(a => refresh(a, claimed.get(a)!)),
+    { transparent: true } as {}
   );
 
   onCleanup(

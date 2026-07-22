@@ -5,11 +5,13 @@
  * chain — compiler claim emission → runtime claim hook → router consumer.
  */
 import { render } from "@solidjs/web";
-import { createSignal, createMemo, Loading, Show } from "solid-js";
+import { createRoot, createSignal, createMemo, getNextChildId, getOwner, Loading, Show } from "solid-js";
 import { vi } from "vitest";
+import { setupLinkClaims } from "../src/claims.js";
 import { createRouter, memoryHistory } from "../src/index.js";
 import type { Navigator } from "../src/index.js";
 import { useNavigate } from "../src/index.js";
+import type { RouterContext } from "../src/types.js";
 
 const settle = async (ms = 0) => {
   await new Promise<void>(resolve => queueMicrotask(() => resolve()));
@@ -420,6 +422,30 @@ describe("compiler-claimed anchors", () => {
       dispose();
       div.remove();
     }
+  });
+
+  test("setup does not consume a hydration child id", () => {
+    // setupLinkClaims runs in the router's client-only branch, so the server
+    // never allocates an id for it. If its sweep effect consumed a child id
+    // during hydration, every subsequent id would shift by one slot relative
+    // to the server — lazy-route lookups miss and server nodes go unclaimed.
+    createRoot(
+      dispose => {
+        const owner = getOwner()!;
+        const router = {
+          base: { path: () => "" },
+          location: { pathname: "/" },
+          isRouting: () => false,
+          pendingTarget: undefined
+        } as unknown as RouterContext;
+        setupLinkClaims(router);
+        // the first id allocated after setup must match what the server
+        // (which never runs setupLinkClaims) hands the owner's first child
+        expect(getNextChildId(owner)).toBe("r0");
+        dispose();
+      },
+      { id: "r" }
+    );
   });
 
   test("ignores forms and stops claiming after the router unmounts", async () => {
