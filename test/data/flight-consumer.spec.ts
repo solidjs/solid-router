@@ -9,8 +9,9 @@ let consumer: FlightDataConsumer<Record<string, any>> | undefined;
 
 vi.mock("@solidjs/web/server-functions", () => ({
   decodeResponse: vi.fn(),
-  isServerFunction: (fn: unknown) =>
-    typeof fn === "function" && !!(fn as any)[Symbol.for("solid.ServerFunctionMetadata")],
+  // consumed by data/query.ts, which shares this module graph
+  isServerFunction: () => false,
+  getServerFunctionMetadata: () => undefined,
   subscribeFlightData: (c: FlightDataConsumer<Record<string, any>>) => {
     consumer = c;
     return () => {
@@ -78,8 +79,9 @@ describe("setupFlightDataConsumer", () => {
     const notes = query(fetchNotes, "notes");
     await notes();
 
-    (router as any).singleFlight = true;
     setupFlightDataConsumer(router);
+    // plays the transport: the consumer is invoked (and awaited) before the
+    // mutation resolves with its unwrapped plain value
     const save = async () => {
       await consumer!(
         { "notes[]": ["fresh"] },
@@ -87,7 +89,6 @@ describe("setupFlightDataConsumer", () => {
       );
       return "saved";
     };
-    (save as any)[Symbol.for("solid.ServerFunctionMetadata")] = {};
 
     await action(save, "save-notes").call({ r: router });
 
@@ -106,14 +107,17 @@ describe("setupFlightDataConsumer", () => {
     expect(fetchNotes).toHaveBeenCalledTimes(2);
   });
 
-  test("continues to revalidate server actions when single flight is disabled", async () => {
+  test("still revalidates a server mutation whose response carried no flight data", async () => {
     const fetchNotes = vi.fn(async () => ["notes"]);
     const notes = query(fetchNotes, "notes");
     await notes();
-    const save = async () => "saved";
-    (save as any)[Symbol.for("solid.ServerFunctionMetadata")] = {};
 
-    await action(save, "save-notes").call({ r: router });
+    // consumer registered (single flight on), but the server returned a bare
+    // value — no X-Single-Flight response header, so the transport never
+    // invokes the consumer (no referrer, empty collection pass, or no
+    // server-side collector). The default revalidation must still run.
+    setupFlightDataConsumer(router);
+    await action(async () => "saved", "save-notes").call({ r: router });
     await notes();
 
     expect(fetchNotes).toHaveBeenCalledTimes(2);

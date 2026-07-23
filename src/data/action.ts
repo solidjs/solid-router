@@ -3,7 +3,6 @@ import { isResponseEnvelope, isServer, type JSX } from "@solidjs/web";
 import {
   createServerReference,
   decodeResponse,
-  isServerFunction,
   subscribeFlightData,
   type SingleFlightPayload
 } from "@solidjs/web/server-functions";
@@ -149,7 +148,7 @@ function createServerFormAction(
     (form: FormData | URLSearchParams) => stub(form) as Promise<unknown>,
     { url }
   );
-  return actionImpl(caller, {}, true);
+  return actionImpl(caller);
 }
 
 /**
@@ -220,8 +219,7 @@ export function useAction<T extends Array<any>, U, V>(action: Action<T, U, V>) {
 
 function actionImpl<T extends Array<any>, U = void>(
   fn: (...args: T) => Promise<U>,
-  options: string | { name?: string } = {},
-  serverFunction = isServerFunction(fn)
+  options: string | { name?: string } = {}
 ): Action<T, U> {
   async function invoke(
     this: { r: RouterContext; f?: HTMLFormElement },
@@ -253,6 +251,13 @@ function actionImpl<T extends Array<any>, U = void>(
     form && setFormBusy(form, 1);
     let settled;
     let response;
+    // The transport consumer is awaited before a single-flight mutation
+    // resolves, so a counter delta over the call tells whether this action's
+    // metadata was already applied. Overlapping mutations can cross-attribute
+    // a run (skipping one default revalidation another pass just covered) —
+    // a far smaller window than predicting from the function's identity,
+    // which misses every response the server returned without flight data.
+    const flightApplicationsBefore = flightApplications;
     try {
       settled = await settleActionResult(
         run({
@@ -268,7 +273,7 @@ function actionImpl<T extends Array<any>, U = void>(
         settled.value,
         settled.error,
         router.navigatorFactory(),
-        serverFunction && router.singleFlight
+        flightApplications !== flightApplicationsBefore
       );
     } finally {
       form && setFormBusy(form, -1);
@@ -387,6 +392,12 @@ async function settleActionResult<T>(result: T | Promise<T> | AsyncIterable<T>) 
   return result as T;
 }
 
+// Invocation count of the flight-data consumer. An action compares it across
+// its mutation call to learn whether the transport already applied this
+// response's metadata (and so the default revalidation pass must not run
+// again and wipe the freshly seeded cache).
+let flightApplications = 0;
+
 /**
  * Registers the router as the single-flight consumer of the server function
  * transport. Subscribing is the opt-in: while registered, the transport
@@ -399,9 +410,10 @@ async function settleActionResult<T>(result: T | Promise<T> | AsyncIterable<T>) 
  * collection work on the server. Returns the unsubscribe function.
  */
 export function setupFlightDataConsumer(router: RouterContext) {
-  return subscribeFlightData<Record<string, any>>((data, { response }) =>
-    applyResponseMetadata(response, router.navigatorFactory(), data)
-  );
+  return subscribeFlightData<Record<string, any>>((data, { response }) => {
+    flightApplications++;
+    return applyResponseMetadata(response, router.navigatorFactory(), data);
+  });
 }
 
 /**
