@@ -3,6 +3,7 @@ import { isResponseEnvelope, isServer, type JSX } from "@solidjs/web";
 import {
   createServerReference,
   decodeResponse,
+  isServerFunction,
   subscribeFlightData,
   type SingleFlightPayload
 } from "@solidjs/web/server-functions";
@@ -148,7 +149,7 @@ function createServerFormAction(
     (form: FormData | URLSearchParams) => stub(form) as Promise<unknown>,
     { url }
   );
-  return actionImpl(caller);
+  return actionImpl(caller, {}, true);
 }
 
 /**
@@ -219,7 +220,8 @@ export function useAction<T extends Array<any>, U, V>(action: Action<T, U, V>) {
 
 function actionImpl<T extends Array<any>, U = void>(
   fn: (...args: T) => Promise<U>,
-  options: string | { name?: string } = {}
+  options: string | { name?: string } = {},
+  serverFunction = isServerFunction(fn)
 ): Action<T, U> {
   async function invoke(
     this: { r: RouterContext; f?: HTMLFormElement },
@@ -262,7 +264,12 @@ function actionImpl<T extends Array<any>, U = void>(
             : undefined
         })
       );
-      response = await handleResponse(settled.value, settled.error, router.navigatorFactory());
+      response = await handleResponse(
+        settled.value,
+        settled.error,
+        router.navigatorFactory(),
+        serverFunction && router.singleFlight
+      );
     } finally {
       form && setFormBusy(form, -1);
     }
@@ -430,7 +437,12 @@ async function applyResponseMetadata(
   await revalidate(keys, false);
 }
 
-async function handleResponse(response: unknown, error: boolean | undefined, navigate: Navigator) {
+async function handleResponse(
+  response: unknown,
+  error: boolean | undefined,
+  navigate: Navigator,
+  metadataHandled: boolean
+) {
   let data: any;
   let flightData: Record<string, any> | undefined;
   let metadata: Response | undefined;
@@ -455,6 +467,10 @@ async function handleResponse(response: unknown, error: boolean | undefined, nav
     }
   } else if (error) return { error: response };
   else data = response;
-  await applyResponseMetadata(metadata, navigate, flightData);
+  // The transport consumer applies metadata before returning a server
+  // function's unwrapped value. Do not treat that value as a second plain
+  // action response and invalidate the freshly seeded query cache again.
+  if (!metadataHandled || metadata || flightData)
+    await applyResponseMetadata(metadata, navigate, flightData);
   return data != null ? { data } : undefined;
 }
