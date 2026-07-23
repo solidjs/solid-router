@@ -1,5 +1,12 @@
 # @solidjs/router
 
+## 1.0.0-next.9
+
+### Patch Changes
+
+- 78eb8a3: Export `DefaultSearchTypes` and `SetSearchParams` from the package entry so consumer builds that emit declarations for an inferred `Router.paths` value don't fail with TS2742 ("cannot be named without a reference to .../dist/paths").
+- c1caab1: Fix duplicate revalidation after single-flight mutations. The transport consumer applies `X-Revalidate` metadata and seeds the query cache before the action resolves; the action layer then treated the unwrapped value as a fresh plain result and invalidated the newly seeded cache again, intermittently issuing a follow-up query fetch. An action now tracks whether the flight-data consumer actually ran during its mutation and skips the redundant default pass only in that case — server responses without flight data (no referrer, empty collection pass, no server-side collector) still get the default revalidation.
+
 ## 1.0.0-next.8
 
 ### Patch Changes
