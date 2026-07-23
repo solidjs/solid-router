@@ -9,6 +9,8 @@ let consumer: FlightDataConsumer<Record<string, any>> | undefined;
 
 vi.mock("@solidjs/web/server-functions", () => ({
   decodeResponse: vi.fn(),
+  isServerFunction: (fn: unknown) =>
+    typeof fn === "function" && !!(fn as any)[Symbol.for("solid.ServerFunctionMetadata")],
   subscribeFlightData: (c: FlightDataConsumer<Record<string, any>>) => {
     consumer = c;
     return () => {
@@ -69,6 +71,52 @@ describe("setupFlightDataConsumer", () => {
       { response: new Response(null, { headers: { "X-Revalidate": "notes" } }) }
     );
     expect(query.get("notes[]")).toEqual(["fresh"]);
+  });
+
+  test("does not revalidate flight data again after a server action settles", async () => {
+    const fetchNotes = vi.fn(async () => ["stale"]);
+    const notes = query(fetchNotes, "notes");
+    await notes();
+
+    (router as any).singleFlight = true;
+    setupFlightDataConsumer(router);
+    const save = async () => {
+      await consumer!(
+        { "notes[]": ["fresh"] },
+        { response: new Response(null, { headers: { "X-Revalidate": "notes" } }) }
+      );
+      return "saved";
+    };
+    (save as any)[Symbol.for("solid.ServerFunctionMetadata")] = {};
+
+    await action(save, "save-notes").call({ r: router });
+
+    expect(await notes()).toEqual(["fresh"]);
+    expect(fetchNotes).toHaveBeenCalledTimes(1);
+  });
+
+  test("continues to revalidate plain client action results", async () => {
+    const fetchNotes = vi.fn(async () => ["notes"]);
+    const notes = query(fetchNotes, "notes");
+    await notes();
+
+    await action(async () => "saved", "save-notes").call({ r: router });
+    await notes();
+
+    expect(fetchNotes).toHaveBeenCalledTimes(2);
+  });
+
+  test("continues to revalidate server actions when single flight is disabled", async () => {
+    const fetchNotes = vi.fn(async () => ["notes"]);
+    const notes = query(fetchNotes, "notes");
+    await notes();
+    const save = async () => "saved";
+    (save as any)[Symbol.for("solid.ServerFunctionMetadata")] = {};
+
+    await action(save, "save-notes").call({ r: router });
+    await notes();
+
+    expect(fetchNotes).toHaveBeenCalledTimes(2);
   });
 });
 
