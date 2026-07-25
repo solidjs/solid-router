@@ -427,12 +427,14 @@ function applyResponseMetadata(
   metadata: Response | undefined,
   navigate: Navigator,
   flightData?: Record<string, any>
-) {
+): Promise<boolean> {
+  let redirected = false;
   let keys: string[] | undefined;
   if (metadata) {
     if (metadata.headers.has("X-Revalidate"))
       keys = metadata.headers.get("X-Revalidate")!.split(",");
     if (metadata.headers.has("Location")) {
+      redirected = true;
       const locationUrl = metadata.headers.get("Location") || "/";
       if (locationUrl.startsWith("http")) {
         window.location.href = locationUrl;
@@ -447,6 +449,8 @@ function applyResponseMetadata(
   flightData && Object.keys(flightData).forEach(k => query.set(k, flightData[k]));
   // trigger revalidation
   revalidate(keys, false);
+
+  return redirected;
 }
 
 async function handleResponse(
@@ -482,7 +486,9 @@ async function handleResponse(
   // The transport consumer applies metadata before returning a server
   // function's unwrapped value. Do not treat that value as a second plain
   // action response and invalidate the freshly seeded query cache again.
-  if (!metadataHandled || metadata || flightData)
-    applyResponseMetadata(metadata, navigate, flightData);
-  return data != null ? { data } : undefined;
+  if (!metadataHandled || metadata || flightData) {
+    if (applyResponseMetadata(metadata, navigate, flightData)) 
+      return undefined;
+  }
+  return { data };
 }
