@@ -423,7 +423,7 @@ export function setupFlightDataConsumer(router: RouterContext) {
  * the flight-data consumer and the action response path (which still sees
  * metadata-bearing responses when no flight data was collected).
  */
-async function applyResponseMetadata(
+function applyResponseMetadata(
   metadata: Response | undefined,
   navigate: Navigator,
   flightData?: Record<string, any>
@@ -446,7 +446,7 @@ async function applyResponseMetadata(
   // set cache
   flightData && Object.keys(flightData).forEach(k => query.set(k, flightData[k]));
   // trigger revalidation
-  await revalidate(keys, false);
+  revalidate(keys, false);
 }
 
 async function handleResponse(
@@ -483,6 +483,6 @@ async function handleResponse(
   // function's unwrapped value. Do not treat that value as a second plain
   // action response and invalidate the freshly seeded query cache again.
   if (!metadataHandled || metadata || flightData)
-    await applyResponseMetadata(metadata, navigate, flightData);
+    applyResponseMetadata(metadata, navigate, flightData);
   return data != null ? { data } : undefined;
 }
