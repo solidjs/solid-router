@@ -412,7 +412,7 @@ let flightApplications = 0;
 export function setupFlightDataConsumer(router: RouterContext) {
   return subscribeFlightData<Record<string, any>>((data, { response }) => {
     flightApplications++;
-    return applyResponseMetadata(response, router.navigatorFactory(), data);
+    applyResponseMetadata(response, router.navigatorFactory(), data);
   });
 }
 
@@ -427,7 +427,7 @@ function applyResponseMetadata(
   metadata: Response | undefined,
   navigate: Navigator,
   flightData?: Record<string, any>
-): Promise<boolean> {
+): boolean {
   let redirected = false;
   let keys: string[] | undefined;
   if (metadata) {
