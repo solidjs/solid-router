@@ -8,4 +8,10 @@ export {
   normalizePath,
   type FileSystemRouterConfig
 } from "./router.ts";
-export { PageFileSystemRouter, routePathFromFile } from "./convention.ts";
+export {
+  HTTP_METHODS,
+  PageFileSystemRouter,
+  routePathFromFile,
+  type PageFileSystemRouterConfig
+} from "./convention.ts";
+export { buildRouteTree, stripRouteGroups, type RouteTreeEntry } from "./tree.ts";

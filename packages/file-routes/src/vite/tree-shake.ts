@@ -453,7 +453,7 @@ export function treeShake(): Plugin {
     }
   }
   return {
-    name: "solid-file-routes:tree-shake",
+    name: "file-routes:tree-shake",
     enforce: "pre",
     async transform(code, id) {
       const [path, queryString] = id.split("?");

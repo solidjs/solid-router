@@ -1,7 +1,6 @@
 import type { EnvironmentModuleNode, FSWatcher, PluginOption, ViteDevServer } from "vite";
 
 import type { BaseFileSystemRouter } from "../router.ts";
-import { moduleId } from "./constants.ts";
 import { debounce } from "./debounce.ts";
 
 function setupWatcher(watcher: FSWatcher, routes: BaseFileSystemRouter): void {
@@ -13,7 +12,9 @@ function setupWatcher(watcher: FSWatcher, routes: BaseFileSystemRouter): void {
 function createRoutesReloader(
   server: ViteDevServer,
   routes: BaseFileSystemRouter,
-  environment: string
+  environment: string,
+  moduleId: string,
+  onReload?: () => void | Promise<void>
 ) {
   const devEnv = server.environments[environment];
   if (!devEnv?.moduleGraph) return;
@@ -34,6 +35,8 @@ function createRoutesReloader(
   }, 200);
 
   return routes.on("reload", function handleRoutesReload(evt): void {
+    void onReload?.();
+
     const mod = devEnv.moduleGraph.getModuleById(moduleId)!;
     if (!mod) {
       devEnv.hot.send({ type: "full-reload" });
@@ -50,10 +53,13 @@ function createRoutesReloader(
 }
 
 export const fileSystemWatcher = (
-  getRouter: (environment: string) => BaseFileSystemRouter | undefined
+  getRouter: (environment: string) => BaseFileSystemRouter | undefined,
+  moduleId: string,
+  /** Runs on every route change, before the module is invalidated. */
+  onReload?: () => void | Promise<void>
 ): PluginOption => {
   const plugin: PluginOption = {
-    name: "solid-file-routes:watcher",
+    name: "file-routes:watcher",
     async configureServer(server: ViteDevServer) {
       const watched = new Set<BaseFileSystemRouter>();
       for (const environment of Object.keys(server.environments)) {
@@ -65,7 +71,9 @@ export const fileSystemWatcher = (
         }
         // Build the manifest before listening for reloads, so the initial
         // scan's `add` events don't invalidate the module mid-page-load.
-        router.getRoutes().then(() => createRoutesReloader(server, router, environment));
+        router
+          .getRoutes()
+          .then(() => createRoutesReloader(server, router, environment, moduleId, onReload));
       }
     }
   };

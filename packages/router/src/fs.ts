@@ -1,16 +1,17 @@
 /*@refresh skip*/
 
 import { lazy, type Component, type JSX } from "solid-js";
-import fileRoutes from "solid:file-routes";
+import { pageRoutes } from "virtual:file-routes";
 import type { RouteDefinition } from "./types.js";
 
 /**
  * Solid Router's emission adapter for `@solidjs/file-routes`.
  *
  * A file-system routing delivery adapter (e.g. `@solidjs/file-routes/vite`)
- * serves a flat, router-neutral route manifest from the `solid:file-routes`
- * virtual module; this module turns it into Solid Router's own shape:
- * nested `RouteDefinition`s with lazy components.
+ * serves the router-neutral route manifest from the `virtual:file-routes`
+ * module — already nested by path and stripped of `(group)`
+ * segments under its `pageRoutes` export — and this module turns it into
+ * Solid Router's own shape: `RouteDefinition`s with lazy components.
  */
 
 /** A code-split ref to a route module produced by a delivery adapter. */
@@ -40,41 +41,9 @@ export interface FileRouteEntry {
   [key: string]: unknown;
 }
 
-interface FileRouteTreeEntry extends FileRouteEntry {
-  id: string;
+/** A nested entry of the manifest's `pageRoutes` view. */
+export interface FileRouteTreeEntry extends FileRouteEntry {
   children?: FileRouteTreeEntry[];
-}
-
-/**
- * Nests the flat manifest by path prefix and strips `(group)` segments,
- * so `/(app)/dashboard` renders at `/dashboard` inside the `/(app)` layout.
- */
-function buildRouteTree(entries: FileRouteEntry[]): FileRouteTreeEntry[] {
-  function processRoute(routes: FileRouteTreeEntry[], route: FileRouteEntry, id: string) {
-    const parentRoute = routes.find(o => id.startsWith(o.id + "/"));
-
-    if (!parentRoute) {
-      routes.push({
-        ...route,
-        id,
-        path: id.replace(/\([^)/]+\)/g, "").replace(/\/+/g, "/")
-      });
-      return;
-    }
-    processRoute(
-      parentRoute.children || (parentRoute.children = []),
-      route,
-      id.slice(parentRoute.id.length)
-    );
-  }
-
-  return entries
-    .filter(entry => entry.page)
-    .sort((a, b) => a.path.length - b.path.length)
-    .reduce((routes: FileRouteTreeEntry[], route) => {
-      processRoute(routes, route, route.path);
-      return routes;
-    }, []);
 }
 
 // Cached by source path so a module that appears in several routes only
@@ -109,9 +78,9 @@ function createRoute(entry: FileRouteTreeEntry): RouteDefinition {
   };
 }
 
-/** Turns a flat route manifest into nested Solid Router `RouteDefinition`s. */
-export function createFileRoutes(manifest: FileRouteEntry[]): RouteDefinition[] {
-  return buildRouteTree(manifest).map(createRoute);
+/** Turns the manifest's nested page routes into `RouteDefinition`s. */
+export function createFileRoutes(routes: FileRouteTreeEntry[]): RouteDefinition[] {
+  return routes.map(createRoute);
 }
 
 let routes: RouteDefinition[] | undefined;
@@ -132,5 +101,5 @@ let routes: RouteDefinition[] | undefined;
  * ```
  */
 export function FileRoutes(): JSX.Element {
-  return (routes ??= createFileRoutes(fileRoutes)) as unknown as JSX.Element;
+  return (routes ??= createFileRoutes(pageRoutes)) as unknown as JSX.Element;
 }

@@ -1,6 +1,7 @@
-// A stand-in for the `solid:file-routes` virtual module that a
-// `@solidjs/file-routes` delivery adapter serves at build time.
-import type { FileRouteEntry } from "../../src/fs.js";
+// A stand-in for the `virtual:file-routes` module that a
+// `@solidjs/file-routes` delivery adapter serves at build time: the flat
+// manifest as the default export, and the nested page view alongside it.
+import type { FileRouteEntry, FileRouteTreeEntry } from "../../src/fs.js";
 
 const manifest: FileRouteEntry[] = [
   {
@@ -20,5 +21,8 @@ const manifest: FileRouteEntry[] = [
     }
   }
 ];
+
+// Neither entry nests under the other, so the two views coincide here.
+export const pageRoutes: FileRouteTreeEntry[] = manifest;
 
 export default manifest;

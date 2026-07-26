@@ -20,38 +20,40 @@ describe("createFileRoutes", () => {
     expect(routes[0].info).toEqual({ filesystem: true });
   });
 
-  it("skips non-page entries", () => {
+  // Nesting and `(group)` stripping happen in the delivery adapter, which
+  // serves them as `pageRoutes`; this adapter maps that tree as it stands.
+  it("maps a nested entry and its children to nested RouteDefinitions", () => {
     const routes = createFileRoutes([
-      { path: "/api/data", page: false },
-      { path: "/", page: true, $component: page("routes/index.tsx") }
-    ]);
-
-    expect(routes.map(r => r.path)).toEqual(["/"]);
-  });
-
-  it("nests child routes under their parent by path prefix", () => {
-    const routes = createFileRoutes([
-      { path: "/blog", page: true, $component: page("routes/blog.tsx") },
-      { path: "/blog/:id", page: true, $component: page("routes/blog/[id].tsx") }
+      {
+        path: "/blog",
+        page: true,
+        $component: page("routes/blog.tsx"),
+        children: [
+          { path: "/:id", page: true, $component: page("routes/blog/[id].tsx") },
+          {
+            path: "/archive",
+            page: true,
+            $component: page("routes/blog/archive.tsx"),
+            children: [{ path: "/:year", page: true, $component: page("routes/blog/[year].tsx") }]
+          }
+        ]
+      }
     ]);
 
     expect(routes).toHaveLength(1);
     expect(routes[0].path).toBe("/blog");
     const children = routes[0].children as RouteDefinition[];
-    expect(children).toHaveLength(1);
-    expect(children[0].path).toBe("/:id");
+    expect(children.map(child => child.path)).toEqual(["/:id", "/archive"]);
+    expect(children.every(child => typeof child.component === "function")).toBe(true);
+    expect((children[1].children as RouteDefinition[])[0].path).toBe("/:year");
   });
 
-  it("strips (group) segments from paths while nesting inside them", () => {
-    const routes = createFileRoutes([
-      { path: "/(marketing)", page: true, $component: page("routes/(marketing).tsx") },
-      { path: "/(marketing)/about", page: true, $component: page("routes/(marketing)/about.tsx") }
+  it("leaves a childless entry without a children array", () => {
+    const [route] = createFileRoutes([
+      { path: "/", page: true, $component: page("routes/index.tsx") }
     ]);
 
-    expect(routes).toHaveLength(1);
-    expect(routes[0].path).toBe("/");
-    const children = routes[0].children as RouteDefinition[];
-    expect(children[0].path).toBe("/about");
+    expect(route.children).toBeUndefined();
   });
 
   it("merges the route config export into the definition", () => {

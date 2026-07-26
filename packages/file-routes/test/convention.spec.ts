@@ -97,6 +97,82 @@ describe("PageFileSystemRouter", () => {
     expect(events).toEqual(["add:/contact", "remove:/contact"]);
   });
 
+  it("omits component refs when components are off", async () => {
+    const dir = createRouteTree({
+      "index.tsx": `
+        export const route = { preload: () => {} };
+        export default () => <h1>Home</h1>;
+      `,
+      "post.md": "# Post"
+    });
+    const router = new PageFileSystemRouter({
+      dir,
+      extensions: ["tsx", "md"],
+      components: false
+    });
+
+    const routes = await router.getRoutes();
+
+    // still routes — the config is served, the component never is
+    expect(routes.map(route => route.path).sort()).toEqual(["/", "/post"]);
+    expect(routes.every(route => route.$component === undefined)).toBe(true);
+    expect(routes.find(route => route.path === "/")!.$$route?.pick).toEqual(["route"]);
+  });
+
+  it("picks up HTTP handler exports when http methods are on", async () => {
+    const dir = createRouteTree({
+      "api/health.ts": "export const GET = () => new Response('ok');",
+      "api/submit.ts": `
+        export const POST = () => new Response('ok');
+        export const HEAD = () => new Response(null);
+      `,
+      "hybrid.tsx": `
+        export const GET = () => new Response('ok');
+        export default () => <h1>Hybrid</h1>;
+      `,
+      "helper.ts": "export const helper = () => {};"
+    });
+    const router = new PageFileSystemRouter({
+      dir,
+      extensions: ["ts", "tsx"],
+      httpMethods: true
+    });
+
+    const routes = await router.getRoutes();
+    expect(routes.map(route => route.path).sort()).toEqual([
+      "/api/health",
+      "/api/submit",
+      "/hybrid"
+    ]);
+
+    // a handler-only module is a route without being a page
+    const health = routes.find(route => route.path === "/api/health")!;
+    expect(health.page).toBe(false);
+    expect(health.$component).toBeUndefined();
+    expect(health.$GET).toEqual({ src: expect.stringContaining("health.ts"), pick: ["GET"] });
+    // `GET` answers `HEAD` unless the module handles it itself
+    expect(health.$HEAD).toEqual({ src: expect.stringContaining("health.ts"), pick: ["GET"] });
+    expect(routes.find(route => route.path === "/api/submit")!.$HEAD).toEqual({
+      src: expect.stringContaining("submit.ts"),
+      pick: ["HEAD"]
+    });
+
+    // a module can be both, and its handlers stay out of the component ref
+    const hybrid = routes.find(route => route.path === "/hybrid")!;
+    expect(hybrid.page).toBe(true);
+    expect(hybrid.$component?.pick).toEqual(["default", "$css"]);
+    expect(hybrid.$GET).toBeDefined();
+  });
+
+  it("ignores HTTP handler exports by default", async () => {
+    const dir = createRouteTree({
+      "api/health.ts": "export const GET = () => new Response('ok');"
+    });
+    const router = new PageFileSystemRouter({ dir, extensions: ["ts"] });
+
+    expect(await router.getRoutes()).toEqual([]);
+  });
+
   it("supports a pluggable filename convention", async () => {
     const dir = createRouteTree({
       "home.page.tsx": "export default () => <h1>Home</h1>;",

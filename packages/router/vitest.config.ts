@@ -7,7 +7,7 @@ export default defineConfig({
     conditions: ["module", "browser", "development|production"],
     alias: {
       // the virtual manifest module a file-routes delivery adapter serves
-      "solid:file-routes": new URL("./test/fixtures/file-routes-manifest.ts", import.meta.url)
+      "virtual:file-routes": new URL("./test/fixtures/file-routes-manifest.ts", import.meta.url)
         .pathname
     }
   },

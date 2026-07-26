@@ -20,13 +20,21 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./tree": {
+      "types": "./dist/tree.d.ts",
+      "default": "./dist/tree.js"
+    },
     "./vite": {
       "types": "./dist/vite/index.d.ts",
       "default": "./dist/vite/index.js"
+    },
+    "./types": {
+      "types": "./types.d.ts"
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "types.d.ts"
   ],
   "scripts": {
     "build": "rm -rf dist && tsc",
