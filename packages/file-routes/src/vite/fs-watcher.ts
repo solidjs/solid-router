@@ -43,8 +43,13 @@ function createRoutesReloader(
       return;
     }
 
-    if (environment === "client" && evt.detail.type !== "update") {
-      // Client has to be reloaded when routes are added or removed
+    if (evt.detail.type !== "update") {
+      // Adding or removing a route changes the manifest itself, and marking
+      // it invalid is not enough to replace it: whoever evaluated the module
+      // holds their own copy — the browser, or a server-side module runner
+      // like the one nitro serves SSR from — and only a reload displaces it.
+      // An `update` needs no reload: the entries are unchanged, and the route
+      // module's own HMR covers its contents.
       reloadModule(mod);
     } else {
       invalidateModule(mod);
