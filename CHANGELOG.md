@@ -1,5 +1,24 @@
 # @solidjs/router
 
+## 1.0.0-next.10
+
+### Minor Changes
+
+- Explicit scroll restoration for back/forward navigation is on by default (#577). Positions are captured per history entry (persisted across reloads) and restored once the navigation settles, retrying as the document grows when content commits late — replacing the browser heuristic that loses the saved offset whenever the destination route forces a layout while the document is still short. Opt out with `scrollRestoration: false` in the `createRouter` config. Custom `history` adapters own their session and are not wrapped implicitly; pass `scrollRestoration: true` to thread restoration through one.
+
+### Patch Changes
+
+- 1783045: Apply cookies set on a returned/thrown redirect response during single-flight collection. `Set-Cookie` headers attached to the redirect itself (`redirect(to, { headers })`) never reach the request event's response, so the flight-data preload pass ran with the pre-mutation cookie state — a login mutation that sets its session cookie on the redirect collected the destination's data as logged-out. They now fold into the collection pass's `Cookie` header after the event's own mutations, winning on conflict, mirroring the browser round trip they replace. (Ports solid-start#2243.)
+
+  Also hardens the no-JS form handler: an unparseable `Referer` falls back to the app root instead of producing an invalid `Location`, and the body-less redirect it builds no longer advertises the dropped body's `Content-Type`/`Content-Length`. (Ports solid-start#2245; the value-flashing part of that fix was already covered here since the core handler unwraps response envelopes before the hook.)
+
+- a21fed9: `useIsRouting` now reports native history traversals. Every write is a transition in Solid 2, so a popstate forks the router's source signal exactly like programmatic navigation — but `isRouting` was a manual flag only flipped by `navigate()`. It is now derived: the manual flag unioned with `isPending` over the location/matches read, so back/forward navigations (including lazy-subtree resolution the matcher parks on) report as routing. Scroll restoration keys on it to hold restores until in-flight traversals commit.
+- b2a24e3: Accept a server-side `url` prop on the router provider. A request event established by the server harness still takes precedence; the prop covers renders outside a request scope (SSG scripts, tests, runtimes without `node:async_hooks`), so one module-scope `createRouter` instance — and one compiled route tree — serves every URL (#579).
+
+  History adapters no longer locate a server render: `config.history` was the app-scoped carrier that forced a router instance per URL, and on the server only its `utils` now apply. Use `<Router url={...}>` where you previously passed `memoryHistory("/page")` for SSR/SSG.
+
+- e1c1ec4: Fire `onSettled` on every action completion (#580). Void mutations, metadata-only responses, and redirects previously skipped the settled hooks entirely, so state set up in `onSubmit` (a pending dialog, for example) never cleared for actions that return nothing. Every invocation now settles its hooks exactly once. The submissions book-keeping is unchanged and intentional: only outcomes with a result or an error enter the list, so the typical void mutation still leaves nothing behind.
+
 ## 1.0.0-next.9
 
 ### Patch Changes
