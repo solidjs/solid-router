@@ -16,10 +16,18 @@ const STORAGE_KEY = "solid-router:scroll";
  * scroll time (rather than at exit) stays correct through `useBeforeLeave`
  * blocked/reverted traversals. The map persists to sessionStorage on pagehide
  * so restoration survives reloads, which `scrollRestoration = "manual"`
- * otherwise disables. Restoration runs once routing settles; if the document
- * is still shorter than the target (a boundary below the fold hasn't
- * resolved), a ResizeObserver retries as content grows, cancelled by the
- * first user scroll.
+ * otherwise disables.
+ *
+ * Restoration is a single scroll once routing settles — the same strategy
+ * SvelteKit, TanStack Router and React Router use. Settling after the
+ * transition commits is what makes the offset reachable; chasing a still-
+ * growing document afterwards (a ResizeObserver re-asserting the offset as
+ * content arrives) was tried and removed: no peer router does it, an
+ * unbounded observer re-clamps the viewport to the bottom when the target is
+ * never reachable (a list that is genuinely shorter now), and scroll-induced
+ * layout changes can feed it back into itself. Content that commits after the
+ * transition settles — an image without reserved space, a boundary below the
+ * fold — keeps whatever offset the document can hold.
  */
 export function createScrollRestoration() {
   window.history.scrollRestoration = "manual";
@@ -35,21 +43,13 @@ export function createScrollRestoration() {
 
   let programmatic = false;
   let pending: number | undefined;
-  let disconnect: (() => void) | undefined;
-  const cancelGuard = () => {
-    disconnect && disconnect();
-    disconnect = undefined;
-  };
 
   const unbind = [
     bindEvent(window, "scroll", () => {
       const d = depth();
       if (d != null) positions[d] = window.scrollY;
-      if (!programmatic) {
-        // the user took over — a pending or chasing restore would yank them
-        pending = undefined;
-        cancelGuard();
-      }
+      // the user took over — a pending restore would yank them
+      if (!programmatic) pending = undefined;
     }),
     bindEvent(window, "pagehide", () => {
       try {
@@ -63,19 +63,11 @@ export function createScrollRestoration() {
     const y = positions[pending];
     pending = undefined;
     if (y == null) return;
-    cancelGuard();
-    const attempt = () => {
-      programmatic = true;
-      window.scrollTo(0, y);
-      programmatic = false;
-      // reachable once the document is tall enough to hold the offset
-      return document.documentElement.scrollHeight - window.innerHeight >= y;
-    };
-    if (!attempt() && typeof ResizeObserver !== "undefined") {
-      const observer = new ResizeObserver(() => attempt() && cancelGuard());
-      observer.observe(document.documentElement);
-      disconnect = () => observer.disconnect();
-    }
+    // flagged so the resulting scroll event is not mistaken for the user
+    // taking over (which cancels a pending restore)
+    programmatic = true;
+    window.scrollTo(0, y);
+    programmatic = false;
   };
 
   return {
@@ -113,10 +105,7 @@ export function createScrollRestoration() {
         },
         { transparent: true } as {}
       );
-      onCleanup(() => {
-        unbind.forEach(u => u());
-        cancelGuard();
-      });
+      onCleanup(() => unbind.forEach(u => u()));
       // reload/back_forward document loads land on an existing entry (a fresh
       // navigation starts a new one and belongs at the top); the effect's
       // initial run performs the restore after first render
