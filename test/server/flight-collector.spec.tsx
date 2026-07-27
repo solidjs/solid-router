@@ -203,6 +203,27 @@ describe("createSingleFlightHeaders", () => {
     const headers = createSingleFlightHeaders(event);
     expect(headers.get("cookie")).toBeNull();
   });
+
+  test("folds cookies set on the returned/thrown response itself", () => {
+    const event = createEvent();
+    const redirect = new Response(null, {
+      status: 302,
+      headers: { Location: "/dashboard", "Set-Cookie": "session=fresh; Path=/; HttpOnly" }
+    });
+    const headers = createSingleFlightHeaders(event, redirect);
+    expect(headers.get("cookie")).toBe("session=fresh");
+  });
+
+  test("outcome response cookies win over event response cookies", () => {
+    const event = createEvent();
+    event.response.headers.append("Set-Cookie", "session=event");
+    const redirect = new Response(null, {
+      status: 302,
+      headers: { Location: "/", "Set-Cookie": "session=redirect" }
+    });
+    const headers = createSingleFlightHeaders(event, redirect);
+    expect(headers.get("cookie")).toBe("session=redirect");
+  });
 });
 
 describe("createNoJSHandler", () => {
@@ -251,5 +272,31 @@ describe("createNoJSHandler", () => {
     const response = handleNoJS(reload, formRequest(), []);
     expect(response.status).toBe(303);
     expect(response.headers.get("Location")).toBe("http://localhost:3000/notes");
+  });
+
+  test("falls back to the app root for missing or unparseable referrers", () => {
+    const noReferrer = new Request("http://localhost:3000/_server?id=createNote", {
+      method: "POST"
+    });
+    expect(handleNoJS(null, noReferrer, []).headers.get("Location")).toBe(
+      "http://localhost:3000/"
+    );
+
+    const garbage = new Request("http://localhost:3000/_server?id=createNote", {
+      method: "POST",
+      headers: { referer: "not a url" }
+    });
+    expect(handleNoJS(null, garbage, []).headers.get("Location")).toBe("http://localhost:3000/");
+  });
+
+  test("does not advertise a body type on the redirect it builds", () => {
+    const result = new Response(JSON.stringify({ ok: true }), {
+      headers: { "Content-Type": "application/json", "X-Revalidate": "notes" }
+    });
+    const response = handleNoJS(result, formRequest(), []);
+    expect(response.headers.get("Content-Type")).toBeNull();
+    expect(response.headers.get("Content-Length")).toBeNull();
+    // other metadata still rides along
+    expect(response.headers.get("X-Revalidate")).toBe("notes");
   });
 });

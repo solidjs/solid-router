@@ -134,7 +134,9 @@ export function createFlightDataCollector(
     // pointed at the target URL, with the mutation's own cookie mutations
     // folded into the request, in data-only router mode.
     const event = { ...sourceEvent } as RequestEvent;
-    event.request = new Request(url, { headers: createSingleFlightHeaders(sourceEvent) });
+    event.request = new Request(url, {
+      headers: createSingleFlightHeaders(sourceEvent, outcome.response)
+    });
     event.router = {
       dataOnly: revalidate || true,
       previousUrl: referrer,
@@ -227,14 +229,24 @@ function runPreloads(
  * The request headers for the flight-data collection pass: the source
  * request's headers with the mutation's `Set-Cookie` mutations folded into
  * the `Cookie` header, so preloads observe the post-mutation cookie state
- * (deletions honored via Max-Age/Expires).
+ * (deletions honored via Max-Age/Expires). Cookies attached to the
+ * returned/thrown response itself (e.g. `redirect(to, { headers })`) never
+ * reach the event response, but a browser round trip would have sent them
+ * back with the next request — fold them in too, after the event's, so
+ * they win on conflict.
  */
-export function createSingleFlightHeaders(sourceEvent: {
-  request: Request;
-  response?: { headers?: Headers };
-}): Headers {
+export function createSingleFlightHeaders(
+  sourceEvent: {
+    request: Request;
+    response?: { headers?: Headers };
+  },
+  outcomeResponse?: Response
+): Headers {
   const headers = new Headers(sourceEvent.request.headers);
-  const setCookies = sourceEvent.response?.headers?.getSetCookie() ?? [];
+  const setCookies = [
+    ...(sourceEvent.response?.headers?.getSetCookie() ?? []),
+    ...(outcomeResponse?.headers?.getSetCookie() ?? [])
+  ];
   if (!setCookies.length) return headers;
 
   const cookies: Record<string, string> = {};
@@ -306,7 +318,13 @@ export function createNoJSHandler(options: NoJSHandlerOptions = {}) {
     thrown?: boolean
   ): Response {
     const url = new URL(request.url);
-    const back = request.headers.get("referer") || url.origin + base;
+    // an unusable referer (no-referrer policy, garbage) still beats leaving
+    // the browser sitting on the server function endpoint
+    let back = new URL(base || "/", url.origin).toString();
+    try {
+      const referer = request.headers.get("referer");
+      if (referer) back = new URL(referer).toString();
+    } catch {}
     // form post -> GET: 303 See Other unless the result names a redirect status
     let status = 303;
     let headers: Headers;
@@ -321,6 +339,9 @@ export function createNoJSHandler(options: NoJSHandlerOptions = {}) {
       } else {
         headers.set("Location", back);
       }
+      // any body is dropped from the redirect we build — don't advertise it
+      headers.delete("Content-Type");
+      headers.delete("Content-Length");
     } else {
       headers = new Headers({ Location: back });
     }
