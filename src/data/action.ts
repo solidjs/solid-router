@@ -279,14 +279,12 @@ function actionImpl<T extends Array<any>, U = void>(
       form && setFormBusy(form, -1);
     }
 
-    if (!response) return undefined as NarrowResponse<U>;
-
     let submission!: Submission<T, NarrowResponse<U>>;
     submission = {
       input: variables,
       url,
-      result: response.data,
-      error: response.error,
+      result: response && response.data,
+      error: response && response.error,
       clear() {
         router.submissions[1](entries => entries.filter(entry => entry !== submission));
       },
@@ -295,11 +293,19 @@ function actionImpl<T extends Array<any>, U = void>(
         return current[invokeSymbol].call({ r: router, f: form }, variables, current);
       }
     };
-    router.submissions[1](entries => [...entries, submission]);
+    // Book-keeping is intentional: only outcomes worth showing or retrying
+    // (a result or an error) enter the submissions list, so the typical void
+    // mutation leaves nothing behind. Settled hooks still see every
+    // completion — void, metadata-only, and redirects included — one
+    // `onSettled` per invocation (#580).
+    response && router.submissions[1](entries => [...entries, submission]);
     for (const hook of settledHooks.values()) hook(submission);
 
-    if (response.error && !form) throw response.error;
-    return response.data as NarrowResponse<U>;
+    if (response) {
+      if (response.error && !form) throw response.error;
+      return response.data as NarrowResponse<U>;
+    }
+    return undefined as NarrowResponse<U>;
   }
   const o = typeof options === "string" ? { name: options } : options;
   const name = o.name || (!isServer ? String(hashString(fn.toString())) : undefined);

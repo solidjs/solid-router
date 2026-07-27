@@ -197,6 +197,44 @@ describe("action", () => {
     );
   });
 
+  // #580 — every invocation settles its hooks exactly once, but only outcomes
+  // worth showing or retrying (a result or an error) enter the submissions list
+  test("onSettled fires for a void action without recording a submission", async () => {
+    const onSettled = vi.fn();
+    const voidAction = action(async () => {}, { name: "void-settled-test" }).onSettled(onSettled);
+
+    const boundAction = useAction(voidAction);
+    await boundAction();
+
+    expect(onSettled).toHaveBeenCalledTimes(1);
+    expect(onSettled).toHaveBeenCalledWith(
+      expect.objectContaining({
+        result: undefined,
+        error: undefined,
+        url: voidAction.url
+      })
+    );
+    expect(mockRouterContext.submissions[0]()).toHaveLength(0);
+  });
+
+  test("onSettled fires when the response is a redirect", async () => {
+    const onSettled = vi.fn();
+    const navigate = vi.fn();
+    mockRouterContext.navigatorFactory = () => navigate;
+
+    const redirectAction = action(
+      async () => new Response(null, { headers: { Location: "/next" } }),
+      { name: "redirect-settled-test" }
+    ).onSettled(onSettled);
+
+    const boundAction = useAction(redirectAction);
+    await boundAction();
+
+    expect(navigate).toHaveBeenCalledWith("/next");
+    expect(onSettled).toHaveBeenCalledTimes(1);
+    expect(mockRouterContext.submissions[0]()).toHaveLength(0);
+  });
+
   test("should run onSubmit hook before mutation settles", async () => {
     const order: string[] = [];
     let current = "initial";
