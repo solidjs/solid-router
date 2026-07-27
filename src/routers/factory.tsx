@@ -52,7 +52,11 @@ export interface RouterConfig<R extends readonly RouteDefinition[] = RouteDefini
    * `props.data`.
    */
   preload?: RoutePreloadFunc;
-  /** History adapter; defaults to browser history on the client and the request URL on the server. */
+  /**
+   * History adapter for client navigation; defaults to browser history. On
+   * the server only its `utils` apply — the location comes from the request
+   * event or the provider's `url` prop.
+   */
   history?: RouterHistory;
   singleFlight?: boolean;
   actionBase?: string;
@@ -62,9 +66,20 @@ export interface RouterConfig<R extends readonly RouteDefinition[] = RouteDefini
   transformUrl?: (url: string) => string;
 }
 
+export interface RouterProps {
+  /**
+   * Server-only: the location for this render when no request event is in
+   * scope (SSG scripts, tests, runtimes without `node:async_hooks`). A
+   * request event established by the server harness takes precedence.
+   * Ignored on the client, where the history adapter owns the location.
+   */
+  url?: string;
+  children?: (props: RouteSectionProps) => JSX.Element;
+}
+
 export interface RouterInstance<R extends readonly RouteDefinition[] = RouteDefinition[]> {
   /** The instance is the provider component; the render-prop child receives the matched content as `props.children`. */
-  (props: { children?: (props: RouteSectionProps) => JSX.Element }): JSX.Element;
+  (props: RouterProps): JSX.Element;
   /** Typed path proxy — builds URLs through property access and calls. */
   readonly paths: RoutePaths<R>;
   readonly routes: R;
@@ -105,21 +120,22 @@ function createIntegration(history: RouterHistory): RouterIntegration {
 
 /**
  * Server default: a static view of the request URL — no signal machinery, a
- * server render never navigates. Without a request event (SSG scripts,
- * server-side tests) the configured history adapter provides the location,
- * so e.g. `memoryHistory("/page")` works isomorphically.
+ * server render never navigates. The request event (when the harness scopes
+ * one) wins; the provider's `url` prop is the fallback for renders outside a
+ * request scope (SSG scripts, server-side tests, runtimes without
+ * `node:async_hooks`). History adapters are a client navigation concern and
+ * play no part in locating a server render.
  */
-function staticIntegration(history?: RouterHistory): RouterIntegration {
+function staticIntegration(url?: string, utils?: RouterHistory["utils"]): RouterIntegration {
   const e = getRequestEvent();
-  let value: string | LocationChange = "";
-  if (e) {
-    const url = new URL(e.request.url);
-    value = url.pathname + url.search;
-  } else if (history) {
-    value = history.get();
+  const source = e ? e.request.url : url;
+  let value = "";
+  if (source) {
+    const u = new URL(source, mockBase);
+    value = u.pathname + u.search;
   }
-  const obj: LocationChange = typeof value === "string" ? { value } : { ...value };
-  return { signal: [() => obj, next => Object.assign(obj, next)], utils: history && history.utils };
+  const obj: LocationChange = { value };
+  return { signal: [() => obj, next => Object.assign(obj, next)], utils };
 }
 
 export function createRouter<const R extends readonly RouteDefinition[]>(
@@ -142,7 +158,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
   };
   const renderPath = (config.history && config.history.utils && config.history.utils.renderPath) || undefined;
 
-  function RouterComponent(props: { children?: (props: RouteSectionProps) => JSX.Element }): JSX.Element {
+  function RouterComponent(props: RouterProps): JSX.Element {
     // One router per app: the session (location, history, delegation, link
     // claims, preloading) has a single owner, and a second instance would
     // fight it — stale content on click navigations, conflicting link
@@ -156,7 +172,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
     }
     const root = untrack(() => props.children);
     const integration = isServer
-      ? staticIntegration(config.history)
+      ? staticIntegration(props.url, config.history && config.history.utils)
       : createIntegration(config.history || browserHistory());
     let context: Owner;
     const routerState = createRouterContext(integration, branches, () => context, {

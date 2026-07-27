@@ -6,7 +6,7 @@
 // path (renderToStringAsync is a promise wrapper over renderToStream); the
 // sync renderToString is not supported with lazy subtrees.
 import { renderToStringAsync } from "@solidjs/web";
-import { createRouter, memoryHistory, useParams } from "../../src/index.js";
+import { createRouter, useParams } from "../../src/index.js";
 import { query } from "../../src/data/query.js";
 import { createFlightDataCollector } from "../../src/server.js";
 import type { RouteDefinition } from "../../src/types.js";
@@ -34,11 +34,10 @@ describe("SSR through a lazy subtree", () => {
             });
           }
         }
-      ] as const,
-      history: memoryHistory("/plugins/widgets/7")
+      ] as const
     });
 
-    const html = await renderToStringAsync(() => <Router />);
+    const html = await renderToStringAsync(() => <Router url="/plugins/widgets/7" />);
     expect(thunkCalls).toBe(1);
     expect(html).toContain('data-route="plugins"');
     expect(html).toContain('data-route="widget"');

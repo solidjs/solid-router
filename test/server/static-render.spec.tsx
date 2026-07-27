@@ -1,8 +1,9 @@
-// Server rendering outside a request event (SSG scripts, tests): the static
-// integration falls back to the configured history adapter for the location,
-// so `memoryHistory("/page")` picks the rendered route isomorphically.
+// Server rendering outside a request event (SSG scripts, tests): the
+// provider's `url` prop supplies the location, so one module-scope router
+// instance (and one compiled route tree) serves every URL.
 import { renderToString } from "@solidjs/web";
-import { createRouter, memoryHistory, useLocation } from "../../src/index.js";
+import { provideRequestEvent } from "@solidjs/web/storage";
+import { createRouter, useLocation } from "../../src/index.js";
 
 describe("static render without a request event", () => {
   const routes = [
@@ -16,14 +17,40 @@ describe("static render without a request event", () => {
     }
   ] as const;
 
-  test("memoryHistory provides the location", async () => {
-    const Router = createRouter({ routes, history: memoryHistory("/users/7?tab=posts") });
-    const html = await renderToString(() => <Router />);
+  test("the url prop provides the location", async () => {
+    const Router = createRouter({ routes });
+    const html = await renderToString(() => <Router url="/users/7?tab=posts" />);
     expect(html).toContain('data-route="user"');
     expect(html).toContain("/users/7?tab=posts");
   });
 
-  test("defaults to the root with no history and no event", async () => {
+  test("a full URL works and its origin is ignored", async () => {
+    const Router = createRouter({ routes });
+    const html = await renderToString(() => <Router url="https://example.com/users/9?tab=likes" />);
+    expect(html).toContain('data-route="user"');
+    expect(html).toContain("/users/9?tab=likes");
+  });
+
+  test("one instance renders different URLs across renders", async () => {
+    const Router = createRouter({ routes });
+    expect(await renderToString(() => <Router url="/users/1" />)).toContain('data-route="user"');
+    expect(await renderToString(() => <Router url="/" />)).toContain('data-route="home"');
+  });
+
+  test("a request event takes precedence over the url prop", async () => {
+    const Router = createRouter({ routes });
+    const html = await provideRequestEvent(
+      {
+        request: new Request("http://localhost:3000/users/3?tab=posts"),
+        response: { headers: new Headers() },
+        locals: {}
+      },
+      () => renderToString(() => <Router url="/users/999" />)
+    );
+    expect(html).toContain("/users/3?tab=posts");
+  });
+
+  test("defaults to the root with no url and no event", async () => {
     const Router = createRouter({ routes });
     const html = await renderToString(() => <Router />);
     expect(html).toContain('data-route="home"');
