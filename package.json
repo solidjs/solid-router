@@ -23,7 +23,8 @@
       "solid": "./dist/index.jsx",
       "default": "./dist/index.js"
     },
-    "./server": "./dist/server.js"
+    "./server": "./dist/server.js",
+    "./fs": "./dist/fs.js"
   },
   "files": [
     "dist"
