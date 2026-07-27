@@ -70,6 +70,18 @@ const stubs = {
       if (id.endsWith("/src/paths.ts"))
         return "export const int = () => true; export function createPathsProxy() { return {}; }";
     }
+  },
+  // On by default with browser history, and imported at module scope, so the
+  // `scrollRestoration: false` opt-out silences the behavior but does not
+  // remove the code — this delta is what every app pays regardless.
+  scrollRestoration: {
+    load(id) {
+      if (id.endsWith("/src/routers/scrollRestoration.ts"))
+        return `
+          export function createScrollRestoration() { return { create() {}, onPop: f => f, onPush() {} }; }
+          export function withScrollRestoration(history) { return history; }
+        `;
+    }
   }
 };
 
