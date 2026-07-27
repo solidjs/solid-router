@@ -12,6 +12,7 @@
     "decouple-data-layer",
     "default-scroll-restoration",
     "define-routes-helper",
+    "drop-scroll-growth-chasing",
     "export-default-search-types",
     "fix-stale-params-on-navigation",
     "flight-cookies-from-redirect",
