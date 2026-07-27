@@ -5,6 +5,7 @@ import {
   createContext,
   createMemo,
   createSignal,
+  isPending,
   NotReadyError,
   onCleanup,
   untrack,
@@ -713,7 +714,7 @@ export function createRouterContext(
     setSource({ value: basePath, replace: true, scroll: false });
   }
 
-  const [isRouting, setIsRouting] = createSignal(false, { ownedWrite: true });
+  const [isNavigating, setIsRouting] = createSignal(false, { ownedWrite: true });
 
   // Navigate override written from event handlers.
   const [navigateTarget, setNavigateTarget] = createSignal<LocationChange | undefined>(undefined, {
@@ -766,6 +767,16 @@ export function createRouterContext(
     if (pending.length) throw new NotReadyError(Promise.all(pending.map(resolveLazySubtree)));
     return m;
   });
+
+  // Every write is a transition in Solid 2, so a native history pop forks the
+  // source signal exactly like programmatic navigation does. isRouting is
+  // therefore derived: the manual flag covers navigateFromRoute's explicit
+  // window, and isPending over the location/matches read reports any
+  // in-flight fork — including popstate traversals and the lazy-subtree
+  // resolution matches() parks on.
+  const isRouting = createMemo(
+    () => isNavigating() || isPending(() => (matches(), location.search, location.hash))
+  );
 
   const buildParams = () => mergeParams(matches());
 

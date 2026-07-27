@@ -89,17 +89,19 @@ export function createScrollRestoration() {
       if (d != null) for (const k in positions) +k >= d && delete positions[k];
     },
     create(router: RouterContext) {
-      // Restore once the traversal's location has propagated and rendered:
-      // `isRouting` only tracks programmatic navigation, so key on the
-      // location itself — reading `matches()` parks the effect on lazy route
-      // readiness, and user effects run post-commit. restore() no-ops unless
-      // a traversal marked a target, so push navigations are inert here.
+      // Restore once the traversal has settled: key on the location (a fully
+      // synchronous pop commits without isRouting ever flipping) and on
+      // isRouting, which reports in-flight transitions — native pops
+      // included — and holds the restore until they commit. restore() no-ops
+      // unless a traversal marked a target, so push navigations are inert.
       createEffect(
-        () => (
-          router.matches(),
-          router.location.pathname + router.location.search + router.location.hash
-        ),
-        () => restore()
+        () => ({
+          url: router.location.pathname + router.location.search + router.location.hash,
+          routing: router.isRouting()
+        }),
+        current => {
+          if (!current.routing) restore();
+        }
       );
       onCleanup(() => {
         unbind.forEach(u => u());
