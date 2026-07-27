@@ -1,7 +1,7 @@
 import { isServer } from "@solidjs/web";
 import type { BeforeLeaveSlot, LocationChange, RouterUtils } from "../types.js";
 
-function bindEvent(target: EventTarget, type: string, handler: EventListener) {
+export function bindEvent(target: EventTarget, type: string, handler: EventListener) {
   target.addEventListener(type, handler);
   return () => target.removeEventListener(type, handler);
 }
@@ -12,7 +12,7 @@ function bindEvent(target: EventTarget, type: string, handler: EventListener) {
 // guard machinery itself lives behind the lazy `beforeLeave` slot.
 
 let depth: number;
-function saveCurrentDepth() {
+export function saveCurrentDepth() {
   if (!window.history.state || window.history.state._depth == null) {
     window.history.replaceState({ ...window.history.state, _depth: window.history.length - 1 }, "");
   }

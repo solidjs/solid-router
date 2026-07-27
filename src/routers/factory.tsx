@@ -30,6 +30,8 @@ import { mockBase } from "../utils.js";
 import { Root, Routes } from "./components.jsx";
 import { browserHistory } from "./history.js";
 import type { RouterHistory } from "./history.js";
+import { createScrollRestoration, withScrollRestoration } from "./scrollRestoration.js";
+import type { ScrollRestoration } from "./scrollRestoration.js";
 
 /**
  * Identity helper that preserves literal types when the route tree is
@@ -63,6 +65,15 @@ export interface RouterConfig<R extends readonly RouteDefinition[] = RouteDefini
   explicitLinks?: boolean;
   /** Preload route code/data on link hover and focus. Defaults to `true`. */
   preloadLinks?: boolean;
+  /**
+   * Explicit scroll restoration for back/forward navigation: positions are
+   * saved per history entry and restored once the navigation settles,
+   * replacing the browser heuristic that loses offsets when the destination
+   * route forces a layout while rendering. Defaults to `true` with the
+   * default browser history; a custom `history` adapter owns its session and
+   * must opt in explicitly.
+   */
+  scrollRestoration?: boolean;
   transformUrl?: (url: string) => string;
 }
 
@@ -171,9 +182,15 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
       );
     }
     const root = untrack(() => props.children);
+    let restoration: ScrollRestoration | undefined;
+    let history = config.history;
+    if (!isServer && (config.scrollRestoration ?? !history)) {
+      restoration = createScrollRestoration();
+      history = withScrollRestoration(history || browserHistory(), restoration);
+    }
     const integration = isServer
       ? staticIntegration(props.url, config.history && config.history.utils)
-      : createIntegration(config.history || browserHistory());
+      : createIntegration(history || browserHistory());
     let context: Owner;
     const routerState = createRouterContext(integration, branches, () => context, {
       base: basePath,
@@ -189,6 +206,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
       })(routerState);
       setupLinkClaims(routerState, config.explicitLinks);
       if (routerState.singleFlight) onCleanup(registerFlightRouter(routerState));
+      restoration && restoration.create(routerState);
     }
     return (
       <RouterContextObj value={routerState}>
