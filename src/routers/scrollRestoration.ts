@@ -94,6 +94,15 @@ export function createScrollRestoration() {
       // isRouting, which reports in-flight transitions — native pops
       // included — and holds the restore until they commit. restore() no-ops
       // unless a traversal marked a target, so push navigations are inert.
+      // `transparent` keeps the effect invisible to the hydration id scheme —
+      // same reasoning as the link-claims effect (claims.ts): this setup is
+      // client-only, so an id-consuming node here has no server counterpart
+      // and every hydration id allocated after it shifts by one child slot.
+      // The visible failure is any <Loading> content that settled before the
+      // shell flush (a cache hit, a preloaded query): its serialized value and
+      // inlined markup are keyed under the server's ids, the shifted client
+      // misses both, recomputes, and re-renders the route fresh — duplicating
+      // the server DOM and leaving it inert.
       createEffect(
         () => ({
           url: router.location.pathname + router.location.search + router.location.hash,
@@ -101,7 +110,8 @@ export function createScrollRestoration() {
         }),
         current => {
           if (!current.routing) restore();
-        }
+        },
+        { transparent: true } as {}
       );
       onCleanup(() => {
         unbind.forEach(u => u());
