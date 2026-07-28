@@ -2,7 +2,7 @@
   "mode": "pre",
   "tag": "next",
   "initialVersions": {
-    "@solidjs/router": "0.16.1"
+    "@solidjs/router": "1.0.0"
   },
   "changesets": [
     "adopt-core-server-function-protocol",
