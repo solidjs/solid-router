@@ -1,5 +1,15 @@
 # @solidjs/router
 
+## 1.0.0
+
+### Major Changes
+
+- Declare the router stable as 1.0.0. This is a version realignment, not a breaking change: the code is functionally identical to the 0.16 line, which has held API-stable for years, and `^1.0.0` finally gets normal caret semantics instead of the pinned-minor treatment resolvers give 0.x releases. It also aligns major numbers across the ecosystem — router 1.x pairs with Solid 1.x (and SolidStart 2.0), while the in-progress Solid 2 router moves from `1.0.0-next.*` to `2.0.0-next.*` prereleases under the `next` tag.
+
+### Patch Changes
+
+- 1211a89: Restore scroll with a single scroll once routing settles, dropping the `ResizeObserver` that re-asserted the offset while the document was still growing (`<Router scrollRestoration>`, added in 0.16.3). Settling after the navigation commits is what makes the offset reachable, and it is the strategy every peer router ships (SvelteKit, TanStack Router, React Router, Next); TanStack's equivalent `MutationObserver` sits commented out in their source. The chase carried real downside for a case none of them try to cover: with no bound, a target that is never reachable (a list that is genuinely shorter now) left the observer connected for the life of the page, re-clamping the viewport to the bottom on every subsequent resize, and scroll-induced layout changes can feed it back into itself. It was also untestable in jsdom, which has no `ResizeObserver`, so the branch had no coverage. Content committing after the navigation settles — an image without reserved space, a boundary below the fold — now keeps whatever offset the document can hold.
+
 ## 0.16.3
 
 ### Patch Changes
