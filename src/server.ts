@@ -3,9 +3,8 @@
 // it reaches for node async context via @solidjs/web/storage — keep it out of
 // client bundles.
 //
-// Two policies live here, both previously implemented inside SolidStart and
-// now owned by the router (the vocabulary — query keys, submissions — is the
-// router's):
+// One policy lives here — the vocabulary (query keys, route trees, preloads)
+// is the router's:
 //
 // - single-flight mutations: `createFlightDataCollector` produces the
 //   `collectFlightData` hook the app hands to
@@ -13,12 +12,17 @@
 //   mutation it produces the route data the mutation invalidated for the
 //   page the client is on (or is being redirected to), which the handler
 //   folds into the response — mutation and fresh data in one round trip.
-// - the no-JS form convention: `createNoJSHandler` produces the
-//   `handleNoJS` hook — form posts made without the client runtime redirect
-//   back (303) carrying the outcome in a one-shot flash cookie that the
-//   router's SSR initialization reads into submission state.
+//
+// The no-JS form convention used to live here too; the runtime now owns it
+// outright — it applies to browser form posts by default (redirect back with
+// the outcome in a one-shot flash cookie), and `createNoJSHandler` is
+// configured through @solidjs/web/server-functions/server. The router keeps
+// only its read side: SSR initialization seeds the decoded cookie into
+// submission state (routing.ts).
 import { provideRequestEvent } from "@solidjs/web/storage";
+import { REVALIDATE_HEADER } from "@solidjs/web";
 import type { JSX, RequestEvent } from "@solidjs/web";
+import { foldSetCookies } from "@solidjs/web/server-functions/server";
 import type {
   CollectFlightDataHook,
   ServerFunctionOutcome
@@ -31,10 +35,8 @@ import {
   resolveLazySubtree
 } from "./routing.js";
 import { extractSearchParams } from "./utils.js";
-import { encodeFlashCookie } from "./data/flash.js";
 import type { Branch, RouteDefinition, RoutePreloadFunc } from "./types.js";
 
-export type { FlashSubmission } from "./data/flash.js";
 export type { CollectFlightDataHook, ServerFunctionOutcome };
 
 export interface FlightDataCollectorOptions {
@@ -121,8 +123,8 @@ export function createFlightDataCollector(
     let revalidate: string[] | undefined;
     let url = new URL(referrer).toString();
     if (outcome.response) {
-      if (outcome.response.headers.has("X-Revalidate"))
-        revalidate = outcome.response.headers.get("X-Revalidate")!.split(",");
+      if (outcome.response.headers.has(REVALIDATE_HEADER))
+        revalidate = outcome.response.headers.get(REVALIDATE_HEADER)!.split(",");
       if (outcome.response.headers.has("Location"))
         url = new URL(outcome.response.headers.get("Location")!, origin + base).toString();
     }
@@ -242,117 +244,8 @@ export function createSingleFlightHeaders(
   },
   outcomeResponse?: Response
 ): Headers {
-  const headers = new Headers(sourceEvent.request.headers);
-  const setCookies = [
+  return foldSetCookies(sourceEvent.request.headers, [
     ...(sourceEvent.response?.headers?.getSetCookie() ?? []),
     ...(outcomeResponse?.headers?.getSetCookie() ?? [])
-  ];
-  if (!setCookies.length) return headers;
-
-  const cookies: Record<string, string> = {};
-  for (const pair of headers.get("cookie")?.split(";") ?? []) {
-    const eq = pair.indexOf("=");
-    if (eq > -1) cookies[pair.slice(0, eq).trim()] = pair.slice(eq + 1).trim();
-  }
-  for (const setCookie of setCookies) {
-    const parsed = parseSetCookie(setCookie);
-    if (!parsed) continue;
-    if (
-      (parsed.maxAge != null && parsed.maxAge <= 0) ||
-      (parsed.expires != null && parsed.expires.getTime() <= Date.now())
-    ) {
-      delete cookies[parsed.name];
-    } else {
-      cookies[parsed.name] = parsed.value;
-    }
-  }
-  headers.delete("cookie");
-  const serialized = Object.entries(cookies)
-    .map(([name, value]) => `${name}=${value}`)
-    .join("; ");
-  if (serialized) headers.set("cookie", serialized);
-  return headers;
-}
-
-function parseSetCookie(setCookie: string) {
-  const [pair, ...attributes] = setCookie.split(";");
-  const eq = pair.indexOf("=");
-  if (eq < 0) return undefined;
-  const parsed: { name: string; value: string; maxAge?: number; expires?: Date } = {
-    name: pair.slice(0, eq).trim(),
-    value: pair.slice(eq + 1).trim()
-  };
-  for (const attribute of attributes) {
-    const attrEq = attribute.indexOf("=");
-    const key = (attrEq < 0 ? attribute : attribute.slice(0, attrEq)).trim().toLowerCase();
-    const value = attrEq < 0 ? "" : attribute.slice(attrEq + 1).trim();
-    if (key === "max-age") parsed.maxAge = Number(value);
-    else if (key === "expires") parsed.expires = new Date(value);
-  }
-  return parsed;
-}
-
-export interface NoJSHandlerOptions {
-  /** The app's base path, for resolving redirect `Location`s. */
-  base?: string;
-}
-
-// https://developer.mozilla.org/en-US/docs/Web/HTTP/Status#redirection_messages
-const validRedirectStatuses = new Set([301, 302, 303, 307, 308]);
-
-/**
- * Produces the `handleNoJS` implementation for
- * `handleServerFunctionRequest` options: form posts made without the client
- * runtime redirect back to the referring page (or to the result's
- * `Location`) with the outcome riding a one-shot `flash` cookie. The
- * router's SSR initialization reads the cookie into submission state, so
- * `useSubmission()` renders the result exactly as a scripted submission
- * would — progressive enhancement with no app code.
- */
-export function createNoJSHandler(options: NoJSHandlerOptions = {}) {
-  const { base = "" } = options;
-  return function handleNoJS(
-    result: unknown,
-    request: Request,
-    args: unknown[],
-    thrown?: boolean
-  ): Response {
-    const url = new URL(request.url);
-    // an unusable referer (no-referrer policy, garbage) still beats leaving
-    // the browser sitting on the server function endpoint
-    let back = new URL(base || "/", url.origin).toString();
-    try {
-      const referer = request.headers.get("referer");
-      if (referer) back = new URL(referer).toString();
-    } catch {}
-    // form post -> GET: 303 See Other unless the result names a redirect status
-    let status = 303;
-    let headers: Headers;
-    if (result instanceof Response) {
-      headers = new Headers(result.headers);
-      if (result.headers.has("Location")) {
-        headers.set(
-          "Location",
-          new URL(result.headers.get("Location")!, url.origin + base).toString()
-        );
-        if (validRedirectStatuses.has(result.status)) status = result.status;
-      } else {
-        headers.set("Location", back);
-      }
-      // any body is dropped from the redirect we build — don't advertise it
-      headers.delete("Content-Type");
-      headers.delete("Content-Length");
-    } else {
-      headers = new Headers({ Location: back });
-    }
-    // Responses carry their meaning in their metadata; anything else flashes
-    // the outcome for the next render's submission state.
-    if (result && !(result instanceof Response)) {
-      headers.append(
-        "Set-Cookie",
-        encodeFlashCookie(url.pathname + url.search, result, args, thrown)
-      );
-    }
-    return new Response(null, { status, headers });
-  };
+  ]);
 }

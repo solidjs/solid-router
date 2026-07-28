@@ -1,14 +1,14 @@
 // Server-mode tests: the SSR flash-seeding path through createRouterContext.
 // The core consumes the flash cookie eagerly at context creation (detection
-// + one-shot clear via flashCookie.ts, so the Set-Cookie precedes any
-// streaming flush) and defers decoding to the codec the action side
-// provides (provideFlashDecoder), read when the lazily allocated
+// + one-shot clear via the runtime's isomorphic half, so the Set-Cookie
+// precedes any streaming flush) and defers decoding to the codec the action
+// side provides (provideFlashDecoder), read when the lazily allocated
 // submissions signal first initializes. Fresh module instances per test —
 // the decoder slot is module-global and first-provide-wins.
 import { createRoot, createSignal } from "solid-js";
 import { vi } from "vitest";
 import { provideRequestEvent } from "@solidjs/web/storage";
-import { encodeFlashCookie } from "../../src/data/flash.js";
+import { decodeFlashCookie, encodeFlashCookie } from "@solidjs/web/server-functions/server";
 
 // encodeFlashCookie produces a Set-Cookie value; requests carry just the
 // name=value pair in their Cookie header
@@ -41,7 +41,6 @@ function createContext(routing: Awaited<ReturnType<typeof loadRouting>>) {
 describe("SSR flash seeding", () => {
   test("clears the cookie eagerly and seeds submissions through the provided decoder", async () => {
     const routing = await loadRouting();
-    const { decodeFlashCookie } = await import("../../src/data/flash.js");
     const event = createEvent(flashCookieHeader({ id: 1 }));
 
     await provideRequestEvent(event, async () => {
@@ -71,7 +70,6 @@ describe("SSR flash seeding", () => {
 
   test("a pre-seeded event.router.submission takes precedence and leaves the cookie alone", async () => {
     const routing = await loadRouting();
-    const { decodeFlashCookie } = await import("../../src/data/flash.js");
     const submission = { url: "/x", input: [], result: "pre-seeded" };
     const event = createEvent(flashCookieHeader("ignored"), { submission });
 

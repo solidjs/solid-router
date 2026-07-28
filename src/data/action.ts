@@ -1,14 +1,17 @@
 import { $TRACK, action as createSolidAction, createMemo, onCleanup, getOwner } from "solid-js";
-import { isResponseEnvelope, isServer, type JSX } from "@solidjs/web";
+import { isResponseEnvelope, isServer, REVALIDATE_HEADER, type JSX } from "@solidjs/web";
 import {
+  SINGLE_FLIGHT_HEADER,
   createServerReference,
   decodeResponse,
   subscribeFlightData,
   type SingleFlightPayload
 } from "@solidjs/web/server-functions";
+// The explicit /server specifier is safe here: the only call site is
+// server-guarded, so client builds tree-shake the codec away.
+import { decodeFlashCookie } from "@solidjs/web/server-functions/server";
 import { provideFlashDecoder, provideFlightConsumer, useRouter } from "../routing.js";
 import { setRouterFormHandler } from "./events.js";
-import { decodeFlashCookie } from "./flash.js";
 import type {
   RouterContext,
   Submission,
@@ -186,8 +189,11 @@ let integrationsInstalled = false;
 function installRouterIntegrations() {
   if (integrationsInstalled) return;
   integrationsInstalled = true;
-  provideFlashDecoder(decodeFlashCookie);
-  if (!isServer) {
+  if (isServer) {
+    // Server-only: initSubmissions only decodes during SSR, so client builds
+    // tree-shake the codec (which now lives behind the runtime's server entry).
+    provideFlashDecoder(decodeFlashCookie);
+  } else {
     setRouterFormHandler(handleFormAction);
     provideFlightConsumer(setupFlightDataConsumer);
   }
@@ -436,8 +442,8 @@ function applyResponseMetadata(
 ) {
   let keys: string[] | undefined;
   if (metadata) {
-    if (metadata.headers.has("X-Revalidate"))
-      keys = metadata.headers.get("X-Revalidate")!.split(",");
+    if (metadata.headers.has(REVALIDATE_HEADER))
+      keys = metadata.headers.get(REVALIDATE_HEADER)!.split(",");
     if (metadata.headers.has("Location")) {
       const locationUrl = metadata.headers.get("Location") || "/";
       if (locationUrl.startsWith("http")) {
@@ -477,7 +483,7 @@ async function handleResponse(
     // unwrap the standardized { value, data } shape for it too.
     if (response.body) {
       data = await decodeResponse(response);
-      if (response.headers.has("X-Single-Flight")) {
+      if (response.headers.has(SINGLE_FLIGHT_HEADER)) {
         const payload = data as SingleFlightPayload<any, Record<string, any>>;
         data = payload.value;
         flightData = payload.data;

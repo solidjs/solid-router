@@ -51,8 +51,8 @@ import {
   mergeSearchString,
   expandOptionals
 } from "./utils.js";
-import { clearFlashCookie, hasFlashCookie } from "./data/flashCookie.js";
-import type { FlashSubmission } from "./data/flash.js";
+import { clearFlashCookie, hasFlashCookie } from "@solidjs/web/server-functions";
+import type { FlashSubmission } from "@solidjs/web/server-functions/server";
 
 const MAX_REDIRECTS = 100;
 
@@ -663,7 +663,7 @@ export function provideFlightConsumer(factory: (router: RouterContext) => () => 
 /**
  * The flash-cookie codec, provided by the action side (data/action.ts) so
  * the router core never carries it: the core consumes the cookie eagerly
- * per request (detection + one-shot clear via the tiny flashCookie.ts half)
+ * per request (detection + one-shot clear via the runtime's isomorphic half)
  * but defers decoding to this slot, read when the submissions signal
  * initializes. Actions are created at module scope, so on the server the
  * decoder is always installed before useSubmission can read — and a
@@ -732,7 +732,7 @@ export function createRouterContext(
   // The flash cookie is consumed eagerly: its one-shot clear (Set-Cookie)
   // must be appended before streaming flushes the response headers, and an
   // unread outcome must not haunt a later request's render. Only detection
-  // and clearing happen here (the tiny flashCookie.ts half); the raw header
+  // and clearing happen here (the runtime's isomorphic half); the raw header
   // is stashed and decoding waits for the action-provided codec, read when
   // the lazily allocated submissions signal below first initializes.
   let flashCookieHeader: string | null | undefined;
@@ -966,8 +966,8 @@ export function createRouterContext(
   }
 
   // Seeds the initial submission from a no-JS form post: the server
-  // function handler redirected back with the outcome in a one-shot flash
-  // cookie (see src/server.ts's handleNoJS), consumed eagerly above and
+  // function runtime redirected back with the outcome in a one-shot flash
+  // cookie (its default no-JS convention), consumed eagerly above and
   // decoded here — so the post-redirect SSR renders useSubmission() state
   // exactly as a scripted submission would. An explicitly pre-seeded
   // `event.router.submission` (framework integrations) takes precedence.

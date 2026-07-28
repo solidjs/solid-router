@@ -1,14 +1,9 @@
 // Server-mode tests (node resolve conditions, real request-event scoping):
 // the router's server integration for the server function runtime — the
-// single-flight data collector, its cookie-forwarding headers, and the
-// no-JS flash-cookie handler.
+// single-flight data collector and its cookie-forwarding headers. (The no-JS
+// flash-cookie handler moved upstream; it is covered in the runtime's suite.)
 import { query } from "../../src/data/query.js";
-import {
-  createFlightDataCollector,
-  createNoJSHandler,
-  createSingleFlightHeaders
-} from "../../src/server.js";
-import { decodeFlashCookie } from "../../src/data/flash.js";
+import { createFlightDataCollector, createSingleFlightHeaders } from "../../src/server.js";
 import type { RouteDefinition } from "../../src/types.js";
 
 const getNotes = query(async () => ["note-1"], "notes");
@@ -223,80 +218,5 @@ describe("createSingleFlightHeaders", () => {
     });
     const headers = createSingleFlightHeaders(event, redirect);
     expect(headers.get("cookie")).toBe("session=redirect");
-  });
-});
-
-describe("createNoJSHandler", () => {
-  const handleNoJS = createNoJSHandler();
-
-  function formRequest(referrer = "http://localhost:3000/notes") {
-    return new Request("http://localhost:3000/_server?id=createNote", {
-      method: "POST",
-      headers: { referer: referrer },
-      body: "title=hello"
-    });
-  }
-
-  test("redirects back with the outcome in a flash cookie", () => {
-    const form = new FormData();
-    form.set("title", "hello");
-    const response = handleNoJS({ id: 1 }, formRequest(), [form]);
-    expect(response.status).toBe(303);
-    expect(response.headers.get("Location")).toBe("http://localhost:3000/notes");
-    const submission = decodeFlashCookie(response.headers.get("Set-Cookie"))!;
-    expect(submission.url).toBe("/_server?id=createNote");
-    expect(submission.result).toEqual({ id: 1 });
-    expect(submission.input[0]).toBeInstanceOf(FormData);
-    expect(submission.input[0].get("title")).toBe("hello");
-  });
-
-  test("flashes thrown errors onto the submission's error", () => {
-    const response = handleNoJS(new Error("denied"), formRequest(), [], true);
-    expect(response.status).toBe(303);
-    const submission = decodeFlashCookie(response.headers.get("Set-Cookie"))!;
-    expect(submission.error).toBeInstanceOf(Error);
-    expect(submission.error.message).toBe("denied");
-  });
-
-  test("follows redirect results, resolving relative locations", () => {
-    const redirect = new Response(null, { status: 302, headers: { Location: "/dashboard" } });
-    const response = handleNoJS(redirect, formRequest(), []);
-    expect(response.status).toBe(302);
-    expect(response.headers.get("Location")).toBe("http://localhost:3000/dashboard");
-    // the redirect carries its meaning in its metadata — no flash cookie
-    expect(response.headers.get("Set-Cookie")).toBeNull();
-  });
-
-  test("falls back to the referrer for responses without a location", () => {
-    const reload = new Response(null, { headers: { "X-Revalidate": "notes" } });
-    const response = handleNoJS(reload, formRequest(), []);
-    expect(response.status).toBe(303);
-    expect(response.headers.get("Location")).toBe("http://localhost:3000/notes");
-  });
-
-  test("falls back to the app root for missing or unparseable referrers", () => {
-    const noReferrer = new Request("http://localhost:3000/_server?id=createNote", {
-      method: "POST"
-    });
-    expect(handleNoJS(null, noReferrer, []).headers.get("Location")).toBe(
-      "http://localhost:3000/"
-    );
-
-    const garbage = new Request("http://localhost:3000/_server?id=createNote", {
-      method: "POST",
-      headers: { referer: "not a url" }
-    });
-    expect(handleNoJS(null, garbage, []).headers.get("Location")).toBe("http://localhost:3000/");
-  });
-
-  test("does not advertise a body type on the redirect it builds", () => {
-    const result = new Response(JSON.stringify({ ok: true }), {
-      headers: { "Content-Type": "application/json", "X-Revalidate": "notes" }
-    });
-    const response = handleNoJS(result, formRequest(), []);
-    expect(response.headers.get("Content-Type")).toBeNull();
-    expect(response.headers.get("Content-Length")).toBeNull();
-    // other metadata still rides along
-    expect(response.headers.get("X-Revalidate")).toBe("notes");
   });
 });

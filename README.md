@@ -738,17 +738,18 @@ Router.match("/users/2/settings?tab=x");
 
 ## Server Integration
 
-Framework handler wiring lives in `@solidjs/router/server`. Both integrations accept the router instance directly — its routes, base, and preload are the single source of truth:
+Framework handler wiring lives in `@solidjs/router/server`. The integration accepts the router instance directly — its routes, base, and preload are the single source of truth:
 
 ```tsx
-import { createFlightDataCollector, createNoJSHandler } from "@solidjs/router/server";
+import { createFlightDataCollector } from "@solidjs/router/server";
 import { Router } from "./app/router";
 
 const collectFlightData = createFlightDataCollector(Router);
-const handleNoJS = createNoJSHandler();
 ```
 
-`createFlightDataCollector` produces the single-flight hook: after a mutation it reruns the route data the mutation invalidated for the page the client is on (or is redirected to), folding fresh data into the same response. `createNoJSHandler` implements the no-JS form convention: form posts without the client runtime redirect back with the outcome in a one-shot flash cookie that SSR reads into submission state. Both policies previously lived inside SolidStart; the router now owns them, so custom server setups get single-flight mutations and progressive enhancement without a framework.
+`createFlightDataCollector` produces the single-flight hook: after a mutation it reruns the route data the mutation invalidated for the page the client is on (or is redirected to), folding fresh data into the same response. This policy previously lived inside SolidStart; the router now owns it, so custom server setups get single-flight mutations without a framework.
+
+The no-JS form convention needs no wiring at all: the server function runtime answers form posts made without the client runtime by redirecting back with the outcome in a one-shot flash cookie, and the router's SSR reads it into submission state. To configure it (e.g. a base path), pass `createNoJSHandler(options)` from `@solidjs/web/server-functions/server` as the handler's `handleNoJS`.
 
 ## Migration from 0.x
 

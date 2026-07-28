@@ -15,7 +15,7 @@ export default {
       inlineDynamicImports: true
     }
   ],
-  external: ["solid-js", "@solidjs/web", "@solidjs/web/server-functions"],
+  external: id => id === "solid-js" || id === "@solidjs/web" || id.startsWith("@solidjs/web/"),
   plugins: [
     nodeResolve({
       extensions: [".js", ".ts", ".tsx"]
