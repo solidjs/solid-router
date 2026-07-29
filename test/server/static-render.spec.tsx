@@ -51,8 +51,16 @@ describe("static render without a request event", () => {
   });
 
   test("defaults to the root with no url and no event", async () => {
-    const Router = createRouter({ routes });
-    const html = await renderToString(() => <Router />);
-    expect(html).toContain('data-route="home"');
+    // Rendering event-less after `provideRequestEvent` has registered the
+    // async-context store is exactly the state the runtime's "RequestEvent
+    // is missing" warning fires on — expected here, so swallow it.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const Router = createRouter({ routes });
+      const html = await renderToString(() => <Router />);
+      expect(html).toContain('data-route="home"');
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
