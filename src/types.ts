@@ -218,8 +218,15 @@ export type RouteDefinition<S extends string | string[] = any, T = any> = {
   component?: RouteSectionComponent<T>;
   /** Standard Schema validator for this route's search params; its input type flows into the typed path proxy. */
   search?: StandardSchemaV1<any, any>;
-  info?: Record<string, any>;
+  info?: RouteInfo;
 };
+
+// Type-only circular import: `RouteInfo` must be *declared* in the package
+// entry for `declare module "@solidjs/router"` augmentation to merge (TS
+// cannot augment re-exported interfaces). Re-exported here for internal
+// consumers (this module is upstream of everything else).
+import type { RouteInfo } from "./index.jsx";
+export type { RouteInfo };
 
 export type MatchFilter = readonly string[] | RegExp | ((s: string) => boolean);
 
@@ -290,8 +297,8 @@ export type RouteParams<S> = (S extends readonly (infer Member extends string)[]
   : {}) &
   Params;
 
-export interface PathMatch {
-  params: Params;
+export interface PathMatch<P extends Params = Params> {
+  params: P;
   path: string;
 }
 
@@ -304,7 +311,7 @@ export interface OutputMatch {
   pattern: string;
   match: string;
   params: Params;
-  info?: Record<string, any>;
+  info?: RouteInfo;
 }
 
 export interface RouteDescription {
@@ -315,7 +322,7 @@ export interface RouteDescription {
   preload?: RoutePreloadFunc;
   matcher: (location: string) => PathMatch | null;
   matchFilters?: MatchFilters;
-  info?: Record<string, any>;
+  info?: RouteInfo;
   /** Present on the placeholder that stands in for an unresolved lazy subtree. */
   lazy?: LazyBoundary;
 }

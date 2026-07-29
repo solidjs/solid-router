@@ -25,6 +25,7 @@ import type {
   OutputMatch,
   Params,
   RouteDefinition,
+  RouteInfo,
   RouteParams,
   RoutePreloadFunc,
   RoutePreloadFuncArgs,
@@ -85,7 +86,7 @@ export type DefinedRoute<
   ([Sch] extends [undefined] ? {} : { search: Sch }) & {
     component?: RouteSectionComponent<T>;
     preload?: RoutePreloadFunc<T>;
-    info?: Record<string, any>;
+    info?: RouteInfo;
   };
 
 /**
@@ -119,7 +120,7 @@ export function defineRoute<
   children?: C;
   /** Standard Schema validator for this route's search params; its input type flows into the typed path proxy. */
   search?: Sch;
-  info?: Record<string, any>;
+  info?: RouteInfo;
 }): DefinedRoute<S, T, F, C, Sch>;
 // pathless (layout) route — params stay the open `Params` record
 export function defineRoute<
@@ -131,7 +132,7 @@ export function defineRoute<
   component?: DefinedRouteComponent<T, Params>;
   children?: C;
   search?: Sch;
-  info?: Record<string, any>;
+  info?: RouteInfo;
 }): DefinedRoute<undefined, T, undefined, C, Sch>;
 export function defineRoute(route: RouteDefinition): RouteDefinition {
   return route;

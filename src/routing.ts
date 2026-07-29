@@ -24,10 +24,12 @@ import type {
   NavigateOptions,
   Navigator,
   Params,
+  PathMatch,
   RouteDescription,
   RouteContext,
   RouteDefinition,
   RouteMatch,
+  RouteParams,
   RouterContext,
   RouterIntegration,
   SetParams,
@@ -143,23 +145,35 @@ export const useIsRouting = () => useRouter().isRouting;
 /**
  * `useMatch` takes an accessor that returns the path and creates a `Memo` that returns match information if the current path matches the provided path.
  * Useful for determining if a given path matches the current route.
- * 
+ *
+ * Accepts a pattern string — the match's `params` are typed from it — or a
+ * typed path node (a concrete URL, so no params to speak of):
+ *
  * @example
  * ```js
  * const match = useMatch(() => props.href);
- * 
+ *
  * return <div classList={{ active: Boolean(match()) }} />;
+ *
+ * const section = useMatch(() => "/docs/:page");
+ * section()?.params.page; // string
+ *
+ * const here = useMatch(() => paths.users(2));
  * ```
  */
-export const useMatch = <S extends string>(path: () => S, matchFilters?: MatchFilters<S>) => {
+export const useMatch = <S extends string | TypedPath>(
+  path: () => S,
+  matchFilters?: MatchFilters<S extends string ? S : string>
+): (() => PathMatch<S extends string ? RouteParams<S> : Params> | undefined) => {
   const location = useLocation();
   const matchers = createMemo(() =>
-    expandOptionals(path()).map(path => createMatcher(path, undefined, matchFilters))
+    // `String()` folds typed path nodes to their URL
+    expandOptionals(String(path())).map(path => createMatcher(path, undefined, matchFilters))
   );
   return createMemo(() => {
     for (const matcher of matchers()) {
       const match = matcher(location.pathname);
-      if (match) return match;
+      if (match) return match as PathMatch<S extends string ? RouteParams<S> : Params>;
     }
   });
 };

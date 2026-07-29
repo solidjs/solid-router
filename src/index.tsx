@@ -1,3 +1,23 @@
+/**
+ * Arbitrary metadata attached to routes via `info`, surfaced through
+ * `useRouteMatches` and the instance's `match()`. Declared here — in the
+ * package entry — so apps can augment it for typed, discoverable metadata:
+ *
+ * ```ts
+ * declare module "@solidjs/router" {
+ *   interface RouteInfo {
+ *     breadcrumb?: string;
+ *   }
+ * }
+ * ```
+ *
+ * Declared keys are type-checked at route definitions and typed on reads;
+ * undeclared keys remain freeform.
+ */
+export interface RouteInfo {
+  [key: string]: any;
+}
+
 export * from "./routers/index.js";
 export * from "./lifecycle.js";
 export {

@@ -6,6 +6,7 @@ import {
   memoryHistory,
   useBeforeLeave,
   useLinkState,
+  useMatch,
   useRouteMatches,
   useNavigate,
   useParams,
@@ -204,6 +205,37 @@ describe("createRouter factory", () => {
         await settle();
 
         expect(div.querySelector('[data-route="story"]')?.textContent).toBe("7:Story 7");
+      } finally {
+        dispose();
+        div.remove();
+      }
+    });
+
+    test("useMatch accepts typed path nodes and coerces them to URLs", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+
+      let here!: ReturnType<typeof useMatch>;
+      let elsewhere!: ReturnType<typeof useMatch>;
+      const User = () => {
+        here = useMatch(() => Router.paths.users(2));
+        elsewhere = useMatch(() => Router.paths.about);
+        return <div data-route="user" />;
+      };
+
+      const Router = createRouter({
+        routes: [
+          { path: "/about", component: () => <span /> },
+          { path: "/users/:id", component: User }
+        ] as const,
+        history: memoryHistory("/users/2")
+      });
+
+      const dispose = render(() => <Router />, div);
+      try {
+        await settle();
+        expect(here()?.path).toBe("/users/2");
+        expect(elsewhere()).toBeUndefined();
       } finally {
         dispose();
         div.remove();

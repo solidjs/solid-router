@@ -52,6 +52,23 @@ describe("Type checking on various route definitions", () => {
     });
   };
 
+  // useMatch types the match's params from the pattern
+  () => {
+    const section = useMatch(() => "/users/:id/:tab?");
+    const match = section();
+    if (match) {
+      const _id: string = match.params.id;
+      // @ts-expect-error optional params may be undefined
+      const _tab: string = match.params.tab;
+      // params not in the pattern stay `string | undefined`
+      const _other: string | undefined = match.params.other;
+    }
+
+    // non-literal strings (eg. props.href) keep the open record
+    const loose = useMatch(() => "/users/2" as string);
+    const _anything: string | undefined = loose()?.params.anything;
+  };
+
   // Matchfilters on a route definition are typechecked
   () => {
     const _route = defineRoute({

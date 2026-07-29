@@ -6,6 +6,7 @@ import type {
   RouteParams,
   RoutePreloadFunc,
   RoutePreloadFuncArgs,
+  RouteInfo,
   RouteSectionComponent,
   StandardSchemaV1,
   TypedRouteConfig,
@@ -51,7 +52,7 @@ export type FileRouteConfig<
   ([F] extends [undefined] ? {} : DefinedRouteFilters<S> extends F ? {} : { matchFilters: F }) &
   ([Sch] extends [undefined] ? {} : { search: Sch }) & {
     preload?: RoutePreloadFunc<T>;
-    info?: Record<string, any>;
+    info?: RouteInfo;
   };
 
 /**
@@ -86,7 +87,7 @@ export function defineFileRoute<
     preload?: (args: RoutePreloadFuncArgs<RouteParams<S>>) => T;
     /** Standard Schema validator for this route's search params; its input type flows into the typed path proxy. */
     search?: Sch;
-    info?: Record<string, any>;
+    info?: RouteInfo;
   }
 ): FileRouteConfig<S, T, F, Sch> {
   return config as FileRouteConfig<S, T, F, Sch>;

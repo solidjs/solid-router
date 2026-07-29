@@ -720,11 +720,14 @@ return <div classList={{ "grey-out": isRouting() }}>...</div>;
 
 ### useMatch
 
-Tests a path *pattern you supply* against the current location; returns a memo of match information or `undefined`. It never consults the route tree — the pattern doesn't have to correspond to a defined route:
+Tests a path *pattern you supply* against the current location; returns a memo of match information or `undefined`. It never consults the route tree — the pattern doesn't have to correspond to a defined route. The match's `params` are typed from the pattern, and a typed path node works too (a concrete URL — useful for "am I here" checks):
 
 ```tsx
 const match = useMatch(() => "/admin/*rest");
+match()?.params.rest; // string
 return <Show when={match()}>...</Show>;
+
+const here = useMatch(() => paths.users(2));
 ```
 
 ### useRouteMatches
@@ -733,7 +736,17 @@ Returns an accessor of the router's *resolved* matches for the current location 
 
 ```tsx
 const matches = useRouteMatches();
-const breadcrumbs = createMemo(() => matches().map(m => m.route.info.breadcrumb));
+const breadcrumbs = createMemo(() => matches().map(m => m.route.info?.breadcrumb));
+```
+
+`info` is freeform by default; augment `RouteInfo` to type it app-wide — declared keys are checked at route definitions and typed on reads:
+
+```ts
+declare module "@solidjs/router" {
+  interface RouteInfo {
+    breadcrumb?: string;
+  }
+}
 ```
 
 ### usePreloadRoute

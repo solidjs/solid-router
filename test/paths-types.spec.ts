@@ -3,6 +3,7 @@ import {
   defineRoute,
   defineRoutes,
   int,
+  useMatch,
   useNavigate,
   useParams,
   useSearchParams
@@ -176,5 +177,9 @@ describe("Type checking the typed path proxy", () => {
       const _inherited: string | undefined = props.params.other;
       return null;
     };
+
+    // useMatch accepts a paths node (a concrete URL — no params to type)
+    const hereMatch = useMatch(() => Defined.paths.users(2));
+    const _herePath: string | undefined = hereMatch()?.path;
   };
 });
