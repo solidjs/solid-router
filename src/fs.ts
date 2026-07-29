@@ -1,6 +1,16 @@
 import { lazy } from "solid-js";
 
-import type { RouteDefinition, RouteSectionComponent } from "./types.js";
+import type {
+  DefinedRouteFilters,
+  RouteDefinition,
+  RouteParams,
+  RoutePreloadFunc,
+  RoutePreloadFuncArgs,
+  RouteSectionComponent,
+  StandardSchemaV1,
+  TypedRouteConfig,
+  ValidFilters
+} from "./types.js";
 
 /*
  * The emission adapter for `file-routes` manifests: turns the nested
@@ -23,6 +33,64 @@ import type { RouteDefinition, RouteSectionComponent } from "./types.js";
  * each route module's `route` export, `matchFilters` and `search` included —
  * into `RoutePaths`.
  */
+
+/**
+ * The type `defineFileRoute` hands back: `matchFilters` and `search` stay
+ * literal — and only present when provided precisely, which is what the
+ * `paths` machinery keys on once the manifest spreads this into the
+ * definition — while `preload` widens back to the plain contract. The
+ * pattern rides along as a phantom brand so `RouteProps<typeof route>`
+ * can type the file's component from the same witness.
+ */
+export type FileRouteConfig<
+  S extends string = string,
+  T = unknown,
+  F = undefined,
+  Sch = undefined
+> = TypedRouteConfig<S> &
+  ([F] extends [undefined] ? {} : DefinedRouteFilters<S> extends F ? {} : { matchFilters: F }) &
+  ([Sch] extends [undefined] ? {} : { search: Sch }) & {
+    preload?: RoutePreloadFunc<T>;
+    info?: Record<string, any>;
+  };
+
+/**
+ * Identity helper for a route file's `route` export that types `preload`'s
+ * `args.params` from a pattern witness — the file's path pattern, which the
+ * manifest (not this string) still provides at runtime:
+ *
+ * ```ts
+ * // routes/blog/[id].tsx
+ * export const route = defineFileRoute("/blog/:id", {
+ *   matchFilters: { id: int },
+ *   preload: ({ params }) => getPost(params.id) // params.id: string
+ * });
+ *
+ * export default function Post(props: RouteProps<typeof route>) {} // params *and* data typed
+ * ```
+ *
+ * `matchFilters` are validated against the pattern's params, and their
+ * types (and any `search` schema) flow through the manifest into `paths`.
+ */
+export function defineFileRoute<
+  S extends string,
+  T = unknown,
+  // See `defineRoute`: default-only so context-sensitive filter lambdas keep
+  // `s: string` contextual typing, validity enforced at the property.
+  const F = DefinedRouteFilters<S>,
+  Sch extends StandardSchemaV1<any, any> | undefined = undefined
+>(
+  path: S,
+  config: {
+    matchFilters?: F & ValidFilters<F, S>;
+    preload?: (args: RoutePreloadFuncArgs<RouteParams<S>>) => T;
+    /** Standard Schema validator for this route's search params; its input type flows into the typed path proxy. */
+    search?: Sch;
+    info?: Record<string, any>;
+  }
+): FileRouteConfig<S, T, F, Sch> {
+  return config as FileRouteConfig<S, T, F, Sch>;
+}
 
 /** A code-split module ref: delivered as a dynamic import. */
 export interface FileRouteLazyRef<M = Record<string, unknown>> {

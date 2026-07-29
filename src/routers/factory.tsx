@@ -19,12 +19,20 @@ import {
 } from "../routing.js";
 import type {
   Branch,
+  DefinedRouteFilters,
+  LazyRouteChildren,
   LocationChange,
   OutputMatch,
+  Params,
   RouteDefinition,
+  RouteParams,
   RoutePreloadFunc,
+  RoutePreloadFuncArgs,
   RouterIntegration,
-  RouteSectionProps
+  RouteSectionComponent,
+  RouteSectionProps,
+  StandardSchemaV1,
+  ValidFilters
 } from "../types.js";
 import { mockBase } from "../utils.js";
 import { Root, Routes } from "./components.jsx";
@@ -42,6 +50,91 @@ import type { ScrollRestoration } from "./scrollRestoration.js";
  */
 export function defineRoutes<const R extends readonly RouteDefinition[]>(routes: R): R {
   return routes;
+}
+
+type RouteChildren = RouteDefinition | readonly RouteDefinition[] | LazyRouteChildren;
+
+// The single contextual signature for `component` in `defineRoute`. The
+// public `RouteSectionComponent` union can't be used here: TypeScript only
+// contextually types a lambda's parameter from a single call signature, and
+// the whole point of `defineRoute` is that `props` infers. `children` is
+// `any` so `VoidComponent` pages (whose props declare `children?: never`,
+// #347) still assign under contravariance.
+type DefinedRouteComponent<T, P extends Params> = (
+  props: RouteSectionProps<T, P> & { children?: any }
+) => JSX.Element;
+
+/**
+ * The type `defineRoute` hands back: `path`, `matchFilters`, `children`, and
+ * `search` stay literal — and only present when provided precisely, which is
+ * what the `paths` machinery keys on — while `component`/`preload` widen back
+ * to the plain `RouteDefinition` contract so the route drops into any route
+ * tree. Generics that stayed at their fallback (not provided, or deferred by
+ * a context-sensitive value inside) are omitted rather than widening the
+ * whole route.
+ */
+export type DefinedRoute<
+  S = undefined,
+  T = unknown,
+  F = undefined,
+  C = undefined,
+  Sch = undefined
+> = ([S] extends [undefined] ? {} : { path: S }) &
+  ([F] extends [undefined] ? {} : DefinedRouteFilters<S> extends F ? {} : { matchFilters: F }) &
+  ([C] extends [undefined] ? {} : [RouteChildren | undefined] extends [C] ? {} : { children: C }) &
+  ([Sch] extends [undefined] ? {} : { search: Sch }) & {
+    component?: RouteSectionComponent<T>;
+    preload?: RoutePreloadFunc<T>;
+    info?: Record<string, any>;
+  };
+
+/**
+ * Identity helper that types a single route from its own `path` pattern:
+ * inside `component` and `preload`, `props.params`/`args.params` carry the
+ * params the pattern guarantees (`:id` is `string`, `:tab?` is
+ * `string | undefined`) instead of the open `Params` record. Params
+ * inherited from parent routes remain accessible as `string | undefined`.
+ *
+ * Purely a definition-site convenience — plain object routes behave
+ * identically at runtime, and nested `children` only get typed params if
+ * they use `defineRoute` themselves.
+ */
+export function defineRoute<
+  const S extends string | readonly string[],
+  T = unknown,
+  // Unconstrained with the filter record for `S` as default: a filter object
+  // containing an inline lambda is context-sensitive, which defers inference
+  // and fixes `F` to its default — the default then still provides
+  // `s: string` contextual typing and excess-property checks. Same idea for
+  // `C`. Validity of inferred `F` is enforced at the property instead
+  // (`F & ValidFilters<F, S>`).
+  const F = DefinedRouteFilters<S>,
+  const C extends RouteChildren | undefined = RouteChildren | undefined,
+  Sch extends StandardSchemaV1<any, any> | undefined = undefined
+>(route: {
+  path: S;
+  matchFilters?: F & ValidFilters<F, S>;
+  preload?: (args: RoutePreloadFuncArgs<RouteParams<S>>) => T;
+  component?: DefinedRouteComponent<T, RouteParams<S>>;
+  children?: C;
+  /** Standard Schema validator for this route's search params; its input type flows into the typed path proxy. */
+  search?: Sch;
+  info?: Record<string, any>;
+}): DefinedRoute<S, T, F, C, Sch>;
+// pathless (layout) route — params stay the open `Params` record
+export function defineRoute<
+  T = unknown,
+  const C extends RouteChildren | undefined = RouteChildren | undefined,
+  Sch extends StandardSchemaV1<any, any> | undefined = undefined
+>(route: {
+  preload?: (args: RoutePreloadFuncArgs) => T;
+  component?: DefinedRouteComponent<T, Params>;
+  children?: C;
+  search?: Sch;
+  info?: Record<string, any>;
+}): DefinedRoute<undefined, T, undefined, C, Sch>;
+export function defineRoute(route: RouteDefinition): RouteDefinition {
+  return route;
 }
 
 export interface RouterConfig<R extends readonly RouteDefinition[] = RouteDefinition[]> {

@@ -29,12 +29,14 @@ Explore the official [documentation](https://docs.solidjs.com/solid-router) for 
 - [The Mental Model: Instance vs Hooks](#the-mental-model-instance-vs-hooks)
 - [Route Definitions](#route-definitions)
   - [Dynamic Routes](#dynamic-routes)
+  - [Typed Route Params](#typed-route-params)
   - [Match Filters](#match-filters)
   - [Optional Parameters](#optional-parameters)
   - [Wildcard Routes](#wildcard-routes)
   - [Multiple Paths](#multiple-paths)
   - [Nested Routes](#nested-routes)
   - [Lazy Route Subtrees](#lazy-route-subtrees)
+  - [File-System Routes](#file-system-routes)
 - [Typed Paths](#typed-paths)
 - [Links](#links)
 - [Preload Functions](#preload-functions)
@@ -93,6 +95,8 @@ export const adminRoutes = defineRoutes([
 // app/router.ts
 export const Router = createRouter({ routes: [...appRoutes, ...adminRoutes] });
 ```
+
+Its single-route sibling `defineRoute` also types `params` inside the route's own `component` and `preload` — see [Typed Route Params](#typed-route-params).
 
 Mount it by rendering the instance. The render-prop child is your root layout — it always stays mounted, receives the matched content as `props.children`, and is the ideal place for top-level navigation and context providers:
 
@@ -187,6 +191,48 @@ As long as the URL fits the pattern, the `User` component shows, and `id` is ava
   <MyComponent />
 </Show>
 ```
+
+### Typed Route Params
+
+By default `params` is an open record — every key is `string | undefined`, even when the pattern guarantees it. Wrap a route in `defineRoute` and its `component` and `preload` are typed from the route's own `path`:
+
+```tsx
+import { defineRoute } from "@solidjs/router";
+
+const story = defineRoute({
+  path: "/stories/:id/:tab?",
+  preload: ({ params }) => getStory(params.id), // params.id: string
+  component: props => (
+    <Story
+      id={props.params.id}    // string — the pattern guarantees it
+      tab={props.params.tab}  // string | undefined — optional param
+    />
+  )
+});
+```
+
+`defineRoute` is an identity function at runtime — the route object drops into `routes` (or a parent's `children`) like any plain object, and `path`, `children`, `matchFilters`, and `search` still flow into `paths` and the typed hooks. Params inherited from parent routes stay accessible as `string | undefined`; nested `children` type their own params only if they use `defineRoute` themselves.
+
+For components declared away from their route, `RouteProps` takes a path witness — the same `paths` node you navigate with (`import type` keeps the instance out of the runtime graph, so no cycle) — plus an optional data type:
+
+```tsx
+import type { RouteComponent, RouteProps } from "@solidjs/router";
+import type { Router } from "./app/router";
+
+function Story(props: RouteProps<typeof Router.paths.stories, StoryData>) {
+  props.params.id; // string
+}
+
+// component-type form — props infer contextually
+const Story: RouteComponent<typeof Router.paths.stories, StoryData> = props => (
+  <h1>{props.params.id}</h1>
+);
+
+// or, anywhere under the route:
+const params = useParams(paths.stories); // typed from the tree
+```
+
+When no instance is in scope at the definition site — most notably [file-system route files](#file-system-routes), where the pattern lives in the filename — the witness can be the pattern string itself: `RouteProps<"/stories/:id">`.
 
 ### Match Filters
 
@@ -315,6 +361,37 @@ The import only fires when something needs the subtree — hovering a link into 
 - **Server**: SSR resolves matched boundaries during the render (use the streaming entry points — `renderToStream`/`renderToStringAsync` — as with any async work), and the single-flight collector resolves them before its data pass.
 
 Resolution is cached per thunk and append-only: the tree never changes shape after a subtree lands, it just gets more specific. Keep thunks deterministic — `() => import(...)` — rather than switching tables on runtime state.
+
+### File-System Routes
+
+The `@solidjs/router/fs` adapter turns a `file-routes` manifest into route definitions — the app imports the virtual module, the adapter maps it:
+
+```tsx
+import { pageRoutes } from "virtual:file-routes";
+import { fileRoutes } from "@solidjs/router/fs";
+
+export const Router = createRouter({ routes: fileRoutes(pageRoutes) });
+```
+
+Route files export their component as `default` and everything else as a `route` config export, which is spread into the definition. Inside a route file the pattern lives in the filename, so there's no `paths` node to witness with at the definition site — `defineFileRoute` takes the pattern string instead, types `preload`'s params from it, and validates `matchFilters` along the way. The config then doubles as the component's [`RouteProps`](#typed-route-params) witness, typing `params` from the pattern and `data` from the `preload`'s return type:
+
+```tsx
+// routes/blog/[id].tsx
+import { int } from "@solidjs/router";
+import { defineFileRoute } from "@solidjs/router/fs";
+
+export const route = defineFileRoute("/blog/:id", {
+  matchFilters: { id: int },
+  preload: ({ params }) => getPost(params.id) // params.id: string
+});
+
+export default function Post(props: RouteProps<typeof route>) {
+  props.params.id; // string
+  props.data;      // ReturnType of the preload above
+}
+```
+
+The pattern string is a typing witness — at runtime the manifest's path (from the filename) is the source of truth. With the plugin's `types` option generating a literal declaration for the virtual module, the file paths flow into `paths` and the typed hooks like a hand-written tree — `paths.blog(42)` typechecks, filters and search schemas included, and `useParams(paths.blog)` works as usual anywhere under the route.
 
 ## Typed Paths
 
@@ -598,8 +675,10 @@ Retrieves a reactive, store-like object of the current route's path parameters. 
 
 ```tsx
 const params = useParams();            // Params (strings)
-const params = useParams(paths.users); // { id: number } — typed via matchFilters
+const params = useParams(paths.users); // { id: string } — typed from the tree
 ```
+
+Inside a route's own `component`/`preload`, [`defineRoute`](#typed-route-params) types `props.params` without a witness.
 
 ### useNavigate
 

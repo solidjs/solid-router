@@ -2,6 +2,7 @@ import { render } from "@solidjs/web";
 import { vi } from "vitest";
 import {
   createRouter,
+  defineRoute,
   memoryHistory,
   useBeforeLeave,
   useLinkState,
@@ -164,6 +165,45 @@ describe("createRouter factory", () => {
 
         expect(div.querySelector('[data-route="home"]')).toBeNull();
         expect(div.querySelector('[data-route="user"]')?.textContent).toBe("2");
+      } finally {
+        dispose();
+        div.remove();
+      }
+    });
+
+    test("defineRoute routes mount, match, and pass preload data like plain objects", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+
+      const story = defineRoute({
+        path: "/stories/:id",
+        preload: ({ params }) => ({ title: `Story ${params.id}` }),
+        component: props => (
+          <div data-route="story">
+            {props.params.id}:{props.data.title}
+          </div>
+        )
+      });
+
+      let navigate!: Navigator;
+      const Home = () => {
+        navigate = useNavigate();
+        return <div data-route="home">Home</div>;
+      };
+
+      const Router = createRouter({
+        routes: [defineRoute({ path: "/", component: Home }), story],
+        history: memoryHistory()
+      });
+
+      const dispose = render(() => <Router />, div);
+      try {
+        expect(div.querySelector('[data-route="home"]')?.textContent).toBe("Home");
+
+        navigate(Router.paths.stories("7"));
+        await settle();
+
+        expect(div.querySelector('[data-route="story"]')?.textContent).toBe("7:Story 7");
       } finally {
         dispose();
         div.remove();

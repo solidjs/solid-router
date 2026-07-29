@@ -1,12 +1,13 @@
 import {
   createRouter,
+  defineRoute,
   defineRoutes,
   int,
   useNavigate,
   useParams,
   useSearchParams
 } from "../src/index.js";
-import type { StandardSchemaV1 } from "../src/index.js";
+import type { RouteProps, StandardSchemaV1 } from "../src/index.js";
 
 describe("Type checking the typed path proxy", () => {
   test("Does not check implementations", () => {});
@@ -140,5 +141,40 @@ describe("Type checking the typed path proxy", () => {
     const _remote: string = Runtime.paths.remote();
     // @ts-expect-error unknown-at-build-time subtree stays unspellable
     Runtime.paths.remote.anything;
+
+    // defineRoute-built trees keep literal paths, filters, search, and
+    // children for the proxy — while typing params inside the route itself
+    const Defined = createRouter({
+      routes: [
+        defineRoute({ path: "/about" }),
+        defineRoute({ path: "/find", search: searchSchema }),
+        defineRoute({
+          path: "/users/:id",
+          matchFilters: { id: int },
+          component: props => props.params.id,
+          children: [defineRoute({ path: "/settings" }), { path: "/posts/:postId" }]
+        })
+      ]
+    });
+    const _definedAbout: string = Defined.paths.about();
+    const _definedSettings: string = Defined.paths.users(2).settings();
+    Defined.paths.users(2).posts("p1");
+    // @ts-expect-error id is numeric (int filter survives defineRoute)
+    Defined.paths.users("abc");
+    // @ts-expect-error no such route segment
+    Defined.paths.missing;
+    Defined.paths.find({ q: "solid", page: 2 });
+    // @ts-expect-error page is a number (schema survives defineRoute)
+    Defined.paths.find({ page: "2" });
+
+    const definedParams = useParams(Defined.paths.users);
+    const _definedId: string = definedParams.id;
+
+    // RouteProps accepts the same paths node you navigate with as its witness
+    const _StoryFromNode = (props: RouteProps<typeof Defined.paths.users>) => {
+      const _id: string = props.params.id; // runtime params are strings, filters notwithstanding
+      const _inherited: string | undefined = props.params.other;
+      return null;
+    };
   };
 });

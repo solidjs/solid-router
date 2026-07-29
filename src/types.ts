@@ -117,16 +117,18 @@ export interface RouterIntegration {
 }
 
 export type Intent = "initial" | "native" | "navigate" | "preload";
-export interface RoutePreloadFuncArgs {
-  params: Params;
+export interface RoutePreloadFuncArgs<P extends Params = Params> {
+  params: P;
   location: Location;
   intent: Intent;
 }
 
-export type RoutePreloadFunc<T = unknown> = (args: RoutePreloadFuncArgs) => T;
+export type RoutePreloadFunc<T = unknown, P extends Params = Params> = (
+  args: RoutePreloadFuncArgs<P>
+) => T;
 
-export interface RouteSectionProps<T = unknown> {
-  params: Params;
+export interface RouteSectionProps<T = unknown, P extends Params = Params> {
+  params: P;
   location: Location;
   data: T;
   children?: JSX.Element;
@@ -137,10 +139,56 @@ export interface RouteSectionProps<T = unknown> {
 // The `Component<{}>` member admits components whose props are all optional -
 // most notably a bare `VoidComponent`, whose `{ children?: undefined }` props
 // would otherwise fail TypeScript's weak-type check against the other members.
-export type RouteSectionComponent<T = unknown> =
-  | Component<RouteSectionProps<T>>
-  | Component<Omit<RouteSectionProps<T>, "children">>
+export type RouteSectionComponent<T = unknown, P extends Params = Params> =
+  | Component<RouteSectionProps<T, P>>
+  | Component<Omit<RouteSectionProps<T, P>, "children">>
   | Component<{}>;
+
+// Phantom brand carrying a `defineFileRoute` config's pattern witness (and,
+// through its `preload` property, the data type) into `RouteProps`. Purely
+// type-level — the runtime object never has the key; the identity helper's
+// return type asserts it.
+declare const ROUTE_PATTERN: unique symbol;
+export interface TypedRouteConfig<S extends string = string> {
+  readonly [ROUTE_PATTERN]: S;
+}
+
+type RouteDataOf<Path> = Path extends TypedRouteConfig & {
+  preload?: RoutePreloadFunc<infer T>;
+}
+  ? T
+  : unknown;
+
+/**
+ * Props for a route component declared away from its definition, typed by a
+ * path witness — the same `paths` node you navigate with, the pattern string
+ * when no instance is in scope, or a `defineFileRoute` config (which also
+ * types `data` from its `preload`):
+ *
+ * ```ts
+ * function Story(props: RouteProps<typeof Router.paths.stories>) {}
+ * function Story(props: RouteProps<"/stories/:id", StoryData>) {}
+ * function Post(props: RouteProps<typeof route>) {} // file-system route files
+ * ```
+ */
+export type RouteProps<Path, T = RouteDataOf<Path>> = RouteSectionProps<
+  T,
+  Path extends TypedPath<infer P>
+    ? SimplifyRecord<P> & Params
+    : Path extends TypedRouteConfig<infer S>
+    ? RouteParams<S>
+    : RouteParams<Path>
+>;
+
+/**
+ * Component-type counterpart of `RouteProps` — annotate the component itself
+ * and the props parameter infers contextually:
+ *
+ * ```ts
+ * const Post: RouteComponent<typeof route> = props => props.params.id;
+ * ```
+ */
+export type RouteComponent<Path, T = RouteDataOf<Path>> = Component<RouteProps<Path, T>>;
 
 /**
  * A lazy route subtree: a thunk producing the child definitions — typically
@@ -189,6 +237,58 @@ export type PathParams<P extends string | readonly string[]> =
 export type MatchFilters<P extends string | readonly string[] = any> = P extends string
   ? { [K in PathParams<P>[number]]?: MatchFilter }
   : Record<string, MatchFilter>;
+
+// Filters for an array pattern check against the union of its members, so a
+// filter is valid if either path declares the param.
+export type DefinedRouteFilters<S> = S extends readonly (infer Member extends string)[]
+  ? MatchFilters<Member>
+  : S extends string | readonly string[]
+  ? MatchFilters<S>
+  : MatchFilters;
+
+type FilterKeysOf<S> = S extends readonly (infer Member extends string)[]
+  ? PathParams<Member>[number]
+  : S extends string
+  ? PathParams<S>[number]
+  : string;
+
+// Validates an inferred filter record against the params of `S`: keys that
+// aren't params map to `never`, surfacing an error on the offending
+// property. Broadly-typed records (string index signatures, eg. a variable
+// annotated `MatchFilters`) pass through unchecked — filters can't be
+// verified ahead of a concrete pattern.
+export type ValidFilters<F, S> = {
+  [K in keyof F]: string extends K ? F[K] : K extends FilterKeysOf<S> ? MatchFilter : never;
+};
+
+type PatternParams<P extends string> = P extends `${infer Head}/${infer Tail}`
+  ? PatternParams<Head> & PatternParams<Tail>
+  : P extends `:${infer Name}?`
+  ? { [K in Name]?: string }
+  : P extends `:${infer Name}`
+  ? { [K in Name]: string }
+  : P extends `*${infer Name}`
+  ? { [K in Name]: string }
+  : {};
+
+type SimplifyRecord<T> = { [K in keyof T]: T[K] } & {};
+
+/**
+ * The params a route pattern guarantees, as a precise record — `:id` is
+ * `string`, `:tab?` is `string | undefined`, `*rest` is `string`. The record
+ * is intersected with the open `Params` shape so params inherited from
+ * parent routes stay accessible (as `string | undefined`). Array patterns
+ * yield the union of their members' records; non-literal patterns degrade
+ * to plain `Params`.
+ */
+export type RouteParams<S> = (S extends readonly (infer Member extends string)[]
+  ? SimplifyRecord<PatternParams<Member>>
+  : S extends string
+  ? string extends S
+    ? {}
+    : SimplifyRecord<PatternParams<S>>
+  : {}) &
+  Params;
 
 export interface PathMatch {
   params: Params;
