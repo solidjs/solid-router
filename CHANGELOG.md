@@ -1,5 +1,20 @@
 # @solidjs/router
 
+## 2.0.0-next.12
+
+### Major Changes
+
+- 0a1101a: Renumber the Solid 2 prerelease line from `1.0.0-next.*` to `2.0.0-next.*`. The 0.16 line has been declared stable as `1.0.0`, so the 1.x majors now belong to the Solid 1 router; this line continues unchanged under 2.x, matching Solid 2's major. No code changes — `2.0.0-next.12` is the successor to `1.0.0-next.11`. If you track the `next` tag with a `^1.0.0-next.*` range, update it to `2.0.0-next.*` or a stable `1.x` will eventually satisfy it and hand you the Solid 1 router.
+
+### Patch Changes
+
+- 6cff38b: Adopt the wire protocols the server function runtime absorbed from the router. The flash cookie (name/detect/clear and the codec) and the no-JS form convention now live in `@solidjs/web/server-functions`; the router's copies and shims are deleted. `createNoJSHandler` is no longer exported from `@solidjs/router/server` — the runtime applies the convention to browser form posts by default, and apps that need to configure it (e.g. a base path) import it from `@solidjs/web/server-functions/server`. SSR still seeds the decoded flash cookie into submission state — with the decoder now installed only on the server, so client bundles tree-shake the codec they never ran.
+
+  The generic halves of single-flight collection moved upstream too. The runtime now pre-digests the mutation outcome — target URL (redirect `Location` or referrer, origin-checked), `X-Revalidate` keys, and post-mutation cookie headers — so `createFlightDataCollector` consumes `outcome.targetUrl`/`revalidateKeys`/`foldedHeaders` and keeps only the router's own policy: matching the target against the route tree and running its preloads. `createSingleFlightHeaders` is deleted from `@solidjs/router/server` (the folding lives in the runtime's `foldSetCookies` and arrives pre-applied), and manually opted-in single-flight responses are unwrapped via the runtime's `decodeResponsePayload` instead of router-side envelope parsing. Requires `@solidjs/web` >= 2.0.0-beta.28.
+
+- 6ecf770: Add `defineRoute` for definition-site param typing: wrapping a single route types `props.params`/`args.params` in its `component` and `preload` from the route's own `path` pattern — `:id` is `string`, `:tab?` is `string | undefined` — instead of the open `Params` record, closing the gap where required params still read as possibly `undefined`. It is an identity function at runtime, and `path`, `children`, `matchFilters`, and `search` still flow literally into `paths` and the typed hooks. For components declared away from their route, the new `RouteProps<Path, Data?>` type (and its component-type form `RouteComponent<Path, Data?>`, which types `props` contextually) takes a path witness — a `paths` node or the pattern string — and `RouteParams<S>` spells a pattern's param record standalone. File-system route files get the same treatment through `defineFileRoute(pattern, config)` in `@solidjs/router/fs`, which types the `route` export's `preload` and validates its `matchFilters` from a pattern witness (the manifest still provides the runtime path); the config carries the pattern as a phantom brand, so `RouteProps<typeof route>` types the file's component — `params` from the pattern, `data` inferred from the `preload` — with one witness per file. `RouteSectionProps`, `RouteSectionComponent`, and `RoutePreloadFunc(Args)` gain an optional params type parameter (defaulting to `Params`, non-breaking).
+- e6c1994: `useMatch` joins the typed family: the returned match's `params` are typed from the pattern you pass (`useMatch(() => "/docs/:page")` gives `params.page: string`), and it now accepts typed path nodes (`useMatch(() => paths.users(2))`), coercing them to their URL. `PathMatch` gains an optional params type parameter (defaulting to `Params`, non-breaking). Route `info` metadata is now typed by an augmentable `RouteInfo` interface — `declare module "@solidjs/router" { interface RouteInfo { breadcrumb?: string } }` checks declared keys at route definitions and types them on reads, while undeclared keys stay freeform.
+
 ## 1.0.0
 
 ### Major Changes
