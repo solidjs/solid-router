@@ -1,6 +1,7 @@
 // Server rendering outside a request event (SSG scripts, tests): the
 // provider's `url` prop supplies the location, so one module-scope router
 // instance (and one compiled route tree) serves every URL.
+import { vi } from "vitest";
 import { renderToString } from "@solidjs/web";
 import { provideRequestEvent } from "@solidjs/web/storage";
 import { createRouter, useLocation } from "../../src/index.js";
