@@ -1,11 +1,9 @@
 import { $TRACK, action as createSolidAction, createMemo, onCleanup, getOwner } from "solid-js";
 import { isResponseEnvelope, isServer, REVALIDATE_HEADER, type JSX } from "@solidjs/web";
 import {
-  SINGLE_FLIGHT_HEADER,
   createServerReference,
-  decodeResponse,
-  subscribeFlightData,
-  type SingleFlightPayload
+  decodeResponsePayload,
+  subscribeFlightData
 } from "@solidjs/web/server-functions";
 // The explicit /server specifier is safe here: the only call site is
 // server-guarded, so client builds tree-shake the codec away.
@@ -480,14 +478,11 @@ async function handleResponse(
     // carry a codec-encoded body the router decodes itself. With the
     // flight-data consumer registered single-flight payloads never reach
     // this path, but a manually opted-in call (no consumer) still can —
-    // unwrap the standardized { value, data } shape for it too.
+    // the runtime splits its own envelope shape.
     if (response.body) {
-      data = await decodeResponse(response);
-      if (response.headers.has(SINGLE_FLIGHT_HEADER)) {
-        const payload = data as SingleFlightPayload<any, Record<string, any>>;
-        data = payload.value;
-        flightData = payload.data;
-      }
+      const payload = await decodeResponsePayload(response);
+      data = payload.value;
+      flightData = payload.flightData as Record<string, any> | undefined;
     }
   } else if (error) return { error: response };
   else data = response;

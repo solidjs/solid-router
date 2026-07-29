@@ -1,9 +1,11 @@
 // Server-mode tests (node resolve conditions, real request-event scoping):
 // the router's server integration for the server function runtime — the
-// single-flight data collector and its cookie-forwarding headers. (The no-JS
-// flash-cookie handler moved upstream; it is covered in the runtime's suite.)
+// single-flight data collector. (The no-JS flash-cookie handler and the
+// generic halves of collection — target resolution, X-Revalidate parsing,
+// cookie folding — moved upstream; they are covered in the runtime's suite.)
+import { foldSetCookies } from "@solidjs/web/server-functions/server";
 import { query } from "../../src/data/query.js";
-import { createFlightDataCollector, createSingleFlightHeaders } from "../../src/server.js";
+import { createFlightDataCollector } from "../../src/server.js";
 import type { RouteDefinition } from "../../src/types.js";
 
 const getNotes = query(async () => ["note-1"], "notes");
@@ -32,8 +34,31 @@ function createEvent(referrer?: string | null) {
   };
 }
 
+// Mimics the runtime's outcome pre-digestion (tested upstream): the
+// collector consumes `targetUrl`/`revalidateKeys`/`foldedHeaders` rather
+// than deriving them from raw headers itself.
 function createOutcome(event: any, response?: Response, value: unknown = "mutated") {
-  return { id: "fn#0", value, response, request: event.request, thrown: false };
+  const request: Request = event.request;
+  let targetUrl: string | undefined;
+  const referrer = request.headers.get("referer");
+  if (referrer) {
+    const location = response?.headers.get("Location");
+    const target = location ? new URL(location, request.url) : new URL(referrer);
+    if (target.origin === new URL(request.url).origin) targetUrl = target.toString();
+  }
+  return {
+    id: "fn#0",
+    value,
+    response,
+    request,
+    thrown: false,
+    targetUrl,
+    revalidateKeys: response?.headers.get("X-Revalidate")?.split(","),
+    foldedHeaders: foldSetCookies(request.headers, [
+      ...(event.response?.headers?.getSetCookie() ?? []),
+      ...(response?.headers?.getSetCookie() ?? [])
+    ])
+  };
 }
 
 describe("createFlightDataCollector (preload runner)", () => {
@@ -85,6 +110,27 @@ describe("createFlightDataCollector (preload runner)", () => {
     expect(await collect(event as any, createOutcome(event) as any)).toBeUndefined();
   });
 
+  test("the collection pass runs on the outcome's folded cookie state", async () => {
+    const { getRequestEvent } = await import("@solidjs/web");
+    const seen: (string | null | undefined)[] = [];
+    const probe = createFlightDataCollector({
+      routes: [
+        {
+          path: "/notes",
+          preload: () => {
+            seen.push(getRequestEvent()?.request.headers.get("cookie"));
+            getNotes();
+          }
+        }
+      ]
+    });
+    const event = createEvent();
+    const response = new Response(null, {
+      headers: { "Set-Cookie": "session=fresh; Path=/; HttpOnly" }
+    });
+    await probe(event as any, createOutcome(event, response) as any);
+    expect(seen).toEqual(["session=fresh"]);
+  });
 });
 
 describe("createFlightDataCollector (router instance)", () => {
@@ -167,56 +213,5 @@ describe("createFlightDataCollector (root preload)", () => {
     // the root's query was not named for revalidation — same-page collection
     // stays scoped to the keys the mutation invalidated
     expect(Object.keys(data)).toEqual(["notes[]"]);
-  });
-});
-
-describe("createSingleFlightHeaders", () => {
-  test("returns copied headers untouched without response cookies", () => {
-    const event = createEvent();
-    const headers = createSingleFlightHeaders(event);
-    expect(headers).not.toBe(event.request.headers);
-    expect(headers.get("cookie")).toBe("session=abc");
-  });
-
-  test("folds Set-Cookie mutations into the cookie header", () => {
-    const event = createEvent();
-    event.response.headers.append("Set-Cookie", "session=next; Path=/; HttpOnly");
-    event.response.headers.append("Set-Cookie", "theme=dark");
-    const headers = createSingleFlightHeaders(event);
-    expect(headers.get("cookie")).toBe("session=next; theme=dark");
-    // the source request stays untouched
-    expect(event.request.headers.get("cookie")).toBe("session=abc");
-  });
-
-  test("honors deletions via Max-Age and Expires", () => {
-    const event = createEvent();
-    event.response.headers.append("Set-Cookie", "session=; Max-Age=0");
-    event.response.headers.append(
-      "Set-Cookie",
-      `stale=1; Expires=${new Date(Date.now() - 1000).toUTCString()}`
-    );
-    const headers = createSingleFlightHeaders(event);
-    expect(headers.get("cookie")).toBeNull();
-  });
-
-  test("folds cookies set on the returned/thrown response itself", () => {
-    const event = createEvent();
-    const redirect = new Response(null, {
-      status: 302,
-      headers: { Location: "/dashboard", "Set-Cookie": "session=fresh; Path=/; HttpOnly" }
-    });
-    const headers = createSingleFlightHeaders(event, redirect);
-    expect(headers.get("cookie")).toBe("session=fresh");
-  });
-
-  test("outcome response cookies win over event response cookies", () => {
-    const event = createEvent();
-    event.response.headers.append("Set-Cookie", "session=event");
-    const redirect = new Response(null, {
-      status: 302,
-      headers: { Location: "/", "Set-Cookie": "session=redirect" }
-    });
-    const headers = createSingleFlightHeaders(event, redirect);
-    expect(headers.get("cookie")).toBe("session=redirect");
   });
 });

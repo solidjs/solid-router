@@ -1,6 +1,6 @@
 import { createContext, createSignal, untrack, onCleanup, getOwner, createRenderEffect, useContext, createMemo, NotReadyError, isPending, runWithOwner, createRoot, createEffect, flush, sharedConfig, createComponent as createComponent$1, action, getObserver } from 'solid-js';
 import { isServer, createComponent, memo, registerElementClaim, delegateEvents, getRequestEvent, REVALIDATE_HEADER, isResponseEnvelope } from '@solidjs/web';
-import { hasFlashCookie, clearFlashCookie, createServerReference, subscribeFlightData, decodeResponse, SINGLE_FLIGHT_HEADER, isServerFunction, getServerFunctionMetadata, GET } from '@solidjs/web/server-functions';
+import { hasFlashCookie, clearFlashCookie, createServerReference, subscribeFlightData, decodeResponsePayload, isServerFunction, getServerFunctionMetadata, GET, decodeResponse } from '@solidjs/web/server-functions';
 import { decodeFlashCookie } from '@solidjs/web/server-functions/server';
 
 const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
@@ -2175,14 +2175,11 @@ async function handleResponse(response, error, navigate, metadataHandled) {
     // carry a codec-encoded body the router decodes itself. With the
     // flight-data consumer registered single-flight payloads never reach
     // this path, but a manually opted-in call (no consumer) still can —
-    // unwrap the standardized { value, data } shape for it too.
+    // the runtime splits its own envelope shape.
     if (response.body) {
-      data = await decodeResponse(response);
-      if (response.headers.has(SINGLE_FLIGHT_HEADER)) {
-        const payload = data;
-        data = payload.value;
-        flightData = payload.data;
-      }
+      const payload = await decodeResponsePayload(response);
+      data = payload.value;
+      flightData = payload.flightData;
     }
   } else if (error) return {
     error: response

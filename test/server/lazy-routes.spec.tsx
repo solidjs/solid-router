@@ -71,11 +71,16 @@ describe("flight collector through a lazy subtree", () => {
       response: { headers: new Headers() },
       locals: {}
     };
+    // pre-digested fields as the runtime supplies them (no redirect, no
+    // X-Revalidate, no cookie mutations)
     const outcome = {
       id: "fn#0",
       value: "mutated",
       request: event.request,
-      thrown: false
+      thrown: false,
+      targetUrl: "http://localhost:3000/plugins/widgets/7",
+      revalidateKeys: undefined,
+      foldedHeaders: event.request.headers
     };
 
     const data: any = await collect(event as any, outcome as any);

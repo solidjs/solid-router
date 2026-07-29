@@ -9,6 +9,7 @@ let consumer: FlightDataConsumer<Record<string, any>> | undefined;
 
 vi.mock("@solidjs/web/server-functions", () => ({
   decodeResponse: vi.fn(),
+  decodeResponsePayload: vi.fn(),
   // consumed by data/query.ts, which shares this module graph
   isServerFunction: () => false,
   getServerFunctionMetadata: () => undefined,

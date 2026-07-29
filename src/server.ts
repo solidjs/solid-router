@@ -8,10 +8,12 @@
 //
 // - single-flight mutations: `createFlightDataCollector` produces the
 //   `collectFlightData` hook the app hands to
-//   `configureServerFunctionsServer` (or the handler options). After a
-//   mutation it produces the route data the mutation invalidated for the
-//   page the client is on (or is being redirected to), which the handler
-//   folds into the response — mutation and fresh data in one round trip.
+//   `configureServerFunctionsServer` (or the handler options). The runtime
+//   pre-digests the generic halves onto the outcome (target URL,
+//   revalidation keys, post-mutation cookie headers); the collector runs
+//   the matched routes' preloads for the target and returns their `query`
+//   results, which the handler folds into the response — mutation and
+//   fresh data in one round trip.
 //
 // The no-JS form convention used to live here too; the runtime now owns it
 // outright — it applies to browser form posts by default (redirect back with
@@ -20,9 +22,7 @@
 // only its read side: SSR initialization seeds the decoded cookie into
 // submission state (routing.ts).
 import { provideRequestEvent } from "@solidjs/web/storage";
-import { REVALIDATE_HEADER } from "@solidjs/web";
 import type { JSX, RequestEvent } from "@solidjs/web";
-import { foldSetCookies } from "@solidjs/web/server-functions/server";
 import type {
   CollectFlightDataHook,
   ServerFunctionOutcome
@@ -58,7 +58,7 @@ export interface FlightDataCollectorOptions {
    * render: the merged params of every match and `intent: "initial"`.
    */
   rootPreload?: RoutePreloadFunc;
-  /** The app's base path, for resolving redirect `Location`s and matching. */
+  /** The app's base path, for compiling the route tree's matchers. */
   base?: string;
 }
 
@@ -83,13 +83,12 @@ function isRouterInstance(
  * and `preload` are the single source of truth — or an options object for
  * trees not created through the factory.
  *
- * Strategy: rerun the route data for the URL the client will show
- * after the mutation — the redirect `Location` when the outcome carries
- * one, the referring page otherwise — collecting each `query` result under
- * its cache key, scoped to the outcome's `X-Revalidate` keys when present
- * (routes newly entered via redirect always collect fully). The returned
- * payload seeds the client router's cache through its registered
- * flight-data consumer.
+ * Strategy: rerun the route data for the URL the client will show after
+ * the mutation (the outcome's pre-digested `targetUrl`), collecting each
+ * `query` result under its cache key, scoped to the outcome's
+ * `revalidateKeys` when present (routes newly entered via redirect always
+ * collect fully). The returned payload seeds the client router's cache
+ * through its registered flight-data consumer.
  */
 export function createFlightDataCollector(
   options: FlightDataCollectorOptions | RouterInstanceLike
@@ -112,43 +111,30 @@ export function createFlightDataCollector(
   };
 
   return async (sourceEvent, outcome) => {
-    // no referrer, nothing to produce data for (e.g. non-browser callers)
-    const referrer = outcome.request.headers.get("referer");
-    if (!referrer) return undefined;
-    // a raw body-carrying Response is the caller's verbatim payload — there
-    // is no envelope to fold data into
-    if (outcome.value instanceof Response && outcome.value.body) return undefined;
-
-    const origin = new URL(outcome.request.url).origin;
-    let revalidate: string[] | undefined;
-    let url = new URL(referrer).toString();
-    if (outcome.response) {
-      if (outcome.response.headers.has(REVALIDATE_HEADER))
-        revalidate = outcome.response.headers.get(REVALIDATE_HEADER)!.split(",");
-      if (outcome.response.headers.has("Location"))
-        url = new URL(outcome.response.headers.get("Location")!, origin + base).toString();
-    }
-    // redirects leaving the app can't be collected for
-    if (new URL(url).origin !== origin) return undefined;
+    // The generic halves arrive pre-digested on the outcome: no target
+    // (non-browser caller without a referer, or a redirect leaving the
+    // app's origin) means nothing to produce data for.
+    const { targetUrl, revalidateKeys } = outcome;
+    if (!targetUrl) return undefined;
+    // a target implies a referer — it is the fallback target
+    const previousUrl = outcome.request.headers.get("referer")!;
 
     // The flight event: the source event (its `response` rides along, so
     // cookies/headers set during preloads still reach the real response)
-    // pointed at the target URL, with the mutation's own cookie mutations
-    // folded into the request, in data-only router mode.
+    // pointed at the target URL, with the mutation's cookie effects already
+    // folded in (the outcome's `foldedHeaders`), in data-only router mode.
     const event = { ...sourceEvent } as RequestEvent;
-    event.request = new Request(url, {
-      headers: createSingleFlightHeaders(sourceEvent, outcome.response)
-    });
+    event.request = new Request(targetUrl, { headers: outcome.foldedHeaders });
     event.router = {
-      dataOnly: revalidate || true,
-      previousUrl: referrer,
+      dataOnly: revalidateKeys || true,
+      previousUrl,
       data: {}
     };
 
     return provideRequestEvent(event, async () => {
       try {
-        await resolveLazyMatches(resolveBranches, url, referrer);
-        runPreloads(event, resolveBranches(), url, referrer, rootPreload);
+        await resolveLazyMatches(resolveBranches, targetUrl, previousUrl);
+        runPreloads(event, resolveBranches(), targetUrl, previousUrl, rootPreload);
       } catch (error) {
         console.error(error);
       }
@@ -227,25 +213,3 @@ function runPreloads(
   }
 }
 
-/**
- * The request headers for the flight-data collection pass: the source
- * request's headers with the mutation's `Set-Cookie` mutations folded into
- * the `Cookie` header, so preloads observe the post-mutation cookie state
- * (deletions honored via Max-Age/Expires). Cookies attached to the
- * returned/thrown response itself (e.g. `redirect(to, { headers })`) never
- * reach the event response, but a browser round trip would have sent them
- * back with the next request — fold them in too, after the event's, so
- * they win on conflict.
- */
-export function createSingleFlightHeaders(
-  sourceEvent: {
-    request: Request;
-    response?: { headers?: Headers };
-  },
-  outcomeResponse?: Response
-): Headers {
-  return foldSetCookies(sourceEvent.request.headers, [
-    ...(sourceEvent.response?.headers?.getSetCookie() ?? []),
-    ...(outcomeResponse?.headers?.getSetCookie() ?? [])
-  ]);
-}
