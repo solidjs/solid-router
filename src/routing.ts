@@ -854,7 +854,6 @@ export function createRouterContext(
       // typed path proxy nodes coerce to their href
       if (typeof to !== "string") to = to.toString();
 
-      const queryOnly = !to || to[0] === "?";
       const {
         replace,
         resolve,
@@ -862,14 +861,25 @@ export function createRouterContext(
         state: nextState
       } = {
         replace: false,
-        resolve: !queryOnly,
+        resolve: true,
         scroll: true,
         ...options
       };
 
-      const resolvedTo = resolve
-        ? route.resolvePath(to)
-        : resolvePath((queryOnly && location.pathname) || "", to);
+      // A string means what the same string means as an href. Leading "/"
+      // stays base-prefixed; anything else resolves URL-style against the
+      // current location — `new URL` collapses `..` and handles `?`/`#`-only
+      // references natively (#502). A cross-origin result (scheme or
+      // protocol-relative input) falls through as unroutable.
+      let resolvedTo: string | undefined;
+      if (!resolve)
+        resolvedTo = resolvePath(((!to || to[0] === "?") && location.pathname) || "", to);
+      else if (to[0] === "/") resolvedTo = route.resolvePath(to);
+      else {
+        const url = new URL(to, mockBase + location.pathname + location.search + location.hash);
+        resolvedTo =
+          url.origin === mockBase ? url.pathname + url.search + url.hash : undefined;
+      }
 
       if (resolvedTo === undefined) {
         throw new Error(`Path '${to}' is not a routable path`);

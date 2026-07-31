@@ -88,6 +88,12 @@ export interface Location<S = unknown> extends Path {
 }
 
 export interface NavigateOptions<S = unknown> {
+  /**
+   * Resolve the target like an href: leading-`/` paths are prefixed with the
+   * router base, anything else resolves URL-style against the current
+   * location (`..` collapses, `?`/`#`-only strings keep the path). `false`
+   * takes the string as the final path. Defaults to `true`.
+   */
   resolve: boolean;
   replace: boolean;
   scroll: boolean;
