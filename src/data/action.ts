@@ -1,4 +1,12 @@
-import { $TRACK, action as createSolidAction, createMemo, onCleanup, getOwner } from "solid-js";
+import {
+  $TRACK,
+  action as createSolidAction,
+  createEffect,
+  createMemo,
+  createRoot,
+  onCleanup,
+  getOwner
+} from "solid-js";
 import { isResponseEnvelope, isServer, REVALIDATE_HEADER, type JSX } from "@solidjs/web";
 import {
   createServerReference,
@@ -277,7 +285,8 @@ function actionImpl<T extends Array<any>, U = void>(
         settled.value,
         settled.error,
         router.navigatorFactory(),
-        flightApplications !== flightApplicationsBefore
+        flightApplications !== flightApplicationsBefore,
+        router.isRouting
       );
     } finally {
       form && setFormBusy(form, -1);
@@ -422,7 +431,7 @@ let flightApplications = 0;
 export function setupFlightDataConsumer(router: RouterContext) {
   return subscribeFlightData<Record<string, any>>((data, { response }) => {
     flightApplications++;
-    return applyResponseMetadata(response, router.navigatorFactory(), data);
+    return applyResponseMetadata(response, router.navigatorFactory(), data, router.isRouting);
   });
 }
 
@@ -436,9 +445,11 @@ export function setupFlightDataConsumer(router: RouterContext) {
 function applyResponseMetadata(
   metadata: Response | undefined,
   navigate: Navigator,
-  flightData?: Record<string, any>
+  flightData?: Record<string, any>,
+  isRouting?: () => boolean
 ) {
   let keys: string[] | undefined;
+  let navigated = false;
   if (metadata) {
     if (metadata.headers.has(REVALIDATE_HEADER))
       keys = metadata.headers.get(REVALIDATE_HEADER)!.split(",");
@@ -448,6 +459,7 @@ function applyResponseMetadata(
         window.location.href = locationUrl;
       } else {
         navigate(locationUrl);
+        navigated = true;
       }
     }
   }
@@ -455,15 +467,37 @@ function applyResponseMetadata(
   cacheKeyOp(keys, entry => (entry[0] = 0));
   // set cache
   flightData && Object.keys(flightData).forEach(k => query.set(k, flightData[k]));
-  // trigger revalidation
-  revalidate(keys, false);
+  // trigger revalidation — but not under a route the redirect is about to
+  // leave. Invalidation and seeding above are immediate (a fresh read of a
+  // stale key still fetches), while the live-signal sweep waits for the
+  // navigation transition to commit: the outgoing route's queries unmount
+  // instead of refiring, so a mutation from an un-seeded route (an editor
+  // whose own query the flight payload doesn't cover) stays one round trip.
+  // The effect's initial run fires post-flush, so a no-op navigation (or a
+  // transition that already settled) revalidates immediately.
+  if (navigated && isRouting) {
+    createRoot(dispose =>
+      createEffect(
+        () => isRouting(),
+        routing => {
+          if (!routing) {
+            revalidate(keys, false);
+            dispose();
+          }
+        }
+      )
+    );
+  } else {
+    revalidate(keys, false);
+  }
 }
 
 async function handleResponse(
   response: unknown,
   error: boolean | undefined,
   navigate: Navigator,
-  metadataHandled: boolean
+  metadataHandled: boolean,
+  isRouting?: () => boolean
 ) {
   let data: any;
   let flightData: Record<string, any> | undefined;
@@ -490,6 +524,6 @@ async function handleResponse(
   // function's unwrapped value. Do not treat that value as a second plain
   // action response and invalidate the freshly seeded query cache again.
   if (!metadataHandled || metadata || flightData)
-    applyResponseMetadata(metadata, navigate, flightData);
+    applyResponseMetadata(metadata, navigate, flightData, isRouting);
   return data != null ? { data } : undefined;
 }
