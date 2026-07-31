@@ -19,6 +19,7 @@ vi.mock("../../src/routing.js", () => ({
   createRouterContext: () => mockRouter,
   RouterContextObj: {},
   RouteContextObj: {},
+  useOptionalContext: () => undefined,
   useRoute: () => mockRouter.base,
   useResolvedPath: () => "/",
   useHref: () => "/",

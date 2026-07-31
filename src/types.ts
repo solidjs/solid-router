@@ -354,6 +354,8 @@ export interface RouteContext {
   path: () => string;
   outlet: () => JSX.Element;
   resolvePath(to: string): string | undefined;
+  /** Whether this route section still matches `target` (same matched path), i.e. survives a navigation there. Absent on the base route, which always survives. */
+  retained?(target: string): boolean;
 }
 
 export interface RouterUtils {
@@ -374,6 +376,8 @@ export interface RouterContext {
   isRouting: () => boolean;
   /** The target of the in-flight navigation transition, if any. Not reactive. */
   readonly pendingTarget?: LocationChange;
+  /** Whether `route` is a section the in-flight navigation is leaving. False when no navigation is pending. */
+  leaving?(route: RouteContext): boolean;
   matches: () => RouteMatch[];
   renderPath(path: string): string;
   parsePath(str: string): string;

@@ -819,6 +819,12 @@ export function createRouterContext(
     get pendingTarget() {
       return lastTransitionTarget;
     },
+    leaving(route: RouteContext) {
+      if (!lastTransitionTarget || !route.retained) return false;
+      let pathname = lastTransitionTarget.value.split(/[?#]/, 1)[0];
+      if (typeof options.transformUrl === "function") pathname = options.transformUrl(pathname);
+      return !route.retained(pathname);
+    },
     renderPath,
     parsePath,
     navigatorFactory,
@@ -1040,6 +1046,13 @@ export function createRouteContext(
     pattern,
     params,
     path,
+    retained(target: string) {
+      const m = match();
+      const p = m.route.matcher(target);
+      // params derive from the matched path, so equal paths mean this
+      // section instance (layouts match prefixes via partial matchers)
+      return !!p && p.path === m.path;
+    },
     outlet: () =>
       component
         ? createComponent(component, {
