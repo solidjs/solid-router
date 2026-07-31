@@ -1,12 +1,4 @@
-import {
-  $TRACK,
-  action as createSolidAction,
-  createEffect,
-  createMemo,
-  createRoot,
-  onCleanup,
-  getOwner
-} from "solid-js";
+import { $TRACK, action as createSolidAction, createMemo, onCleanup, getOwner } from "solid-js";
 import { isResponseEnvelope, isServer, REVALIDATE_HEADER, type JSX } from "@solidjs/web";
 import {
   createServerReference,
@@ -25,7 +17,7 @@ import type {
   NarrowResponse
 } from "../types.js";
 import { mockBase, setFunctionName } from "../utils.js";
-import { cacheKeyOp, hashKey, revalidate, query } from "./query.js";
+import { cacheKeyOp, hashKey, revalidateOnSettle, query } from "./query.js";
 
 export type Action<T extends Array<any>, U, V = T> = (T extends [FormData | URLSearchParams] | []
   ? JSX.SerializableAttributeValue
@@ -473,23 +465,7 @@ function applyResponseMetadata(
   // navigation transition to commit: the outgoing route's queries unmount
   // instead of refiring, so a mutation from an un-seeded route (an editor
   // whose own query the flight payload doesn't cover) stays one round trip.
-  // The effect's initial run fires post-flush, so a no-op navigation (or a
-  // transition that already settled) revalidates immediately.
-  if (navigated && isRouting) {
-    createRoot(dispose =>
-      createEffect(
-        () => isRouting(),
-        routing => {
-          if (!routing) {
-            revalidate(keys, false);
-            dispose();
-          }
-        }
-      )
-    );
-  } else {
-    revalidate(keys, false);
-  }
+  revalidateOnSettle(keys, navigated ? isRouting : undefined);
 }
 
 async function handleResponse(

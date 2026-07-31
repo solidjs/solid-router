@@ -1,4 +1,6 @@
 import {
+  createEffect,
+  createRoot,
   createSignal,
   getObserver,
   getOwner,
@@ -6,14 +8,14 @@ import {
   sharedConfig,
   type Signal
 } from "solid-js";
-import { getRequestEvent, isResponseEnvelope, isServer } from "@solidjs/web";
+import { getRequestEvent, isResponseEnvelope, isServer, REVALIDATE_HEADER } from "@solidjs/web";
 import {
   GET,
   decodeResponse,
   getServerFunctionMetadata,
   isServerFunction
 } from "@solidjs/web/server-functions";
-import { useNavigate, getIntent, getInPreloadFn } from "../routing.js";
+import { useRouter, getIntent, getInPreloadFn } from "../routing.js";
 import type { CacheEntry, NarrowResponse } from "../types.js";
 
 const LocationHeader = "Location";
@@ -58,6 +60,27 @@ export function cacheKeyOp(key: string | string[] | void, fn: (cacheEntry: Cache
   }
 }
 
+/**
+ * Runs the live-signal revalidation sweep, holding it until the in-flight
+ * navigation settles when `isRouting` is provided. Redirect responses pair
+ * their sweep with a navigation: sweeping while the outgoing route is still
+ * mounted refires its queries mid-transition only to throw the results away,
+ * so the sweep waits for the transition to commit. The effect's initial run
+ * fires post-flush, so a no-op navigation (or one that already settled)
+ * revalidates immediately.
+ */
+export function revalidateOnSettle(keys: string[] | undefined, isRouting?: () => boolean) {
+  if (!isRouting) return revalidate(keys, false);
+  createRoot(dispose =>
+    createEffect(isRouting, routing => {
+      if (!routing) {
+        revalidate(keys, false);
+        dispose();
+      }
+    })
+  );
+}
+
 export type CachedFunction<T extends (...args: any) => any> = T extends (
   ...args: infer A
 ) => infer R
@@ -89,7 +112,8 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     const intent = getIntent();
     const inPreloadFn = getInPreloadFn();
     const owner = getOwner();
-    const navigate = owner ? useNavigate() : undefined;
+    const router = owner ? useRouter() : undefined;
+    const navigate = router && router.navigatorFactory();
     const now = Date.now();
     const key = name + hashKey(args);
     let cached = cache.get(key) as CacheEntry;
@@ -210,13 +234,25 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
           const url = v.headers.get(LocationHeader);
 
           if (url !== null) {
+            // invalidate the redirect's revalidation keys before navigating so
+            // the destination's preloads see the miss and fetch fresh (#580 thread)
+            const keys = !isServer && v.headers.get(REVALIDATE_HEADER)?.split(",");
+            keys && cacheKeyOp(keys, entry => (entry[0] = 0));
+
             // client + server relative redirect
-            if (navigate && url.startsWith("/"))
-              navigate(url, { replace: true });
+            const soft = navigate && url.startsWith("/");
+            if (soft) navigate!(url, { replace: true });
             else if (!isServer) window.location.href = url;
             else if (e) e.response.status = 302;
 
-            return;
+            keys && revalidateOnSettle(keys, soft ? router!.isRouting : undefined);
+
+            // Hold the read pending on the client: the navigation unmounts this
+            // consumer, and resolving `undefined` instead hands a missing value
+            // to whatever renders before the transition commits (a downstream
+            // `.map()` crashes). The server keeps resolving — its render can't
+            // await a navigation and the 302 discards the body anyway.
+            return isServer ? undefined : new Promise(() => {});
           }
 
           if (hasEnveloped) v = enveloped;
