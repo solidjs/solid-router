@@ -13,13 +13,7 @@ import {
   getServerFunctionMetadata,
   isServerFunction
 } from "@solidjs/web/server-functions";
-import {
-  useRouter,
-  useOptionalContext,
-  RouteContextObj,
-  getIntent,
-  getInPreloadFn
-} from "../routing.js";
+import { useRouter, useRoute, getIntent, getInPreloadFn } from "../routing.js";
 import type { CacheEntry, NarrowResponse } from "../types.js";
 
 const LocationHeader = "Location";
@@ -96,7 +90,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     const inPreloadFn = getInPreloadFn();
     const owner = getOwner();
     const router = owner ? useRouter() : undefined;
-    const route = owner ? useOptionalContext(RouteContextObj) : undefined;
+    const route = owner ? useRoute() : undefined;
     const navigate = router && router.navigatorFactory();
     const now = Date.now();
     const key = name + hashKey(args);
@@ -129,7 +123,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     // or read — unless the flight payload seeds it first. Retained sections
     // still refetch here, inside the navigation's transition, so the
     // redirect commits with fresh data.
-    const leaving = !!(cached && !cached[0] && route && router!.leaving && router!.leaving(route));
+    const leaving = cached && !cached[0] && route && router!.leaving?.(route);
 
     if (
       cached &&

@@ -820,10 +820,10 @@ export function createRouterContext(
       return lastTransitionTarget;
     },
     leaving(route: RouteContext) {
-      if (!lastTransitionTarget || !route.retained) return false;
-      let pathname = lastTransitionTarget.value.split(/[?#]/, 1)[0];
-      if (typeof options.transformUrl === "function") pathname = options.transformUrl(pathname);
-      return !route.retained(pathname);
+      const t = lastTransitionTarget;
+      if (!t || !route.retained) return false;
+      const pathname = t.value.split(/[?#]/, 1)[0];
+      return !route.retained(options.transformUrl ? options.transformUrl(pathname) : pathname);
     },
     renderPath,
     parsePath,
