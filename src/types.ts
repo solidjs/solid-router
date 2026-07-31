@@ -7,6 +7,10 @@ declare module "@solidjs/web" {
       status?: number;
       statusText?: string;
       headers: Headers;
+      // Mirrors core's `ResponseStub.committed` (@solidjs/web >= 2.0.0-beta.29):
+      // set by the integration once the head is sent, gating
+      // `httpStatus`/`httpHeader` writes and retractions.
+      committed?: boolean;
     };
     router?: {
       matches?: OutputMatch[];
