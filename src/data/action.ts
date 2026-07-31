@@ -17,7 +17,7 @@ import type {
   NarrowResponse
 } from "../types.js";
 import { mockBase, setFunctionName } from "../utils.js";
-import { cacheKeyOp, hashKey, revalidateOnSettle, query } from "./query.js";
+import { cacheKeyOp, hashKey, revalidate, query } from "./query.js";
 
 export type Action<T extends Array<any>, U, V = T> = (T extends [FormData | URLSearchParams] | []
   ? JSX.SerializableAttributeValue
@@ -277,8 +277,7 @@ function actionImpl<T extends Array<any>, U = void>(
         settled.value,
         settled.error,
         router.navigatorFactory(),
-        flightApplications !== flightApplicationsBefore,
-        router.isRouting
+        flightApplications !== flightApplicationsBefore
       );
     } finally {
       form && setFormBusy(form, -1);
@@ -423,7 +422,7 @@ let flightApplications = 0;
 export function setupFlightDataConsumer(router: RouterContext) {
   return subscribeFlightData<Record<string, any>>((data, { response }) => {
     flightApplications++;
-    return applyResponseMetadata(response, router.navigatorFactory(), data, router.isRouting);
+    return applyResponseMetadata(response, router.navigatorFactory(), data);
   });
 }
 
@@ -437,11 +436,9 @@ export function setupFlightDataConsumer(router: RouterContext) {
 function applyResponseMetadata(
   metadata: Response | undefined,
   navigate: Navigator,
-  flightData?: Record<string, any>,
-  isRouting?: () => boolean
+  flightData?: Record<string, any>
 ) {
   let keys: string[] | undefined;
-  let navigated = false;
   if (metadata) {
     if (metadata.headers.has(REVALIDATE_HEADER))
       keys = metadata.headers.get(REVALIDATE_HEADER)!.split(",");
@@ -451,7 +448,6 @@ function applyResponseMetadata(
         window.location.href = locationUrl;
       } else {
         navigate(locationUrl);
-        navigated = true;
       }
     }
   }
@@ -459,21 +455,19 @@ function applyResponseMetadata(
   cacheKeyOp(keys, entry => (entry[0] = 0));
   // set cache
   flightData && Object.keys(flightData).forEach(k => query.set(k, flightData[k]));
-  // trigger revalidation — but not under a route the redirect is about to
-  // leave. Invalidation and seeding above are immediate (a fresh read of a
-  // stale key still fetches), while the live-signal sweep waits for the
-  // navigation transition to commit: the outgoing route's queries unmount
-  // instead of refiring, so a mutation from an un-seeded route (an editor
-  // whose own query the flight payload doesn't cover) stays one round trip.
-  revalidateOnSettle(keys, navigated ? isRouting : undefined);
+  // trigger revalidation inside the same transition as the navigation, so
+  // the redirect commits atomically with fresh data: surviving consumers
+  // (shared layouts) the flight payload didn't seed refetch and hold the
+  // commit rather than painting stale and updating after. Seeded entries
+  // are fresh again by now, so the sweep re-reads them from cache.
+  revalidate(keys, false);
 }
 
 async function handleResponse(
   response: unknown,
   error: boolean | undefined,
   navigate: Navigator,
-  metadataHandled: boolean,
-  isRouting?: () => boolean
+  metadataHandled: boolean
 ) {
   let data: any;
   let flightData: Record<string, any> | undefined;
@@ -500,6 +494,6 @@ async function handleResponse(
   // function's unwrapped value. Do not treat that value as a second plain
   // action response and invalidate the freshly seeded query cache again.
   if (!metadataHandled || metadata || flightData)
-    applyResponseMetadata(metadata, navigate, flightData, isRouting);
+    applyResponseMetadata(metadata, navigate, flightData);
   return data != null ? { data } : undefined;
 }

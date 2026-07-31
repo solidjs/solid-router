@@ -1,6 +1,4 @@
 import {
-  createEffect,
-  createRoot,
   createSignal,
   getObserver,
   getOwner,
@@ -58,27 +56,6 @@ export function cacheKeyOp(key: string | string[] | void, fn: (cacheEntry: Cache
   for (let k of cacheMap.keys()) {
     if (key === undefined || matchKey(k, key as string[])) fn(cacheMap.get(k)!);
   }
-}
-
-/**
- * Runs the live-signal revalidation sweep, holding it until the in-flight
- * navigation settles when `isRouting` is provided. Redirect responses pair
- * their sweep with a navigation: sweeping while the outgoing route is still
- * mounted refires its queries mid-transition only to throw the results away,
- * so the sweep waits for the transition to commit. The effect's initial run
- * fires post-flush, so a no-op navigation (or one that already settled)
- * revalidates immediately.
- */
-export function revalidateOnSettle(keys: string[] | undefined, isRouting?: () => boolean) {
-  if (!isRouting) return revalidate(keys, false);
-  createRoot(dispose =>
-    createEffect(isRouting, routing => {
-      if (!routing) {
-        revalidate(keys, false);
-        dispose();
-      }
-    })
-  );
 }
 
 export type CachedFunction<T extends (...args: any) => any> = T extends (
@@ -245,7 +222,10 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
             else if (!isServer) window.location.href = url;
             else if (e) e.response.status = 302;
 
-            keys && revalidateOnSettle(keys, soft ? router!.isRouting : undefined);
+            // sweep the live signals inside the same transition as the
+            // navigation: surviving consumers (shared layouts) refetch and
+            // hold the commit, so the destination never paints stale data
+            keys && revalidate(keys, false);
 
             // Hold the read pending on the client: the navigation unmounts this
             // consumer, and resolving `undefined` instead hands a missing value

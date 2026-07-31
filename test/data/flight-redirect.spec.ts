@@ -1,5 +1,4 @@
 import { vi } from "vitest";
-import { createSignal, flush } from "solid-js";
 import type { FlightDataConsumer } from "@solidjs/web/server-functions";
 import type { RouterContext } from "../../src/types.js";
 import { createMockRouter } from "../helpers.js";
@@ -22,12 +21,10 @@ vi.mock("@solidjs/web/server-functions", () => ({
   }
 }));
 
-// Spy on the sweep scheduler: these tests pin the *decision* the action layer
-// makes for a redirect — defer the sweep behind the navigation transition
-// (isRouting passed) or run it immediately (no second argument) — not the
-// query cache mechanics (covered by query.spec.ts and flight-consumer.spec.ts).
-// The defer timing itself is unit-tested against the real `revalidateOnSettle`
-// below.
+// Spy on the sweep: these tests pin the ordering the action layer applies to
+// a flight response — invalidate, seed, navigate, then sweep synchronously —
+// not the query cache mechanics (covered by query.spec.ts and
+// flight-consumer.spec.ts).
 const hoisted = vi.hoisted(() => ({
   sweepSpy: vi.fn(),
   actualQuery: undefined as unknown as typeof import("../../src/data/query.js")
@@ -37,25 +34,21 @@ vi.mock("../../src/data/query.js", async importOriginal => {
   hoisted.actualQuery = await importOriginal<typeof import("../../src/data/query.js")>();
   return {
     ...hoisted.actualQuery,
-    revalidateOnSettle: (...args: unknown[]) => hoisted.sweepSpy(...args)
+    revalidate: (...args: unknown[]) => hoisted.sweepSpy(...args)
   };
 });
 
 import { setupFlightDataConsumer } from "../../src/data/action.js";
-import { query, cacheKeyOp } from "../../src/data/query.js";
-import type { CacheEntry } from "../../src/types.js";
+import { query } from "../../src/data/query.js";
 
-// A redirecting flight response must not sweep queries whose only
-// subscribers sit under the route being left: the payload covers the
-// destination's data, not the outgoing route's, so an immediate sweep
-// refires the outgoing route's live queries and buys fetches whose results
-// unmount with the route — a second round trip on what should be a
-// single-flight mutation. The sweep defers until the navigation transition
-// settles; invalidation and cache seeding stay immediate.
-describe("redirecting flight responses and outgoing routes", () => {
+// A redirecting flight response commits atomically: the sweep runs in the
+// same synchronous pass as the navigation so both join one transition.
+// Surviving consumers the payload didn't seed refetch and hold the commit
+// instead of painting stale at the destination and updating after; seeded
+// entries are fresh again by sweep time, so they re-read from cache.
+describe("redirecting flight responses", () => {
   let router: RouterContext;
   let navigate: ReturnType<typeof vi.fn>;
-  let setRouting: (v: boolean) => void;
 
   beforeEach(() => {
     query.clear();
@@ -63,31 +56,27 @@ describe("redirecting flight responses and outgoing routes", () => {
     sweepSpy.mockClear();
     router = createMockRouter();
     navigate = vi.fn();
-    const [routing, set] = createSignal(false);
-    setRouting = set;
-    (router as any).isRouting = routing;
-    (router as any).navigatorFactory = () => (url: string) => {
-      navigate(url);
-      setRouting(true); // the navigation forks a transition
-    };
+    (router as any).navigatorFactory = () => (url: string) => navigate(url);
   });
 
-  test("a redirect defers the sweep behind the navigation transition", async () => {
+  test("a redirect seeds, navigates, and sweeps in one synchronous pass", async () => {
     setupFlightDataConsumer(router);
+    let sweptDuringApply = false;
+    sweepSpy.mockImplementationOnce(() => {
+      sweptDuringApply = true;
+      // by sweep time the payload is already seeded and the navigation issued
+      expect(query.get("note[0]")).toEqual({ title: "fresh" });
+      expect(navigate).toHaveBeenCalledWith("/notes/0");
+    });
     await consumer!(
       { "note[0]": { title: "fresh" } },
       { response: new Response(null, { headers: { Location: "/notes/0" } }) }
     );
-    flush();
-    expect(navigate).toHaveBeenCalledWith("/notes/0");
-    // seeding is immediate…
-    expect(query.get("note[0]")).toEqual({ title: "fresh" });
-    // …while the sweep is scheduled against the transition
+    expect(sweptDuringApply).toBe(true);
     expect(sweepSpy).toHaveBeenCalledTimes(1);
-    expect(sweepSpy).toHaveBeenCalledWith(undefined, (router as any).isRouting);
   });
 
-  test("the deferred sweep keeps X-Revalidate keys", async () => {
+  test("the sweep carries X-Revalidate keys, non-forcing", async () => {
     setupFlightDataConsumer(router);
     await consumer!(
       { "notes[]": ["fresh"] },
@@ -97,18 +86,18 @@ describe("redirecting flight responses and outgoing routes", () => {
         })
       }
     );
-    flush();
-    expect(sweepSpy).toHaveBeenCalledWith(["notes"], (router as any).isRouting);
+    expect(sweepSpy).toHaveBeenCalledTimes(1);
+    expect(sweepSpy).toHaveBeenCalledWith(["notes"], false);
   });
 
-  test("a response without a redirect sweeps immediately", async () => {
+  test("a response without a redirect sweeps the same way", async () => {
     setupFlightDataConsumer(router);
     await consumer!({ "notes[]": ["fresh"] }, { response: new Response(null) });
     expect(sweepSpy).toHaveBeenCalledTimes(1);
-    expect(sweepSpy).toHaveBeenCalledWith(undefined, undefined);
+    expect(sweepSpy).toHaveBeenCalledWith(undefined, false);
   });
 
-  test("a hard (absolute) redirect sweeps immediately", async () => {
+  test("a hard (absolute) redirect still sweeps", async () => {
     const original = window.location;
     Object.defineProperty(window, "location", {
       value: { ...original, href: original.href },
@@ -122,39 +111,9 @@ describe("redirecting flight responses and outgoing routes", () => {
       });
       expect(navigate).not.toHaveBeenCalled();
       expect(sweepSpy).toHaveBeenCalledTimes(1);
-      expect(sweepSpy).toHaveBeenCalledWith(undefined, undefined);
+      expect(sweepSpy).toHaveBeenCalledWith(undefined, false);
     } finally {
       Object.defineProperty(window, "location", { value: original, configurable: true });
     }
-  });
-
-  test("revalidateOnSettle holds the sweep until isRouting settles", async () => {
-    query.set("rvs-note", "seeded");
-    let entry!: CacheEntry;
-    cacheKeyOp("rvs-note", e => (entry = e));
-    const versionBefore = entry[4][0]();
-
-    await new Promise(r => setTimeout(r, 2)); // ensure a new Date.now() stamp
-    const [routing, set] = createSignal(true);
-    hoisted.actualQuery.revalidateOnSettle(["rvs-note"], routing);
-    flush();
-    // transition still in flight: no sweep, live signal untouched
-    expect(entry[4][0]()).toBe(versionBefore);
-
-    set(false);
-    flush();
-    expect(entry[4][0]()).not.toBe(versionBefore);
-  });
-
-  test("revalidateOnSettle without a transition sweeps immediately", async () => {
-    query.set("rvs-now", "seeded");
-    let entry!: CacheEntry;
-    cacheKeyOp("rvs-now", e => (entry = e));
-    const versionBefore = entry[4][0]();
-
-    await new Promise(r => setTimeout(r, 2));
-    hoisted.actualQuery.revalidateOnSettle(["rvs-now"]);
-    flush();
-    expect(entry[4][0]()).not.toBe(versionBefore);
   });
 });
