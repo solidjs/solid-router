@@ -1,5 +1,16 @@
 # @solidjs/router
 
+## 2.0.0-next.13
+
+### Patch Changes
+
+- 322d5fe: `navigate(string)` now resolves relative strings with URL semantics, the same way the browser resolves an `href` (#502). `navigate("../similar/333")` from `/show/home/fiction/333` lands on `/show/home/similar/333` instead of leaking literal `..` segments into the URL; bare strings resolve as siblings, and `?`- or `#`-only strings keep the current path. Leading-`/` paths are unchanged — they stay base-prefixed absolute paths. One behavioral note: `navigate("")` is now a same-document reference (keeps the search string) rather than a shortcut to the bare pathname.
+- bf31b61: Honor `X-Revalidate` on redirects thrown from queries. `redirect(to, { revalidate })` only applied its keys through the action path; from a query it navigated and silently dropped them, so the canonical 401 flow — redirect to login and revalidate the session — left the session query serving stale authenticated data. Keys now invalidate before the navigation (the destination's preloads see the miss) and the live-signal sweep runs in the same transition as the navigation, matching the action path — surviving consumers refetch and hold the commit, so the redirect lands with fresh data instead of painting stale and updating after.
+
+  A redirecting query also no longer resolves `undefined` to its consumers. The read now stays pending on the client until the navigation unmounts it — resolving a missing value raced the transition commit, and anything deriving from the query (`data().map(...)`) could crash on `undefined` when the resolution won. Server rendering keeps resolving as before, since its render can't wait out a navigation and the 302 discards the body.
+
+- 8ec7525: A redirect's revalidation sweep only refires queries under route sections the navigation retains. Invalidation is still universal — every entry matching the revalidate keys (or everything, absent explicit keys) is a miss for all future use, including hover preloads, forward navigations, and history traversals. But a section the redirect is leaving no longer fetches eagerly: its render is disposed at commit and never paints, so the fetch (visible as a second request on what single flight promises is one) is deferred to the entry's next real use — a later navigation's preload or read, unless the flight payload seeds it first. Retained sections and consumers outside any route section still refetch inside the navigation's transition, so the redirect commits atomically with fresh data; seeded entries (including still-streaming promises) are fresh and serve without refetching. A plain revalidation with no navigation sweeps everything, as before.
+
 ## 2.0.0-next.12
 
 ### Major Changes
