@@ -13,7 +13,7 @@ import {
   getServerFunctionMetadata,
   isServerFunction
 } from "@solidjs/web/server-functions";
-import { useRouter, useRoute, getIntent, getInPreloadFn } from "../routing.js";
+import { useRouter, getIntent, getInPreloadFn } from "../routing.js";
 import type { CacheEntry, NarrowResponse } from "../types.js";
 
 const LocationHeader = "Location";
@@ -90,7 +90,6 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     const inPreloadFn = getInPreloadFn();
     const owner = getOwner();
     const router = owner ? useRouter() : undefined;
-    const route = owner ? useRoute() : undefined;
     const navigate = router && router.navigatorFactory();
     const now = Date.now();
     const key = name + hashKey(args);
@@ -115,30 +114,19 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
       onCleanup(() => cached[4].count--);
     }
 
-    // A read under a route section the in-flight navigation is leaving keeps
-    // its invalidated value instead of refetching: this render is disposed at
-    // commit and never paints, and refiring would put a second request on
-    // what single flight promises is one. The entry stays a cache miss, so
-    // the fetch happens at its next real use — a later navigation's preload
-    // or read — unless the flight payload seeds it first. Retained sections
-    // still refetch here, inside the navigation's transition, so the
-    // redirect commits with fresh data.
-    const leaving = cached && !cached[0] && route && router!.leaving?.(route);
-
     if (
       cached &&
-      (cached[0]
-        ? isServer ||
-          intent === "native" ||
-          cached[4].count ||
-          Date.now() - cached[0] < PRELOAD_TIMEOUT
-        : leaving)
+      cached[0] &&
+      (isServer ||
+        intent === "native" ||
+        cached[4].count ||
+        Date.now() - cached[0] < PRELOAD_TIMEOUT)
     ) {
       if (tracking) {
         cached[4].count++;
         cached[4][0](); // track
       }
-      if (!leaving && cached[3] === "preload" && intent !== "preload") {
+      if (cached[3] === "preload" && intent !== "preload") {
         cached[0] = now;
       }
       let res = cached[1];
@@ -147,7 +135,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
           "then" in cached[1]
             ? cached[1].then(handleResponse(false), handleResponse(true))
             : handleResponse(false)(cached[1]);
-        !leaving && !isServer && intent === "navigate" && cached[4][1](cached[0]); // update version
+        !isServer && intent === "navigate" && cached[4][1](cached[0]); // update version
       }
       inPreloadFn && "then" in res && res.catch(() => { });
       return res;

@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 // A redirect's revalidation sweep only refires queries under retained route
-// sections. Leaving sections keep their invalidated entry — their render is
-// disposed at commit and never paints, so eagerly refetching for them puts a
-// visible second request on a single-flight mutation. The invalidation
+// sections. Leaving sections keep their invalidated entry: since solid
+// 2.0.0-beta.30 the scheduler cancels recomputes that a parking transition's
+// own writes queued on nodes the same navigation orphans, so the outgoing
+// section's query memo never re-runs — no phantom second request on a
+// single-flight mutation, with no router-side gating. The invalidation
 // itself is universal: any later real use (a new navigation's preload or
 // read, forward or back) sees the miss and fetches fresh. A plain
 // revalidation with no navigation still sweeps everything.
