@@ -1,5 +1,21 @@
 # @solidjs/router
 
+## 2.0.0-next.14
+
+### Patch Changes
+
+- 2c444ef: Drop the router-side leaving-section gate; require solid 2.0.0-beta.30
+
+  Solid's scheduler now cancels recomputes that a parking transition's own
+  writes queued on nodes the same navigation orphans, so a redirect's
+  revalidation sweep no longer re-runs query memos in outgoing route sections
+  at all — the phantom second request on single-flight mutations is prevented
+  in core. The `RouteContext.retained`/`RouterContext.leaving` internals and
+  the read-time gate in `query` that worked around it are removed.
+
+- 1527294: Add the `committed` flag to the `RequestEvent` response-stub type, mirroring core's `ResponseStub` (@solidjs/web 2.0.0-beta.29): integrations set it once the response head is sent, and `httpStatus`/`httpHeader` gate their writes and cleanup-time retractions on it. Lets integrations (e.g. solid-start) set the flag without casting around the router's augmentation.
+- Anchor click handling no longer intercepts links with a non-http(s) scheme (`blob:`, `mailto:`, `tel:`, `data:`, …). Previously `blob:` links could be wrongly routed because they inherit the page origin and bypassed the same-origin check (#382, ported from #581 by @aashish00021).
+
 ## 2.0.0-next.13
 
 ### Patch Changes

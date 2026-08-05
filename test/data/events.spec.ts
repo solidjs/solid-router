@@ -173,23 +173,35 @@ describe("anchor link handling", () => {
     } as any;
 
     global.URL = class MockURL {
+      protocol: string;
       origin: string;
       pathname: string;
       search: string;
       hash: string;
 
       constructor(url: string) {
-        if (url.startsWith("/")) {
+        if (url.startsWith("blob:")) {
+          // blob: URLs inherit the page origin, so the origin check alone
+          // would let them through — they must be rejected by protocol. #382
+          this.protocol = "blob:";
+          this.origin = "https://example.com";
+          this.pathname = url;
+          this.search = "";
+          this.hash = "";
+        } else if (url.startsWith("/")) {
+          this.protocol = "https:";
           this.origin = "https://example.com";
           this.pathname = url;
           this.search = "";
           this.hash = "";
         } else if (url.startsWith("https://example.com")) {
+          this.protocol = "https:";
           this.origin = "https://example.com";
           this.pathname = url.replace("https://example.com", "") || "/";
           this.search = "";
           this.hash = "";
         } else {
+          this.protocol = "https:";
           this.origin = "https://other.com";
           this.pathname = "/";
           this.search = "";
@@ -235,6 +247,26 @@ describe("anchor link handling", () => {
       clickHandler(event);
 
       expect(event.preventDefault).not.toHaveBeenCalled();
+    });
+  });
+
+  test("should ignore non-http(s) links like blob: (#382)", () => {
+    return createRoot(() => {
+      const navigateFromRoute = vi.fn();
+      mockRouter.navigatorFactory = () => navigateFromRoute;
+      // With no base path, a blob: link shares the page origin and its pathname
+      // isn't caught by the path-prefix check — so it must be rejected by
+      // protocol, else the router routes a garbage pathname (#382).
+      mockRouter.base = { path: () => "" } as any;
+      setupNativeEvents()(mockRouter);
+
+      const link = createMockElement("a", { href: "blob:https://example.com/abc" });
+      const event = createMockEvent("click", link, { path: [link] });
+
+      clickHandler(event);
+
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(navigateFromRoute).not.toHaveBeenCalled();
     });
   });
 
