@@ -358,7 +358,7 @@ The import only fires when something needs the subtree — hovering a link into 
 - **Types**: TypeScript never runs the thunk — inference flows through the import's promise type, so `paths.admin.users(2)` typechecks (match filters and search schemas included) before any of the subtree's code exists client-side. The module's `default` or `routes` export is used. Only tables genuinely built at runtime (typed as plain `RouteDefinition[]`) degrade to untyped.
 - **Navigation**: the table load folds into the navigation transition — the old screen holds until the subtree (and its matched components) are ready, exactly like a `lazy()` route component.
 - **Preloading**: hover intent kicks the table load, and when it lands the preload continues into the inner routes' components and `preload` functions — one cascading warm-up from the earliest possible moment.
-- **Server**: SSR resolves matched boundaries during the render (use the streaming entry points — `renderToStream`/`renderToStringAsync` — as with any async work), and the single-flight collector resolves them before its data pass.
+- **Server**: SSR resolves matched boundaries during the render (use the streaming entry point `renderToStream` — awaiting it resolves with the settled HTML — as with any async work), and the single-flight collector resolves them before its data pass.
 
 Resolution is cached per thunk and append-only: the tree never changes shape after a subtree lands, it just gets more specific. Keep thunks deterministic — `() => import(...)` — rather than switching tables on runtime state.
 

@@ -3,9 +3,9 @@
 // render, resolution recompiles the tree), and the single-flight collector
 // resolves boundaries before its preload pass so it is not blind to inner
 // route data. Boundaries are async work, so they need the streaming render
-// path (renderToStringAsync is a promise wrapper over renderToStream); the
+// path (awaiting renderToStream resolves with the settled HTML); the
 // sync renderToString is not supported with lazy subtrees.
-import { renderToStringAsync } from "@solidjs/web";
+import { renderToStream } from "@solidjs/web";
 import { createRouter, useParams } from "../../src/index.js";
 import { query } from "../../src/data/query.js";
 import { createFlightDataCollector } from "../../src/server.js";
@@ -37,7 +37,7 @@ describe("SSR through a lazy subtree", () => {
       ] as const
     });
 
-    const html = await renderToStringAsync(() => <Router url="/plugins/widgets/7" />);
+    const html = await renderToStream(() => <Router url="/plugins/widgets/7" />);
     expect(thunkCalls).toBe(1);
     expect(html).toContain('data-route="plugins"');
     expect(html).toContain('data-route="widget"');
