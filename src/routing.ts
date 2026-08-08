@@ -11,7 +11,7 @@ import {
   untrack,
   useContext
 } from "solid-js";
-import { isServer, getRequestEvent } from "@solidjs/web";
+import { clearFlashCookie, getRequestEvent, hasFlashCookie, isServer } from "@solidjs/web";
 import type {
   Branch,
   Intent,
@@ -53,7 +53,12 @@ import {
   mergeSearchString,
   expandOptionals
 } from "./utils.js";
-import { clearFlashCookie, hasFlashCookie } from "@solidjs/web/server-functions";
+// Flash-cookie detection/clearing are cookie utilities on the CORE entry
+// (they live beside the cookie codec) — routing is in every app's eager
+// graph and must never import the server-functions package, whose client
+// half is the fetch transport + the seroval codec. The type below is
+// erased at build; only the server-only action path imports that module's
+// values (behind isServer, tree-shaken from client bundles).
 import type { FlashSubmission } from "@solidjs/web/server-functions/server";
 
 const MAX_REDIRECTS = 100;

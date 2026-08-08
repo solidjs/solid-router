@@ -6,13 +6,25 @@ import {
   sharedConfig,
   type Signal
 } from "solid-js";
-import { getRequestEvent, isResponseEnvelope, isServer, REVALIDATE_HEADER } from "@solidjs/web";
+// Everything server-function-shaped comes off the CORE entry: detection
+// (isServerFunction/getServerFunctionMetadata, registered-symbol reads) and
+// the late-bound RPC seam (getServerFunctionRPC). The server-functions
+// entry itself — the fetch transport + the seroval codec behind it — is
+// deliberately NOT imported here: query() is in every router app's eager
+// graph, and a static import made every zero-server-function app ship
+// ~9 KB gz of codec it could never invoke. The transport registers itself
+// into the seam when a `'use server'` reference is created (compiled
+// output, module scope), so by the time a server function can reach
+// query() the seam is filled; plain-fetch apps read undefined forever.
 import {
-  GET,
-  decodeResponse,
+  getRequestEvent,
   getServerFunctionMetadata,
-  isServerFunction
-} from "@solidjs/web/server-functions";
+  getServerFunctionRPC,
+  isResponseEnvelope,
+  isServer,
+  isServerFunction,
+  REVALIDATE_HEADER
+} from "@solidjs/web";
 import { useRouter, getIntent, getInPreloadFn } from "../routing.js";
 import type { CacheEntry, NarrowResponse } from "../types.js";
 
@@ -80,9 +92,15 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
   // declaration for dispatch, the client half swaps in the GET transport.
   // An explicit `GET(fn)` already carries the declaration on the metadata
   // channel (`getServerFunctionMetadata(fn)?.method === "GET"`) and passes
-  // through; non-server functions are untouched.
+  // through; non-server functions are untouched. `GET` comes through the
+  // late-bound RPC seam: a reference in the graph guarantees the transport
+  // registered it (references are created at module scope, ahead of the
+  // module handing one to query()), so the read only misses for hand-built
+  // brands that never saw the runtime — which have no transport to declare
+  // on either.
   if (isServerFunction(fn) && !getServerFunctionMetadata(fn)?.method) {
-    fn = GET(fn) as unknown as T;
+    const rpc = getServerFunctionRPC();
+    if (rpc) fn = rpc.GET(fn) as unknown as T;
   }
   const cachedFn = ((...args: Parameters<T>) => {
     const cache = getCache();
@@ -238,9 +256,16 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
           if (hasEnveloped) v = enveloped;
           else if (v.body) {
             // responses the transport hands over whole (revalidation) carry a
-            // codec-encoded body; anything else (a raw user Response) stays whole
-            const decoded = await decodeResponse(v);
-            if (decoded !== undefined) v = decoded;
+            // codec-encoded body; anything else (a raw user Response) stays
+            // whole. The decoder rides the late-bound RPC seam: only a graph
+            // with server functions has codec-encoded responses to decode,
+            // and only such a graph has the codec registered — a plain-fetch
+            // query's raw Response passes through identically either way.
+            const rpc = getServerFunctionRPC();
+            if (rpc) {
+              const decoded = await rpc.decodeResponse(v);
+              if (decoded !== undefined) v = decoded;
+            }
           }
         }
         if (error) throw v;

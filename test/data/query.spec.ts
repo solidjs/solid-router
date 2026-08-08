@@ -1,6 +1,10 @@
 import { createRoot } from "solid-js";
 import { vi } from "vitest";
-import { GET, getServerFunctionMetadata } from "@solidjs/web/server-functions";
+import {
+  GET,
+  createServerReference,
+  getServerFunctionMetadata
+} from "@solidjs/web/server-functions";
 import {
   query,
   revalidate,
@@ -133,6 +137,15 @@ describe("query", () => {
       }) as any;
       serverFn[Symbol.for("solid.ServerFunctionMetadata")] = {};
       serverFn.id = "auto-get-0";
+      // The GET wrap reaches query() through the late-bound RPC seam, which
+      // the transport fills when a reference is CREATED (compiled 'use
+      // server' output does this at module scope). The hand-branded stand-in
+      // above skips that path on purpose — so fill the seam the way any
+      // graph actually containing a server function has it filled. (Cast:
+      // the types resolve this import to the server entry's compiler ABI,
+      // but vitest's browser conditions load the client entry, whose
+      // createServerReference takes an id.)
+      (createServerReference as unknown as (id: string) => unknown)("rpc-seam-warmup");
 
       const seen: { url?: string; method?: string } = {};
       const originalFetch = globalThis.fetch;
