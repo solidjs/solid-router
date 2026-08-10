@@ -1,4 +1,4 @@
-import { defineConfig, Plugin } from "vitest/config";
+import { configDefaults, defineConfig, Plugin } from "vitest/config";
 import solidPlugin from "vite-plugin-solid";
 
 export default defineConfig({
@@ -20,6 +20,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
+    // test/ssr needs the SSR JSX transform and the real `isServer`, see vitest.ssr.config.ts
+    exclude: [...configDefaults.exclude, "test/ssr/**"],
     testTransformMode: { web: ["/\.[jt]sx?$/"] },
     setupFiles: ["./test/setup.ts"],
     mockReset: true
