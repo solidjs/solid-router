@@ -31,6 +31,10 @@ import type { CacheEntry, NarrowResponse } from "../types.js";
 const LocationHeader = "Location";
 const PRELOAD_TIMEOUT = 5000;
 const CACHE_TIMEOUT = 180000;
+// When this client booted. Flight-registry entries (sharedConfig.has/load)
+// hold values the server computed while rendering THIS page, so their age is
+// anchored here — not at whenever a late query() call happens to consume one.
+const bootTime = Date.now();
 let cacheMap = new Map<string, CacheEntry>();
 
 // cleanup forward/back cache
@@ -159,7 +163,17 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
       return res;
     }
     let res;
-    if (!isServer && sharedConfig.has && sharedConfig.has(key)) {
+    // Flight entries stay consumable past hydration `done` on purpose — a
+    // boundary inside a deferred claim scope (a lazy route module) can
+    // legitimately make its first query() call after global hydration reads
+    // as done, and must adopt the promise the server DOM was rendered from.
+    // But the entry gets stamped fresh on adoption (the burst-dedup window
+    // below), so consumption is only honest while the payload is no older
+    // than the cache's own retention tolerance: past CACHE_TIMEOUT an entry
+    // the router had fetched itself would already have been swept, so a
+    // first-ever call that late (idle tab, late navigation) refetches
+    // instead of presenting a minutes-old value as fetched-now.
+    if (!isServer && sharedConfig.has && sharedConfig.has(key) && now - bootTime < CACHE_TIMEOUT) {
       res = sharedConfig.load!(key) // hydrating
       // @ts-ignore at least until we add a delete method to sharedConfig
       delete globalThis._$HY.r[key];
