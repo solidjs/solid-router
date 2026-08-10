@@ -77,6 +77,27 @@ describe("fileRoutes", () => {
     expect(routes[1].component).toBe(routes[2].component);
   });
 
+  it("passes eagerly delivered components through un-lazied", () => {
+    // a manifest delivered with `codeSplitting: false` materializes
+    // `$component` as an eager ref: statically imported, `require`-shaped
+    const eager = [
+      {
+        path: "/",
+        page: true,
+        $component: { src: "/routes/index.tsx", require: () => ({ default: Home }) },
+        $$route: undefined,
+        children: undefined
+      }
+    ] as const;
+
+    const routes = fileRoutes(eager);
+
+    // the component is the module's own export — no lazy wrapper, so no
+    // moduleUrl/preload machinery and no suspense on first render
+    expect(routes[0].component).toBe(Home);
+    expect((routes[0].component as any).preload).toBeUndefined();
+  });
+
   it("types the route export from its pattern witness", () => {
     // runtime: identity — the config is spread into the definition untouched
     const routes = fileRoutes(entries);

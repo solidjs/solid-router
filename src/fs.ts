@@ -101,6 +101,7 @@ export interface FileRouteLazyRef<M = Record<string, unknown>> {
 
 /** An eager module ref: its picked exports are imported statically. */
 export interface FileRouteEagerRef<M = Record<string, unknown>> {
+  src?: string;
   require(): M;
 }
 
@@ -108,7 +109,8 @@ export interface FileRouteEagerRef<M = Record<string, unknown>> {
 export interface FileRouteEntry {
   path: string;
   page?: boolean;
-  $component?: FileRouteLazyRef<any> | undefined;
+  /** Code-split by default; an eager ref when delivered with `codeSplitting: false`. */
+  $component?: FileRouteLazyRef<any> | FileRouteEagerRef<any> | undefined;
   $$route?: FileRouteEagerRef<any> | undefined;
   children?: readonly FileRouteEntry[] | undefined;
 }
@@ -134,17 +136,22 @@ export type FileRoutesFrom<T extends readonly FileRouteEntry[]> = {
 
 /**
  * Converts the nested page entries of a file-system route manifest into
- * route definitions: `$component` refs become code-split `lazy` components
+ * route definitions: code-split `$component` refs become `lazy` components
  * (their `src` doubles as the `moduleUrl` core resolves assets and islands
- * against), and each entry's `route` config export is spread into its
- * definition. Pass the result to `createRouter({ routes })`.
+ * against), eager refs — a manifest delivered with `codeSplitting: false` —
+ * pass their component through as-is (no `lazy` wrapper; the module is
+ * already statically imported), and each entry's `route` config export is
+ * spread into its definition. Pass the result to `createRouter({ routes })`.
  */
 export function fileRoutes<const T extends readonly FileRouteEntry[]>(
   entries: T
 ): FileRoutesFrom<T> {
   const components = new Map<string, RouteSectionComponent>();
 
-  const componentOf = (ref: FileRouteLazyRef) => {
+  const componentOf = (ref: FileRouteLazyRef | FileRouteEagerRef) => {
+    if ("require" in ref) {
+      return (ref as FileRouteEagerRef<{ default: RouteSectionComponent }>).require().default;
+    }
     let component = components.get(ref.src);
     if (!component) {
       component = lazy(ref.import as () => Promise<{ default: RouteSectionComponent }>, ref.src);
