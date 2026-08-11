@@ -4,31 +4,77 @@ on:
   push:
     branches:
       - main
+      - next
+  # Manual re-run lever: publishes whatever the branch's committed versions
+  # say is unreleased (changeset publish is idempotent against npm).
+  workflow_dispatch: ~
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
+permissions:
+  contents: write
+  pull-requests: write
+  # npm trusted publishing (OIDC): the release job mints a short-lived npm
+  # credential from the workflow's identity — no NPM_TOKEN secret. The
+  # trusted publisher registered on npmjs.com must name this repo and this
+  # workflow file (release.yml) or the publish fails with E403/E404.
+  id-token: write
+
 jobs:
+  # Publish gate: release.yml is the only workflow that runs on pushes to
+  # next, so without this job a push would publish to npm with zero tests
+  # run (main relies on PR checks, next takes direct pushes).
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      # pnpm version comes from package.json's packageManager field; a
+      # conflicting `version` input makes pnpm/action-setup fail outright.
+      - uses: pnpm/action-setup@v4
+
+      - name: Use Node.js from nvmrc
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm i --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Test (client, server, types)
+        run: pnpm test
+
   release:
     name: Release
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
-        with:
-          # https://github.com/pnpm/pnpm/issues/8953
-          version: 9.15.3
 
-      - name: Use Node.js from nvmrc
+      # Node 24 (npm >= 11.5.1) for the publish leg: OIDC trusted publishing
+      # needs a newer npm than the .nvmrc toolchain (Node 22 / npm 10) ships.
+      - name: Setup Node.js 24.x
         uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version: 24.x
           registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
 
       - name: Install Dependencies
         run: pnpm i --frozen-lockfile
 
+      # `changeset publish` respects pre mode: on next (pre tag "next" in
+      # .changeset/pre.json) it publishes with --tag next; on main it
+      # publishes latest. Nothing here hardcodes a dist-tag.
       - name: Create Release Pull Request or Publish to npm
         id: changesets
         uses: changesets/action@v1
@@ -36,4 +82,6 @@ jobs:
           publish: pnpm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Provenance attestation for the published tarball; requires the
+          # OIDC id-token permission above.
+          NPM_CONFIG_PROVENANCE: 'true'
