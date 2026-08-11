@@ -175,6 +175,86 @@ describe("createFlightDataCollector (nested trees and thunks)", () => {
   });
 });
 
+// The fold semantics for redirects that stay under a shared parent layout:
+// which segments of the destination match re-run their queries is decided
+// entirely by the outcome's revalidateKeys (audited 2026-08-11). Keyless
+// means revalidate-everything — the deliberate default since #407 — while
+// explicit keys scope retained segments to the named entries, with newly
+// entered segments always collecting fully past the filter (the client has
+// no cache for them yet).
+describe("createFlightDataCollector (shared-parent fold)", () => {
+  const executions: Record<string, number> = {};
+  const counted = <T,>(name: string, value: T) =>
+    query(async () => {
+      executions[name] = (executions[name] ?? 0) + 1;
+      return value;
+    }, name);
+
+  const getLayout = counted("layoutData", "layout");
+  const getStats = counted("statsData", "stats");
+  const getA = counted("aData", "a");
+  const getB = counted("bData", "b");
+
+  // /dash is the segment ABOVE the fold for a /dash/a -> /dash/b redirect
+  const collect = createFlightDataCollector({
+    routes: {
+      path: "/dash",
+      preload: () => {
+        getLayout();
+        getStats();
+      },
+      children: [
+        { path: "/a", preload: () => getA() },
+        { path: "/b", preload: () => getB() }
+      ]
+    }
+  });
+
+  beforeEach(() => {
+    for (const key in executions) delete executions[key];
+  });
+
+  test("keyless redirects re-run retained parent segments (the revalidate-all default)", async () => {
+    const event = createEvent("http://localhost:3000/dash/a");
+    const response = new Response(null, { headers: { Location: "/dash/b" } });
+    const data: any = await collect(event as any, createOutcome(event, response) as any);
+    // no X-Revalidate header = actions' invalidate-everything default: the
+    // shared parent's queries re-run and ride the payload alongside the new
+    // segment's (the departing leaf /dash/a is not part of the destination
+    // match, so its query does not run)
+    expect(Object.keys(data).sort()).toEqual(["bData[]", "layoutData[]", "statsData[]"]);
+    expect(executions).toEqual({ layoutData: 1, statsData: 1, bData: 1 });
+  });
+
+  test("revalidate: [] skips retained parents but still collects newly entered segments", async () => {
+    const event = createEvent("http://localhost:3000/dash/a");
+    // redirect(url, { revalidate: [] }) encodes as an empty X-Revalidate
+    // header, which digests to [""] — a filter matching no key
+    const response = new Response(null, {
+      headers: { Location: "/dash/b", "X-Revalidate": "" }
+    });
+    const data: any = await collect(event as any, createOutcome(event, response) as any);
+    // client-nav mimicry: nothing above the fold re-runs; only the segment
+    // the redirect newly enters fetches and flies
+    expect(Object.keys(data)).toEqual(["bData[]"]);
+    expect(executions).toEqual({ bData: 1 });
+  });
+
+  test("explicit keys re-run their entries AND newly entered segments collect fully", async () => {
+    const event = createEvent("http://localhost:3000/dash/a");
+    const response = new Response(null, {
+      headers: { Location: "/dash/b", "X-Revalidate": "statsData" }
+    });
+    const data: any = await collect(event as any, createOutcome(event, response) as any);
+    // the union: the named key re-runs on the retained parent (its sibling
+    // layoutData does not), and the newly entered segment's unnamed query
+    // still collects past the filter — explicit invalidation layers new
+    // fetches on top rather than replacing them or refetching everything
+    expect(Object.keys(data).sort()).toEqual(["bData[]", "statsData[]"]);
+    expect(executions).toEqual({ statsData: 1, bData: 1 });
+  });
+});
+
 describe("createFlightDataCollector (root preload)", () => {
   const getRootData = query(async () => "root", "rootData");
 

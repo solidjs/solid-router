@@ -97,6 +97,49 @@ describe("setupFlightDataConsumer", () => {
     expect(fetchNotes).toHaveBeenCalledTimes(1);
   });
 
+  test("adopts a keyless flight payload without refetching the seeded queries", async () => {
+    // the keyless single-flight redirect: invalidation is blanket (no
+    // X-Revalidate header), but entries the payload seeded are fresh again
+    // by the time the revalidation sweep runs — the shared layout's query
+    // adopts the server's value with no second fetch
+    const fetchLayout = vi.fn(async () => "stale-layout");
+    const layout = query(fetchLayout, "layout");
+    await layout();
+
+    setupFlightDataConsumer(router);
+    const save = async () => {
+      await consumer!(
+        { "layout[]": "fresh-layout" },
+        { response: new Response(null, { headers: { Location: "/dash/b" } }) }
+      );
+      return "saved";
+    };
+    await action(save, "keyless-save").call({ r: router });
+
+    expect(navigate).toHaveBeenCalledWith("/dash/b");
+    expect(await layout()).toBe("fresh-layout");
+    expect(fetchLayout).toHaveBeenCalledTimes(1);
+  });
+
+  test("a keyless flight response still revalidates queries missing from the payload", async () => {
+    // the #407 default: single flight only collects preload-reachable
+    // queries, so a keyless mutation must still invalidate everything else —
+    // a cached query absent from the payload refetches on its next read
+    const fetchOther = vi.fn(async () => "other");
+    const other = query(fetchOther, "other");
+    await other();
+
+    setupFlightDataConsumer(router);
+    const save = async () => {
+      await consumer!({ "layout[]": "fresh-layout" }, { response: new Response(null) });
+      return "saved";
+    };
+    await action(save, "keyless-save").call({ r: router });
+    await other();
+
+    expect(fetchOther).toHaveBeenCalledTimes(2);
+  });
+
   test("continues to revalidate plain client action results", async () => {
     const fetchNotes = vi.fn(async () => ["notes"]);
     const notes = query(fetchNotes, "notes");
