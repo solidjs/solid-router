@@ -1,5 +1,27 @@
 # @solidjs/router
 
+## 2.0.0-next.15
+
+### Patch Changes
+
+- 3daa4d0: Slot hydration flight-entry adoption into the cache's freshness model instead of granting it fetched-now freshness. `query()`'s keyed consumption path (`sharedConfig.has/load`) deliberately stays open past hydration `done` — a boundary inside a deferred claim scope (a lazy route module) can make its first call late and must adopt the promise the server DOM was rendered from (#2964) — but adoption used to stamp the seeded entry fresh, so a payload consumed on a client-side navigation minutes after load masqueraded as just-fetched for the staleness logic. The adopted payload is now treated as a fetch performed at boot: the entry is stamped with the payload's age (not consumption time), and adoption itself is gated per navigation intent — hydration and late claim reads (no navigation in flight) adopt at any age since server-DOM consistency wins; back/forward restores honor the payload within `CACHE_TIMEOUT` (180s, the cache's own retention bar); an active new navigation or preload accepts it only within `PRELOAD_TIMEOUT` (5s), exactly the window a real preload would get, and refetches otherwise. The hydration render burst still dedups through the normal window/count reuse (it happens within milliseconds of boot), and a preloaded-then-abandoned payload no longer satisfies a navigation that comes along after the window.
+- bae09cc: The `@solidjs/router/fs` emission adapter consumes eagerly delivered manifests: a `$component` ref materialized with `filesystem-routing`'s `codeSplitting: false` arrives `require()`-shaped (statically imported), and `fileRoutes` passes its component through as-is — no `lazy()` wrapper, no suspense on first render — while code-split `import()` refs keep the `lazy` path unchanged.
+- c2fddb0: Drop the eager `@solidjs/web/server-functions` imports from the router's
+  always-shipped graph (requires the solid release exporting the
+  server-function registry layer from the core entries). `query()` now reads
+  the `GET` declaration wrapper and `decodeResponse` through the late-bound
+  RPC seam (`getServerFunctionRPC` from `@solidjs/web`), which the transport
+  fills when a `'use server'` reference is created — and `routing.ts` takes
+  the flash-cookie helpers from the core entry, where they live beside the
+  cookie codec. An app using the router with zero server functions no longer
+  ships seroval + the `seroval-plugins/web` set + the fetch RPC client
+  (~7.5 KB gz eager in the basic template, measured); apps with server
+  functions behave exactly as before — the seam is filled before any
+  integration code can hold a reference. The action layer is untouched: it is
+  the transport's real consumer and only enters a bundle that uses actions
+  (or lazily, through the server-form submit path).
+- 46158a3: Update `solid-js` / `@solidjs/web` to `2.0.0-beta.33` and raise the peer floor to match (dom-expressions `0.50.0-next.41` line, resolved transitively from the registry). beta.33 publishes the pieces the router now reads through core: the server-function declaration/metadata registry and the late-bound RPC seam (`getServerFunctionRPC`) the transport fills, so the router's eager graph stays codec-free. The earlier beta.32 migration rides along: tests and docs moved off the removed `renderToStringAsync` — awaiting `renderToStream(...)` resolves with the settled HTML and is the fully-settled-string form of the streaming render.
+
 ## 2.0.0-next.14
 
 ### Patch Changes

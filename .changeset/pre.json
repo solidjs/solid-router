@@ -19,9 +19,12 @@
     "export-default-search-types",
     "fix-stale-params-on-navigation",
     "flight-cookies-from-redirect",
+    "flight-entry-consumption-age-gate",
     "form-aria-busy",
+    "fs-eager-components",
     "fs-emission-adapter",
     "is-routing-native-pops",
+    "late-bound-server-function-codec",
     "lazy-before-leave",
     "lazy-paths-proxy",
     "lazy-route-subtrees",
@@ -51,6 +54,7 @@
     "typed-search-params",
     "update-solid-beta-18",
     "update-solid-beta-21",
+    "update-solid-beta-33",
     "update-solid-beta-7",
     "warn-nested-router-mounts"
   ]
