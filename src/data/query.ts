@@ -163,31 +163,49 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
       return res;
     }
     let res;
+    let adopted = false;
     // Flight entries stay consumable past hydration `done` on purpose — a
     // boundary inside a deferred claim scope (a lazy route module) can
     // legitimately make its first query() call after global hydration reads
-    // as done, and must adopt the promise the server DOM was rendered from.
-    // But the entry gets stamped fresh on adoption (the burst-dedup window
-    // below), so consumption is only honest while the payload is no older
-    // than the cache's own retention tolerance: past CACHE_TIMEOUT an entry
-    // the router had fetched itself would already have been swept, so a
-    // first-ever call that late (idle tab, late navigation) refetches
-    // instead of presenting a minutes-old value as fetched-now.
-    if (!isServer && sharedConfig.has && sharedConfig.has(key) && now - bootTime < CACHE_TIMEOUT) {
-      res = sharedConfig.load!(key) // hydrating
-      // @ts-ignore at least until we add a delete method to sharedConfig
-      delete globalThis._$HY.r[key];
-    } else res = fn(...(args as any));
+    // as done, and must adopt the promise the server DOM was rendered from
+    // (#2964). Adoption slots into the cache's own freshness model as a
+    // fetch that happened at boot: outside a navigation (no intent — the
+    // hydration/claim case) DOM consistency wins at any age; a back/forward
+    // restore honors the payload within the cache's retention window, the
+    // same bar the sweep applies to entries the router fetched itself; an
+    // active navigation (or its preload) accepts the payload only while a
+    // real preload of the same age would still satisfy it — anything older
+    // refetches instead of serving a minutes-old value on a fresh navigation.
+    if (!isServer && sharedConfig.has && sharedConfig.has(key)) {
+      const payloadAge = now - bootTime;
+      if (!intent || payloadAge < (intent === "native" ? CACHE_TIMEOUT : PRELOAD_TIMEOUT)) {
+        adopted = true;
+        res = sharedConfig.load!(key); // hydrating
+        // @ts-ignore at least until we add a delete method to sharedConfig
+        delete globalThis._$HY.r[key];
+      }
+      // A payload too old for this intent stays in the registry: it is
+      // inert while the refetched entry below lives, but a later claim
+      // read (no intent) may still need it for server-DOM consistency.
+    }
+    if (!adopted) res = fn(...(args as any));
 
+    // Adopted entries are stamped at boot — when their data was actually
+    // fetched — not at consumption. The hydration render burst still dedups
+    // through the normal window/count reuse above (it happens within
+    // milliseconds of boot), while a navigation that comes along later sees
+    // the payload's true age and refetches past PRELOAD_TIMEOUT, exactly as
+    // it would for a preload performed when the server fetched the data.
+    const stamp = adopted ? bootTime : now;
     if (cached) {
-      cached[0] = now;
+      cached[0] = stamp;
       cached[1] = res;
       cached[3] = intent;
       !isServer && intent === "navigate" && cached[4][1](cached[0]); // update version
     } else {
       cache.set(
         key,
-        (cached = [now, res, , intent, createSignal(now, { ownedWrite: true }) as Signal<number> & { count: number }])
+        (cached = [stamp, res, , intent, createSignal(stamp, { ownedWrite: true }) as Signal<number> & { count: number }])
       );
       cached[4].count = 0;
     }
