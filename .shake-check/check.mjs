@@ -14,7 +14,7 @@
 //      production build (`isServer` folds to false). Same inlining caveat;
 //      everything flash-related must be gone.
 //   3. "split" — the per-module `solid`-condition output (dist/index.jsx)
-//      that every vite-plugin-solid app consumes, compiled with
+//      that every @solidjs/vite-plugin app consumes, compiled with
 //      babel-preset-solid and code splitting allowed. This is where the
 //      data-layer guarantee lives: the entry chunk must exclude
 //      action/query/flash entirely, with the serverForms delegation

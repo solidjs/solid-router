@@ -4,7 +4,7 @@
 // src/server.ts, which the jsdom suite cannot reach. The solid plugin runs
 // in ssr mode so specs can hand JSX <Route> trees to the collector.
 import { defineConfig, Plugin } from "vitest/config";
-import solidPlugin from "vite-plugin-solid";
+import solidPlugin from "@solidjs/vite-plugin";
 
 export default defineConfig({
   plugins: [solidPlugin({ ssr: true, solid: { hydratable: false } }) as Plugin],

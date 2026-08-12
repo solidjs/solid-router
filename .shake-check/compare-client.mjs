@@ -14,7 +14,7 @@ import { gzipSync } from "node:zlib";
 const here = dirname(fileURLToPath(import.meta.url));
 
 const BASELINE = "./baseline/package/dist/index.js";
-// The `solid` condition is what every bundled project resolves (vite-plugin-solid
+// The `solid` condition is what every bundled project resolves (@solidjs/vite-plugin
 // puts it first, SSR or not): index.jsx + the per-module tsc output, compiled by
 // the app's solid preset. The flat dist/index.js only serves no-build usage.
 const V1 = "../dist/index.jsx";

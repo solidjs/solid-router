@@ -41,6 +41,7 @@
     "release": "pnpm build && changeset publish"
   },
   "devDependencies": {
+    "@solidjs/vite-plugin": "3.0.0-next.27",
     "@solidjs/web": "2.0.0-beta.33",
     "@babel/core": "^7.26.0",
     "@babel/preset-typescript": "^7.26.0",
@@ -57,7 +58,6 @@
     "solid-js": "2.0.0-beta.33",
     "typescript": "^5.7.2",
     "vite": "^6.0.0",
-    "vite-plugin-solid": "3.0.0-next.10",
     "vitest": "^2.1.6"
   },
   "peerDependencies": {
