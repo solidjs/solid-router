@@ -1,4 +1,7 @@
 import { Accessor, flush, runWithOwner, type Signal } from "solid-js";
+// standalone import: `DEV` is undefined in solid's production build, so app
+// bundlers fold `DEV &&` diagnostics out of shipped bundles
+import { DEV } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import {
   createComponent,
@@ -468,7 +471,8 @@ export function resolveLazySubtree(
       return record.resolved;
     },
     e => {
-      if (!isServer) record.error = e ?? new Error("lazy subtree load failed");
+      // ?? Error(): a held undefined would read as "no failure" and refire
+      if (!isServer) record.error = e ?? new Error();
       record.promise = undefined;
       throw e;
     }
@@ -640,7 +644,7 @@ function createLocation(
         // doubled leading slashes would otherwise parse as protocol-relative
         return new URL(path_[0] === "/" ? mockBase + path_ : path_, origin);
       } catch (err) {
-        console.error(`Invalid path ${path_}`);
+        DEV && console.error(`Invalid path ${path_}`);
         return prev;
       }
     },
@@ -898,7 +902,7 @@ export function createRouterContext(
         } else if (utils.go) {
           utils.go(to);
         } else {
-          console.warn("Router integration does not support relative routing");
+          DEV && console.warn("Router integration does not support relative routing");
         }
         return;
       }

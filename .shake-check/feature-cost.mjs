@@ -15,6 +15,16 @@ const root = join(here, "..");
 
 const SHIMMED = ["@solidjs/web", "@solidjs/web/server-functions"];
 const EXT = "\0ext:";
+// solid-js stays external (its cost is counted separately), but app bundlers
+// see `const DEV = undefined` from solid's production build and fold `DEV &&`
+// branches away — replicate that folding for our source.
+const devFold = {
+  name: "dev-fold",
+  transform(code, id) {
+    if (id.includes("/src/"))
+      return code.replace(/import \{ DEV \} from "solid-js";/, "const DEV = undefined;");
+  }
+};
 const webShim = {
   name: "web-shim",
   resolveId(id) {
@@ -98,6 +108,7 @@ async function measure(stub) {
     treeshake: { moduleSideEffects: "no-external" },
     plugins: [
       ...(stub ? [{ name: "stub", ...stub }] : []),
+      devFold,
       webShim,
       nodeResolve({ extensions: [".js", ".ts", ".tsx"], rootDir: root }),
       babel({

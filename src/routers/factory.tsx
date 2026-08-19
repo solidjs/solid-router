@@ -2,6 +2,9 @@
 
 import type { Owner } from "solid-js";
 import { createSignal, getOwner, onCleanup, sharedConfig, untrack } from "solid-js";
+// standalone import: `DEV` is undefined in solid's production build, so app
+// bundlers fold `DEV &&` diagnostics out of shipped bundles
+import { DEV } from "solid-js";
 import { getRequestEvent, isServer } from "@solidjs/web";
 import type { JSX } from "@solidjs/web";
 import { setupLinkClaims } from "../claims.js";
@@ -269,7 +272,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
     // fight it — stale content on click navigations, conflicting link
     // attributes. Compose route trees instead; lazy subtrees are the planned
     // answer for definitions unknown at build time.
-    if (useOptionalContext(RouterContextObj)) {
+    if (DEV && useOptionalContext(RouterContextObj)) {
       console.warn(
         "Mounting a router inside another router is not supported. " +
           "Compose route trees in one createRouter config instead."
