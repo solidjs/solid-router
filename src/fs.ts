@@ -154,7 +154,11 @@ export function fileRoutes<const T extends readonly FileRouteEntry[]>(
     }
     let component = components.get(ref.src);
     if (!component) {
-      component = lazy(ref.import as () => Promise<{ default: RouteSectionComponent }>, ref.src);
+      component = lazy(
+        ref.import as () => Promise<{ default: RouteSectionComponent }>,
+        undefined,
+        ref.src
+      );
       components.set(ref.src, component);
     }
     return component;
