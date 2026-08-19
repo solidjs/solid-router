@@ -14,6 +14,7 @@
     "default-scroll-restoration",
     "define-route-typed-params",
     "define-routes-helper",
+    "dev-gate-diagnostics",
     "drop-leaving-section-gate",
     "drop-scroll-growth-chasing",
     "export-default-search-types",
@@ -40,6 +41,7 @@
     "renumber-next-line-two-x",
     "require-solid-beta-22",
     "response-stub-committed-type",
+    "retry-failed-lazy-subtrees",
     "router-factory-typed-paths",
     "router-navigation-warning-fix",
     "scroll-restoration-hydration-transparent",
@@ -57,6 +59,7 @@
     "update-solid-beta-33",
     "update-solid-beta-7",
     "update-solid-rc-0",
+    "update-solid-rc-1",
     "warn-nested-router-mounts"
   ]
 }

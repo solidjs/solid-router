@@ -1,5 +1,13 @@
 # @solidjs/router
 
+## 2.0.0-next.17
+
+### Patch Changes
+
+- c22e671: Developer diagnostics (the nested-router warning, the relative-routing-unsupported warning, the invalid-path error log) are now gated behind solid's `DEV` flag, so app bundlers fold them out of production bundles.
+- 569743d: A failed lazy route subtree load now surfaces to the nearest error boundary like a failed `lazy()` component, instead of silently stalling the navigation on the old screen. The failure is not cached: the rejection is held only through its settlement flush (so the erroring match computation delivers it once rather than refiring the import in a loop), and any later attempt — an error boundary `reset()`, a new navigation — re-fetches, matching the platform's contract for failed dynamic imports and `lazy()` in solid 2.0.0-rc.1. Failed loads no longer surface as unhandled promise rejections, and a speculative preload that fails defers silently to the real navigation.
+- 569743d: Update to solid-js 2.0.0-rc.1. Adapts `fileRoutes` to `lazy()`'s new signature (the module URL moved to the third argument behind an options slot) and raises the peer dependency floor to `^2.0.0-rc.1`.
+
 ## 2.0.0-next.16
 
 ### Patch Changes
