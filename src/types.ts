@@ -342,6 +342,12 @@ export interface LazyBoundary {
   thunk: LazyRouteChildren;
   promise?: Promise<readonly RouteDefinition[]>;
   resolved?: readonly RouteDefinition[];
+  /** A client load failure, held through its settlement flush so every
+   * recompute it triggers delivers the same error instead of refiring the
+   * import; cleared a microtask after first delivery so retries can run. */
+  error?: unknown;
+  /** The pending clear of `error` has been scheduled. */
+  sweep?: boolean;
 }
 
 export interface Branch {

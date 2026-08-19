@@ -2,6 +2,7 @@
 // The table's code loads on demand — hover intent or navigation kicks it and
 // the load folds into the navigation transition — while matching, params,
 // preloads, and `match()` all continue through the resolved routes.
+import { createErrorBoundary } from "solid-js";
 import { render } from "@solidjs/web";
 import { vi } from "vitest";
 import {
@@ -99,9 +100,10 @@ describe("lazy route subtrees", () => {
     }
   });
 
-  test("a failed subtree load holds the old screen and the next navigation retries", async () => {
+  test("a failed subtree load reaches the error boundary and the next navigation retries", async () => {
     let thunkCalls = 0;
     let navigate!: Navigator;
+    const caught: unknown[] = [];
     const Home = () => {
       navigate = useNavigate();
       return <div data-route="home">Home</div>;
@@ -124,20 +126,33 @@ describe("lazy route subtrees", () => {
       history: memoryHistory()
     });
 
-    const { div, cleanup } = mount(Router);
+    let resetBoundary!: () => void;
+    const Bounded = () => {
+      const content = createErrorBoundary(
+        () => <Router />,
+        (error, reset): any => {
+          caught.push(error());
+          resetBoundary = reset;
+          return <p data-route="error">failed</p>;
+        }
+      );
+      return <div>{content() as any}</div>;
+    };
+
+    const { div, cleanup } = mount(Bounded);
     try {
       navigate("/plugins");
       await settle(10);
-      // the failure is held, not looped: exactly one import attempt, and the
-      // old screen stays up (the parked transition never commits)
+      // exactly one import attempt (held failure, no refire loop), and the
+      // error committed to the nearest boundary like a failed lazy() component
       expect(thunkCalls).toBe(1);
       expect(div.querySelector('[data-route="plugin-home"]')).toBeFalsy();
-      expect(div.querySelector('[data-route="home"]')).toBeTruthy();
+      expect(div.querySelector('[data-route="error"]')).toBeTruthy();
+      expect((caught[0] as Error).message).toBe("chunk load failed");
 
-      // the failure is not cached across navigations: re-entering re-fetches
-      navigate("/");
-      await settle();
-      navigate("/plugins");
+      // the failure is not cached across attempts: resetting the boundary
+      // remounts the router at /plugins — a fresh attempt that re-fetches
+      resetBoundary();
       await settle(10);
       expect(thunkCalls).toBe(2);
       expect(div.querySelector('[data-route="plugin-home"]')).toBeTruthy();

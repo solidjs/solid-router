@@ -426,33 +426,35 @@ function getLazyBoundary(thunk: LazyRouteChildren): LazyBoundary {
   return record;
 }
 
-// Client-side failed loads, held until the next navigation attempt. The
-// rejected promise must stay cached for the *current* location — the erroring
-// match computation recomputes when the carried promise settles, and a bare
-// retry there would refire the import in a tight loop while it keeps failing.
-// But not across locations: the platform re-fetches a failed dynamic import
-// (same contract as solid's lazy(), 2.0.0-rc.1), so a fresh navigation
-// deserves a fresh attempt. Server records are shared across requests and
-// never cache failures — each request retries.
-const failedSubtrees = new Set<LazyBoundary>();
-
-/** Make previously failed subtree loads retryable (a new navigation attempt). */
-function retryFailedSubtrees(): void {
-  for (const record of failedSubtrees) record.promise = undefined;
-  failedSubtrees.clear();
-}
-
 /**
  * Kicks (or joins) a boundary's resolution. Returns the resolved routes
- * synchronously once available, the in-flight (or failed-for-this-location)
- * promise otherwise. Commit is always async — even for thunks returning
- * arrays — so the version bump never writes a signal from inside a render
- * computation.
+ * synchronously once available, the in-flight promise otherwise.
+ *
+ * Failure contract (same as solid's lazy(), 2.0.0-rc.1: the platform
+ * re-fetches a failed dynamic import): a client rejection is held through its
+ * settlement flush. The recomputes the settled promise triggers — the parked
+ * transition's and the mainline commit's — both consume it here as a
+ * synchronous throw, becoming cached error status that reaches the nearest
+ * error boundary like a failed lazy() component. The hold clears a microtask
+ * after the first delivery, so any later recompute — boundary reset(), a new
+ * navigation — finds a clean record and retries the import. Holding through
+ * the flush is what keeps the erroring computation from refiring the import
+ * in a tight loop while it fails. Server records are shared across requests
+ * and hold nothing — each request retries. Commit is always async — even for
+ * thunks returning arrays — so the version bump never writes a signal from
+ * inside a render computation.
  */
 export function resolveLazySubtree(
   record: LazyBoundary
 ): readonly RouteDefinition[] | Promise<readonly RouteDefinition[]> {
   if (record.resolved) return record.resolved;
+  if (record.error !== undefined) {
+    if (!record.sweep) {
+      record.sweep = true;
+      queueMicrotask(() => (record.error = record.sweep = undefined));
+    }
+    throw record.error;
+  }
   return (record.promise ||= Promise.resolve(record.thunk()).then(
     m => {
       const routes = Array.isArray(m)
@@ -466,8 +468,8 @@ export function resolveLazySubtree(
       return record.resolved;
     },
     e => {
-      if (isServer) record.promise = undefined;
-      else failedSubtrees.add(record);
+      if (!isServer) record.error = e ?? new Error("lazy subtree load failed");
+      record.promise = undefined;
       throw e;
     }
   ));
@@ -793,20 +795,11 @@ export function createRouterContext(
   }
   let submissions: Signal<Submission<any, any>[]> | undefined;
 
-  let lastMatchedPathname: string | undefined;
   const matches = createMemo(() => {
     const pathname =
       typeof options.transformUrl === "function"
         ? options.transformUrl(location.pathname)
         : location.pathname;
-    // A pathname change is a fresh navigation attempt: failed subtree loads
-    // become retryable. Same-pathname recomputes (the erroring computation
-    // surfacing its failure, version bumps) re-throw the held error instead,
-    // bounding retries to one per navigation.
-    if (pathname !== lastMatchedPathname) {
-      lastMatchedPathname = pathname;
-      failedSubtrees.size && retryFailedSubtrees();
-    }
     const m = getRouteMatches(branches(), pathname);
     // An unresolved lazy subtree parks readers on not-ready semantics — the
     // navigation transition (or the SSR stream) holds until the table lands.
@@ -834,7 +827,20 @@ export function createRouterContext(
   // in-flight fork — including popstate traversals and the lazy-subtree
   // resolution matches() parks on.
   const isRouting = createMemo(
-    () => isNavigating() || isPending(() => (matches(), location.search, location.hash))
+    () =>
+      isNavigating() ||
+      isPending(() => {
+        // A real error means the navigation settled (failed) — it surfaces
+        // to the app through render reads, not through this derivation.
+        // Not-ready must keep propagating so isPending sees the parking.
+        try {
+          matches();
+        } catch (e) {
+          if (e instanceof NotReadyError) throw e;
+        }
+        location.search;
+        location.hash;
+      })
   );
 
   const buildParams = () => mergeParams(matches());
@@ -999,14 +1005,17 @@ export function createRouterContext(
     // An unresolved lazy subtree in the chain: the placeholder's
     // component.preload (below) kicks the table load; once it lands,
     // preload again so the real inner routes warm too. Preloads are
-    // speculative: a rejected load is ignored here — the real navigation
-    // surfaces and retries it.
+    // speculative: a failed load (held sync throw or rejection) is ignored
+    // here — the real navigation surfaces and retries it.
     const boundary = matches.find(m => m.route.lazy && !m.route.lazy.resolved);
-    boundary &&
-      (resolveLazySubtree(boundary.route.lazy!) as Promise<unknown>).then(
-        () => preloadRoute(url, preloadData),
-        () => {}
-      );
+    if (boundary) {
+      try {
+        (resolveLazySubtree(boundary.route.lazy!) as Promise<unknown>).then(
+          () => preloadRoute(url, preloadData),
+          () => {}
+        );
+      } catch {}
+    }
     const prevIntent = intent;
     intent = "preload";
     for (let match in matches) {
