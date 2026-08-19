@@ -154,7 +154,13 @@ export function fileRoutes<const T extends readonly FileRouteEntry[]>(
     }
     let component = components.get(ref.src);
     if (!component) {
-      component = lazy(ref.import as () => Promise<{ default: RouteSectionComponent }>, ref.src);
+      // moduleUrl is lazy()'s third argument as of solid 2.0.0-rc.1 (options
+      // moved second); route components are default exports, so no { export }.
+      component = lazy(
+        ref.import as () => Promise<{ default: RouteSectionComponent }>,
+        undefined,
+        ref.src
+      );
       components.set(ref.src, component);
     }
     return component;

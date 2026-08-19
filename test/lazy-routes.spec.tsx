@@ -99,6 +99,53 @@ describe("lazy route subtrees", () => {
     }
   });
 
+  test("a failed subtree load holds the old screen and the next navigation retries", async () => {
+    let thunkCalls = 0;
+    let navigate!: Navigator;
+    const Home = () => {
+      navigate = useNavigate();
+      return <div data-route="home">Home</div>;
+    };
+
+    const Router = createRouter({
+      routes: [
+        { path: "/", component: Home },
+        {
+          path: "/plugins",
+          component: (props: any) => <section data-route="plugins">{props.children}</section>,
+          children: () => {
+            thunkCalls++;
+            return thunkCalls === 1
+              ? Promise.reject(new Error("chunk load failed"))
+              : Promise.resolve({ default: pluginRoutes });
+          }
+        }
+      ] as const,
+      history: memoryHistory()
+    });
+
+    const { div, cleanup } = mount(Router);
+    try {
+      navigate("/plugins");
+      await settle(10);
+      // the failure is held, not looped: exactly one import attempt, and the
+      // old screen stays up (the parked transition never commits)
+      expect(thunkCalls).toBe(1);
+      expect(div.querySelector('[data-route="plugin-home"]')).toBeFalsy();
+      expect(div.querySelector('[data-route="home"]')).toBeTruthy();
+
+      // the failure is not cached across navigations: re-entering re-fetches
+      navigate("/");
+      await settle();
+      navigate("/plugins");
+      await settle(10);
+      expect(thunkCalls).toBe(2);
+      expect(div.querySelector('[data-route="plugin-home"]')).toBeTruthy();
+    } finally {
+      cleanup();
+    }
+  });
+
   test("the load folds into the navigation transition — old screen holds until the table lands", async () => {
     let resolveTable!: (m: { default: typeof pluginRoutes }) => void;
     let navigate!: Navigator;
