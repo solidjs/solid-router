@@ -56,6 +56,13 @@ function getCache() {
   return (req.router || (req.router = {})).cache || (req.router.cache = new Map());
 }
 
+// Other keyed stores participating in revalidation (live query channels)
+// register a sweep here — revalidate() stays the one invalidation verb.
+const revalidateHooks: ((keys: string[] | void) => void)[] = [];
+export function registerRevalidateHook(hook: (keys: string[] | void) => void) {
+  revalidateHooks.push(hook);
+}
+
 /**
  * Revalidates the given cache entry/entries.
  */
@@ -65,6 +72,8 @@ export function revalidate(key?: string | string[] | void, force = true) {
     force && (entry[0] = 0); //force cache miss
     entry[4][1](now); // retrigger live signals
   });
+  const keys = key === undefined ? undefined : Array.isArray(key) ? key : [key];
+  for (const hook of revalidateHooks) hook(keys);
 }
 
 export function cacheKeyOp(key: string | string[] | void, fn: (cacheEntry: CacheEntry) => void) {
@@ -338,7 +347,7 @@ query.delete = (key: string) => getCache().delete(key);
 
 query.clear = () => getCache().clear();
 
-function matchKey(key: string, keys: string[]) {
+export function matchKey(key: string, keys: string[]) {
   for (let k of keys) {
     if (k && key.startsWith(k)) return true;
   }
