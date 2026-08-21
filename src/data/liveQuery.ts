@@ -1,14 +1,23 @@
-// standalone import: `DEV` is undefined in solid's production build, so app
-// bundlers fold `DEV &&` diagnostics out of shipped bundles
-import { DEV, createSignal, type Signal } from "solid-js";
-import { getServerFunctionMetadata, isServer, isServerFunction } from "@solidjs/web";
-import { hashKey, matchKey, registerRevalidateHook } from "./query.js";
+import { createSignal, type Signal } from "solid-js";
+import {
+  getServerFunctionMetadata,
+  getServerFunctionRPC,
+  isServer,
+  isServerFunction
+} from "@solidjs/web";
+import {
+  hashKey,
+  matchKey,
+  registerFlightDataHook,
+  registerRevalidateHook
+} from "./query.js";
 
-// The transport brand (registered symbol — no import needed): computations
-// meeting a branded iterable apply live SSR policy (document face takes the
-// first value; hydration re-runs the compute after adoption to reconnect).
-// The multicast iterable carries it so a channel consumer gets the same
-// treatment a raw live() call would.
+// The live-source brand (registered symbol — no transport import needed):
+// computations meeting a branded iterable apply live SSR policy (document
+// face takes the first value; hydration re-runs the compute after adoption
+// to reconnect). liveQuery writes it on both faces itself — the server-side
+// resolved iterable and the client-side multicast iterable — so a producer
+// needs no separate live() declaration to be live here.
 const LIVE_SOURCE = Symbol.for("solid.LiveSource");
 
 export type LiveQueryStatus = "idle" | "connecting" | "connected" | "reconnecting" | "closed";
@@ -20,7 +29,7 @@ type Channel = {
   /** bumps once per delivered value — consumers diff against it */
   version: number;
   latest: any;
-  /** sticky failure: non-live sources have no retry story, consumers rethrow */
+  /** sticky first-connect failure — consumers rethrow (post-connect deaths retry) */
   error: any;
   done: boolean;
   waiters: Set<() => void>;
@@ -55,58 +64,76 @@ function wake(ch: Channel) {
 async function connect(ch: Channel) {
   const gen = ch.gen;
   const setStatus = statusSignal(ch.key)[1];
+  let attempts = 0;
   setStatus(ch.version ? "reconnecting" : "connecting");
-  try {
-    const result = await ch.call();
-    if (gen !== ch.gen || ch.done) {
-      // superseded (reconnect) or torn down while connecting: the arrived
-      // stream must still be ended or its request leaks
-      result?.[Symbol.asyncIterator] && result[Symbol.asyncIterator]().return?.();
-      return;
-    }
-    // A live()-declared source reports the wire facts its retry loop erases
-    // from the value stream — forward them into the channel's status. Its
-    // "closed" is redundant with our own done handling below.
-    if (result !== null && typeof result === "object") {
-      try {
-        result.onstatus = (state: string) => {
-          if (gen === ch.gen && state !== "closed") setStatus(state as LiveQueryStatus);
-        };
-      } catch {}
-    }
-    const it =
-      result !== null && typeof result === "object" && result[Symbol.asyncIterator]
-        ? result[Symbol.asyncIterator]()
-        : (async function* () {
-            yield result;
-          })();
-    ch.close = () => {
-      try {
-        const r = it.return && it.return();
-        if (r && typeof (r as any).then === "function") (r as any).then(undefined, () => {});
-      } catch {}
-    };
-    while (true) {
-      const r = await it.next();
-      if (gen !== ch.gen || ch.done) return;
-      if (r.done) break;
-      ch.latest = r.value;
-      ch.version++;
-      setStatus("connected");
+  while (true) {
+    try {
+      const result = await ch.call();
+      if (gen !== ch.gen || ch.done) {
+        // superseded (reconnect) or torn down while connecting: the arrived
+        // stream must still be ended or its request leaks
+        result?.[Symbol.asyncIterator] && result[Symbol.asyncIterator]().return?.();
+        return;
+      }
+      // A live()-declared producer's own retry loop erases deaths from the
+      // value stream and reports them through onstatus — forward those into
+      // the channel's status so both producer kinds read the same. Its
+      // "closed" is redundant with our own done handling below.
+      if (result !== null && typeof result === "object") {
+        try {
+          result.onstatus = (state: string) => {
+            if (gen === ch.gen && state !== "closed") setStatus(state as LiveQueryStatus);
+          };
+        } catch {}
+      }
+      const it =
+        result !== null && typeof result === "object" && result[Symbol.asyncIterator]
+          ? result[Symbol.asyncIterator]()
+          : (async function* () {
+              yield result;
+            })();
+      ch.close = () => {
+        try {
+          const r = it.return && it.return();
+          if (r && typeof (r as any).then === "function") (r as any).then(undefined, () => {});
+        } catch {}
+      };
+      while (true) {
+        const r = await it.next();
+        if (gen !== ch.gen || ch.done) return;
+        if (r.done) break;
+        ch.latest = r.value;
+        ch.version++;
+        attempts = 0; // healthy value: backoff resets
+        setStatus("connected");
+        wake(ch);
+      }
+      ch.done = true;
+      setStatus("closed");
       wake(ch);
+      return;
+    } catch (error) {
+      if (gen !== ch.gen || ch.done) return;
+      if (!ch.version) {
+        // Never connected: fail like a normal call — consumers rethrow.
+        ch.error = error;
+        ch.done = true;
+        setStatus("closed");
+        wake(ch);
+        return;
+      }
+      // A stream that had delivered died: the channel IS the live layer —
+      // reconnect with backoff, latest value keeps serving meanwhile. (A
+      // live()-declared producer never reaches here; its transport retries.)
+      setStatus("reconnecting");
+      await new Promise<void>(resolve => {
+        const timer = setTimeout(resolve, Math.min(500 * 2 ** attempts++, 10000));
+        // connectivity returning wakes the sleep early
+        if (typeof addEventListener === "function")
+          addEventListener("online", () => (clearTimeout(timer), resolve()), { once: true });
+      });
+      if (gen !== ch.gen || ch.done) return;
     }
-    ch.done = true;
-    setStatus("closed");
-    wake(ch);
-  } catch (error) {
-    if (gen !== ch.gen || ch.done) return;
-    // A live() declaration never lets a post-connect death reach here (the
-    // transport retries); this is a first-connect failure or a plain
-    // source dying — either way the channel has no retry story of its own.
-    ch.error = error;
-    ch.done = true;
-    setStatus("closed");
-    wake(ch);
   }
 }
 
@@ -152,17 +179,54 @@ function reconnectChannel(ch: Channel) {
   connect(ch);
 }
 
-// revalidate(key) reaches live channels too: invalidating a live query means
-// reconnect — the source re-yields current state on invocation by contract.
-// Registered on first liveQuery() call, not at module scope: a side-effectful
-// top level would anchor this module into graphs that never use it.
+function push(ch: Channel, value: any) {
+  ch.latest = value;
+  ch.version++;
+  wake(ch);
+}
+
+// Live channels participate in both data protocols. Registered on first
+// liveQuery() call, not at module scope: a side-effectful top level would
+// anchor this module into graphs that never use it.
+//
+// - Explicit revalidate(key) (force) reconnects — the producer re-yields
+//   current state on invocation by contract.
+// - The post-mutation sweep (force=false) does NOT reconnect: the
+//   connection is alive and is itself the freshness mechanism — a
+//   push-driven producer yields the mutated state on its own, and tearing
+//   down healthy connections on every mutation defeats the model.
+// - Single-flight payloads deliver INTO open channels, exactly as they seed
+//   the query cache: the mutation response is the round trip, the channel
+//   adopts the value immediately, and the live stream stays authoritative
+//   for everything after.
 let hooked = false;
 function hookRevalidate() {
   if (hooked) return;
   hooked = true;
-  registerRevalidateHook(keys => {
+  registerRevalidateHook((keys, force) => {
+    if (!force) return;
     for (const [k, ch] of channelMap) {
       if (keys === undefined || matchKey(k, keys)) reconnectChannel(ch);
+    }
+  });
+  registerFlightDataHook(data => {
+    for (const k in data) {
+      const ch = channelMap.get(k);
+      if (!ch || ch.done) continue;
+      const v = data[k];
+      if (v !== null && typeof v === "object" && v[Symbol.asyncIterator]) {
+        // a live key collected server-side arrives stream-shaped: adopt
+        // its yields for as long as it runs (it ends with the response
+        // body); the channel's own connection remains authoritative
+        (async () => {
+          try {
+            for await (const value of v) {
+              if (ch.done) return;
+              push(ch, value);
+            }
+          } catch {}
+        })();
+      } else push(ch, v);
     }
   });
 }
@@ -178,17 +242,26 @@ export type LiveFunction<T extends (...args: any) => any> = T extends (
   : never;
 
 /**
- * Declares a keyed live query over a value-shaped stream: a channel layer on
- * the `live()` transport. One connection per (name + args) key is shared by
- * every consumer — late subscribers receive the latest value immediately,
- * delivery is latest-wins, and the connection closes when the last consumer
- * leaves. `revalidate(key)` reconnects (the source re-yields current state
- * on invocation), and `status(...args)` is a reactive read of the channel's
- * wire state.
+ * Declares a keyed live query over a value-shaped stream: an async-iterable
+ * producer whose yields are successive VALUES of one logical query, with the
+ * contract that the producer re-yields current state on every invocation.
+ * liveQuery IS the live layer — no separate declaration needed:
  *
- * The producer should be a `live()`-declared server function (reconnect and
- * SSR policy live in the declaration); any function returning an async
- * iterable works, but a plain source that dies simply closes the channel.
+ * - One connection per (name + args) key, shared by every consumer. Late
+ *   subscribers receive the latest value immediately, delivery is
+ *   latest-wins, and the connection closes when the last consumer leaves.
+ * - A connected stream that dies reconnects with exponential backoff (the
+ *   latest value keeps serving meanwhile); first-connect failures reject
+ *   like a normal call.
+ * - Server functions are declared GET at creation (like `query`). Live
+ *   queries participate in single-flight on the delivery side: a mutation's
+ *   flight payload pushes straight into open channels (the mutation
+ *   response is the round trip), while the post-mutation sweep leaves the
+ *   healthy connection in place — the live stream stays authoritative.
+ * - SSR: the document face renders the first value; hydration adopts it and
+ *   reconnects. Explicit `revalidate(key)` reconnects (the producer
+ *   re-yields current state on invocation), and `status(...args)` is a
+ *   reactive read of the channel's wire state.
  *
  * ```ts
  * const roomMessages = liveQuery(getMessages, "messages");
@@ -198,27 +271,35 @@ export type LiveFunction<T extends (...args: any) => any> = T extends (
  */
 export function liveQuery<T extends (...args: any) => any>(fn: T, name: string): LiveFunction<T> {
   hookRevalidate();
-  if (DEV && isServerFunction(fn) && !getServerFunctionMetadata(fn)?.live) {
-    console.warn(
-      `liveQuery "${name}": the server function is not live()-declared — ` +
-        `without the declaration there is no reconnect-on-death and no SSR ` +
-        `live policy. Declare it: liveQuery(live(fn), "${name}").`
-    );
+  // liveQuery implies GET, exactly as query does: reads belong on the GET
+  // transport (cacheable URLs, no single-flight enveloping). An explicit
+  // GET(fn) or live(GET(fn)) declaration passes through untouched.
+  if (isServerFunction(fn) && !getServerFunctionMetadata(fn)?.method) {
+    const rpc = getServerFunctionRPC();
+    if (rpc) fn = rpc.GET(fn) as unknown as T;
   }
   const liveFn = ((...args: Parameters<T>) => {
     const key = name + hashKey(args);
     if (isServer) {
-      // The document face is one render: no channels, no multicast — hand
-      // the source through whole (branded by the live() declaration) and
-      // let the signals layer apply live SSR policy to it.
-      return fn(...args);
+      // The document face is one render: no channels, no multicast. Hand
+      // the source through whole, branded, so the signals layer applies
+      // live SSR policy (first value, then client takeover) — liveQuery is
+      // the declaration, no separate live() wrap required.
+      const result = fn(...(args as any));
+      const brand = (r: any) => {
+        if (r !== null && typeof r === "object" && r[Symbol.asyncIterator]) r[LIVE_SOURCE] = true;
+        return r;
+      };
+      return result !== null && typeof result === "object" && typeof result.then === "function"
+        ? result.then(brand)
+        : brand(result);
     }
     // Connection is lazy (first pull), so calling the function is free —
     // a hydration trace or a speculative read opens nothing.
     return {
       [LIVE_SOURCE]: true,
       [Symbol.asyncIterator]() {
-        const ch = openChannel(key, () => fn(...args));
+        const ch = openChannel(key, () => fn(...(args as any)));
         ch.count++;
         let seen = 0;
         let released = false;
@@ -268,9 +349,7 @@ export function liveQuery<T extends (...args: any) => any>(fn: T, name: string):
 liveQuery.set = (key: string, value: any) => {
   const ch = channelMap.get(key);
   if (!ch || ch.done) return false;
-  ch.latest = value;
-  ch.version++;
-  wake(ch);
+  push(ch, value);
   return true;
 };
 

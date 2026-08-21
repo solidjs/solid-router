@@ -1,6 +1,6 @@
 import { flush } from "solid-js";
 import { liveQuery } from "../../src/data/liveQuery.js";
-import { revalidate } from "../../src/data/query.js";
+import { deliverFlightData, revalidate } from "../../src/data/query.js";
 
 // A controllable value-shaped producer: each invocation is its own stream
 // (the live contract — re-yield current state per connection). push() feeds
@@ -238,6 +238,46 @@ describe("liveQuery", () => {
     await expect(a.next()).rejects.toThrow("nope");
   });
 
+  test("a connected stream dying reconnects: liveQuery IS the live layer", async () => {
+    let invocations = 0;
+    const lq = liveQuery(async function* () {
+      invocations++;
+      if (invocations === 1) {
+        yield "a";
+        throw new Error("mid-stream death");
+      }
+      yield "b";
+    }, uniqueName());
+    const a = lq()[Symbol.asyncIterator]();
+    expect((await a.next()).value).toBe("a");
+    // the death is invisible to the consumer: backoff (500ms first retry),
+    // reconnect, and the fresh yield flows through the same channel
+    const started = Date.now();
+    expect((await a.next()).value).toBe("b");
+    expect(Date.now() - started).toBeGreaterThanOrEqual(450);
+    expect(invocations).toBe(2);
+    // the second (healthy) completion ends the channel
+    expect((await a.next()).done).toBe(true);
+  }, 10000);
+
+  test("reconnect keeps serving the latest value to late subscribers", async () => {
+    let invocations = 0;
+    const lq = liveQuery(async function* () {
+      invocations++;
+      yield `v${invocations}`;
+      if (invocations === 1) throw new Error("death");
+      await new Promise(() => {}); // healthy stream stays open
+    }, uniqueName());
+    const a = lq()[Symbol.asyncIterator]();
+    expect((await a.next()).value).toBe("v1");
+    // while the channel is mid-backoff, a new subscriber still gets v1
+    const b = lq()[Symbol.asyncIterator]();
+    expect((await b.next()).value).toBe("v1");
+    expect((await b.next()).value).toBe("v2");
+    await a.return!();
+    await b.return!();
+  }, 10000);
+
   test("revalidate(key) reconnects the channel; subscribers survive", async () => {
     const producer = makeProducer();
     const name = uniqueName();
@@ -254,6 +294,70 @@ describe("liveQuery", () => {
     producer.push("fresh");
     expect((await a.next()).value).toBe("fresh");
     await a.return!();
+  });
+
+  test("post-mutation sweep (force=false) leaves the healthy connection alone", async () => {
+    const producer = makeProducer();
+    const lq = liveQuery(producer.fn, uniqueName());
+    const a = lq("room")[Symbol.asyncIterator]();
+    const p = a.next();
+    await tick();
+    producer.push("v1");
+    expect((await p).value).toBe("v1");
+    // what applyResponseMetadata runs after seeding flight data — the live
+    // connection is its own freshness mechanism, no reconnect
+    revalidate(lq.keyFor("room"), false);
+    await tick();
+    expect(producer.invocations).toBe(1);
+    // the stream is still the same, still delivering
+    producer.push("v2");
+    expect((await a.next()).value).toBe("v2");
+    await a.return!();
+  });
+
+  test("single-flight payloads deliver into open channels", async () => {
+    const producer = makeProducer();
+    const lq = liveQuery(producer.fn, uniqueName());
+    const a = lq("room")[Symbol.asyncIterator]();
+    const p = a.next();
+    await tick();
+    producer.push("stale");
+    expect((await p).value).toBe("stale");
+    // the mutation's response carried fresh data for this key: it lands in
+    // the channel without a reconnect — the mutation IS the round trip
+    deliverFlightData({ [lq.keyFor("room")]: "mutated" });
+    expect((await a.next()).value).toBe("mutated");
+    expect(producer.invocations).toBe(1);
+    // and the live stream stays authoritative afterwards
+    producer.push("post-mutation push");
+    expect((await a.next()).value).toBe("post-mutation push");
+    await a.return!();
+  });
+
+  test("stream-shaped flight values adopt yields for as long as they run", async () => {
+    const producer = makeProducer();
+    const lq = liveQuery(producer.fn, uniqueName());
+    const a = lq("room")[Symbol.asyncIterator]();
+    const p = a.next();
+    await tick();
+    producer.push("v0");
+    await p;
+    deliverFlightData({
+      [lq.keyFor("room")]: (async function* () {
+        yield "f1";
+        yield "f2";
+      })()
+    });
+    expect((await a.next()).value).toBe("f1");
+    expect((await a.next()).value).toBe("f2");
+    expect(producer.invocations).toBe(1);
+    await a.return!();
+  });
+
+  test("flight delivery for keys without channels is inert", () => {
+    // no channel open — must not throw or create one
+    liveQuery(makeProducer().fn, uniqueName()); // ensures hooks are registered
+    expect(() => deliverFlightData({ "nowhere[1]": "value" })).not.toThrow();
   });
 
   test("revalidate by bare name matches every args-variant (prefix match)", async () => {

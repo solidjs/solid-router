@@ -17,7 +17,7 @@ import type {
   NarrowResponse
 } from "../types.js";
 import { mockBase, setFunctionName } from "../utils.js";
-import { cacheKeyOp, hashKey, revalidate, query } from "./query.js";
+import { cacheKeyOp, deliverFlightData, hashKey, revalidate, query } from "./query.js";
 
 export type Action<T extends Array<any>, U, V = T> = (T extends [FormData | URLSearchParams] | []
   ? JSX.SerializableAttributeValue
@@ -453,8 +453,10 @@ function applyResponseMetadata(
   }
   // invalidate
   cacheKeyOp(keys, entry => (entry[0] = 0));
-  // set cache
+  // set cache — and fan the payload out to other keyed stores (live query
+  // channels adopt delivered values instead of reconnecting)
   flightData && Object.keys(flightData).forEach(k => query.set(k, flightData[k]));
+  flightData && deliverFlightData(flightData);
   // trigger revalidation inside the same transition as the navigation, so
   // the redirect commits atomically with fresh data: surviving consumers
   // (shared layouts) the flight payload didn't seed refetch and hold the

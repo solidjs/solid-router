@@ -56,11 +56,21 @@ function getCache() {
   return (req.router || (req.router = {})).cache || (req.router.cache = new Map());
 }
 
-// Other keyed stores participating in revalidation (live query channels)
-// register a sweep here — revalidate() stays the one invalidation verb.
-const revalidateHooks: ((keys: string[] | void) => void)[] = [];
-export function registerRevalidateHook(hook: (keys: string[] | void) => void) {
+// Other keyed stores participating in the data protocols (live query
+// channels) register here — revalidate() stays the one invalidation verb,
+// and single-flight payloads reach every keyed store, not just the cache.
+const revalidateHooks: ((keys: string[] | void, force: boolean) => void)[] = [];
+export function registerRevalidateHook(hook: (keys: string[] | void, force: boolean) => void) {
   revalidateHooks.push(hook);
+}
+const flightHooks: ((data: Record<string, any>) => void)[] = [];
+export function registerFlightDataHook(hook: (data: Record<string, any>) => void) {
+  flightHooks.push(hook);
+}
+/** Fans a single-flight payload out to registered keyed stores (the query
+ * cache itself is seeded by the caller via query.set). */
+export function deliverFlightData(data: Record<string, any>) {
+  for (const hook of flightHooks) hook(data);
 }
 
 /**
@@ -73,7 +83,7 @@ export function revalidate(key?: string | string[] | void, force = true) {
     entry[4][1](now); // retrigger live signals
   });
   const keys = key === undefined ? undefined : Array.isArray(key) ? key : [key];
-  for (const hook of revalidateHooks) hook(keys);
+  for (const hook of revalidateHooks) hook(keys, force);
 }
 
 export function cacheKeyOp(key: string | string[] | void, fn: (cacheEntry: CacheEntry) => void) {
