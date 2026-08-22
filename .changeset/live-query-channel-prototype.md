@@ -23,7 +23,10 @@ failures) ends the channel and surfaces the error to consumers, like a
 first-connect failure does. On the server, channels are request-scoped:
 every consumer of a key within one render observes the same first value
 (the record is retained past teardown for replay), and separate requests
-never share connections.
+never share connections. Calling under preload intent warms the channel
+(a temporary hold spans the preload window), so navigation renders against
+an already-connected stream instead of holding the transition on connect
+plus first yield.
 
 Live queries participate in both router data protocols. Explicit
 `revalidate(key)` reconnects (the producer re-yields current state on

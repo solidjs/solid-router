@@ -6,12 +6,17 @@ import {
   isServer,
   isServerFunction
 } from "@solidjs/web";
+import { getIntent } from "../routing.js";
 import {
   hashKey,
   matchKey,
   registerFlightDataHook,
   registerRevalidateHook
 } from "./query.js";
+
+// Matches query's preload lifetime: a channel warmed by preload intent
+// stays held this long waiting for its navigation.
+const PRELOAD_TIMEOUT = 5000;
 
 // The live-source brand (registered symbol — no transport import needed):
 // computations meeting a branded iterable apply live SSR policy (document
@@ -332,6 +337,11 @@ export type LiveFunction<T extends (...args: any) => any> = T extends (
  *   flight payload pushes straight into open channels (the mutation
  *   response is the round trip), while the post-mutation sweep leaves the
  *   healthy connection in place — the live stream stays authoritative.
+ * - Calling under preload intent warms the channel (a temporary hold keeps
+ *   it open through the preload window), so navigation renders against an
+ *   already-connected stream instead of holding the transition on connect
+ *   plus first yield. Outside preload, calling remains free — only a real
+ *   pull connects.
  * - SSR: the document face renders the first value; hydration adopts it and
  *   reconnects. Channels are request-scoped on the server, so every
  *   consumer of a key in one render observes the same value. Explicit
@@ -383,9 +393,21 @@ export function liveQuery<T extends (...args: any) => any>(fn: T, name: string):
         openChannel(channels, key, () => fn(...(args as any)), false, true)
       );
     }
-    return subscriberIterable(() =>
-      openChannel(channelMap, key, () => fn(...(args as any)), true, false)
-    );
+    const open = () => openChannel(channelMap, key, () => fn(...(args as any)), true, false);
+    // Preload warms the channel, exactly as calling a query in a preload
+    // function warms its cache: connect now, hold a temporary consumer slot
+    // so refcounting doesn't close it before navigation renders. When the
+    // real consumer arrives it inherits the live connection (first pull
+    // replays the already-arrived value — the transition doesn't hold);
+    // when navigation never comes, the hold lapses and teardown closes it.
+    if (getIntent() === "preload") {
+      const ch = open();
+      ch.count++;
+      setTimeout(() => {
+        if (--ch.count === 0) teardown(ch);
+      }, PRELOAD_TIMEOUT);
+    }
+    return subscriberIterable(open);
   }) as unknown as LiveFunction<T>;
   liveFn.keyFor = (...args: Parameters<T>) => name + hashKey(args);
   liveFn.key = name;

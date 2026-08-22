@@ -1,6 +1,15 @@
+import { vi } from "vitest";
 import { flush } from "solid-js";
 import { liveQuery } from "../../src/data/liveQuery.js";
 import { deliverFlightData, revalidate } from "../../src/data/query.js";
+
+// Router intent is module-private state set by the preload machinery;
+// mock only getIntent so preload-warming is testable without a full router.
+const routerState = vi.hoisted(() => ({ intent: undefined as string | undefined }));
+vi.mock("../../src/routing.js", async importOriginal => ({
+  ...(await importOriginal<any>()),
+  getIntent: () => routerState.intent
+}));
 
 // A controllable value-shaped producer: each invocation is its own stream
 // (the live contract — re-yield current state per connection). push() feeds
@@ -413,6 +422,35 @@ describe("liveQuery", () => {
     expect(invocations).toBe(1); // no reconnect attempt
     flush();
     expect(lq.status()).toBe("closed");
+  });
+
+  test("preload intent warms the channel ahead of navigation", async () => {
+    const producer = makeProducer();
+    const lq = liveQuery(producer.fn, uniqueName());
+    routerState.intent = "preload";
+    try {
+      lq(7); // the preload call — no consumer, but the channel connects
+    } finally {
+      routerState.intent = undefined;
+    }
+    await tick();
+    expect(producer.invocations).toBe(1);
+    producer.push("warm");
+    await tick();
+    // navigation renders: the first pull replays the already-arrived value
+    // off the inherited connection — the transition doesn't hold
+    const it = lq(7)[Symbol.asyncIterator]();
+    expect((await it.next()).value).toBe("warm");
+    expect(producer.invocations).toBe(1); // no second connection
+    await it.return!();
+  });
+
+  test("without preload intent, calling still opens nothing", async () => {
+    const producer = makeProducer();
+    const lq = liveQuery(producer.fn, uniqueName());
+    lq(7);
+    await tick();
+    expect(producer.invocations).toBe(0);
   });
 
   test("a 5xx-stamped death stays transient and reconnects", async () => {
