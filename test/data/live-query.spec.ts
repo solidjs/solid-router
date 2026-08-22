@@ -398,27 +398,38 @@ describe("liveQuery", () => {
     expect(lq.status()).toBe("idle");
   });
 
-  test("liveQuery.set pushes a local value to subscribers", async () => {
-    const producer = makeProducer();
-    const lq = liveQuery(producer.fn, uniqueName());
+  test("a definite rejection (4xx) ends the channel: error surfaces, no retry", async () => {
+    let invocations = 0;
+    const lq = liveQuery(async function* () {
+      invocations++;
+      yield "granted";
+      // the transport stamps HTTP statuses onto failures — 4xx means the
+      // server understood and refused, so retrying cannot change the answer
+      throw Object.assign(new Error("revoked"), { status: 403 });
+    }, uniqueName());
     const a = lq()[Symbol.asyncIterator]();
-    const p = a.next();
-    await tick();
-    producer.push("server");
-    await p;
-    expect(liveQuery.set(lq.keyFor(), "optimistic")).toBe(true);
-    expect((await a.next()).value).toBe("optimistic");
-    // the next server yield supersedes
-    producer.push("authoritative");
-    expect((await a.next()).value).toBe("authoritative");
-    await a.return!();
+    expect((await a.next()).value).toBe("granted");
+    await expect(a.next()).rejects.toThrow("revoked");
+    expect(invocations).toBe(1); // no reconnect attempt
+    flush();
+    expect(lq.status()).toBe("closed");
   });
 
-  test("liveQuery.set is a no-op without an open channel", () => {
-    const producer = makeProducer();
-    const lq = liveQuery(producer.fn, uniqueName());
-    expect(liveQuery.set(lq.keyFor(), "v")).toBe(false);
-  });
+  test("a 5xx-stamped death stays transient and reconnects", async () => {
+    let invocations = 0;
+    const lq = liveQuery(async function* () {
+      invocations++;
+      if (invocations === 1) {
+        yield "v1";
+        throw Object.assign(new Error("upstream hiccup"), { status: 503 });
+      }
+      yield "v2";
+    }, uniqueName());
+    const a = lq()[Symbol.asyncIterator]();
+    expect((await a.next()).value).toBe("v1");
+    expect((await a.next()).value).toBe("v2");
+    expect(invocations).toBe(2);
+  }, 10000);
 });
 
 describe("liveQuery through solid's reactive consumption", () => {

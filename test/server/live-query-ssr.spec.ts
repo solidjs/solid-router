@@ -40,4 +40,55 @@ describe("liveQuery on the server", () => {
     const value = await (lq() as any);
     expect(value).toBe("plain");
   });
+
+  test("request scope: every consumer of a key observes the same first value", async () => {
+    const { provideRequestEvent } = await import("@solidjs/web/storage");
+    let invocations = 0;
+    const lq = liveQuery(async function* () {
+      invocations++;
+      yield `value-${invocations}`;
+      await new Promise(() => {}); // live source stays open
+    }, "ssr-dedupe");
+    const event = { request: new Request("http://localhost/"), locals: {} } as any;
+    await provideRequestEvent(event, async () => {
+      // two consumers, document-face style: each takes the first value and
+      // closes its iterator (what the signals layer's hybrid policy does)
+      const first = async () => {
+        const it = (lq() as any)[Symbol.asyncIterator]();
+        const r = await it.next();
+        await it.return();
+        return r.value;
+      };
+      const a = await first();
+      // teardown is microtask-deferred; let it run so the retained record
+      // (not the shared connection) serves the later consumer
+      await new Promise(r => setTimeout(r, 0));
+      const b = await first();
+      expect(a).toBe("value-1");
+      expect(b).toBe("value-1"); // SAME value — not a second invocation
+      expect(invocations).toBe(1);
+    });
+  });
+
+  test("separate requests do not share channels", async () => {
+    const { provideRequestEvent } = await import("@solidjs/web/storage");
+    let invocations = 0;
+    const lq = liveQuery(async function* () {
+      invocations++;
+      yield `value-${invocations}`;
+    }, "ssr-isolation");
+    const first = async () => {
+      const it = (lq() as any)[Symbol.asyncIterator]();
+      const r = await it.next();
+      await it.return();
+      return r.value;
+    };
+    const eventA = { request: new Request("http://localhost/a"), locals: {} } as any;
+    const eventB = { request: new Request("http://localhost/b"), locals: {} } as any;
+    const a = await provideRequestEvent(eventA, first);
+    const b = await provideRequestEvent(eventB, first);
+    expect(a).toBe("value-1");
+    expect(b).toBe("value-2"); // its own request, its own connection
+    expect(invocations).toBe(2);
+  });
 });

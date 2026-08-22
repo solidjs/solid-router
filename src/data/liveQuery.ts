@@ -1,5 +1,6 @@
 import { createSignal, type Signal } from "solid-js";
 import {
+  getRequestEvent,
   getServerFunctionMetadata,
   getServerFunctionRPC,
   isServer,
@@ -24,12 +25,14 @@ export type LiveQueryStatus = "idle" | "connecting" | "connected" | "reconnectin
 
 type Channel = {
   key: string;
+  /** the keyed store this channel lives in (module map or a request's map) */
+  map: Map<string, Channel>;
   /** live consumer iterators */
   count: number;
   /** bumps once per delivered value — consumers diff against it */
   version: number;
   latest: any;
-  /** sticky first-connect failure — consumers rethrow (post-connect deaths retry) */
+  /** sticky terminal failure — consumers rethrow (transient deaths retry) */
   error: any;
   done: boolean;
   waiters: Set<() => void>;
@@ -39,6 +42,11 @@ type Channel = {
   close: () => void;
   /** the producer, held for reconnect */
   call: () => any;
+  /** report wire state to the keyed status signal (client channels only) */
+  report: boolean;
+  /** keep the record (latest value) past teardown — request-scoped channels
+   * replay it to later consumers of the same render for value consistency */
+  retain: boolean;
 };
 
 const channelMap = new Map<string, Channel>();
@@ -61,9 +69,11 @@ function wake(ch: Channel) {
   for (const w of waiters) w();
 }
 
+const noStatus = () => {};
+
 async function connect(ch: Channel) {
   const gen = ch.gen;
-  const setStatus = statusSignal(ch.key)[1];
+  const setStatus = ch.report ? statusSignal(ch.key)[1] : noStatus;
   let attempts = 0;
   setStatus(ch.version ? "reconnecting" : "connecting");
   while (true) {
@@ -114,17 +124,23 @@ async function connect(ch: Channel) {
       return;
     } catch (error) {
       if (gen !== ch.gen || ch.done) return;
-      if (!ch.version) {
-        // Never connected: fail like a normal call — consumers rethrow.
+      const status = (error as any)?.status;
+      if (!ch.version || (typeof status === "number" && status >= 400 && status < 500)) {
+        // Terminal: never connected (fail like a normal call), or a
+        // definite rejection — the transport stamps HTTP statuses onto
+        // failures, and a 4xx means the server understood and refused;
+        // retrying cannot change the answer. Consumers rethrow (after
+        // draining the latest value), surfacing to error boundaries.
         ch.error = error;
         ch.done = true;
         setStatus("closed");
         wake(ch);
         return;
       }
-      // A stream that had delivered died: the channel IS the live layer —
-      // reconnect with backoff, latest value keeps serving meanwhile. (A
-      // live()-declared producer never reaches here; its transport retries.)
+      // A stream that had delivered died transiently (network, 5xx,
+      // severed stream): the channel IS the live layer — reconnect with
+      // backoff, latest value keeps serving meanwhile. (A live()-declared
+      // producer never reaches here; its transport retries.)
       setStatus("reconnecting");
       await new Promise<void>(resolve => {
         const timer = setTimeout(resolve, Math.min(500 * 2 ** attempts++, 10000));
@@ -141,20 +157,29 @@ function teardown(ch: Channel) {
   // Deferred so a same-key resubscribe in the same tick (a memo re-running
   // its compute) reuses the connection instead of thrashing it.
   queueMicrotask(() => {
-    if (ch.count > 0 || channelMap.get(ch.key) !== ch) return;
-    channelMap.delete(ch.key);
+    if (ch.count > 0 || ch.map.get(ch.key) !== ch) return;
+    const ended = ch.done; // completed/failed on its own — "closed" persists
     ch.done = true;
     ch.close();
     wake(ch);
-    statusSignal(ch.key)[1]("idle");
+    if (ch.retain) return; // request-scoped: latest stays replayable
+    ch.map.delete(ch.key);
+    if (ch.report && !ended) statusSignal(ch.key)[1]("idle");
   });
 }
 
-function openChannel(key: string, call: () => any): Channel {
-  let ch = channelMap.get(key);
+function openChannel(
+  map: Map<string, Channel>,
+  key: string,
+  call: () => any,
+  report: boolean,
+  retain: boolean
+): Channel {
+  let ch = map.get(key);
   if (!ch) {
     ch = {
       key,
+      map,
       count: 0,
       version: 0,
       latest: undefined,
@@ -163,12 +188,59 @@ function openChannel(key: string, call: () => any): Channel {
       waiters: new Set(),
       gen: 0,
       close: () => {},
-      call
+      call,
+      report,
+      retain
     };
-    channelMap.set(key, ch);
+    map.set(key, ch);
     connect(ch);
   }
   return ch;
+}
+
+// The consumer half: a branded iterable whose iterators subscribe to the
+// channel lazily (first pull connects — a hydration trace or speculative
+// call opens nothing), replay the latest value immediately, then follow
+// with latest-wins delivery.
+function subscriberIterable(open: () => Channel) {
+  return {
+    [LIVE_SOURCE]: true,
+    [Symbol.asyncIterator]() {
+      const ch = open();
+      ch.count++;
+      let seen = 0;
+      let released = false;
+      const release = () => {
+        if (released) return;
+        released = true;
+        if (--ch.count === 0) teardown(ch);
+      };
+      const pull = async (): Promise<IteratorResult<any>> => {
+        while (true) {
+          if (ch.error && seen >= ch.version) {
+            release();
+            throw ch.error;
+          }
+          if (ch.version > seen) {
+            seen = ch.version;
+            return { done: false, value: ch.latest };
+          }
+          if (ch.done) {
+            release();
+            return { done: true, value: undefined };
+          }
+          await new Promise<void>(resolve => ch.waiters.add(resolve));
+        }
+      };
+      return {
+        next: () => (released ? Promise.resolve({ done: true as const, value: undefined }) : pull()),
+        return(value?: any) {
+          release();
+          return Promise.resolve({ done: true as const, value });
+        }
+      };
+    }
+  };
 }
 
 function reconnectChannel(ch: Channel) {
@@ -250,18 +322,22 @@ export type LiveFunction<T extends (...args: any) => any> = T extends (
  * - One connection per (name + args) key, shared by every consumer. Late
  *   subscribers receive the latest value immediately, delivery is
  *   latest-wins, and the connection closes when the last consumer leaves.
- * - A connected stream that dies reconnects with exponential backoff (the
- *   latest value keeps serving meanwhile); first-connect failures reject
- *   like a normal call.
+ * - A connected stream that dies transiently (network, 5xx) reconnects with
+ *   exponential backoff — the latest value keeps serving meanwhile. A
+ *   definite rejection (4xx: the transport stamps HTTP statuses onto
+ *   failures) ends the channel and surfaces the error to consumers, as does
+ *   a first-connect failure.
  * - Server functions are declared GET at creation (like `query`). Live
  *   queries participate in single-flight on the delivery side: a mutation's
  *   flight payload pushes straight into open channels (the mutation
  *   response is the round trip), while the post-mutation sweep leaves the
  *   healthy connection in place — the live stream stays authoritative.
  * - SSR: the document face renders the first value; hydration adopts it and
- *   reconnects. Explicit `revalidate(key)` reconnects (the producer
- *   re-yields current state on invocation), and `status(...args)` is a
- *   reactive read of the channel's wire state.
+ *   reconnects. Channels are request-scoped on the server, so every
+ *   consumer of a key in one render observes the same value. Explicit
+ *   `revalidate(key)` reconnects (the producer re-yields current state on
+ *   invocation), and `status(...args)` is a reactive read of the channel's
+ *   wire state.
  *
  * ```ts
  * const roomMessages = liveQuery(getMessages, "messages");
@@ -281,59 +357,35 @@ export function liveQuery<T extends (...args: any) => any>(fn: T, name: string):
   const liveFn = ((...args: Parameters<T>) => {
     const key = name + hashKey(args);
     if (isServer) {
-      // The document face is one render: no channels, no multicast. Hand
-      // the source through whole, branded, so the signals layer applies
-      // live SSR policy (first value, then client takeover) — liveQuery is
-      // the declaration, no separate live() wrap required.
-      const result = fn(...(args as any));
-      const brand = (r: any) => {
-        if (r !== null && typeof r === "object" && r[Symbol.asyncIterator]) r[LIVE_SOURCE] = true;
-        return r;
-      };
-      return result !== null && typeof result === "object" && typeof result.then === "function"
-        ? result.then(brand)
-        : brand(result);
-    }
-    // Connection is lazy (first pull), so calling the function is free —
-    // a hydration trace or a speculative read opens nothing.
-    return {
-      [LIVE_SOURCE]: true,
-      [Symbol.asyncIterator]() {
-        const ch = openChannel(key, () => fn(...(args as any)));
-        ch.count++;
-        let seen = 0;
-        let released = false;
-        const release = () => {
-          if (released) return;
-          released = true;
-          if (--ch.count === 0) teardown(ch);
+      const e = getRequestEvent();
+      if (!e) {
+        // No request scope (static render, tests): hand the source through
+        // whole, branded, so the signals layer applies live SSR policy
+        // (first value, then client takeover).
+        const result = fn(...(args as any));
+        const brand = (r: any) => {
+          if (r !== null && typeof r === "object" && r[Symbol.asyncIterator]) r[LIVE_SOURCE] = true;
+          return r;
         };
-        const pull = async (): Promise<IteratorResult<any>> => {
-          while (true) {
-            if (ch.error && seen >= ch.version) {
-              release();
-              throw ch.error;
-            }
-            if (ch.version > seen) {
-              seen = ch.version;
-              return { done: false, value: ch.latest };
-            }
-            if (ch.done) {
-              release();
-              return { done: true, value: undefined };
-            }
-            await new Promise<void>(resolve => ch.waiters.add(resolve));
-          }
-        };
-        return {
-          next: () => (released ? Promise.resolve({ done: true as const, value: undefined }) : pull()),
-          return(value?: any) {
-            release();
-            return Promise.resolve({ done: true as const, value });
-          }
-        };
+        return result !== null && typeof result === "object" && typeof result.then === "function"
+          ? result.then(brand)
+          : brand(result);
       }
-    };
+      // Request-scoped channels: two consumers of one key during one render
+      // must observe the SAME first value (query's request cache gives its
+      // reads the same guarantee). Channels live in the event, retained
+      // past teardown so a later consumer replays the settled value instead
+      // of reinvoking; the producer still closes with its last consumer.
+      const router = ((e as any).router || ((e as any).router = {}));
+      const channels: Map<string, Channel> =
+        router.liveChannels || (router.liveChannels = new Map());
+      return subscriberIterable(() =>
+        openChannel(channels, key, () => fn(...(args as any)), false, true)
+      );
+    }
+    return subscriberIterable(() =>
+      openChannel(channelMap, key, () => fn(...(args as any)), true, false)
+    );
   }) as unknown as LiveFunction<T>;
   liveFn.keyFor = (...args: Parameters<T>) => name + hashKey(args);
   liveFn.key = name;
@@ -341,22 +393,3 @@ export function liveQuery<T extends (...args: any) => any>(fn: T, name: string):
   return liveFn;
 }
 
-/**
- * Pushes a value into a live channel locally: every subscriber sees it as
- * the next delivered value. An optimistic overlay for live data — the next
- * server yield supersedes it. No-op (returns false) when no channel is open.
- */
-liveQuery.set = (key: string, value: any) => {
-  const ch = channelMap.get(key);
-  if (!ch || ch.done) return false;
-  push(ch, value);
-  return true;
-};
-
-/** Force-reconnects matching live channels (all when no key is given). */
-liveQuery.reconnect = (key?: string | string[]) => {
-  const keys = key === undefined ? undefined : Array.isArray(key) ? key : [key];
-  for (const [k, ch] of channelMap) {
-    if (keys === undefined || matchKey(k, keys)) reconnectChannel(ch);
-  }
-};

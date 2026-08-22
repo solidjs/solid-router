@@ -17,7 +17,13 @@ subscribers receive the latest value immediately, delivery is latest-wins,
 and the connection closes when the last consumer leaves (microtask linger
 so a re-running memo doesn't thrash it). Connections are lazy — calling the
 function returns a live-branded iterable; the first pull connects — so
-hydration traces open nothing.
+hydration traces open nothing. Retry is for transient deaths only: a
+definite rejection (4xx — the transport stamps HTTP statuses onto
+failures) ends the channel and surfaces the error to consumers, like a
+first-connect failure does. On the server, channels are request-scoped:
+every consumer of a key within one render observes the same first value
+(the record is retained past teardown for replay), and separate requests
+never share connections.
 
 Live queries participate in both router data protocols. Explicit
 `revalidate(key)` reconnects (the producer re-yields current state on
@@ -30,6 +36,4 @@ query let keyed stores join those protocols without coupling.
 
 The callable carries the `query` conventions (`key`, `keyFor`) plus a
 reactive `status(...args)` read ("idle" | "connecting" | "connected" |
-"reconnecting" | "closed"). `liveQuery.set(key, value)` pushes a local
-value to subscribers (the next yield supersedes); `liveQuery.reconnect(key?)`
-forces reconnection.
+"reconnecting" | "closed").
