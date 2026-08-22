@@ -1,5 +1,5 @@
 ---
-"@solidjs/router": minor
+"@solidjs/router": patch
 ---
 
 `liveQuery()` — keyed live queries over value-shaped streams (prototype)
