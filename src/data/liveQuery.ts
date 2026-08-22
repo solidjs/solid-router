@@ -149,11 +149,11 @@ async function connect(ch: Channel) {
       setStatus("reconnecting");
       let timer: any, wakeUp: () => void;
       await new Promise<void>(resolve => {
-        wakeUp = resolve;
-        timer = setTimeout(resolve, Math.min(500 * 2 ** attempts++, 10000));
+        wakeUp = () => resolve();
+        timer = setTimeout(wakeUp, Math.min(500 * 2 ** attempts++, 10000));
         // connectivity returning wakes the sleep early
         if (typeof addEventListener === "function")
-          addEventListener("online", resolve, { once: true });
+          addEventListener("online", wakeUp, { once: true });
       });
       clearTimeout(timer);
       // a timer-woken sleep leaves its once-listener behind otherwise —
