@@ -20,7 +20,7 @@ Explore the official [documentation](https://docs.solidjs.com/solid-router) for 
 - **Plain Anchors**: no link component — `<a>` elements get `aria-current`, `data-active`, and `data-pending` automatically via compiler-claimed anchors
 - **Universal Rendering**: one factory for browser, hash, memory, and server rendering; history adapters are imports, so unused ones never enter your bundle
 - **Preload Functions**: parallel data fetching following the render-as-you-fetch pattern, triggered eagerly on link hover/focus
-- **Data APIs with Caching**: `query` and `action` with deduplication, revalidation, single-flight mutations, and progressive enhancement
+- **Data APIs with Caching**: `query` and `action` with deduplication, revalidation, single-flight mutations, and progressive enhancement — plus experimental `liveQuery` for keyed queries over live streams
 - **Typed Search Params**: opt-in per-route [Standard Schema](https://github.com/standard-schema/standard-schema) validation — `search.page` is a `number`, not `"2"`
 
 ## Table of Contents
@@ -518,6 +518,38 @@ getUser.keyFor(5); // "users[5]"
 ```
 
 Revalidate with the `revalidate` export or by setting `revalidate` keys on action responses — the whole key invalidates every entry for the query, `keyFor` invalidates one.
+
+### `liveQuery` (experimental)
+
+`query`'s live sibling: a keyed query over a value-shaped stream. The function is an async iterable (typically an async generator server function) whose yields are successive **values of one logical query** — each yield is the current state, not an event — with the contract that it re-yields current state on every invocation:
+
+```tsx
+const roomMessages = liveQuery(async function* (room: string) {
+  "use server";
+  yield await db.messages.list(room); // current state, immediately
+  for await (const change of db.messages.watch(room)) {
+    yield await db.messages.list(room); // current state again, on change
+  }
+}, "messages");
+```
+
+Declaring it is what makes it live — no separate wrapper, and server functions are declared GET at creation just like `query`. Consumption is the same story as `query`: Solid primitives, no router-specific async wrapper. The value updates in place as yields arrive:
+
+```tsx
+const messages = createMemo(() => roomMessages(params.room));
+return <For each={messages()}>{msg => <Message {...msg} />}</For>;
+```
+
+One connection per key (name + arguments) is shared by every consumer: late subscribers get the latest value immediately, delivery is latest-wins, and the connection closes when the last consumer leaves. A connected stream that dies transiently (network, 5xx) reconnects with exponential backoff while the latest value keeps serving; a definite rejection (4xx) or a first-connect failure surfaces to the consumer like any thrown error.
+
+Live queries ride the router's existing machinery rather than adding their own:
+
+- **Preload** — calling one in a preload function warms the connection, so navigation renders against an already-delivered value instead of holding the transition on connect.
+- **SSR** — the document face renders the first value; hydration adopts it and reconnects. Server-side, consumers of a key within one request observe the same value.
+- **Revalidation** — explicit `revalidate(key)` reconnects (the producer re-yields current state by contract). The post-mutation sweep leaves healthy connections alone: the stream is its own freshness mechanism.
+- **Single-flight** — a mutation's flight payload pushes straight into open channels, so mutated state lands in the same round trip.
+
+The callable carries the `query` conventions (`key`, `keyFor`) plus a reactive `status(...args)` read (`"idle" | "connecting" | "connected" | "reconnecting" | "closed"`) for surfacing connection state in UI.
 
 ### `action`
 
