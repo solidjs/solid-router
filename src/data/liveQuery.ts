@@ -147,12 +147,18 @@ async function connect(ch: Channel) {
       // backoff, latest value keeps serving meanwhile. (A live()-declared
       // producer never reaches here; its transport retries.)
       setStatus("reconnecting");
+      let timer: any, wakeUp: () => void;
       await new Promise<void>(resolve => {
-        const timer = setTimeout(resolve, Math.min(500 * 2 ** attempts++, 10000));
+        wakeUp = resolve;
+        timer = setTimeout(resolve, Math.min(500 * 2 ** attempts++, 10000));
         // connectivity returning wakes the sleep early
         if (typeof addEventListener === "function")
-          addEventListener("online", () => (clearTimeout(timer), resolve()), { once: true });
+          addEventListener("online", resolve, { once: true });
       });
+      clearTimeout(timer);
+      // a timer-woken sleep leaves its once-listener behind otherwise —
+      // one leaked closure per backoff cycle until an online event fires
+      if (typeof removeEventListener === "function") removeEventListener("online", wakeUp!);
       if (gen !== ch.gen || ch.done) return;
     }
   }
