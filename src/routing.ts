@@ -63,6 +63,7 @@ import {
 // erased at build; only the server-only action path imports that module's
 // values (behind isServer, tree-shaken from client bundles).
 import type { FlashSubmission } from "@solidjs/web/server-functions/server";
+import { HREF } from "./paths.js";
 
 const MAX_REDIRECTS = 100;
 
@@ -912,8 +913,18 @@ export function createRouterContext(
         }
         return;
       }
-      // typed path proxy nodes coerce to their href
-      if (typeof to !== "string") to = to.toString();
+      // A paths node carries its logical path under the Href brand — read
+      // that rather than coercing: toString() renders the *display* href
+      // (eg. hash mode's `#` prefix), which is for the DOM, not for routing.
+      // Foreign Href-branded values without the slot still coerce.
+      if (typeof to !== "string") to = ((to as any)[HREF] as string | undefined) || to.toString();
+      // Display hrefs can still arrive as plain strings: terminating paths
+      // calls type as `string`, and redirect Location headers round-trip
+      // through here. Under hash mode those start with `#` — a spelling no
+      // logical path uses — so map them back through the integration's
+      // parser, exactly like the anchor click handler does. Elsewhere
+      // parsePath is identity and `#...` keeps its URL meaning below.
+      if (to[0] === "#") to = parsePath(to);
 
       const {
         replace,

@@ -78,7 +78,7 @@ const stubs = {
   pathsProxy: {
     load(id) {
       if (id.endsWith("/src/paths.ts"))
-        return "export const int = () => true; export function createPathsProxy() { return {}; }";
+        return "export const int = () => true; export const HREF = Symbol.for('solid.Href'); export function createPathsProxy() { return {}; }";
     }
   },
   // On by default with browser history, and imported at module scope, so the

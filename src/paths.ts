@@ -213,6 +213,15 @@ const encodeParam = (value: unknown) =>
   String(value).split("/").map(encodeURIComponent).join("/");
 
 /**
+ * The global Href brand (`@solidjs/web` reads the same registry symbol).
+ * On a paths node it holds the logical path — the routable pathname before
+ * `renderPath` decorates it for display (eg. hash mode's `#` prefix) — so
+ * `navigate()` and `redirect()` can route the node while `toString()` keeps
+ * yielding the display href for the DOM.
+ */
+export const HREF = Symbol.for("solid.Href");
+
+/**
  * Creates the runtime path proxy. It is instance-scoped: `renderPath` comes
  * from the router's history adapter (eg. hash routing prefixes `#`), and
  * `base` is baked into every produced path.
@@ -243,7 +252,11 @@ export function createPathsProxy(
       get(_, prop) {
         if (prop === "toString") return () => toHref(pathname);
         if (typeof prop === "symbol")
-          return prop === Symbol.toPrimitive ? () => toHref(pathname) : undefined;
+          return prop === Symbol.toPrimitive
+            ? () => toHref(pathname)
+            : prop === HREF
+            ? pathname || "/"
+            : undefined;
         return node(`${pathname}/${prop}`);
       }
     });
