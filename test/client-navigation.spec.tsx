@@ -1,7 +1,13 @@
 import { render } from "@solidjs/web";
 import { createEffect, createMemo, Loading } from "solid-js";
 import { vi } from "vitest";
-import { createRouter, memoryHistory, useNavigate, useParams, type Navigator } from "../src/index.js";
+import {
+  createRouter,
+  memoryHistory,
+  useNavigate,
+  useParams,
+  type Navigator
+} from "../src/index.js";
 
 const settle = async (ms = 0) => {
   await new Promise<void>(resolve => queueMicrotask(() => resolve()));
@@ -230,6 +236,62 @@ describe("Client navigation should", () => {
       await settle();
       expect(div.querySelector('[data-route="index"]')).toBeTruthy();
       expect(div.querySelector("[data-layout-id]")?.textContent).toBe("none");
+    } finally {
+      dispose();
+      div.remove();
+    }
+  });
+
+  test("preserve parent layouts when navigating between sibling child routes (#588)", async () => {
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+
+    let mounts = 0;
+    let navigate!: Navigator;
+
+    const Layout = (props: { children?: any }) => {
+      mounts++;
+      navigate = useNavigate();
+      return (
+        <div data-route="layout">
+          layout
+          {props.children}
+        </div>
+      );
+    };
+
+    const Router = createRouter({
+      routes: [
+        {
+          path: "/",
+          component: Layout,
+          children: [
+            { path: "/a", component: () => <div data-route="a">A</div> },
+            { path: "/b", component: () => <div data-route="b">B</div> }
+          ]
+        }
+      ] as const,
+      history: memoryHistory("/a")
+    });
+
+    const dispose = render(() => <Router />, div);
+
+    try {
+      await settle();
+      expect(mounts).toBe(1);
+      expect(div.querySelector('[data-route="a"]')?.textContent).toBe("A");
+
+      navigate("/b");
+      await settle();
+      expect(mounts).toBe(1);
+      expect(div.querySelector('[data-route="b"]')?.textContent).toBe("B");
+      expect(div.querySelector('[data-route="a"]')).toBeNull();
+
+      navigate("/a");
+      await settle();
+      expect(mounts).toBe(1);
+      expect(div.querySelector('[data-route="a"]')?.textContent).toBe("A");
+      expect(div.querySelector('[data-route="b"]')).toBeNull();
     } finally {
       dispose();
       div.remove();

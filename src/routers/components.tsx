@@ -2,7 +2,7 @@
 
 import type {Component} from "solid-js";
 import type {JSX} from "@solidjs/web";
-import {createMemo, createRoot, getOwner, onCleanup, runWithOwner, untrack} from "solid-js";
+import {createMemo, createRoot, getOwner, onCleanup, runWithOwner, untrack, Show} from "solid-js";
 import {getRequestEvent, isServer, type RequestEvent} from "@solidjs/web";
 import {
     createRouteContext,
@@ -149,13 +149,11 @@ export function Routes(props: { routerState: RouterContext; branches: () => Bran
 }
 
 const createOutlet = (child: () => RouteContext | undefined) => {
-  return () => {
-    const c = child();
-    if (c) {
-      return <RouteContextObj value={c}>{c.outlet()}</RouteContextObj>;
-    }
-    return undefined;
-  };
+  return () => (
+    <Show when={child()} keyed>
+      {c => <RouteContextObj value={c}>{c.outlet()}</RouteContextObj>}
+    </Show>
+  );
 };
 
 // for data only mode with single flight mutations
