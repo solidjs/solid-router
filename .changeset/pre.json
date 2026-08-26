@@ -24,16 +24,19 @@
     "form-aria-busy",
     "fs-eager-components",
     "fs-emission-adapter",
+    "hash-history-typed-paths",
     "is-routing-native-pops",
     "late-bound-server-function-codec",
     "lazy-before-leave",
     "lazy-paths-proxy",
     "lazy-route-subtrees",
     "link-state-collector-instance",
+    "live-query-channel-prototype",
     "metadata-detection-for-get",
     "navigate-url-semantics",
     "own-single-flight-and-nojs",
     "popular-pears-boil",
+    "preserve-layouts-between-child-routes",
     "query-implies-get",
     "query-redirect-revalidate-pending",
     "redirect-sweep-retained-sections",
@@ -60,6 +63,7 @@
     "update-solid-beta-7",
     "update-solid-rc-0",
     "update-solid-rc-1",
+    "update-solid-rc-3",
     "warn-nested-router-mounts"
   ]
 }
