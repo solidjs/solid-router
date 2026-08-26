@@ -410,17 +410,22 @@ const encodeSegment = (s: string) =>
 const lazyBoundaries = new WeakMap<LazyRouteChildren, LazyBoundary>();
 // Module scope: boundary resolution is global, deterministic state (same
 // thunk -> same routes), shared by every factory instance and the server's
-// flight collector.
+// flight collector. The counter is the source of truth; the client mirrors
+// it into a signal for subscription. Server render is pure (signal writes
+// are inert as of solid 2.0.0-rc.3): there the plain counter serves reads,
+// and re-runs come from the parked computation's promise retry, not from
+// reactivity.
+let lazyTreeCounter = 0;
 const [lazyTreeVersion, setLazyTreeVersion] = createSignal(0);
 
 /** Reactive read of the lazy-subtree version — recompile compiled branches when it changes. */
 export function trackLazySubtrees(): number {
-  return lazyTreeVersion();
+  return isServer ? lazyTreeCounter : lazyTreeVersion();
 }
 
 /** Non-reactive read, for cache-busting outside the reactive graph (server collectors). */
 export function peekLazySubtrees(): number {
-  return untrack(lazyTreeVersion);
+  return lazyTreeCounter;
 }
 
 function getLazyBoundary(thunk: LazyRouteChildren): LazyBoundary {
@@ -467,7 +472,8 @@ export function resolveLazySubtree(
           (m as { routes?: readonly RouteDefinition[] }).routes ||
           [];
       record.resolved = routes as readonly RouteDefinition[];
-      setLazyTreeVersion(v => v + 1);
+      lazyTreeCounter++;
+      isServer || setLazyTreeVersion(lazyTreeCounter);
       return record.resolved;
     },
     e => {
