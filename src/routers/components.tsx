@@ -149,6 +149,14 @@ export function Routes(props: { routerState: RouterContext; branches: () => Bran
 }
 
 const createOutlet = (child: () => RouteContext | undefined) => {
+  // Keyed on the context's identity (#588). `when` compiles to a lazy prop
+  // getter, so child() is tracked inside Show's memo — the outlet function
+  // reads nothing reactive and Show owns the subtree. Levels whose context is
+  // reference-reused (parent layouts) keep their subtree across navigations;
+  // a changed context must re-create the provider, not just re-render under
+  // it: a context value is registered once at provider creation
+  // (setContext(provider, props.value)), so non-keyed reuse would leave new
+  // route content reading the previous level's context.
   return () => (
     <Show when={child()} keyed>
       {c => <RouteContextObj value={c}>{c.outlet()}</RouteContextObj>}
