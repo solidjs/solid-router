@@ -769,9 +769,10 @@ describe("handleFormAction", () => {
 
 // The generic fallback: a server-action url with no registered handler is a
 // direct bind whose module never loaded client-side (server components). The
-// url is self-describing (`?id`, bound `?args`), so the router synthesizes an
-// invocation from it and posts the form data through the server-function
-// transport — delegation alone is sufficient, no-JS stays a no-JS fallback.
+// url is self-describing (the id in the path, bound `?args` in the query), so
+// the router synthesizes an invocation from it and posts the form data
+// through the server-function transport — delegation alone is sufficient,
+// no-JS stays a no-JS fallback.
 describe("generic server actions", () => {
   const ACTION_BASE = "/_server";
   let originalFormData: any;
@@ -811,7 +812,7 @@ describe("generic server actions", () => {
     }) as any;
 
   test("synthesizes an action for an unregistered server-action url", async () => {
-    const ref = "/_server?id=echo%230";
+    const ref = "/_server/echo%230";
     const form = createServerForm(ref);
     const event = createSubmitEvent(form);
     const navigate = vi.fn();
@@ -820,12 +821,13 @@ describe("generic server actions", () => {
     handleFormAction(event, mockRouterContext, ACTION_BASE);
 
     expect(event.preventDefault).toHaveBeenCalled();
-    // posted to the attribute url verbatim, as a server-function call
+    // posted to the attribute url verbatim, as a server-function call —
+    // the id travels in the path, nowhere else (no addressing header)
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(ref);
     expect(init.method).toBe("POST");
-    expect(init.headers["X-Server-Function-Id"]).toBe("echo#0");
+    expect(init.headers["X-Server-Function-Id"]).toBeUndefined();
     expect(init.headers["X-Server-Function-Instance"]).toBeDefined();
     // response metadata falls through the normal action pipeline
     await vi.waitFor(() => expect(navigate).toHaveBeenCalled());
@@ -835,7 +837,7 @@ describe("generic server actions", () => {
   });
 
   test("keeps bound `?args` in the posted url", async () => {
-    const ref = "/_server?id=bound%230&args=%5B7%5D";
+    const ref = "/_server/bound%230?args=%5B7%5D";
     const form = createServerForm(ref);
 
     handleFormAction(createSubmitEvent(form), mockRouterContext, ACTION_BASE);
@@ -845,7 +847,7 @@ describe("generic server actions", () => {
   });
 
   test("a registered action takes precedence over synthesis", () => {
-    const ref = "/_server?id=real%230";
+    const ref = "/_server/real%230";
     const mockActionFn = vi.fn();
     actions.set(ref, { call: mockActionFn } as any);
     const form = createServerForm(ref);
@@ -856,8 +858,10 @@ describe("generic server actions", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  test("falls through to native submission when the url has no id", () => {
-    const form = createServerForm("/_server/some-legacy-endpoint");
+  test("falls through to native submission when the url is not an address", () => {
+    // more than the one segment an address gives meaning to — the runtime
+    // answers null rather than matching on a prefix
+    const form = createServerForm("/_server/some/legacy-endpoint");
     const event = createSubmitEvent(form);
 
     handleFormAction(event, mockRouterContext, ACTION_BASE);
@@ -867,7 +871,7 @@ describe("generic server actions", () => {
   });
 
   test("submitServerForm runs the same generic path from the lazy fallback", async () => {
-    const ref = "/_server?id=lazy%230";
+    const ref = "/_server/lazy%230";
     const form = createServerForm(ref);
 
     submitServerForm(mockRouterContext, ref, form as any, {} as any);
@@ -877,10 +881,10 @@ describe("generic server actions", () => {
     expect(actions.has(ref)).toBe(true);
   });
 
-  test("submitServerForm resubmits natively when the url has no id", () => {
-    const form = createServerForm("/_server/no-id-here");
+  test("submitServerForm resubmits natively when the url is not an address", () => {
+    const form = createServerForm("/_server/no/address-here");
 
-    submitServerForm(mockRouterContext, "/_server/no-id-here", form as any, {} as any);
+    submitServerForm(mockRouterContext, "/_server/no/address-here", form as any, {} as any);
 
     expect(form.submit).toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
