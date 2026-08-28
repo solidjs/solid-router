@@ -164,7 +164,7 @@ describe("query", () => {
         expect(result).toBe("GET result");
         expect(bodyCalled).toBe(false);
         expect(seen.method).toBe("GET");
-        expect(seen.url).toContain("id=auto-get-0");
+        expect(seen.url).toContain("/_server/auto-get-0");
         // the declaration lives on the wrapped reference; the original's
         // metadata is untouched (copy-on-declare)
         expect(getServerFunctionMetadata(serverFn)).toEqual({});

@@ -48,7 +48,7 @@ import { query } from "../../src/data/query.js";
 // entries are fresh again by sweep time, so they re-read from cache.
 describe("redirecting flight responses", () => {
   let router: RouterContext;
-  let navigate: ReturnType<typeof vi.fn>;
+  let navigate: ReturnType<typeof vi.fn<(url: string) => void>>;
 
   beforeEach(() => {
     query.clear();
@@ -106,9 +106,12 @@ describe("redirecting flight responses", () => {
     });
     try {
       setupFlightDataConsumer(router);
-      await consumer!({}, {
-        response: new Response(null, { headers: { Location: "https://elsewhere.example/" } })
-      });
+      await consumer!(
+        {},
+        {
+          response: new Response(null, { headers: { Location: "https://elsewhere.example/" } })
+        }
+      );
       expect(navigate).not.toHaveBeenCalled();
       expect(sweepSpy).toHaveBeenCalledTimes(1);
       expect(sweepSpy).toHaveBeenCalledWith(undefined, false);

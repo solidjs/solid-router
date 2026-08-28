@@ -3,6 +3,7 @@ import { isResponseEnvelope, isServer, REVALIDATE_HEADER, type JSX } from "@soli
 import {
   createServerReference,
   decodeResponsePayload,
+  parseServerFunctionUrl,
   subscribeFlightData
 } from "@solidjs/web/server-functions";
 // The explicit /server specifier is safe here: the only call site is
@@ -104,8 +105,9 @@ export function handleFormAction(evt: SubmitEvent, router: RouterContext, action
     throw new Error("Only POST forms are supported for Actions");
   // A registry miss on a server-action url is a direct bind whose module
   // never loaded client-side (server components): the url is self-describing
-  // (`?id`, bound `?args`), so a generic invocation is synthesized from it —
-  // delegation alone is sufficient, the no-JS path stays a no-JS fallback.
+  // (the id in the path, bound `?args` in the query), so a generic invocation
+  // is synthesized from it — delegation alone is sufficient, the no-JS path
+  // stays a no-JS fallback.
   // Client-only actions (`https://action/`) are their module's JS by
   // definition, so a miss there falls through to native submission.
   const handler = actions.get(actionRef) || (serverAction && createServerFormAction(actionRef));
@@ -123,10 +125,11 @@ export function handleFormAction(evt: SubmitEvent, router: RouterContext, action
 
 /**
  * Synthesizes a router action for a server-rendered action url. The url
- * carries everything an invocation needs — the function id and any bound
- * `.with()` arguments (plain JSON in `?args`, which the server prepends for
- * natural-encoding bodies exactly as it does for no-JS posts) — so the
- * FormData is posted to it verbatim through the server-function transport:
+ * carries everything an invocation needs — the function id in the path
+ * (`<endpoint>/<id>`) and any bound `.with()` arguments (plain JSON in
+ * `?args`, which the server prepends for natural-encoding bodies exactly as
+ * it does for no-JS posts) — so the FormData is posted to it verbatim
+ * through the server-function transport:
  * submissions, `aria-busy`, redirects, revalidation, and single-flight all
  * flow through the normal action machinery. Registered under the url, so
  * repeat submits reuse it (and a later real registration overrides it).
@@ -134,7 +137,7 @@ export function handleFormAction(evt: SubmitEvent, router: RouterContext, action
 function createServerFormAction(
   url: string
 ): Action<[FormData | URLSearchParams], unknown> | undefined {
-  const id = new URL(url, mockBase).searchParams.get("id");
+  const id = parseServerFunctionUrl(url);
   if (!id) return undefined;
   // typecheck resolves the server half of the dual module; this path only
   // runs in the browser, where the client transport's signature applies
@@ -166,8 +169,9 @@ export function submitServerForm(
   data: FormData
 ) {
   const handler = actions.get(url) || createServerFormAction(url);
-  // no `?id` — not the server function convention; nothing can run it,
-  // resubmit natively (submit() bypasses the delegated handler)
+  // not an address (`<endpoint>/<id>`) — not the server function convention;
+  // nothing can run it, resubmit natively (submit() bypasses the delegated
+  // handler)
   if (!handler) return form.submit();
   handler.call(
     { r: router, f: form },

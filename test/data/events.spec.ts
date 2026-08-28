@@ -570,7 +570,9 @@ describe("form submit lazy fallback", () => {
       baseURI: "https://example.com/"
     } as any;
     originalFormData = global.FormData;
-    global.FormData = vi.fn(() => ({})) as any;
+    global.FormData = vi.fn(function () {
+      return {};
+    }) as any;
   });
 
   afterEach(() => {
@@ -606,14 +608,14 @@ describe("form submit lazy fallback", () => {
     vi.doMock("../../src/data/serverForms.js", () => ({ submitServerForm }));
     mount();
 
-    const event = createSubmitEvent({ action: "/_server?id=echo%230&args=%5B7%5D" });
+    const event = createSubmitEvent({ action: "/_server/echo%230?args=%5B7%5D" });
     submitHandler(event);
 
     expect(event.preventDefault).toHaveBeenCalled();
     await vi.waitFor(() => expect(submitServerForm).toHaveBeenCalled());
     expect(submitServerForm).toHaveBeenCalledWith(
       mockRouter,
-      "/_server?id=echo%230&args=%5B7%5D",
+      "/_server/echo%230?args=%5B7%5D",
       event.target,
       expect.anything()
     );
@@ -642,7 +644,7 @@ describe("form submit lazy fallback", () => {
   test("ignores non-POST forms", () => {
     mount();
 
-    const event = createSubmitEvent({ action: "/_server?id=echo%230" }, "GET");
+    const event = createSubmitEvent({ action: "/_server/echo%230" }, "GET");
     submitHandler(event);
 
     expect(event.preventDefault).not.toHaveBeenCalled();
@@ -656,12 +658,12 @@ describe("form submit lazy fallback", () => {
     const event = createSubmitEvent({ action: "/elsewhere" });
     (event as any).submitter = {
       hasAttribute: (name: string) => name === "formaction",
-      getAttribute: (name: string) => (name === "formaction" ? "/_server?id=other%230" : null)
+      getAttribute: (name: string) => (name === "formaction" ? "/_server/other%230" : null)
     };
     submitHandler(event);
 
     expect(event.preventDefault).toHaveBeenCalled();
     await vi.waitFor(() => expect(submitServerForm).toHaveBeenCalled());
-    expect(submitServerForm.mock.calls[0][1]).toBe("/_server?id=other%230");
+    expect(submitServerForm.mock.calls[0][1]).toBe("/_server/other%230");
   });
 });
