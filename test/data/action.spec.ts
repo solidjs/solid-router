@@ -239,13 +239,13 @@ describe("action", () => {
     const order: string[] = [];
     let current = "initial";
     const testAction = action(async (next: string) => {
-        order.push("mutation");
-        expect(current).toBe(next);
-        return next;
-      }, "on-submit-test").onSubmit(next => {
-        order.push("onSubmit");
-        current = next;
-      });
+      order.push("mutation");
+      expect(current).toBe(next);
+      return next;
+    }, "on-submit-test").onSubmit(next => {
+      order.push("onSubmit");
+      current = next;
+    });
 
     const boundAction = useAction(testAction);
     const result = await boundAction("updated");
@@ -256,8 +256,10 @@ describe("action", () => {
 
   test("should preserve onSubmit hook for curried actions", async () => {
     const onSubmit = vi.fn();
-    const baseAction = action(async (prefix: string, value: string) => `${prefix}:${value}`, "curried-on-submit")
-      .onSubmit(onSubmit);
+    const baseAction = action(
+      async (prefix: string, value: string) => `${prefix}:${value}`,
+      "curried-on-submit"
+    ).onSubmit(onSubmit);
 
     await useAction(baseAction.with("pre"))("value");
 
@@ -269,9 +271,9 @@ describe("action", () => {
       const solid = (await import("solid-js")) as any;
       const [value, setValue] = solid.createOptimistic("initial");
       const testAction = action(async (next: string) => {
-          expect(value()).toBe(next);
-          return next;
-        }, "optimistic-primitive-test").onSubmit((next: string) => setValue(next));
+        expect(value()).toBe(next);
+        return next;
+      }, "optimistic-primitive-test").onSubmit((next: string) => setValue(next));
 
       const result = await useAction(testAction)("updated");
 
@@ -665,8 +667,12 @@ describe("handleFormAction", () => {
     };
     const event = createSubmitEvent(form);
 
-    global.FormData = vi.fn(() => ({})) as any;
-    global.URLSearchParams = vi.fn(() => ({})) as any;
+    global.FormData = vi.fn(function () {
+      return {};
+    }) as any;
+    global.URLSearchParams = vi.fn(function () {
+      return {};
+    }) as any;
 
     handleFormAction(event, mockRouterContext, ACTION_BASE);
 
@@ -684,7 +690,9 @@ describe("handleFormAction", () => {
     const event = createSubmitEvent(form);
 
     const mockFormData = {};
-    global.FormData = vi.fn(() => mockFormData) as any;
+    global.FormData = vi.fn(function () {
+      return mockFormData;
+    }) as any;
 
     handleFormAction(event, mockRouterContext, ACTION_BASE);
 
@@ -744,8 +752,12 @@ describe("handleFormAction", () => {
     };
     const event = createSubmitEvent(form, submitter);
 
-    global.FormData = vi.fn(() => ({})) as any;
-    global.URLSearchParams = vi.fn(() => ({})) as any;
+    global.FormData = vi.fn(function () {
+      return {};
+    }) as any;
+    global.URLSearchParams = vi.fn(function () {
+      return {};
+    }) as any;
 
     handleFormAction(event, mockRouterContext, ACTION_BASE);
 
@@ -783,7 +795,9 @@ describe("generic server actions", () => {
     actions.clear();
     mockRouterContext = createMockRouter();
     originalFormData = global.FormData;
-    global.FormData = vi.fn(() => ({})) as any;
+    global.FormData = vi.fn(function () {
+      return {};
+    }) as any;
     originalFetch = global.fetch;
     fetchMock = vi.fn(async () => new Response(null, { headers: { Location: "/after" } }));
     global.fetch = fetchMock as any;

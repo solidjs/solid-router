@@ -570,7 +570,9 @@ describe("form submit lazy fallback", () => {
       baseURI: "https://example.com/"
     } as any;
     originalFormData = global.FormData;
-    global.FormData = vi.fn(() => ({})) as any;
+    global.FormData = vi.fn(function () {
+      return {};
+    }) as any;
   });
 
   afterEach(() => {
