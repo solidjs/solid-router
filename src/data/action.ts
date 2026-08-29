@@ -128,11 +128,13 @@ export function handleFormAction(evt: SubmitEvent, router: RouterContext, action
  * carries everything an invocation needs — the function id in the path
  * (`<endpoint>/<id>`) and any bound `.with()` arguments (plain JSON in
  * `?args`, which the server prepends for natural-encoding bodies exactly as
- * it does for no-JS posts) — so the FormData is posted to it verbatim
- * through the server-function transport:
- * submissions, `aria-busy`, redirects, revalidation, and single-flight all
- * flow through the normal action machinery. Registered under the url, so
- * repeat submits reuse it (and a later real registration overrides it).
+ * it does for no-JS posts) — so the FormData is posted through the
+ * server-function transport, which addresses its own scripted calls at the
+ * url's data sibling (`<endpoint>/data/<id>`, solidjs/solid#3094) with the
+ * bound query intact: submissions, `aria-busy`, redirects, revalidation,
+ * and single-flight all flow through the normal action machinery.
+ * Registered under the rendered url, so repeat submits reuse it (and a
+ * later real registration overrides it).
  */
 function createServerFormAction(
   url: string
