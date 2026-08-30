@@ -222,15 +222,17 @@ describe("action", () => {
     const navigate = vi.fn();
     mockRouterContext.navigatorFactory = () => navigate;
 
+    // a real redirect: 302 + Location, what redirect() produces — a
+    // Location on a non-redirect status is data and never navigates
     const redirectAction = action(
-      async () => new Response(null, { headers: { Location: "/next" } }),
+      async () => new Response(null, { status: 302, headers: { Location: "/next" } }),
       { name: "redirect-settled-test" }
     ).onSettled(onSettled);
 
     const boundAction = useAction(redirectAction);
     await boundAction();
 
-    expect(navigate).toHaveBeenCalledWith("/next");
+    expect(navigate).toHaveBeenCalledWith("/next", { replace: true });
     expect(onSettled).toHaveBeenCalledTimes(1);
     expect(mockRouterContext.submissions[0]()).toHaveLength(0);
   });
@@ -799,7 +801,16 @@ describe("generic server actions", () => {
       return {};
     }) as any;
     originalFetch = global.fetch;
-    fetchMock = vi.fn(async () => new Response(null, { headers: { Location: "/after" } }));
+    // the wire shape of a scripted redirect: masked 200 with the carrier
+    // holding the author's status and the resolved target
+    fetchMock = vi.fn(
+      async () =>
+        new Response(null, {
+          headers: {
+            "X-Server-Function-Redirect": `302 ${new URL("/after", window.location.href).href}`
+          }
+        })
+    );
     global.fetch = fetchMock as any;
   });
 

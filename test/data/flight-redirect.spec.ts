@@ -10,6 +10,18 @@ let consumer: FlightDataConsumer<Record<string, any>> | undefined;
 vi.mock("@solidjs/web/server-functions", () => ({
   decodeResponse: vi.fn(),
   decodeResponsePayload: vi.fn(),
+  // the redirect carrier, mirrored from the runtime (wire format:
+  // "<status> <absolute-url>")
+  REDIRECT_HEADER: "X-Server-Function-Redirect",
+  decodeRedirectHeaderValue: (value: string | null | undefined) => {
+    if (typeof value !== "string") return undefined;
+    const at = value.indexOf(" ");
+    if (at < 0) return undefined;
+    const status = Number(value.slice(0, at));
+    const url = value.slice(at + 1);
+    if (!Number.isInteger(status) || !url) return undefined;
+    return { status, url };
+  },
   // consumed by data/query.ts, which shares this module graph
   isServerFunction: () => false,
   getServerFunctionMetadata: () => undefined,
@@ -20,6 +32,12 @@ vi.mock("@solidjs/web/server-functions", () => ({
     };
   }
 }));
+
+// The wire shape of a scripted redirect: masked 200 with the carrier holding
+// the author's status and the target resolved to an absolute url.
+const carrier = (target: string, status = 302) => ({
+  "X-Server-Function-Redirect": `${status} ${new URL(target, window.location.href).href}`
+});
 
 // Spy on the sweep: these tests pin the ordering the action layer applies to
 // a flight response — invalidate, seed, navigate, then sweep synchronously —
@@ -70,7 +88,7 @@ describe("redirecting flight responses", () => {
     });
     await consumer!(
       { "note[0]": { title: "fresh" } },
-      { response: new Response(null, { headers: { Location: "/notes/0" } }) }
+      { response: new Response(null, { headers: carrier("/notes/0") }) }
     );
     expect(sweptDuringApply).toBe(true);
     expect(sweepSpy).toHaveBeenCalledTimes(1);
@@ -82,7 +100,7 @@ describe("redirecting flight responses", () => {
       { "notes[]": ["fresh"] },
       {
         response: new Response(null, {
-          headers: { Location: "/notes", "X-Revalidate": "notes" }
+          headers: { ...carrier("/notes"), "X-Revalidate": "notes" }
         })
       }
     );
@@ -109,7 +127,7 @@ describe("redirecting flight responses", () => {
       await consumer!(
         {},
         {
-          response: new Response(null, { headers: { Location: "https://elsewhere.example/" } })
+          response: new Response(null, { headers: carrier("https://elsewhere.example/") })
         }
       );
       expect(navigate).not.toHaveBeenCalled();
