@@ -19,6 +19,7 @@
     "drop-leaving-section-gate",
     "drop-scroll-growth-chasing",
     "export-default-search-types",
+    "fix-navigate-commit-window-drop",
     "fix-stale-params-on-navigation",
     "flight-cookies-from-redirect",
     "flight-entry-consumption-age-gate",
