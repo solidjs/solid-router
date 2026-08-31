@@ -109,6 +109,7 @@ describe("lazy route subtrees", () => {
       return <div data-route="home">Home</div>;
     };
 
+    const history = memoryHistory();
     const Router = createRouter({
       routes: [
         { path: "/", component: Home },
@@ -123,7 +124,7 @@ describe("lazy route subtrees", () => {
           }
         }
       ] as const,
-      history: memoryHistory()
+      history
     });
 
     let resetBoundary!: () => void;
@@ -149,6 +150,7 @@ describe("lazy route subtrees", () => {
       expect(div.querySelector('[data-route="plugin-home"]')).toBeFalsy();
       expect(div.querySelector('[data-route="error"]')).toBeTruthy();
       expect((caught[0] as Error).message).toBe("chunk load failed");
+      expect(history.get()).toBe("/plugins");
 
       // the failure is not cached across attempts: resetting the boundary
       // remounts the router at /plugins — a fresh attempt that re-fetches
