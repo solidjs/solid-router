@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 2.0.0-next.20
+
+### Patch Changes
+
+- b8b48ce: Rebuild navigation commitment on Solid's transition engine. Programmatic and native navigation now write one canonical location source, repeated writes use engine last-write-wins, and history updates only after the winning transition settles. This fixes dropped soft navigations and native/programmatic races while preserving redirect options, pending link/search state, and lazy-route error delivery.
+
 ## 2.0.0-next.19
 
 ### Patch Changes
