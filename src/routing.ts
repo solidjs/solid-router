@@ -780,6 +780,14 @@ export function createRouterContext(
   // Keep track of last target, so that last call to navigate wins
   let lastTransitionTarget: LocationChange | undefined;
 
+  // Signal writes are forks that reads only see once flushed, so effective()
+  // lags the router's own actions by up to a flush. A navigate() issued in
+  // that window would compare against — and push a referrer for — a location
+  // the router has already left (#3107). `committed` remembers navigateEnd's
+  // write until effective() catches up (or moves for any other reason, e.g.
+  // a native pop), so the dedupe below always sees the real location.
+  let committed: { from: LocationChange; to: LocationChange } | undefined;
+
   // source() remains canonical for native history changes; navigateTarget()
   // temporarily overrides it for in-flight programmatic navigation.
   const effective = createMemo(() => navigateTarget() ?? source());
@@ -959,9 +967,27 @@ export function createRouterContext(
         throw new Error("Too many redirects");
       }
 
-      const current = effective();
+      let current = effective();
+      if (committed) {
+        if (current.value === committed.from.value && current.state === committed.from.state) {
+          // navigateEnd's source write hasn't flushed yet; reads still answer
+          // the pre-commit location. The commit target is where we really are.
+          current = committed.to;
+        } else {
+          // effective() moved (the write landed, or a native pop superseded
+          // it) — the reactive read is authoritative again.
+          committed = undefined;
+        }
+      }
 
-      if (resolvedTo !== current.value || nextState !== current.state) {
+      // Dedupe against where the router is headed, not just where it sits: a
+      // pending target is a plain variable and never lags, while a navigate()
+      // racing the pending target's unflushed navigateTarget write would
+      // otherwise compare against the old location and be silently dropped —
+      // breaking last-call-wins (#3107).
+      const headed = lastTransitionTarget ?? current;
+
+      if (resolvedTo !== headed.value || nextState !== headed.state) {
         if (isServer) {
           const e = getRequestEvent();
           e && (e.response = { status: 302, headers: new Headers({ Location: resolvedTo }) });
@@ -1012,6 +1038,10 @@ export function createRouterContext(
   function navigateEnd(next: LocationChange) {
     const first = referrers[0];
     if (first) {
+      // Captured before the write: effective() still reads the pre-commit
+      // location, which is exactly the stale answer navigateFromRoute's
+      // dedupe needs to recognize (and see past) until the flush.
+      committed = { from: untrack(effective), to: next };
       setSource({
         ...next,
         replace: first.replace,
