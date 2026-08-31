@@ -1,7 +1,15 @@
 /*@refresh skip*/
 
 import type { Owner } from "solid-js";
-import { createSignal, getOwner, onCleanup, sharedConfig, untrack } from "solid-js";
+import {
+  createSignal,
+  getOwner,
+  onCleanup,
+  onSettled,
+  runWithOwner,
+  sharedConfig,
+  untrack
+} from "solid-js";
 // standalone import: `DEV` is undefined in solid's production build, so app
 // bundlers fold `DEV &&` diagnostics out of shipped bundles
 import { DEV } from "solid-js";
@@ -199,27 +207,41 @@ export interface RouterInstance<R extends readonly RouteDefinition[] = RouteDefi
 
 /** Wraps a history adapter in the integration signal the router core consumes. Must run under a reactive owner. */
 function createIntegration(history: RouterHistory): RouterIntegration {
-  let ignore = false;
+  let committing = false;
   const wrap = (value: string | LocationChange) => (typeof value === "string" ? { value } : value);
   const [read, write] = createSignal(wrap(history.get()), {
-    equals: (a, b) => a.value === b.value && a.state === b.state,
+    equals: (a, b) =>
+      a.value === b.value && a.state === b.state && a._navigation === b._navigation,
     ownedWrite: true
   });
   const signal: RouterIntegration["signal"] = [
     read,
     (next: LocationChange) => {
-      !ignore && history.set(next);
       if (sharedConfig.registry && !sharedConfig.done) sharedConfig.done = true;
       write(next);
+      if (next._navigation && next._navigation > 0) {
+        // Register out of band so a destination error boundary replacing the
+        // Router subtree cannot suppress the winning history commit.
+        runWithOwner(null, () =>
+          onSettled(() => {
+            if (read() !== next) return;
+            committing = true;
+            try {
+              history.set(next);
+            } finally {
+              committing = false;
+            }
+          })
+        );
+      }
     }
   ];
 
   history.init &&
     onCleanup(
       history.init((value = history.get()) => {
-        ignore = true;
-        signal[1](wrap(value));
-        ignore = false;
+        if (committing) return;
+        signal[1]({ ...wrap(value), _navigation: -1 });
       })
     );
 

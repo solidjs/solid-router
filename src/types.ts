@@ -117,6 +117,8 @@ export interface LocationChange<S = unknown> {
   scroll?: boolean;
   state?: S;
   rawPath?: string;
+  /** @internal Positive for programmatic navigation depth; `-1` for native history. */
+  _navigation?: number;
 }
 export interface RouterIntegration {
   // Structural getter/setter pair rather than solid's `Signal` — the server's
@@ -342,9 +344,9 @@ export interface LazyBoundary {
   thunk: LazyRouteChildren;
   promise?: Promise<readonly RouteDefinition[]>;
   resolved?: readonly RouteDefinition[];
-  /** A client load failure, held through its settlement flush so every
-   * recompute it triggers delivers the same error instead of refiring the
-   * import; cleared a microtask after first delivery so retries can run. */
+  /** A client load failure, retained by each router's async reader and held
+   * here through the rejection turn for concurrent readers; then cleared so
+   * a later boundary reset or navigation can retry the import. */
   error?: unknown;
   /** The pending clear of `error` has been scheduled. */
   sweep?: boolean;
@@ -382,6 +384,8 @@ export interface RouterContext {
   wrapParams: (getParams: () => Params) => Params;
   navigatorFactory: NavigatorFactory;
   isRouting: () => boolean;
+  /** @internal Intent of the in-flight canonical location transition. */
+  intent?: () => Intent | undefined;
   /** The target of the in-flight navigation transition, if any. Not reactive. */
   readonly pendingTarget?: LocationChange;
   matches: () => RouteMatch[];

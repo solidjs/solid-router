@@ -1,4 +1,4 @@
-import { Accessor, flush, runWithOwner, type Signal } from "solid-js";
+import { Accessor, runWithOwner, type Signal } from "solid-js";
 // standalone import: `DEV` is undefined in solid's production build, so app
 // bundlers fold `DEV &&` diagnostics out of shipped bundles
 import { DEV } from "solid-js";
@@ -8,7 +8,9 @@ import {
   createContext,
   createMemo,
   createSignal,
+  getOwner,
   isPending,
+  latest,
   NotReadyError,
   onCleanup,
   untrack,
@@ -440,18 +442,15 @@ function getLazyBoundary(thunk: LazyRouteChildren): LazyBoundary {
  * synchronously once available, the in-flight promise otherwise.
  *
  * Failure contract (same as solid's lazy(), 2.0.0-rc.1: the platform
- * re-fetches a failed dynamic import): a client rejection is held through its
- * settlement flush. The recomputes the settled promise triggers — the parked
- * transition's and the mainline commit's — both consume it here as a
- * synchronous throw, becoming cached error status that reaches the nearest
- * error boundary like a failed lazy() component. The hold clears a microtask
- * after the first delivery, so any later recompute — boundary reset(), a new
- * navigation — finds a clean record and retries the import. Holding through
- * the flush is what keeps the erroring computation from refiring the import
- * in a tight loop while it fails. Server records are shared across requests
- * and hold nothing — each request retries. Commit is always async — even for
- * thunks returning arrays — so the version bump never writes a signal from
- * inside a render computation.
+ * re-fetches a failed dynamic import): each client router's async boundary
+ * reader retains the rejection as reactive error status, so the destination
+ * error boundary receives it without refiring the import. The shared record
+ * holds that rejection through the current turn for concurrent readers, then
+ * clears so a later tracked retry — boundary reset() or a new navigation —
+ * starts a fresh import. Server records are shared across requests and hold
+ * nothing, so each request retries. Commit is always async — even for thunks
+ * returning arrays — so the version bump never writes a signal from inside a
+ * render computation.
  */
 export function resolveLazySubtree(
   record: LazyBoundary
@@ -479,7 +478,15 @@ export function resolveLazySubtree(
     },
     e => {
       // ?? Error(): a held undefined would read as "no failure" and refire
-      if (!isServer) record.error = e ?? new Error();
+      if (!isServer) {
+        record.error = e ?? new Error();
+        record.sweep = true;
+        // Existing per-router async readers retain the rejection in their
+        // reactive error status. Hold the shared record through this turn so
+        // concurrent readers receive the same failure, then permit remounts
+        // and boundary resets to create a fresh import attempt.
+        queueMicrotask(() => (record.error = record.sweep = undefined));
+      }
       record.promise = undefined;
       throw e;
     }
@@ -734,9 +741,9 @@ export function provideFlashDecoder(
   flashDecoder || (flashDecoder = decoder);
 }
 
-let intent: Intent | undefined;
+let preloadIntent: Intent | undefined;
 export function getIntent() {
-  return intent;
+  return preloadIntent || useOptionalContext(RouterContextObj)?.intent?.();
 }
 let inPreloadFn = false;
 export function getInPreloadFn() {
@@ -767,32 +774,15 @@ export function createRouterContext(
   if (basePath === undefined) {
     throw new Error(`${basePath} is not a valid base path`);
   } else if (basePath && !initialSource.value) {
-    setSource({ value: basePath, replace: true, scroll: false });
+    setSource({
+      value: basePath,
+      replace: true,
+      scroll: false,
+      _navigation: isServer ? undefined : 1
+    });
   }
 
-  const [isNavigating, setIsRouting] = createSignal(false, { ownedWrite: true });
-
-  // Navigate override written from event handlers.
-  const [navigateTarget, setNavigateTarget] = createSignal<LocationChange | undefined>(undefined, {
-    ownedWrite: true
-  });
-
-  // Keep track of last target, so that last call to navigate wins
-  let lastTransitionTarget: LocationChange | undefined;
-
-  // Signal writes are forks that reads only see once flushed, so effective()
-  // lags the router's own actions by up to a flush. A navigate() issued in
-  // that window would compare against — and push a referrer for — a location
-  // the router has already left (#3107). `committed` remembers navigateEnd's
-  // write until effective() catches up (or moves for any other reason, e.g.
-  // a native pop), so the dedupe below always sees the real location.
-  let committed: { from: LocationChange; to: LocationChange } | undefined;
-
-  // source() remains canonical for native history changes; navigateTarget()
-  // temporarily overrides it for in-flight programmatic navigation.
-  const effective = createMemo(() => navigateTarget() ?? source());
-  const location = createLocation(() => effective().value, () => effective().state, utils.queryWrapper);
-  const referrers: LocationChange[] = [];
+  const location = createLocation(() => source().value, () => source().state, utils.queryWrapper);
   // The flash cookie is consumed eagerly: its one-shot clear (Set-Cookie)
   // must be appended before streaming flushes the response headers, and an
   // unread outcome must not haunt a later request's render. Only detection
@@ -814,6 +804,26 @@ export function createRouterContext(
   }
   let submissions: Signal<Submission<any, any>[]> | undefined;
 
+  // NotReadyError's source must be a reactive async node, not the raw
+  // Promise. Keep one reader per boundary for this router owner so rejection
+  // is delivered through the graph's error channel and resolution wakes the
+  // parked matches computation.
+  const routerOwner = getOwner();
+  const lazyReaders = new WeakMap<LazyBoundary, Accessor<void>>();
+  const readLazySubtree = (record: LazyBoundary) => {
+    let read = lazyReaders.get(record);
+    if (!read) {
+      read = runWithOwner(routerOwner, () =>
+        createMemo<void>(() => {
+          const result = resolveLazySubtree(record);
+          return result instanceof Promise ? result.then(() => undefined) : undefined;
+        })
+      );
+      lazyReaders.set(record, read);
+    }
+    return read();
+  };
+
   const matches = createMemo(() => {
     const pathname =
       typeof options.transformUrl === "function"
@@ -829,38 +839,46 @@ export function createRouterContext(
     // inside a boundary just parks the recomputed chain again.
     const pending = unresolvedLazyMatches(m);
     if (pending.length) {
-      const all = Promise.all(pending.map(resolveLazySubtree));
-      // pre-handle rejections: the failure reaches the app through this
-      // computation's error status, so the raw chain must not also surface
-      // as an unhandled rejection
-      all.catch(() => {});
-      throw new NotReadyError(all);
+      if (isServer) {
+        // SSR carries the Promise through NotReadyError so the streaming
+        // renderer can resume without attempting to serialize route
+        // definitions (which contain component functions).
+        const all = Promise.all(pending.map(resolveLazySubtree));
+        all.catch(() => {});
+        throw new NotReadyError(all);
+      } else {
+        // On the client the source must be a reactive async node so transition
+        // settlement and rejection delivery remain inside the signals graph.
+        for (const boundary of pending) readLazySubtree(boundary);
+      }
     }
     return m;
   });
 
-  // Every write is a transition in Solid 2, so a native history pop forks the
-  // source signal exactly like programmatic navigation does. isRouting is
-  // therefore derived: the manual flag covers navigateFromRoute's explicit
-  // window, and isPending over the location/matches read reports any
-  // in-flight fork — including popstate traversals and the lazy-subtree
-  // resolution matches() parks on.
-  const isRouting = createMemo(
-    () =>
-      isNavigating() ||
-      isPending(() => {
-        // A real error means the navigation settled (failed) — it surfaces
-        // to the app through render reads, not through this derivation.
-        // Not-ready must keep propagating so isPending sees the parking.
-        try {
-          matches();
-        } catch (e) {
-          if (e instanceof NotReadyError) throw e;
-        }
-        location.search;
-        location.hash;
-      })
+  const routingPending = createMemo(() =>
+    isPending(() => {
+      try {
+        matches();
+      } catch (e) {
+        if (e instanceof NotReadyError) throw e;
+      }
+      location.search;
+      location.hash;
+    })
   );
+  const isRouting = () => routingPending() || isPending(source);
+
+  const transitionIntent = (): Intent | undefined => {
+    if (!isPending(source)) return;
+    const navigation = latest(source)._navigation;
+    return navigation === -1 ? "native" : navigation && navigation > 0 ? "navigate" : undefined;
+  };
+
+  const pendingNavigation = () => {
+    if (!isRouting()) return;
+    const target = latest(source);
+    return target._navigation && target._navigation > 0 ? target : undefined;
+  };
 
   const buildParams = () => mergeParams(matches());
 
@@ -886,8 +904,9 @@ export function createRouterContext(
     params,
     wrapParams,
     isRouting,
+    intent: transitionIntent,
     get pendingTarget() {
-      return lastTransitionTarget;
+      return pendingNavigation();
     },
     renderPath,
     parsePath,
@@ -963,29 +982,20 @@ export function createRouterContext(
 
       if (resolvedTo === undefined) {
         throw new Error(`Path '${to}' is not a routable path`);
-      } else if (referrers.length >= MAX_REDIRECTS) {
+      }
+
+      const headed = latest(source);
+      const navigationDepth =
+        !isServer &&
+        isPending(source) &&
+        headed._navigation !== undefined &&
+        headed._navigation > 0
+          ? headed._navigation
+          : 0;
+
+      if (navigationDepth >= MAX_REDIRECTS) {
         throw new Error("Too many redirects");
       }
-
-      let current = effective();
-      if (committed) {
-        if (current.value === committed.from.value && current.state === committed.from.state) {
-          // navigateEnd's source write hasn't flushed yet; reads still answer
-          // the pre-commit location. The commit target is where we really are.
-          current = committed.to;
-        } else {
-          // effective() moved (the write landed, or a native pop superseded
-          // it) — the reactive read is authoritative again.
-          committed = undefined;
-        }
-      }
-
-      // Dedupe against where the router is headed, not just where it sits: a
-      // pending target is a plain variable and never lags, while a navigate()
-      // racing the pending target's unflushed navigateTarget write would
-      // otherwise compare against the old location and be silently dropped —
-      // breaking last-call-wins (#3107).
-      const headed = lastTransitionTarget ?? current;
 
       if (resolvedTo !== headed.value || nextState !== headed.state) {
         if (isServer) {
@@ -993,36 +1003,15 @@ export function createRouterContext(
           e && (e.response = { status: 302, headers: new Headers({ Location: resolvedTo }) });
           setSource({ value: resolvedTo, replace, scroll, state: nextState });
         } else if (!beforeLeave.current || beforeLeave.current.confirm(resolvedTo, options)) {
-          referrers.push({ value: current.value, replace, scroll, state: current.state });
-          const newTarget: LocationChange = {
-            value: resolvedTo,
-            state: nextState
-          };
-
-          const firstNavigation = lastTransitionTarget === undefined;
-          intent = "navigate";
-          // assign the target before flushing so effects that run for the
-          // isRouting flip (e.g. pending link state) can read it
-          lastTransitionTarget = newTarget;
-
-          if (firstNavigation) {
-            setIsRouting(true);
-            flush();
-          }
-
-          if (lastTransitionTarget === newTarget) {
-            setNavigateTarget({ ...lastTransitionTarget });
-
-            queueMicrotask(() => {
-              if (lastTransitionTarget !== newTarget) return;
-
-              intent = undefined;
-              navigateEnd(lastTransitionTarget);
-              setNavigateTarget(undefined);
-              setIsRouting(false);
-              lastTransitionTarget = undefined;
-            });
-          }
+          runWithOwner(null, () =>
+            setSource({
+              value: resolvedTo,
+              state: nextState,
+              replace: navigationDepth ? headed.replace : replace,
+              scroll: navigationDepth ? headed.scroll : scroll,
+              _navigation: navigationDepth + 1
+            })
+          );
         }
       }
     });
@@ -1033,22 +1022,6 @@ export function createRouterContext(
     route = route || useOptionalContext(RouteContextObj) || baseRoute;
     return (to: string | TypedPath | number, options?: Partial<NavigateOptions>) =>
       navigateFromRoute(route!, to, options);
-  }
-
-  function navigateEnd(next: LocationChange) {
-    const first = referrers[0];
-    if (first) {
-      // Captured before the write: effective() still reads the pre-commit
-      // location, which is exactly the stale answer navigateFromRoute's
-      // dedupe needs to recognize (and see past) until the flush.
-      committed = { from: untrack(effective), to: next };
-      setSource({
-        ...next,
-        replace: first.replace,
-        scroll: first.scroll
-      });
-      referrers.length = 0;
-    }
   }
 
   function preloadRoute(url: URL, preloadData?: boolean) {
@@ -1067,8 +1040,8 @@ export function createRouterContext(
         );
       } catch {}
     }
-    const prevIntent = intent;
-    intent = "preload";
+    const prevIntent = preloadIntent;
+    preloadIntent = "preload";
     for (let match in matches) {
       const { route, params } = matches[match];
       route.component &&
@@ -1094,7 +1067,7 @@ export function createRouterContext(
         );
       inPreloadFn = false;
     }
-    intent = prevIntent;
+    preloadIntent = prevIntent;
   }
 
   // Seeds the initial submission from a no-JS form post: the server
@@ -1140,7 +1113,9 @@ export function createRouteContext(
     (component as MaybePreloadableComponent).preload &&
     (component as MaybePreloadableComponent).preload!();
   inPreloadFn = true;
-  const data = preload ? preload({ params, location, intent: intent || "initial" }) : undefined;
+  const data = preload
+    ? preload({ params, location, intent: router.intent?.() || "initial" })
+    : undefined;
   inPreloadFn = false;
 
   const route: RouteContext = {
