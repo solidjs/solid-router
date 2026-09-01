@@ -267,7 +267,7 @@ describe("Router should", () => {
         navigate("/foo/bar");
 
         waitFor(() => signal[0]().value === "/foo/bar").then(n => {
-          expect(n).toBe(1);
+          expect(n).toBe(0);
           expect(signal[0]().replace).not.toBe(true);
           resolve();
         });
@@ -285,7 +285,7 @@ describe("Router should", () => {
         navigate("/foo", { state });
 
         waitFor(() => signal[0]().value === "/foo").then(n => {
-          expect(n).toBe(1);
+          expect(n).toBe(0);
           expect(location.state).toEqual(state);
           resolve();
         });
@@ -303,7 +303,7 @@ describe("Router should", () => {
         navigate("/", { state });
 
         waitFor(() => signal[0]().state === state).then(n => {
-          expect(n).toBe(1);
+          expect(n).toBe(0);
           expect(location.state).toEqual(state);
           resolve();
         });
@@ -325,7 +325,7 @@ describe("Router should", () => {
         navigate("/foo/5");
 
         waitFor(() => signal[0]().value === "/foo/5").then(n => {
-          expect(n).toBe(1);
+          expect(n).toBe(0);
           expect(signal[0]().replace).not.toBe(true);
           resolve();
         });
