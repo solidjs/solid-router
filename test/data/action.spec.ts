@@ -222,15 +222,17 @@ describe("action", () => {
     const navigate = vi.fn();
     mockRouterContext.navigatorFactory = () => navigate;
 
+    // a real redirect: 302 + Location, what redirect() produces — a
+    // Location on a non-redirect status is data and never navigates
     const redirectAction = action(
-      async () => new Response(null, { headers: { Location: "/next" } }),
+      async () => new Response(null, { status: 302, headers: { Location: "/next" } }),
       { name: "redirect-settled-test" }
     ).onSettled(onSettled);
 
     const boundAction = useAction(redirectAction);
     await boundAction();
 
-    expect(navigate).toHaveBeenCalledWith("/next");
+    expect(navigate).toHaveBeenCalledWith("/next", { replace: true });
     expect(onSettled).toHaveBeenCalledTimes(1);
     expect(mockRouterContext.submissions[0]()).toHaveLength(0);
   });
@@ -799,7 +801,16 @@ describe("generic server actions", () => {
       return {};
     }) as any;
     originalFetch = global.fetch;
-    fetchMock = vi.fn(async () => new Response(null, { headers: { Location: "/after" } }));
+    // the wire shape of a scripted redirect: masked 200 with the carrier
+    // holding the author's status and the resolved target
+    fetchMock = vi.fn(
+      async () =>
+        new Response(null, {
+          headers: {
+            "X-Server-Function-Redirect": `302 ${new URL("/after", window.location.href).href}`
+          }
+        })
+    );
     global.fetch = fetchMock as any;
   });
 
@@ -835,11 +846,12 @@ describe("generic server actions", () => {
     handleFormAction(event, mockRouterContext, ACTION_BASE);
 
     expect(event.preventDefault).toHaveBeenCalled();
-    // posted to the attribute url verbatim, as a server-function call —
-    // the id travels in the path, nowhere else (no addressing header)
+    // posted as a server-function call to the attribute url's data sibling
+    // (scripted calls have their own address, solidjs/solid#3094) — the id
+    // travels in the path, nowhere else (no addressing header)
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe(ref);
+    expect(url).toBe("/_server/data/echo%230");
     expect(init.method).toBe("POST");
     expect(init.headers["X-Server-Function-Id"]).toBeUndefined();
     expect(init.headers["X-Server-Function-Instance"]).toBeDefined();
@@ -857,7 +869,9 @@ describe("generic server actions", () => {
     handleFormAction(createSubmitEvent(form), mockRouterContext, ACTION_BASE);
 
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    expect(fetchMock.mock.calls[0][0]).toBe(ref);
+    // the data sibling keeps the rendered url's query — bound arguments ride
+    // where the server reads them for natural-encoding bodies
+    expect(fetchMock.mock.calls[0][0]).toBe("/_server/data/bound%230?args=%5B7%5D");
   });
 
   test("a registered action takes precedence over synthesis", () => {
@@ -891,7 +905,8 @@ describe("generic server actions", () => {
     submitServerForm(mockRouterContext, ref, form as any, {} as any);
 
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    expect(fetchMock.mock.calls[0][0]).toBe(ref);
+    expect(fetchMock.mock.calls[0][0]).toBe("/_server/data/lazy%230");
+    // registration stays under the RENDERED url — what repeat submits carry
     expect(actions.has(ref)).toBe(true);
   });
 

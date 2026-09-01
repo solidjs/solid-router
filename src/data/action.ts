@@ -2,8 +2,10 @@ import { $TRACK, action as createSolidAction, createMemo, onCleanup, getOwner } 
 import { isResponseEnvelope, isServer, REVALIDATE_HEADER, type JSX } from "@solidjs/web";
 import {
   createServerReference,
+  decodeRedirectHeaderValue,
   decodeResponsePayload,
   parseServerFunctionUrl,
+  REDIRECT_HEADER,
   subscribeFlightData
 } from "@solidjs/web/server-functions";
 // The explicit /server specifier is safe here: the only call site is
@@ -128,11 +130,13 @@ export function handleFormAction(evt: SubmitEvent, router: RouterContext, action
  * carries everything an invocation needs — the function id in the path
  * (`<endpoint>/<id>`) and any bound `.with()` arguments (plain JSON in
  * `?args`, which the server prepends for natural-encoding bodies exactly as
- * it does for no-JS posts) — so the FormData is posted to it verbatim
- * through the server-function transport:
- * submissions, `aria-busy`, redirects, revalidation, and single-flight all
- * flow through the normal action machinery. Registered under the url, so
- * repeat submits reuse it (and a later real registration overrides it).
+ * it does for no-JS posts) — so the FormData is posted through the
+ * server-function transport, which addresses its own scripted calls at the
+ * url's data sibling (`<endpoint>/data/<id>`, solidjs/solid#3094) with the
+ * bound query intact: submissions, `aria-busy`, redirects, revalidation,
+ * and single-flight all flow through the normal action machinery.
+ * Registered under the rendered url, so repeat submits reuse it (and a
+ * later real registration overrides it).
  */
 function createServerFormAction(
   url: string
@@ -412,6 +416,11 @@ async function settleActionResult<T>(result: T | Promise<T> | AsyncIterable<T>) 
 // again and wipe the freshly seeded cache).
 let flightApplications = 0;
 
+// The statuses fetch follows (Fetch §2.2.3) — the set the server masks into
+// the redirect carrier for scripted calls, and the set a locally-produced
+// redirect() envelope wears for real.
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
 /**
  * Registers the router as the single-flight consumer of the server function
  * transport. Subscribing is the opt-in: while registered, the transport
@@ -432,10 +441,11 @@ export function setupFlightDataConsumer(router: RouterContext) {
 
 /**
  * Applies a server function response's integration metadata: `X-Revalidate`
- * keys invalidate, `Location` navigates (hard for absolute urls), flight
- * data seeds the query cache, and matching entries revalidate. Shared by
- * the flight-data consumer and the action response path (which still sees
- * metadata-bearing responses when no flight data was collected).
+ * keys invalidate, the redirect carrier navigates (soft when same-origin,
+ * hard otherwise), flight data seeds the query cache, and matching entries
+ * revalidate. Shared by the flight-data consumer and the action response
+ * path (which still sees metadata-bearing responses when no flight data was
+ * collected).
  */
 function applyResponseMetadata(
   metadata: Response | undefined,
@@ -446,12 +456,32 @@ function applyResponseMetadata(
   if (metadata) {
     if (metadata.headers.has(REVALIDATE_HEADER))
       keys = metadata.headers.get(REVALIDATE_HEADER)!.split(",");
-    if (metadata.headers.has("Location")) {
-      const locationUrl = metadata.headers.get("Location") || "/";
-      if (locationUrl.startsWith("http")) {
-        window.location.href = locationUrl;
+    // The carrier delivers the target RESOLVED to an absolute url
+    // (solidjs/solid#3102), so the soft/hard split is a real origin
+    // comparison — never a guess from how the author spelled the target,
+    // which sent `redirect("/")` and `redirect(new URL("/", url).href)`
+    // down different navigation paths (solidjs/solid#3107). A redirect
+    // produced locally (a client-side action's `redirect()`) never crossed
+    // the wire, so no carrier was attached: it is the real 3xx with its
+    // Location, resolved against the page it runs in. A `Location` on any
+    // other status is the author's data (a 201's created-at) and never
+    // navigates. Same-origin targets navigate softly under the router;
+    // anything else leaves the app, so the document goes with it.
+    // `replace` matches what HTTP gives a form post: the target takes the
+    // submission's place in history rather than stacking on it.
+    const carried = decodeRedirectHeaderValue(metadata.headers.get(REDIRECT_HEADER));
+    const local =
+      !carried && REDIRECT_STATUSES.has(metadata.status) && metadata.headers.get("Location");
+    const target = carried
+      ? new URL(carried.url)
+      : local
+        ? new URL(local, window.location.href)
+        : undefined;
+    if (target) {
+      if (target.origin === window.location.origin) {
+        navigate(target.pathname + target.search + target.hash, { replace: true });
       } else {
-        navigate(locationUrl);
+        window.location.href = target.href;
       }
     }
   }

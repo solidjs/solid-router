@@ -7,9 +7,27 @@ import { createMockRouter } from "../helpers.js";
 // transport's part and deliver single-flight payloads to it directly.
 let consumer: FlightDataConsumer<Record<string, any>> | undefined;
 
+// The wire shape of a scripted redirect: masked 200 with the carrier holding
+// the author's status and the target resolved to an absolute url.
+const carrier = (target: string, status = 302) => ({
+  "X-Server-Function-Redirect": `${status} ${new URL(target, window.location.href).href}`
+});
+
 vi.mock("@solidjs/web/server-functions", () => ({
   decodeResponse: vi.fn(),
   decodeResponsePayload: vi.fn(),
+  // the redirect carrier, mirrored from the runtime (wire format:
+  // "<status> <absolute-url>")
+  REDIRECT_HEADER: "X-Server-Function-Redirect",
+  decodeRedirectHeaderValue: (value: string | null | undefined) => {
+    if (typeof value !== "string") return undefined;
+    const at = value.indexOf(" ");
+    if (at < 0) return undefined;
+    const status = Number(value.slice(0, at));
+    const url = value.slice(at + 1);
+    if (!Number.isInteger(status) || !url) return undefined;
+    return { status, url };
+  },
   // consumed by data/query.ts, which shares this module graph
   isServerFunction: () => false,
   getServerFunctionMetadata: () => undefined,
@@ -59,9 +77,9 @@ describe("setupFlightDataConsumer", () => {
     setupFlightDataConsumer(router);
     await consumer!(
       { "notes[]": ["destination data"] },
-      { response: new Response(null, { headers: { Location: "/notes" } }) }
+      { response: new Response(null, { headers: carrier("/notes") }) }
     );
-    expect(navigate).toHaveBeenCalledWith("/notes");
+    expect(navigate).toHaveBeenCalledWith("/notes", { replace: true });
     expect(query.get("notes[]")).toEqual(["destination data"]);
   });
 
@@ -110,13 +128,13 @@ describe("setupFlightDataConsumer", () => {
     const save = async () => {
       await consumer!(
         { "layout[]": "fresh-layout" },
-        { response: new Response(null, { headers: { Location: "/dash/b" } }) }
+        { response: new Response(null, { headers: carrier("/dash/b") }) }
       );
       return "saved";
     };
     await action(save, "keyless-save").call({ r: router });
 
-    expect(navigate).toHaveBeenCalledWith("/dash/b");
+    expect(navigate).toHaveBeenCalledWith("/dash/b", { replace: true });
     expect(await layout()).toBe("fresh-layout");
     expect(fetchLayout).toHaveBeenCalledTimes(1);
   });
