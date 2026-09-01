@@ -1,5 +1,12 @@
 # @solidjs/router
 
+## 2.0.0-next.21
+
+### Patch Changes
+
+- 7ff74bf: Track the server-function data address (solidjs/solid#3094). Scripted calls now go to `<endpoint>/data/<id>` while rendered action urls stay at the bare `<endpoint>/<id>`; the router needed no functional change — synthesized form actions already hand the rendered url to `createServerReference`, and the transport re-addresses its own calls — so this updates the wire-shape expectations in tests and the synthesis doc comment. Requires `@solidjs/web` 2.0.0-rc.5 (the release carrying the data-address split); the peer floor is raised to `^2.0.0-rc.5`.
+- 033b6f1: Navigate from the redirect carrier instead of sniffing Location. Server-function redirects now arrive as `X-Server-Function-Redirect: <status> <resolved-url>` (solidjs/solid#3102), so the soft/hard split is a real origin comparison — same-origin targets navigate softly with `replace: true` (the target takes the submission's place in history, matching HTTP's form-post semantics), anything else hard-navigates — never a guess from how the author spelled the target, which sent relative and absolute spellings down different navigation paths (solidjs/solid#3107). A locally-produced `redirect()` (a client-side action) still navigates from its real 3xx + Location; a `Location` on any other status is the author's data and never navigates.
+
 ## 2.0.0-next.20
 
 ### Patch Changes
