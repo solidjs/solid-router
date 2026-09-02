@@ -48,21 +48,21 @@
     "@rollup/plugin-node-resolve": "15.3.0",
     "@rollup/plugin-terser": "0.4.4",
     "@solidjs/vite-plugin": "3.0.0-next.35",
-    "@solidjs/web": "^2.0.0-rc.5",
+    "@solidjs/web": "^2.0.0-rc.6",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.10.0",
     "babel-preset-solid": "^2.0.0-rc.2",
     "jsdom": "^25.0.1",
     "prettier": "^3.4.1",
     "rollup": "^4.27.4",
-    "solid-js": "^2.0.0-rc.5",
+    "solid-js": "^2.0.0-rc.6",
     "typescript": "^5.7.2",
     "vite": "^8.2.2",
     "vitest": "^4.1.11"
   },
   "peerDependencies": {
-    "@solidjs/web": "^2.0.0-rc.5",
-    "solid-js": "^2.0.0-rc.5"
+    "@solidjs/web": "^2.0.0-rc.6",
+    "solid-js": "^2.0.0-rc.6"
   },
   "packageManager": "pnpm@10.19.0+sha512.c9fc7236e92adf5c8af42fd5bf1612df99c2ceb62f27047032f4720b33f8eacdde311865e91c411f2774f618d82f320808ecb51718bfa82c060c4ba7c76a32b8"
 }
