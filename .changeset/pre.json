@@ -47,6 +47,7 @@
     "remove-legacy-apis",
     "renumber-next-line-two-x",
     "require-solid-beta-22",
+    "require-solid-rc-6",
     "response-stub-committed-type",
     "retry-failed-lazy-subtrees",
     "router-factory-typed-paths",
