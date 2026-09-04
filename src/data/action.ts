@@ -198,7 +198,9 @@ function installRouterIntegrations() {
   if (isServer) {
     // Server-only: initSubmissions only decodes during SSR, so client builds
     // tree-shake the codec (which now lives behind the runtime's server entry).
-    provideFlashDecoder(decodeFlashCookie);
+    // TODO(@solidjs/web >= 2.0.0-rc.7): pass decodeFlashCookie directly — the
+    // async wrapper only exists because rc.6 still types it synchronous.
+    provideFlashDecoder(async cookieHeader => decodeFlashCookie(cookieHeader));
   } else {
     setRouterFormHandler(handleFormAction);
     provideFlightConsumer(setupFlightDataConsumer);
