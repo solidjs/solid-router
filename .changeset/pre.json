@@ -19,6 +19,7 @@
     "dev-gate-diagnostics",
     "drop-leaving-section-gate",
     "drop-scroll-growth-chasing",
+    "exact-optional-route-definition",
     "expect-server-function-data-address",
     "export-default-search-types",
     "fix-navigate-commit-window-drop",
