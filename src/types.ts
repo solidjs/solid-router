@@ -221,16 +221,21 @@ export type LazyRouteChildren = () =>
 
 // `T` defaults to `any` (not `unknown`) so typed components/preloads are assignable
 // in annotated configs like `const routes: RouteDefinition[]`, where no inference
-// site for `T` exists (#454)
+// site for `T` exists (#454).
+//
+// Every optional property also admits an explicit `undefined`: the runtime
+// treats an absent key and an `undefined` value identically, and trees built
+// by adapters (`fileRoutes` sets `component`/`children` to `undefined` for
+// leaves) must stay assignable under `exactOptionalPropertyTypes` (#598).
 export type RouteDefinition<S extends string | string[] = any, T = any> = {
-  path?: S;
-  matchFilters?: MatchFilters<S>;
-  preload?: RoutePreloadFunc<T>;
-  children?: RouteDefinition | readonly RouteDefinition[] | LazyRouteChildren;
-  component?: RouteSectionComponent<T>;
+  path?: S | undefined;
+  matchFilters?: MatchFilters<S> | undefined;
+  preload?: RoutePreloadFunc<T> | undefined;
+  children?: RouteDefinition | readonly RouteDefinition[] | LazyRouteChildren | undefined;
+  component?: RouteSectionComponent<T> | undefined;
   /** Standard Schema validator for this route's search params; its input type flows into the typed path proxy. */
-  search?: StandardSchemaV1<any, any>;
-  info?: RouteInfo;
+  search?: StandardSchemaV1<any, any> | undefined;
+  info?: RouteInfo | undefined;
 };
 
 // Type-only circular import: `RouteInfo` must be *declared* in the package

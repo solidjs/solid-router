@@ -591,7 +591,8 @@ export function createBranches(
   for (let i = 0, len = routeDefs.length; i < len; i++) {
     const def = routeDefs[i];
     if (def && typeof def === "object") {
-      if (!def.hasOwnProperty("path")) def.path = "";
+      // absent and explicitly `undefined` paths are the same pathless route
+      if (def.path === undefined) def.path = "";
       const routes = createRoutes(def, base);
       for (const route of routes) {
         stack.push(route);

@@ -51,8 +51,8 @@ export type FileRouteConfig<
 > = TypedRouteConfig<S> &
   ([F] extends [undefined] ? {} : DefinedRouteFilters<S> extends F ? {} : { matchFilters: F }) &
   ([Sch] extends [undefined] ? {} : { search: Sch }) & {
-    preload?: RoutePreloadFunc<T>;
-    info?: RouteInfo;
+    preload?: RoutePreloadFunc<T> | undefined;
+    info?: RouteInfo | undefined;
   };
 
 /**
@@ -83,11 +83,11 @@ export function defineFileRoute<
 >(
   path: S,
   config: {
-    matchFilters?: F & ValidFilters<F, S>;
-    preload?: (args: RoutePreloadFuncArgs<RouteParams<S>>) => T;
+    matchFilters?: (F & ValidFilters<F, S>) | undefined;
+    preload?: ((args: RoutePreloadFuncArgs<RouteParams<S>>) => T) | undefined;
     /** Standard Schema validator for this route's search params; its input type flows into the typed path proxy. */
     search?: Sch;
-    info?: RouteInfo;
+    info?: RouteInfo | undefined;
   }
 ): FileRouteConfig<S, T, F, Sch> {
   return config as FileRouteConfig<S, T, F, Sch>;
@@ -101,7 +101,7 @@ export interface FileRouteLazyRef<M = Record<string, unknown>> {
 
 /** An eager module ref: its picked exports are imported statically. */
 export interface FileRouteEagerRef<M = Record<string, unknown>> {
-  src?: string;
+  src?: string | undefined;
   require(): M;
 }
 
