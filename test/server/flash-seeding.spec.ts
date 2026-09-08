@@ -13,15 +13,8 @@ import { provideRequestEvent } from "@solidjs/web/storage";
 import { decodeFlashCookie, encodeFlashCookie } from "@solidjs/web/server-functions/server";
 
 // The encrypted codec resolves its key from the deployment secret; the
-// bundler-injected global is the zero-config vehicle. (Inert under a
-// pre-encryption @solidjs/web, required from 2.0.0-rc.7.)
+// bundler-injected global is the zero-config vehicle.
 (globalThis as any).__SOLID_SECRET__ = "flash-seeding-spec-secret";
-
-// The runtime decoder, in the async shape the slot requires. (The wrapper
-// also absorbs a pre-encryption sync decodeFlashCookie, so this spec runs
-// against either runtime while the rc.7 dep bump is in flight.)
-const asyncDecodeFlashCookie = async (cookieHeader: string | null) =>
-  decodeFlashCookie(cookieHeader);
 
 // encodeFlashCookie produces a Set-Cookie value; requests carry just the
 // name=value pair in their Cookie header
@@ -75,7 +68,7 @@ describe("SSR flash seeding", () => {
       // (or nothing) ever reads submissions
       expect(event.response.headers.get("Set-Cookie")).toContain("Max-Age=0");
 
-      routing.provideFlashDecoder(asyncDecodeFlashCookie);
+      routing.provideFlashDecoder(decodeFlashCookie);
       const seeded = await readSeeded(router);
       expect(seeded).toHaveLength(1);
       expect(seeded[0].url).toBe("/_server?id=createNote");
@@ -103,7 +96,7 @@ describe("SSR flash seeding", () => {
       const router = createContext(routing);
       expect(event.response.headers.get("Set-Cookie")).toBeNull();
 
-      routing.provideFlashDecoder(asyncDecodeFlashCookie);
+      routing.provideFlashDecoder(decodeFlashCookie);
       // the pre-seed never decodes, so the read is synchronous
       const seeded = router.submissions[0]();
       expect(seeded).toHaveLength(1);
