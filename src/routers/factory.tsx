@@ -95,9 +95,9 @@ export type DefinedRoute<
   ([F] extends [undefined] ? {} : DefinedRouteFilters<S> extends F ? {} : { matchFilters: F }) &
   ([C] extends [undefined] ? {} : [RouteChildren | undefined] extends [C] ? {} : { children: C }) &
   ([Sch] extends [undefined] ? {} : { search: Sch }) & {
-    component?: RouteSectionComponent<T>;
-    preload?: RoutePreloadFunc<T>;
-    info?: RouteInfo;
+    component?: RouteSectionComponent<T> | undefined;
+    preload?: RoutePreloadFunc<T> | undefined;
+    info?: RouteInfo | undefined;
   };
 
 /**
@@ -125,13 +125,13 @@ export function defineRoute<
   Sch extends StandardSchemaV1<any, any> | undefined = undefined
 >(route: {
   path: S;
-  matchFilters?: F & ValidFilters<F, S>;
-  preload?: (args: RoutePreloadFuncArgs<RouteParams<S>>) => T;
-  component?: DefinedRouteComponent<T, RouteParams<S>>;
+  matchFilters?: (F & ValidFilters<F, S>) | undefined;
+  preload?: ((args: RoutePreloadFuncArgs<RouteParams<S>>) => T) | undefined;
+  component?: DefinedRouteComponent<T, RouteParams<S>> | undefined;
   children?: C;
   /** Standard Schema validator for this route's search params; its input type flows into the typed path proxy. */
   search?: Sch;
-  info?: RouteInfo;
+  info?: RouteInfo | undefined;
 }): DefinedRoute<S, T, F, C, Sch>;
 // pathless (layout) route — params stay the open `Params` record
 export function defineRoute<
@@ -139,11 +139,11 @@ export function defineRoute<
   const C extends RouteChildren | undefined = RouteChildren | undefined,
   Sch extends StandardSchemaV1<any, any> | undefined = undefined
 >(route: {
-  preload?: (args: RoutePreloadFuncArgs) => T;
-  component?: DefinedRouteComponent<T, Params>;
+  preload?: ((args: RoutePreloadFuncArgs) => T) | undefined;
+  component?: DefinedRouteComponent<T, Params> | undefined;
   children?: C;
   search?: Sch;
-  info?: RouteInfo;
+  info?: RouteInfo | undefined;
 }): DefinedRoute<undefined, T, undefined, C, Sch>;
 export function defineRoute(route: RouteDefinition): RouteDefinition {
   return route;
