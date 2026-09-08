@@ -732,12 +732,16 @@ export function provideFlightConsumer(factory: (router: RouterContext) => () => 
  * decoder is always installed before useSubmission can read — and a
  * router-only app, where it never installs, has no actions that could have
  * produced a flash cookie in the first place.
+ *
+ * The decoder is async: the flash cookie is encrypted (solidjs/solid#3239),
+ * so the runtime's `decodeFlashCookie` decrypts through WebCrypto and the
+ * seeding read parks on the not-ready protocol until the decode settles.
  */
-let flashDecoder: ((cookieHeader: string | null) => FlashSubmission | undefined) | undefined;
+type FlashDecoder = (cookieHeader: string | null) => Promise<FlashSubmission | undefined>;
 
-export function provideFlashDecoder(
-  decoder: (cookieHeader: string | null) => FlashSubmission | undefined
-): void {
+let flashDecoder: FlashDecoder | undefined;
+
+export function provideFlashDecoder(decoder: FlashDecoder): void {
   flashDecoder || (flashDecoder = decoder);
 }
 
@@ -802,6 +806,55 @@ export function createRouterContext(
       }
     }
   }
+
+  // The decode, at most once per request: the decoder may answer with a
+  // Promise (the cookie is encrypted; the runtime's decodeFlashCookie is
+  // async), and this cache is what keeps the parked read's rerun from
+  // restarting it — resumption finds the settled outcome and just reads it.
+  // A decoder that rejects reads as "no flash", matching the runtime's own
+  // malformed-cookie semantics.
+  let flashDecode:
+    | { done: true; value: FlashSubmission | undefined }
+    | { done: false; promise: Promise<void> }
+    | undefined;
+
+  // The seeding read, as a memo: NotReadyError must surface from a reactive
+  // node the graph can park and retry — never from router setup, which no
+  // boundary guards — and the memo bounds the recompute to this function;
+  // a parked reader resumes into the settled cache above, never a second
+  // decode. Created only when a flash cookie actually arrived (server-only
+  // by construction: flashCookieHeader is only ever set there), and
+  //   - `lazy`: server memos compute eagerly by default — deferred to first
+  //     read, a request whose submissions are never read never decodes;
+  //   - `transparent`: the memo exists on the server only, so its owner
+  //     must not consume a hydration-id slot — the client, which seeds
+  //     submissions as [] without ever creating this memo, would miss it
+  //     and every sibling id would shift.
+  const flashSubmission =
+    flashCookieHeader !== undefined
+      ? createMemo<FlashSubmission | undefined>(
+          () => {
+            if (!flashDecoder) return undefined;
+            if (!flashDecode) {
+              const promise = flashDecoder(flashCookieHeader!).then(
+                value => {
+                  flashDecode = { done: true, value };
+                },
+                () => {
+                  flashDecode = { done: true, value: undefined };
+                }
+              );
+              flashDecode = { done: false, promise };
+            }
+            // SSR carries the Promise through NotReadyError so the parked
+            // reader can resume, exactly like the lazy matches above.
+            if (!flashDecode.done) throw new NotReadyError(flashDecode.promise);
+            return flashDecode.value;
+          },
+          { lazy: true, transparent: true }
+        )
+      : undefined;
+
   let submissions: Signal<Submission<any, any>[]> | undefined;
 
   // NotReadyError's source must be a reactive async node, not the raw
@@ -1073,16 +1126,17 @@ export function createRouterContext(
   // Seeds the initial submission from a no-JS form post: the server
   // function runtime redirected back with the outcome in a one-shot flash
   // cookie (its default no-JS convention), consumed eagerly above and
-  // decoded here — so the post-redirect SSR renders useSubmission() state
-  // exactly as a scripted submission would. An explicitly pre-seeded
-  // `event.router.submission` (framework integrations) takes precedence.
+  // decoded through the flashSubmission memo — so the post-redirect SSR
+  // renders useSubmission() state exactly as a scripted submission would.
+  // The memo read may throw NotReadyError while the (encrypted) cookie
+  // decodes; the assignment in the submissions getter never completed, so
+  // the resumed rerun retries it against the settled decode. An explicitly
+  // pre-seeded `event.router.submission` (framework integrations) takes
+  // precedence.
   function initSubmissions() {
     const e = getRequestEvent();
     const submission =
-      (e && e.router && e.router.submission) ||
-      (flashDecoder && flashCookieHeader !== undefined
-        ? flashDecoder(flashCookieHeader)
-        : undefined);
+      (e && e.router && e.router.submission) || (flashSubmission && flashSubmission());
     if (!submission) return [];
     return [
       {
