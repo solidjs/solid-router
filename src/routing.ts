@@ -868,57 +868,65 @@ export function createRouterContext(
     let read = lazyReaders.get(record);
     if (!read) {
       read = runWithOwner(routerOwner, () =>
-        createMemo<void>(() => {
-          const result = resolveLazySubtree(record);
-          return result instanceof Promise ? result.then(() => undefined) : undefined;
-        })
+        createMemo<void>(
+          () => {
+            const result = resolveLazySubtree(record);
+            return result instanceof Promise ? result.then(() => undefined) : undefined;
+          },
+          { name: "lazyRoutes" }
+        )
       );
       lazyReaders.set(record, read);
     }
     return read();
   };
 
-  const matches = createMemo(() => {
-    const pathname =
-      typeof options.transformUrl === "function"
-        ? options.transformUrl(location.pathname)
-        : location.pathname;
-    const m = getRouteMatches(branches(), pathname);
-    // An unresolved lazy subtree parks readers on not-ready semantics — the
-    // navigation transition (or the SSR stream) holds until the table lands.
-    // NotReadyError (not a returned promise) because a match chain is full
-    // of component functions the hydration serializer must never see. The
-    // recompute comes from the version-signal dependency on the client and
-    // from the carried promise's retry on the server; a boundary nested
-    // inside a boundary just parks the recomputed chain again.
-    const pending = unresolvedLazyMatches(m);
-    if (pending.length) {
-      if (isServer) {
-        // SSR carries the Promise through NotReadyError so the streaming
-        // renderer can resume without attempting to serialize route
-        // definitions (which contain component functions).
-        const all = Promise.all(pending.map(resolveLazySubtree));
-        all.catch(() => {});
-        throw new NotReadyError(all);
-      } else {
-        // On the client the source must be a reactive async node so transition
-        // settlement and rejection delivery remain inside the signals graph.
-        for (const boundary of pending) readLazySubtree(boundary);
+  const matches = createMemo(
+    () => {
+      const pathname =
+        typeof options.transformUrl === "function"
+          ? options.transformUrl(location.pathname)
+          : location.pathname;
+      const m = getRouteMatches(branches(), pathname);
+      // An unresolved lazy subtree parks readers on not-ready semantics — the
+      // navigation transition (or the SSR stream) holds until the table lands.
+      // NotReadyError (not a returned promise) because a match chain is full
+      // of component functions the hydration serializer must never see. The
+      // recompute comes from the version-signal dependency on the client and
+      // from the carried promise's retry on the server; a boundary nested
+      // inside a boundary just parks the recomputed chain again.
+      const pending = unresolvedLazyMatches(m);
+      if (pending.length) {
+        if (isServer) {
+          // SSR carries the Promise through NotReadyError so the streaming
+          // renderer can resume without attempting to serialize route
+          // definitions (which contain component functions).
+          const all = Promise.all(pending.map(resolveLazySubtree));
+          all.catch(() => {});
+          throw new NotReadyError(all);
+        } else {
+          // On the client the source must be a reactive async node so transition
+          // settlement and rejection delivery remain inside the signals graph.
+          for (const boundary of pending) readLazySubtree(boundary);
+        }
       }
-    }
-    return m;
-  });
+      return m;
+    },
+    { name: "matches" }
+  );
 
-  const routingPending = createMemo(() =>
-    isPending(() => {
-      try {
-        matches();
-      } catch (e) {
-        if (e instanceof NotReadyError) throw e;
-      }
-      location.search;
-      location.hash;
-    })
+  const routingPending = createMemo(
+    () =>
+      isPending(() => {
+        try {
+          matches();
+        } catch (e) {
+          if (e instanceof NotReadyError) throw e;
+        }
+        location.search;
+        location.hash;
+      }),
+    { name: "routingPending" }
   );
   const isRouting = () => routingPending() || isPending(source);
 
