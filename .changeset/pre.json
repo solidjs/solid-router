@@ -39,6 +39,7 @@
     "live-query-channel-prototype",
     "metadata-detection-for-get",
     "navigate-url-semantics",
+    "observe-navigation-origin",
     "own-single-flight-and-nojs",
     "popular-pears-boil",
     "preserve-layouts-between-child-routes",
