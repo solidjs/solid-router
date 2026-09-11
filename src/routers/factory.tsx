@@ -10,9 +10,11 @@ import {
   sharedConfig,
   untrack
 } from "solid-js";
-// standalone import: `DEV` is undefined in solid's production build, so app
-// bundlers fold `DEV &&` diagnostics out of shipped bundles
-import { DEV } from "solid-js";
+// standalone imports: `DEV` is undefined in solid's production build and
+// `OBSERVE` outside its observe/dev builds, so app bundlers fold the
+// `DEV &&` diagnostics and the `OBSERVE &&` attribution out of shipped bundles
+import { DEV, OBSERVE } from "solid-js";
+import type { NavigationRef } from "solid-js/attribution";
 import { getRequestEvent, isServer } from "@solidjs/web";
 import type { JSX } from "@solidjs/web";
 import { setupLinkClaims } from "../claims.js";
@@ -23,6 +25,7 @@ import {
   createBranches,
   createRouterContext,
   getRouteMatches,
+  mergeParams,
   registerFlightRouter,
   RouterContextObj,
   trackLazySubtrees,
@@ -36,6 +39,7 @@ import type {
   OutputMatch,
   Params,
   RouteDefinition,
+  RouteMatch,
   RouteInfo,
   RouteParams,
   RoutePreloadFunc,
@@ -205,35 +209,89 @@ export interface RouterInstance<R extends readonly RouteDefinition[] = RouteDefi
   match(url: string): OutputMatch[];
 }
 
+/**
+ * What one location write is, for solid's observe tier: the parametrized
+ * route it heads to, the params, where it came from, and — when the write is
+ * the router chasing a redirect while the previous target is still pending —
+ * which hop of that navigation it is. The engine times the navigation from
+ * this declaration (or from the user event enclosing it) until its writes
+ * are through, and names holds and re-runs after it.
+ *
+ * `name` and `params` are getters: the engine reads them when the navigation
+ * settles, not when it starts, so a lazy route subtree that loaded during the
+ * hold names the exact route it resolved to rather than its placeholder.
+ * Redirect depth comes from `_navigation` (1 = a navigation, n = its
+ * (n - 1)th redirect hop, -1 = the browser moved: back/forward, hash).
+ */
+function describeNavigation(
+  match: (pathname: string) => RouteMatch[],
+  next: LocationChange,
+  from: string
+): NavigationRef {
+  const pathname = new URL(next.value, mockBase).pathname;
+  const matches = () => untrack(() => match(pathname));
+  const ref: NavigationRef = {
+    kind: "navigation",
+    to: next.value,
+    from,
+    get name() {
+      const m = matches();
+      return m.length ? m[m.length - 1].route.pattern || "/" : pathname;
+    },
+    get params() {
+      const m = matches();
+      return m.length ? (mergeParams(m) as Readonly<Record<string, string>>) : undefined;
+    }
+  };
+  if (next._navigation !== undefined && next._navigation > 1) ref.redirect = next._navigation - 1;
+  return ref;
+}
+
 /** Wraps a history adapter in the integration signal the router core consumes. Must run under a reactive owner. */
-function createIntegration(history: RouterHistory): RouterIntegration {
+function createIntegration(
+  history: RouterHistory,
+  match: (pathname: string) => RouteMatch[]
+): RouterIntegration {
   let committing = false;
   const wrap = (value: string | LocationChange) => (typeof value === "string" ? { value } : value);
   const [read, write] = createSignal(wrap(history.get()), {
     equals: (a, b) =>
       a.value === b.value && a.state === b.state && a._navigation === b._navigation,
-    ownedWrite: true
+    ownedWrite: true,
+    name: "location"
   });
   const signal: RouterIntegration["signal"] = [
     read,
     (next: LocationChange) => {
       if (sharedConfig.registry && !sharedConfig.done) sharedConfig.done = true;
-      write(next);
-      if (next._navigation && next._navigation > 0) {
-        // Register out of band so a destination error boundary replacing the
-        // Router subtree cannot suppress the winning history commit.
-        runWithOwner(null, () =>
-          onSettled(() => {
-            if (read() !== next) return;
-            committing = true;
-            try {
-              history.set(next);
-            } finally {
-              committing = false;
-            }
-          })
-        );
-      }
+      const commit = () => {
+        write(next);
+        if (next._navigation && next._navigation > 0) {
+          // Register out of band so a destination error boundary replacing the
+          // Router subtree cannot suppress the winning history commit.
+          runWithOwner(null, () =>
+            onSettled(() => {
+              if (read() !== next) return;
+              committing = true;
+              try {
+                history.set(next);
+              } finally {
+                committing = false;
+              }
+            })
+          );
+        }
+      };
+      // Every client location write passes here — navigate(), a redirect hop,
+      // the browser's own back/forward — so this is the one place the
+      // navigation is declared. `read()` still holds the committed location
+      // while a navigation is pending, which is the `from` a hop wants too.
+      OBSERVE
+        ? OBSERVE.attribution.withOrigin(
+            describeNavigation(match, next, untrack(read).value),
+            commit
+          )
+        : commit();
     }
   ];
 
@@ -287,6 +345,8 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
     return compiled;
   };
   const renderPath = (config.history && config.history.utils && config.history.utils.renderPath) || undefined;
+  const matchPath = (pathname: string) =>
+    getRouteMatches(branches(), config.transformUrl ? config.transformUrl(pathname) : pathname);
 
   function RouterComponent(props: RouterProps): JSX.Element {
     // One router per app: the session (location, history, delegation, link
@@ -309,7 +369,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
     }
     const integration = isServer
       ? staticIntegration(props.url, config.history && config.history.utils)
-      : createIntegration(history || browserHistory());
+      : createIntegration(history || browserHistory(), matchPath);
     let context: Owner;
     const routerState = createRouterContext(integration, branches, () => context, {
       base: basePath,
@@ -341,9 +401,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
     routes: config.routes,
     config,
     match(url: string): OutputMatch[] {
-      const u = new URL(url, mockBase);
-      const pathname = config.transformUrl ? config.transformUrl(u.pathname) : u.pathname;
-      return getRouteMatches(branches(), pathname).map(({ route, path, params }) => ({
+      return matchPath(new URL(url, mockBase).pathname).map(({ route, path, params }) => ({
         path: route.originalPath,
         pattern: route.pattern,
         match: path,

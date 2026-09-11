@@ -750,6 +750,8 @@ const isRouting = useIsRouting();
 return <div classList={{ "grey-out": isRouting() }}>...</div>;
 ```
 
+In Solid's dev and observe builds the router also declares every navigation to the attribution engine (`solid-js/attribution`): holds and re-runs caused by a navigation are named after the route pattern (`navigation to /users/:id`), timed from the user event that started it, and redirect hops fold onto the navigation they belong to. `attribution.navigations()` and `feedback().navigations` list them; nothing of this exists in production builds.
+
 ### useMatch
 
 Tests a path *pattern you supply* against the current location; returns a memo of match information or `undefined`. It never consults the route tree — the pattern doesn't have to correspond to a defined route. The match's `params` are typed from the pattern, and a typed path node works too (a concrete URL — useful for "am I here" checks):
