@@ -167,6 +167,60 @@ describe("observe tier: navigations declared to attribution", () => {
     }
   });
 
+  test("a guard that navigates as the held destination lands is a hop of that navigation, not a new one", async () => {
+    let navigate!: Navigator;
+    const getSession = query(async () => {
+      await new Promise(r => setTimeout(r, 10));
+      return { authed: false };
+    }, "observe-session");
+    // The app-authored guard: read the session (held), then redirect in
+    // render once it lands. /private never reaches history.
+    const Private = () => {
+      const session = createMemo(() => getSession());
+      const nav = useNavigate();
+      const view = createMemo(() => {
+        if (!session().authed) {
+          nav("/login", { replace: true });
+          return null;
+        }
+        return <span data-route="private">private</span>;
+      });
+      return <>{view()}</>;
+    };
+    const Router = createRouter({
+      routes: [
+        {
+          path: "/",
+          component: () => {
+            navigate = useNavigate();
+            return <div data-route="home">Home</div>;
+          }
+        },
+        { path: "/private", component: Private },
+        { path: "/login", component: () => <span data-route="login">login-page</span> }
+      ] as const,
+      history: memoryHistory()
+    });
+
+    const { div, cleanup } = mount(Router);
+    try {
+      const before = attribution.navigations().length;
+      navigate("/private");
+      await settle(60);
+      expect(div.querySelector('[data-route="login"]')).toBeTruthy();
+
+      expect(attribution.navigations().length).toBe(before + 1);
+      const nav = last();
+      expect(nav.name).toBe("/login");
+      expect(nav.from).toBe("/");
+      expect(nav.writes).toBe(2);
+      expect(nav.redirects?.map(h => h.to)).toEqual(["/private"]);
+      expect(nav.outcome).toBe("held");
+    } finally {
+      cleanup();
+    }
+  });
+
   test("a lazy subtree that loads during the hold names the exact route it resolved to", async () => {
     let navigate!: Navigator;
     const pluginRoutes = defineRoutes([
