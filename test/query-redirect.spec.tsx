@@ -198,3 +198,112 @@ describe("redirects thrown from queries", () => {
     dispose();
   });
 });
+
+// The shape a `"use server"` redirect reaches a client-side query in: the
+// server-function transport masks the 3xx to 200, drops `Location`, and carries
+// "<status> <absolute-url>" in X-Server-Function-Redirect; the client transport
+// then hands that Response over whole (solidjs/solid-router#603).
+const carriedRedirect = (to: string, revalidate?: string) =>
+  new Response(null, {
+    status: 200,
+    headers: {
+      "X-Server-Function-Redirect": `302 ${new URL(to, window.location.href).href}`,
+      ...(revalidate ? { "X-Revalidate": revalidate } : {})
+    }
+  });
+
+describe("redirects carried by the server-function transport (#603)", () => {
+  test("a masked redirect navigates and never reaches consumers", async () => {
+    const observed: any[] = [];
+    const caught: any[] = [];
+
+    const requireUser = query(async () => carriedRedirect("/sign-in"), "qr-carrier-user");
+
+    const Account = (props: { value: any }) => {
+      const name = createMemo(() => {
+        observed.push(props.value);
+        return props.value.name;
+      });
+      return <span>account:{name()}</span>;
+    };
+
+    const AccountPage = () => {
+      const user = createMemo(() => requireUser());
+      return (
+        <Loading fallback={<span>account-pending</span>}>
+          <Account value={user()} />
+        </Loading>
+      );
+    };
+
+    const Router = createRouter({
+      routes: [
+        { path: "/account", component: AccountPage },
+        { path: "/sign-in", component: () => <span>sign-in-page</span> }
+      ] as const,
+      history: memoryHistory("/account")
+    });
+
+    const { root, dispose } = mount(Router, caught);
+    await wait(150);
+
+    expect(root.innerHTML).toContain("sign-in-page");
+    // the Response must not become the query's value
+    expect(observed).toEqual([]);
+    expect(caught).toEqual([]);
+    dispose();
+  });
+
+  test("X-Revalidate keys on a masked redirect invalidate and revalidate", async () => {
+    let sessionFetches = 0;
+    const getSession = query(async () => {
+      sessionFetches++;
+      return { user: sessionFetches === 1 ? "expired" : "anonymous" };
+    }, "qr-carrier-session");
+    const getFiles = query(
+      async () => carriedRedirect("/login", getSession.key),
+      "qr-carrier-files"
+    );
+
+    const Layout = (props: ParentProps) => {
+      const session = createMemo(() => getSession());
+      return (
+        <section>
+          <Loading fallback={<span>session-pending</span>}>
+            <header>user:{(session() as any)?.user}</header>
+          </Loading>
+          {props.children}
+        </section>
+      );
+    };
+
+    const FilePage = () => {
+      const files = createMemo(() => getFiles());
+      return (
+        <Loading fallback={<span>files-pending</span>}>
+          <span>files:{String(files())}</span>
+        </Loading>
+      );
+    };
+
+    const Router = createRouter({
+      routes: [
+        { path: "/files", component: FilePage },
+        { path: "/login", component: () => <span>login-page</span> }
+      ] as const,
+      history: memoryHistory("/files")
+    });
+
+    const root = document.createElement("div");
+    const dispose = render(
+      () => <Router>{(props: ParentProps) => <Layout>{props.children}</Layout>}</Router>,
+      root
+    );
+
+    await wait(150);
+    expect(root.innerHTML).toContain("login-page");
+    expect(sessionFetches).toBe(2);
+    expect(root.innerHTML).toContain("user:anonymous");
+    dispose();
+  });
+});

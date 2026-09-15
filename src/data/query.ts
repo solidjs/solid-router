@@ -29,6 +29,9 @@ import { useRouter, getIntent, getInPreloadFn } from "../routing.js";
 import type { CacheEntry, NarrowResponse } from "../types.js";
 
 const LocationHeader = "Location";
+// `REDIRECT_HEADER` from @solidjs/web/server-functions, named here so the
+// check below does not pull that entry into every router app's graph.
+const RedirectHeader = "X-Server-Function-Redirect";
 const PRELOAD_TIMEOUT = 5000;
 const CACHE_TIMEOUT = 180000;
 // When this client booted. Flight-registry entries (sharedConfig.has/load)
@@ -277,7 +280,25 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
             }
           }
 
-          const url = v.headers.get(LocationHeader);
+          let url = v.headers.get(LocationHeader);
+
+          // A `"use server"` redirect reaches a client-side read masked: the
+          // transport answers scripted callers with a 200, drops `Location`
+          // and carries "<status> <absolute-url>" in REDIRECT_HEADER instead.
+          // Decode it with the runtime's own reader, as action() does. The
+          // import is dynamic so plain-fetch apps still never ship the
+          // transport: a carrier only arrives where it is already loaded.
+          if (url === null && !isServer && v.headers.has(RedirectHeader)) {
+            const { decodeRedirectHeaderValue } = await import("@solidjs/web/server-functions");
+            const carried = decodeRedirectHeaderValue(v.headers.get(RedirectHeader));
+            if (carried) {
+              const target = new URL(carried.url);
+              url =
+                target.origin === window.location.origin
+                  ? target.pathname + target.search + target.hash
+                  : target.href;
+            }
+          }
 
           if (url !== null) {
             // invalidate the redirect's revalidation keys before navigating so
