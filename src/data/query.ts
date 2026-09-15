@@ -275,3 +275,101 @@ function isPlainObject(obj: object) {
     (!(proto = Object.getPrototypeOf(obj)) || proto === Object.prototype)
   );
 }
+
+export interface BatchOptions<Query> {
+  /** Decides when two queries are the same read. Defaults to `hashKey([query])`. */
+  key?: (query: Query) => unknown;
+  /** The most unique queries passed to one `callback` call. Extra queries go to more calls. */
+  limit?: number;
+  /** How long calls are collected before reading, in milliseconds. */
+  wait?: number;
+}
+
+interface BatchCaller<Return> {
+  resolve: (value: Return) => void;
+  reject: (reason: unknown) => void;
+}
+
+interface BatchSlot<Query, Return> {
+  query: Query;
+  callers: BatchCaller<Return>[];
+}
+
+interface BatchWaiting<Query, Return> extends BatchCaller<Return> {
+  query: Query;
+}
+
+/**
+ * Collects calls made at the same time and reads them with one `callback` call.
+ * `lookup` picks each caller's result out of the data. `index` is the query's
+ * position in the list given to `callback`.
+ *
+ * On the server every call reads alone. The queue lives in the module, so
+ * batching there would mix queries from separate requests.
+ */
+export function batchedQuery<Query, Data, Return>(
+  callback: (queries: Query[]) => Promise<Data>,
+  lookup: (data: Data, query: Query, index: number) => Return,
+  options: BatchOptions<Query> = {}
+): (query: Query) => Promise<Return> {
+  const keyOf = options.key ?? ((query: Query): unknown => hashKey([query]));
+  const size = Math.max(1, Math.floor(options.limit ?? Number.POSITIVE_INFINITY));
+  let waiting: BatchWaiting<Query, Return>[] = [];
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  // A failed read rejects only the callers in its chunk.
+  // A failed lookup rejects only the callers of that query.
+  const settle = async (chunk: BatchSlot<Query, Return>[]) => {
+    const queries: Query[] = [];
+    for (const slot of chunk) queries.push(slot.query);
+
+    let data: Data;
+    try {
+      data = await callback(queries);
+    } catch (error) {
+      for (const slot of chunk) {
+        for (const caller of slot.callers) caller.reject(error);
+      }
+      return;
+    }
+    for (let index = 0; index < chunk.length; index++) {
+      const slot = chunk[index];
+      try {
+        const value = lookup(data, slot.query, index);
+        for (const caller of slot.callers) caller.resolve(value);
+      } catch (error) {
+        for (const caller of slot.callers) caller.reject(error);
+      }
+    }
+  };
+
+  const flush = () => {
+    const gathered = waiting;
+    const slots = new Map<unknown, BatchSlot<Query, Return>>();
+    // Reset before reading, so calls made during `callback` start a new batch.
+    waiting = [];
+    timer = undefined;
+    for (const { query, resolve, reject } of gathered) {
+      const key = keyOf(query);
+      const slot = slots.get(key);
+      if (slot) slot.callers.push({ resolve, reject });
+      else slots.set(key, { query, callers: [{ resolve, reject }] });
+    }
+    const unique = Array.from(slots.values());
+    for (let start = 0; start < unique.length; start += size) {
+      settle(unique.slice(start, start + size));
+    }
+  };
+
+  return (query: Query) => {
+    if (isServer) {
+      return Promise.resolve([query])
+        .then(callback)
+        .then(data => lookup(data, query, 0));
+    }
+    return new Promise<Return>((resolve, reject) => {
+      waiting.push({ query, resolve, reject });
+      if (!timer) timer = setTimeout(flush, options.wait ?? 0);
+    });
+  };
+}
