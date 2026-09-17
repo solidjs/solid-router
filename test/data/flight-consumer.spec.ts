@@ -93,6 +93,49 @@ describe("setupFlightDataConsumer", () => {
     expect(query.get("notes[]")).toEqual(["fresh"]);
   });
 
+  test("X-Revalidate: * revalidates everything, the same scope as no declaration", async () => {
+    // `revalidate: "*"` is the host-independent spelling of "all" — the
+    // author's explicit version of what this router already does for an
+    // action that declares nothing. Entries outside any named prefix go
+    // stale too; the payload's own entries are fresh again by the sweep.
+    const fetchOther = vi.fn(async () => "other");
+    const other = query(fetchOther, "other");
+    await other();
+    query.set("notes[]", ["stale"]);
+
+    setupFlightDataConsumer(router);
+    const save = async () => {
+      await consumer!(
+        { "notes[]": ["fresh"] },
+        { response: new Response(null, { headers: { "X-Revalidate": "*" } }) }
+      );
+      return "saved";
+    };
+    await action(save, "save-all").call({ r: router });
+    await other();
+
+    expect(query.get("notes[]")).toEqual(["fresh"]);
+    expect(fetchOther).toHaveBeenCalledTimes(2);
+  });
+
+  test("an empty X-Revalidate declaration revalidates nothing", async () => {
+    // `revalidate: []` narrows the scope to zero keys — distinct from the
+    // absent header, which is this router's "everything" default.
+    const fetchOther = vi.fn(async () => "other");
+    const other = query(fetchOther, "other");
+    await other();
+
+    setupFlightDataConsumer(router);
+    const save = async () => {
+      await consumer!({}, { response: new Response(null, { headers: { "X-Revalidate": "" } }) });
+      return "saved";
+    };
+    await action(save, "save-nothing").call({ r: router });
+    await other();
+
+    expect(fetchOther).toHaveBeenCalledTimes(1);
+  });
+
   test("does not revalidate flight data again after a server action settles", async () => {
     const fetchNotes = vi.fn(async () => ["stale"]);
     const notes = query(fetchNotes, "notes");
