@@ -1,5 +1,12 @@
 # @solidjs/router
 
+## 2.0.0-next.26
+
+### Patch Changes
+
+- 77721aa: `query()` now follows a redirect carried in `X-Server-Function-Redirect` (#603). A `redirect()` thrown or returned inside a `"use server"` function wrapped in `query()` reaches a client-side read masked to a 200 with `Location` removed, so `query` settled with the `Response` as its value and the navigation completed as if the check had passed; it only redirected on a full page request. The carrier is decoded with the runtime's `decodeRedirectHeaderValue`, the way `action()` already does: same-origin targets navigate softly with `replace`, other origins navigate the document, `X-Revalidate` keys are honored, and the read stays pending on the client. The decoder is the same pure, dependency-free binding `action()` imports, so it tree-shakes to a few hundred bytes — apps without server functions still do not ship the codec.
+- 122af7a: `revalidate()` now notifies live consumers of an entry fetched within the same millisecond. The cache's live version signal carries the entry's fetch stamp, and a signal write of an equal value is a no-op — so a sweep landing before the clock ticked past the fetch (a mount whose guard redirect resolves immediately, a redirect's `X-Revalidate` keys naming a query the surviving layout just read) left that consumer holding its stale value with no refetch. The sweep now always produces a change, so the surviving layout refetches inside the same transition as before.
+
 ## 2.0.0-next.25
 
 ### Patch Changes
