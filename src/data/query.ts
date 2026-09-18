@@ -97,12 +97,12 @@ export type CachedFunction<T extends (...args: any) => any> = T extends (
   ...args: infer A
 ) => infer R
   ? ([] extends { [K in keyof A]-?: A[K] } // A tuple full of optional values is equivalent to an empty tuple
-    ? (
-      ...args: never[]
-    ) => R extends Promise<infer P> ? Promise<NarrowResponse<P>> : NarrowResponse<R>
-    : (
-      ...args: A
-    ) => R extends Promise<infer P> ? Promise<NarrowResponse<P>> : NarrowResponse<R>) & {
+      ? (
+          ...args: never[]
+        ) => R extends Promise<infer P> ? Promise<NarrowResponse<P>> : NarrowResponse<R>
+      : (
+          ...args: A
+        ) => R extends Promise<infer P> ? Promise<NarrowResponse<P>> : NarrowResponse<R>) & {
       keyFor: (...args: A) => string;
       key: string;
     }
@@ -178,7 +178,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
             : handleResponse(false)(cached[1]);
         !isServer && intent === "navigate" && cached[4][1](cached[0]); // update version
       }
-      inPreloadFn && "then" in res && res.catch(() => { });
+      inPreloadFn && "then" in res && res.catch(() => {});
       return res;
     }
     let res;
@@ -224,7 +224,13 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     } else {
       cache.set(
         key,
-        (cached = [stamp, res, , intent, createSignal(stamp, { ownedWrite: true }) as Signal<number> & { count: number }])
+        (cached = [
+          stamp,
+          res,
+          ,
+          intent,
+          createSignal(stamp, { ownedWrite: true }) as Signal<number> & { count: number }
+        ])
       );
       cached[4].count = 0;
     }
@@ -242,7 +248,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
           ? res.then(handleResponse(false), handleResponse(true))
           : handleResponse(false)(res);
     }
-    inPreloadFn && "then" in res && res.catch(() => { });
+    inPreloadFn && "then" in res && res.catch(() => {});
     // serialize on server
     if (
       isServer &&
@@ -270,10 +276,8 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
 
           if (e) {
             for (const [key, value] of v.headers) {
-              if (key == "set-cookie")
-                e.response.headers.append("set-cookie", value);
-              else
-                e.response.headers.set(key, value);
+              if (key == "set-cookie") e.response.headers.append("set-cookie", value);
+              else e.response.headers.set(key, value);
             }
           }
 
@@ -281,9 +285,13 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
 
           if (url !== null) {
             // invalidate the redirect's revalidation keys before navigating so
-            // the destination's preloads see the miss and fetch fresh (#580 thread)
-            const keys = !isServer && v.headers.get(REVALIDATE_HEADER)?.split(",");
-            keys && cacheKeyOp(keys, entry => (entry[0] = 0));
+            // the destination's preloads see the miss and fetch fresh (#580 thread).
+            // A read that redirects declares nothing by default (unlike an
+            // action), so only a header present here sweeps: named keys their
+            // matches, `*` everything.
+            const declared = !isServer ? v.headers.get(REVALIDATE_HEADER) : null;
+            const keys = declared !== null ? readRevalidateKeys(declared) : undefined;
+            declared !== null && cacheKeyOp(keys, entry => (entry[0] = 0));
 
             // client + server relative redirect
             const soft = navigate && url.startsWith("/");
@@ -294,7 +302,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
             // sweep the live signals inside the same transition as the
             // navigation: surviving consumers (shared layouts) refetch and
             // hold the commit, so the destination never paints stale data
-            keys && revalidate(keys, false);
+            declared !== null && revalidate(keys, false);
 
             // Hold the read pending on the client: the navigation unmounts this
             // consumer, and resolving `undefined` instead hands a missing value
@@ -333,7 +341,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
 query.get = (key: string) => {
   const cached = getCache().get(key) as CacheEntry;
   return cached[2];
-}
+};
 
 query.set = <T>(key: string, value: T extends Promise<any> ? never : T) => {
   const cache = getCache();
@@ -347,7 +355,13 @@ query.set = <T>(key: string, value: T extends Promise<any> ? never : T) => {
   } else {
     cache.set(
       key,
-      (cached = [now, Promise.resolve(value), value, "preload", createSignal(now, { ownedWrite: true }) as Signal<number> & { count: number }])
+      (cached = [
+        now,
+        Promise.resolve(value),
+        value,
+        "preload",
+        createSignal(now, { ownedWrite: true }) as Signal<number> & { count: number }
+      ])
     );
     cached[4].count = 0;
   }
@@ -356,6 +370,27 @@ query.set = <T>(key: string, value: T extends Promise<any> ? never : T) => {
 query.delete = (key: string) => getCache().delete(key);
 
 query.clear = () => getCache().clear();
+
+/**
+ * The reserved `X-Revalidate` key meaning every entry — `revalidate: "*"`
+ * on `@solidjs/web`'s response helpers (`REVALIDATE_ALL` there). The
+ * host-independent spelling of "all", for hosts whose default is narrower
+ * than this router's.
+ */
+const REVALIDATE_ALL = "*";
+
+/**
+ * Reads an `X-Revalidate` header value into the keys the cache ops take.
+ * Named keys are prefix-matched; an empty declaration (`revalidate: []`)
+ * yields `[""]`, which `matchKey` matches to nothing; the reserved `*`
+ * yields `undefined` — this router's own spelling of everything, the same
+ * scope an action with no declaration gets, so an author who wrote "all"
+ * explicitly lands on the same path as the default.
+ */
+export function readRevalidateKeys(value: string): string[] | undefined {
+  const keys = value.split(",");
+  return keys.includes(REVALIDATE_ALL) ? undefined : keys;
+}
 
 export function matchKey(key: string, keys: string[]) {
   for (let k of keys) {
@@ -370,11 +405,11 @@ export function hashKey<T extends Array<any>>(args: T): string {
   return JSON.stringify(args, (_, val) =>
     isPlainObject(val)
       ? Object.keys(val)
-        .sort()
-        .reduce((result, key) => {
-          result[key] = val[key];
-          return result;
-        }, {} as any)
+          .sort()
+          .reduce((result, key) => {
+            result[key] = val[key];
+            return result;
+          }, {} as any)
       : val
   );
 }
