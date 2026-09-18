@@ -273,6 +273,14 @@ describe("action", () => {
       const solid = (await import("solid-js")) as any;
       const [value, setValue] = solid.createOptimistic("initial");
       const testAction = action(async (next: string) => {
+        // A28 (5): an optimistic write becomes the override at the flush that
+        // carries it — the mutation's synchronous plain read, in the same tick
+        // as onSubmit's write, still sees the flushed value. The scheduler's
+        // flush is queued ahead of this continuation, and once it has run the
+        // override is readable outside any effect for as long as the action
+        // holds it.
+        expect(value()).toBe("initial");
+        await new Promise<void>(resolve => queueMicrotask(resolve));
         expect(value()).toBe(next);
         return next;
       }, "optimistic-primitive-test").onSubmit((next: string) => setValue(next));
@@ -848,13 +856,14 @@ describe("generic server actions", () => {
     expect(event.preventDefault).toHaveBeenCalled();
     // posted as a server-function call to the attribute url's data sibling
     // (scripted calls have their own address, solidjs/solid#3094) — the id
-    // travels in the path, nowhere else (no addressing header)
+    // travels in the path, nowhere else (no addressing header; rc.9 dropped
+    // the instance header — `INSTANCE_HEADER` / `context.instance` — too)
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/_server/data/echo%230");
     expect(init.method).toBe("POST");
     expect(init.headers["X-Server-Function-Id"]).toBeUndefined();
-    expect(init.headers["X-Server-Function-Instance"]).toBeDefined();
+    expect(init.headers["X-Server-Function-Instance"]).toBeUndefined();
     // response metadata falls through the normal action pipeline
     await vi.waitFor(() => expect(navigate).toHaveBeenCalled());
     expect(navigate.mock.calls[0][0]).toBe("/after");

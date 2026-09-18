@@ -4,6 +4,7 @@ import {
   getOwner,
   onCleanup,
   sharedConfig,
+  untrack,
   type Signal
 } from "solid-js";
 // Everything server-function-shaped comes off the CORE entry: detection
@@ -127,7 +128,15 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
   }
   const cachedFn = ((...args: Parameters<T>) => {
     const cache = getCache();
-    const intent = getIntent();
+    // The intent is a fact about the moment of this read — which navigation
+    // (if any) is asking — not a dependency of the value: `intent()` probes
+    // `isPending`/`latest` of the router's location, and tracked here every
+    // consumer memo would re-run as each navigation starts and lands. Under a
+    // redirect that leaves a route section, the leaving section's memo is a
+    // zombie the transaction is removing; dirtied through the probe's lane
+    // channel it runs anyway (solid #3444), sees the entry the redirect just
+    // invalidated, and fires the phantom refetch the sweep exists to avoid.
+    const intent = untrack(getIntent);
     const inPreloadFn = getInPreloadFn();
     const owner = getOwner();
     const router = owner ? useRouter() : undefined;

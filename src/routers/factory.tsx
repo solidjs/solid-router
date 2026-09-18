@@ -27,6 +27,7 @@ import {
   getRouteMatches,
   mergeParams,
   registerFlightRouter,
+  resolveLocationWrite,
   RouterContextObj,
   trackLazySubtrees,
   useOptionalContext
@@ -36,6 +37,7 @@ import type {
   DefinedRouteFilters,
   LazyRouteChildren,
   LocationChange,
+  LocationWrite,
   OutputMatch,
   Params,
   RouteDefinition,
@@ -225,21 +227,37 @@ export interface RouterInstance<R extends readonly RouteDefinition[] = RouteDefi
  */
 function describeNavigation(
   match: (pathname: string) => RouteMatch[],
-  next: LocationChange,
+  next: LocationWrite,
+  written: () => LocationChange | undefined,
   from: string
 ): NavigationRef {
-  const pathname = new URL(next.value, mockBase).pathname;
-  const matches = () => untrack(() => match(pathname));
+  // A composed destination (`LocationWrite.value` a function) is only known
+  // once the write has resolved it; the engine re-reads `to` at settle, as it
+  // does `name` and `params`. A plain one is known up front.
+  const to = () => {
+    const w = written();
+    return w ? w.value : typeof next.value === "string" ? next.value : undefined;
+  };
+  const pathname = () => {
+    const t = to();
+    return t === undefined ? undefined : new URL(t, mockBase).pathname;
+  };
+  const matches = (pathname: string) => untrack(() => match(pathname));
   const ref: NavigationRef = {
     kind: "navigation",
-    to: next.value,
+    get to() {
+      return to();
+    },
     from,
     get name() {
-      const m = matches();
-      return m.length ? m[m.length - 1].route.pattern || "/" : pathname;
+      const p = pathname();
+      if (p === undefined) return undefined;
+      const m = matches(p);
+      return m.length ? m[m.length - 1].route.pattern || "/" : p;
     },
     get params() {
-      const m = matches();
+      const p = pathname();
+      const m = p === undefined ? [] : matches(p);
       return m.length ? (mergeParams(m) as Readonly<Record<string, string>>) : undefined;
     }
   };
@@ -264,11 +282,19 @@ function createIntegration(
   });
   const signal: RouterIntegration["signal"] = [
     read,
-    (next: LocationChange) => {
+    (next: LocationWrite) => {
       if (sharedConfig.registry && !sharedConfig.done) sharedConfig.done = true;
+      // What the write resolved to, or undefined when there was nothing to
+      // write (see `resolveLocationWrite`).
+      let written: LocationChange | undefined;
       const commit = () => {
-        write(next);
-        if (next._navigation && next._navigation > 0) {
+        // The functional updater is the one channel that serves an unflushed
+        // write of this same tick (A28): the destination composes on it and
+        // the no-op rule compares against it, so `navigate()` behind another
+        // write in one handler sees that write rather than the flushed world.
+        write(headed => (written = resolveLocationWrite(headed, next)) || headed);
+        if (written && written._navigation && written._navigation > 0) {
+          const next = written;
           inflight = next;
           // Register out of band so a destination error boundary replacing the
           // Router subtree cannot suppress the winning history commit.
@@ -290,9 +316,11 @@ function createIntegration(
       // the browser's own back/forward — so this is the one place the
       // navigation is declared. `read()` still holds the committed location
       // while a navigation is pending, which is the `from` a hop wants too.
+      // A write the no-op rule drops is still declared: the engine settles a
+      // navigation whose write "did not survive the equality gate" on the spot.
       OBSERVE
         ? OBSERVE.attribution.withOrigin(
-            describeNavigation(match, next, untrack(read).value),
+            describeNavigation(match, next, () => written, untrack(read).value),
             commit
           )
         : commit();
@@ -327,7 +355,16 @@ function staticIntegration(url?: string, utils?: RouterHistory["utils"]): Router
     value = u.pathname + u.search;
   }
   const obj: LocationChange = { value };
-  return { signal: [() => obj, next => Object.assign(obj, next)], utils };
+  return {
+    signal: [
+      () => obj,
+      next => {
+        const written = resolveLocationWrite(obj, next);
+        written && Object.assign(obj, written);
+      }
+    ],
+    utils
+  };
 }
 
 export function createRouter<const R extends readonly RouteDefinition[]>(

@@ -5,7 +5,7 @@
  * only the canonical source write that actually lands.
  */
 import { render } from "@solidjs/web";
-import { createEffect, createMemo, Loading, untrack } from "solid-js";
+import { createEffect, createMemo, flush, Loading, untrack } from "solid-js";
 import { vi } from "vitest";
 import {
   createRouter,
@@ -236,6 +236,57 @@ describe("navigateFromRoute never drops the last navigation", () => {
   });
 
   test("superseding redirects commit once with the first navigation's history policy", async () => {
+    // A redirect is a navigation issued while the previous one is pending —
+    // held here on a parked lazy route section. It inherits that navigation's
+    // replace/scroll and history commits once, for the destination that
+    // actually landed. (A write is not pending until the flush carries it —
+    // solid's A28 — so two navigate() calls in one tick are two navigations,
+    // the second with its own policy; the redirect shape needs the first held.)
+    const history = memoryHistory();
+    const set = vi.spyOn(history, "set");
+    let navigate!: Navigator;
+    const parked = new Promise<{ default: RouteDefinition[] }>(() => {});
+    const routes = [
+      {
+        path: "/",
+        component: () => {
+          navigate = useNavigate();
+          return <div>home</div>;
+        }
+      },
+      {
+        path: "/slow",
+        component: (props: any) => <>{props.children}</>,
+        children: () => parked
+      },
+      { path: "/b", component: page("b") }
+    ] as const;
+    const app = mount(routes, history);
+    try {
+      navigate("/slow", { replace: true, scroll: false });
+      await settle();
+      expect(set).not.toHaveBeenCalled();
+      navigate("/b", { replace: false, scroll: true });
+      await settle();
+
+      expect(app.text()).toBe("b");
+      expect(set).toHaveBeenCalledTimes(1);
+      expect(set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          value: "/b",
+          replace: true,
+          scroll: false
+        })
+      );
+    } finally {
+      app.cleanup();
+    }
+  });
+
+  test("two navigations in one tick are two navigations; the second commits with its own policy", async () => {
+    // The first write has not flushed when the second is issued (A28): it is
+    // not a pending navigation to redirect, so the second is a navigation of
+    // its own. History still commits once — only the write that landed.
     const history = memoryHistory();
     const set = vi.spyOn(history, "set");
     let navigate!: Navigator;
@@ -248,12 +299,13 @@ describe("navigateFromRoute never drops the last navigation", () => {
       navigate("/b", { replace: false, scroll: true });
       await settle();
 
+      expect(app.text()).toBe("b");
       expect(set).toHaveBeenCalledTimes(1);
       expect(set).toHaveBeenCalledWith(
         expect.objectContaining({
           value: "/b",
-          replace: true,
-          scroll: false
+          replace: false,
+          scroll: true
         })
       );
     } finally {
@@ -359,6 +411,8 @@ describe("navigateFromRoute never drops the last navigation", () => {
     let navigate!: Navigator;
     let currentIntent!: () => string | undefined;
     const seen: string[] = [];
+    let resolveSlow!: (routes: { default: RouteDefinition[] }) => void;
+    const slow = new Promise<{ default: RouteDefinition[] }>(resolve => (resolveSlow = resolve));
     const routes = [
       {
         path: "/",
@@ -370,30 +424,34 @@ describe("navigateFromRoute never drops the last navigation", () => {
       },
       {
         path: "/slow",
-        preload: ({ intent }: any) => seen.push(intent),
-        component: () => {
-          const value = createMemo(async () => {
-            await new Promise(resolve => setTimeout(resolve, 25));
-            return "slow";
-          });
-          return (
-            <Loading fallback={<div>loading</div>}>
-              <div>{value()}</div>
-            </Loading>
-          );
-        }
+        component: (props: any) => <>{props.children}</>,
+        children: () => slow
       }
     ] as const;
     const app = mount(routes, history);
     try {
       navigate("/slow");
+      // The write is pending from the flush that carries it (A28), not from
+      // the call; flush first, as core's own tests read their writes. The
+      // navigation is then held on the parked section.
+      expect(currentIntent()).toBeUndefined();
+      flush();
       expect(currentIntent()).toBe("navigate");
       await settle();
-      expect(seen).toEqual(["navigate"]);
+      expect(currentIntent()).toBe("navigate");
+      expect(history.get()).toBe("/");
 
-      await settle(30);
+      // the section lands inside the held navigation: its preload sees the intent
+      resolveSlow({
+        default: [
+          { path: "/", preload: ({ intent }: any) => seen.push(intent), component: page("slow") }
+        ]
+      });
+      await settle();
+      expect(seen).toEqual(["navigate"]);
       expect(currentIntent()).toBeUndefined();
       expect(history.get()).toBe("/slow");
+      expect(app.text()).toBe("slow");
     } finally {
       app.cleanup();
     }

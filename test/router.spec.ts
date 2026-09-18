@@ -1,6 +1,14 @@
-import { createEffect, createRoot, createSignal as createSignalBase } from "solid-js";
+import {
+  createComponent,
+  createEffect,
+  createRoot,
+  createSignal as createSignalBase,
+  flush
+} from "solid-js";
+import { render } from "@solidjs/web";
+import { createRouter, memoryHistory, useIsRouting, useNavigate } from "../src/index.js";
 import { createRouterContext } from "../src/routing.js";
-import type { LocationChange } from "../src/types.js";
+import type { LocationChange, Navigator, RouteDefinition } from "../src/types.js";
 import { createTestRoot, createCounter, waitFor } from "./helpers.js";
 
 const fakeBranches = () => [];
@@ -331,7 +339,11 @@ describe("Router should", () => {
         });
       }));
 
-    test(`throw if called more than 100 times during a reactive update`, () => {
+    test(`not treat a burst of calls in one tick as a redirect chain`, () => {
+      // A write is pending from the flush that carries it (solid's A28), not
+      // from the call: navigations issued in one synchronous burst supersede
+      // each other as separate navigations — none is a redirect of the one
+      // before, so the redirect guard has nothing to count.
       createRoot(() => {
         const signal = createSignal<LocationChange>({
           value: "/"
@@ -343,25 +355,98 @@ describe("Router should", () => {
             navigate(`/foo/${i}`);
           }
         }
-        expect(pushAlot).toThrow("Too many redirects");
+        expect(pushAlot).not.toThrow();
+        flush();
+        expect(signal[0]()).toMatchObject({ value: "/foo/100", _navigation: 1 });
       });
+    });
+
+    test(`throw if a pending navigation is redirected more than 100 times`, () => {
+      // The redirect loop the guard exists for: each navigate() runs while
+      // the previous one is still held (a parked lazy route section), so each
+      // is a hop of that navigation and the depth grows until the guard fires.
+      const parked = new Promise<{ default: RouteDefinition[] }>(() => {});
+      let navigate!: Navigator;
+      const Router = createRouter({
+        routes: [
+          {
+            path: "/",
+            component: () => {
+              navigate = useNavigate();
+              return null;
+            }
+          },
+          {
+            path: "/held",
+            component: (props: any) => props.children,
+            children: () => parked
+          }
+        ] as const,
+        history: memoryHistory("/")
+      });
+      const dispose = render(() => createComponent(Router, {}), document.body);
+      try {
+        flush();
+        navigate("/held/0");
+        flush();
+        function redirectALot() {
+          for (let i = 1; i <= 100; i++) {
+            navigate(`/held/${i}`);
+            flush();
+          }
+        }
+        expect(redirectALot).toThrow("Too many redirects");
+      } finally {
+        document.body.innerHTML = "";
+        dispose();
+      }
     });
   }); // end of "have member `navigate`"
 
   describe("have member `isRouting` which should", () => {
-    test("be true when the push or replace causes transition", () =>
-      createTestRoot(resolve => {
-        const signal = createSignal<LocationChange>({
-          value: "/"
-        });
-        const { navigatorFactory, isRouting } = createRouterContext({ signal }, fakeBranches);
-        const navigate = navigatorFactory();
-
+    test("be true while the push's transition is held", async () => {
+      // A write is pending from the flush that carries it (solid's A28), so
+      // `isRouting()` reads true once that flush has run and the navigation
+      // is held — here on a parked lazy route section — and false again once
+      // the section lands and the location has changed.
+      let resolveRoutes!: (routes: { default: RouteDefinition[] }) => void;
+      const lazy = new Promise<{ default: RouteDefinition[] }>(r => (resolveRoutes = r));
+      let navigate!: Navigator;
+      let isRouting!: () => boolean;
+      const Router = createRouter({
+        routes: [
+          {
+            path: "/",
+            component: () => {
+              navigate = useNavigate();
+              isRouting = useIsRouting();
+              return null;
+            }
+          },
+          {
+            path: "/target",
+            component: (props: any) => props.children,
+            children: () => lazy
+          }
+        ] as const,
+        history: memoryHistory("/")
+      });
+      const dispose = render(() => createComponent(Router, {}), document.body);
+      try {
+        flush();
         expect(isRouting()).toBe(false);
         navigate("/target");
+        expect(isRouting()).toBe(false); // unflushed: not yet a pending navigation
+        flush();
         expect(isRouting()).toBe(true);
-        waitFor(() => !isRouting()).then(resolve);
-      }));
+        resolveRoutes({ default: [{ path: "/", component: () => null }] });
+        await new Promise(r => setTimeout(r, 20));
+        expect(isRouting()).toBe(false);
+      } finally {
+        document.body.innerHTML = "";
+        dispose();
+      }
+    });
 
     test("turn false, only after location has changed", () =>
       createTestRoot(resolve => {

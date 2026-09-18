@@ -25,8 +25,8 @@ const CACHE_TIMEOUT = 180000;
 // holding the seroval-revived promise, sharedConfig.has/load reading it.
 function seedFlightEntry(key: string, value: any) {
   (globalThis as any)._$HY = { r: { [key]: Promise.resolve(value) } };
-  sharedConfig.has = k => k in (globalThis as any)._$HY.r;
-  sharedConfig.load = k => (globalThis as any)._$HY.r[k];
+  sharedConfig.has = (k: string) => k in (globalThis as any)._$HY.r;
+  sharedConfig.load = (k: string) => (globalThis as any)._$HY.r[k];
 }
 
 function advanceClock(ms: number) {
