@@ -87,6 +87,61 @@ describe("redirects thrown from queries", () => {
     dispose();
   });
 
+  test("X-Revalidate: * on a query redirect revalidates every surviving query", async () => {
+    // A read that redirects declares nothing by default; `revalidate: "*"`
+    // is the author saying everything went stale — no key named, the
+    // surviving layout's session read revalidates all the same.
+    let sessionFetches = 0;
+    const getSession = query(async () => {
+      sessionFetches++;
+      return { user: sessionFetches === 1 ? "expired" : "anonymous" };
+    }, "qr-all-session");
+    const getFiles = query(async () => {
+      throw redirectResponse("/login", "*");
+    }, "qr-all-files");
+
+    const Layout = (props: ParentProps) => {
+      const session = createMemo(() => getSession());
+      return (
+        <section>
+          <Loading fallback={<span>session-pending</span>}>
+            <header>user:{(session() as any)?.user}</header>
+          </Loading>
+          {props.children}
+        </section>
+      );
+    };
+    const FilePage = () => {
+      const files = createMemo(() => getFiles());
+      return (
+        <Loading fallback={<span>files-pending</span>}>
+          <span>files:{String(files())}</span>
+        </Loading>
+      );
+    };
+
+    const caught: any[] = [];
+    const Router = createRouter({
+      routes: [
+        { path: "/files", component: FilePage },
+        { path: "/login", component: () => <span>login-page</span> }
+      ] as const,
+      history: memoryHistory("/files")
+    });
+    const root = document.createElement("div");
+    const dispose = render(
+      () => <Router>{(props: ParentProps) => <Layout>{props.children}</Layout>}</Router>,
+      root
+    );
+
+    await wait(150);
+    expect(root.innerHTML).toContain("login-page");
+    expect(sessionFetches).toBe(2);
+    expect(root.innerHTML).toContain("user:anonymous");
+    expect(caught).toEqual([]);
+    dispose();
+  });
+
   test("consumers never observe a value from a redirecting query", async () => {
     const observed: any[] = [];
     const caught: any[] = [];

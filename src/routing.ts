@@ -1046,12 +1046,15 @@ export function createRouterContext(
         throw new Error(`Path '${to}' is not a routable path`);
       }
 
+      // A redirect hop: the previous navigation is still pending, or has landed
+      // but not yet reached history (a guard redirecting in the landing flush
+      // — its destination was never shown either way).
       const headed = latest(source);
       const navigationDepth =
         !isServer &&
-        isPending(source) &&
         headed._navigation !== undefined &&
-        headed._navigation > 0
+        headed._navigation > 0 &&
+        (isPending(source) || integration.inflight?.() === headed)
           ? headed._navigation
           : 0;
 
