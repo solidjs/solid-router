@@ -13,14 +13,16 @@ import {
 import { decodeFlashCookie } from "@solidjs/web/server-functions/server";
 import { provideFlashDecoder, provideFlightConsumer, useRouter } from "../routing.js";
 import { setRouterFormHandler } from "./events.js";
-import type {
-  RouterContext,
-  Submission,
-  Navigator,
-  NarrowResponse
-} from "../types.js";
+import type { RouterContext, Submission, Navigator, NarrowResponse } from "../types.js";
 import { mockBase, setFunctionName } from "../utils.js";
-import { cacheKeyOp, deliverFlightData, hashKey, revalidate, query } from "./query.js";
+import {
+  cacheKeyOp,
+  deliverFlightData,
+  hashKey,
+  readRevalidateKeys,
+  revalidate,
+  query
+} from "./query.js";
 
 export type Action<T extends Array<any>, U, V = T> = (T extends [FormData | URLSearchParams] | []
   ? JSX.SerializableAttributeValue
@@ -32,16 +34,17 @@ export type Action<T extends Array<any>, U, V = T> = (T extends [FormData | URLS
       ...args: A
     ): Action<B, U, V>;
     onSubmit(hook: (...args: V extends Array<any> ? V : T) => void): Action<T, U, V>;
-    onSettled(hook: (submission: Submission<V extends Array<any> ? V : T, NarrowResponse<U>>) => void): Action<
-      T,
-      U,
-      V
-    >;
+    onSettled(
+      hook: (submission: Submission<V extends Array<any> ? V : T, NarrowResponse<U>>) => void
+    ): Action<T, U, V>;
   };
 
 type ActionFactory = {
   <T extends Array<any>, U = void>(fn: (...args: T) => Promise<U>, name?: string): Action<T, U>;
-  <T extends Array<any>, U = void>(fn: (...args: T) => Promise<U>, options?: { name?: string }): Action<T, U>;
+  <T extends Array<any>, U = void>(
+    fn: (...args: T) => Promise<U>,
+    options?: { name?: string }
+  ): Action<T, U>;
 };
 
 type InternalAction<T extends Array<any>, U, V = T> = {
@@ -247,19 +250,20 @@ function actionImpl<T extends Array<any>, U = void>(
     // flight-data consumer (see setupFlightDataConsumer) makes the transport
     // send the request header itself, so the mutation is just called.
     const runMutation = () => fn(...variables);
-    const run = createSolidAction(
-      async function* (context: { call: () => Promise<U>; optimistic?: () => void }) {
-        context.optimistic?.();
-        try {
-          const value = await context.call();
-          yield;
-          return { error: false, value };
-        } catch (error) {
-          yield;
-          return { error: true, value: error };
-        }
+    const run = createSolidAction(async function* (context: {
+      call: () => Promise<U>;
+      optimistic?: () => void;
+    }) {
+      context.optimistic?.();
+      try {
+        const value = await context.call();
+        yield;
+        return { error: false, value };
+      } catch (error) {
+        yield;
+        return { error: true, value: error };
       }
-    );
+    });
 
     form && setFormBusy(form, 1);
     let settled;
@@ -323,7 +327,10 @@ function actionImpl<T extends Array<any>, U = void>(
   const o = typeof options === "string" ? { name: options } : options;
   const name = o.name || (!isServer ? String(hashString(fn.toString())) : undefined);
   const url: string = (fn as any).url || (name && `https://action/${name}`) || "";
-  const wrapped = toAction<T, U, T>(invoke as InternalAction<T, U, T>[typeof invokeSymbol], url) as Action<T, U>;
+  const wrapped = toAction<T, U, T>(
+    invoke as InternalAction<T, U, T>[typeof invokeSymbol],
+    url
+  ) as Action<T, U>;
   if (name) setFunctionName(wrapped, name);
   return wrapped;
 }
@@ -386,8 +393,7 @@ function toAction<T extends Array<any>, U, V = T>(
     // Only remove the registration if it still belongs to this instance —
     // a re-created action (e.g. a new `.with()` binding after revalidation)
     // may have registered itself under the same URL since.
-    getOwner() &&
-      onCleanup(() => actions.get(url) === (fn as unknown) && actions.delete(url));
+    getOwner() && onCleanup(() => actions.get(url) === (fn as unknown) && actions.delete(url));
   }
   return fn as unknown as Action<T, U, V>;
 }
@@ -456,7 +462,7 @@ function applyResponseMetadata(
   let keys: string[] | undefined;
   if (metadata) {
     if (metadata.headers.has(REVALIDATE_HEADER))
-      keys = metadata.headers.get(REVALIDATE_HEADER)!.split(",");
+      keys = readRevalidateKeys(metadata.headers.get(REVALIDATE_HEADER)!);
     // The carrier delivers the target RESOLVED to an absolute url
     // (solidjs/solid#3102), so the soft/hard split is a real origin
     // comparison — never a guess from how the author spelled the target,

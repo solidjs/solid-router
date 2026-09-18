@@ -1071,6 +1071,10 @@ export function createRouterContext(
       // committed location. Hop depth, the history policy a hop inherits and
       // the destination the leave guard is told all read it. A write of this
       // same tick is not in it (A28) — see `compose` below.
+      //
+      // A redirect hop: the previous navigation is still pending, or has landed
+      // but not yet reached history (a guard redirecting in the landing flush
+      // — its destination was never shown either way).
       const headed = latest(source);
 
       // A composed target (`setSearchParams`) is a function of where the
@@ -1104,9 +1108,9 @@ export function createRouterContext(
 
       const navigationDepth =
         !isServer &&
-        isPending(source) &&
         headed._navigation !== undefined &&
-        headed._navigation > 0
+        headed._navigation > 0 &&
+        (isPending(source) || integration.inflight?.() === headed)
           ? headed._navigation
           : 0;
 
