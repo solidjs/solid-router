@@ -86,7 +86,12 @@ export function revalidate(key?: string | string[] | void, force = true) {
   const now = Date.now();
   cacheKeyOp(key, entry => {
     force && (entry[0] = 0); //force cache miss
-    entry[4][1](now); // retrigger live signals
+    // retrigger live signals. The version is the entry's fetch stamp, and
+    // a signal write of an equal value is a no-op — an entry fetched within
+    // this same millisecond (a mount whose redirect lands before the clock
+    // ticks) would otherwise never be told to refetch, and the surviving
+    // consumer paints stale. A sweep must notify unconditionally.
+    entry[4][1](v => (v === now ? now + 1 : now));
   });
   const keys = key === undefined ? undefined : Array.isArray(key) ? key : [key];
   for (const hook of revalidateHooks) hook(keys, force);
