@@ -361,4 +361,57 @@ describe("redirects carried by the server-function transport (#603)", () => {
     expect(root.innerHTML).toContain("user:anonymous");
     dispose();
   });
+
+  test("a masked redirect with X-Revalidate: * sweeps every surviving query", async () => {
+    // Both protocols on one response: the carrier is decoded to the target
+    // and `*` (no key named) still means everything went stale — the
+    // surviving layout's session read revalidates inside the same navigation.
+    let sessionFetches = 0;
+    const getSession = query(async () => {
+      sessionFetches++;
+      return { user: sessionFetches === 1 ? "expired" : "anonymous" };
+    }, "qr-carrier-all-session");
+    const getFiles = query(async () => carriedRedirect("/login", "*"), "qr-carrier-all-files");
+
+    const Layout = (props: ParentProps) => {
+      const session = createMemo(() => getSession());
+      return (
+        <section>
+          <Loading fallback={<span>session-pending</span>}>
+            <header>user:{(session() as any)?.user}</header>
+          </Loading>
+          {props.children}
+        </section>
+      );
+    };
+
+    const FilePage = () => {
+      const files = createMemo(() => getFiles());
+      return (
+        <Loading fallback={<span>files-pending</span>}>
+          <span>files:{String(files())}</span>
+        </Loading>
+      );
+    };
+
+    const Router = createRouter({
+      routes: [
+        { path: "/files", component: FilePage },
+        { path: "/login", component: () => <span>login-page</span> }
+      ] as const,
+      history: memoryHistory("/files")
+    });
+
+    const root = document.createElement("div");
+    const dispose = render(
+      () => <Router>{(props: ParentProps) => <Layout>{props.children}</Layout>}</Router>,
+      root
+    );
+
+    await wait(150);
+    expect(root.innerHTML).toContain("login-page");
+    expect(sessionFetches).toBe(2);
+    expect(root.innerHTML).toContain("user:anonymous");
+    dispose();
+  });
 });
