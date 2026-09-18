@@ -253,6 +253,8 @@ function createIntegration(
   match: (pathname: string) => RouteMatch[]
 ): RouterIntegration {
   let committing = false;
+  // Written, not yet in history (see `RouterIntegration.inflight`).
+  let inflight: LocationChange | undefined;
   const wrap = (value: string | LocationChange) => (typeof value === "string" ? { value } : value);
   const [read, write] = createSignal(wrap(history.get()), {
     equals: (a, b) =>
@@ -267,10 +269,12 @@ function createIntegration(
       const commit = () => {
         write(next);
         if (next._navigation && next._navigation > 0) {
+          inflight = next;
           // Register out of band so a destination error boundary replacing the
           // Router subtree cannot suppress the winning history commit.
           runWithOwner(null, () =>
             onSettled(() => {
+              if (inflight === next) inflight = undefined;
               if (read() !== next) return;
               committing = true;
               try {
@@ -303,7 +307,7 @@ function createIntegration(
       })
     );
 
-  return { signal, utils: history.utils };
+  return { signal, inflight: () => inflight, utils: history.utils };
 }
 
 /**
