@@ -9,10 +9,10 @@ import {
 } from "solid-js";
 // Everything server-function-shaped comes off the CORE entry: detection
 // (isServerFunction/getServerFunctionMetadata, registered-symbol reads) and
-// the late-bound RPC seam (getServerFunctionRPC). The server-functions
-// entry itself — the fetch transport + the seroval codec behind it — is
-// deliberately NOT imported here: query() is in every router app's eager
-// graph, and a static import made every zero-server-function app ship
+// the late-bound RPC seam (getServerFunctionRPC). The transport itself —
+// the fetch RPC client + the seroval codec behind it — is deliberately NOT
+// imported here: query() is in every router app's eager graph, and a static
+// import of `decodeResponse` made every zero-server-function app ship
 // ~9 KB gz of codec it could never invoke. The transport registers itself
 // into the seam when a `'use server'` reference is created (compiled
 // output, module scope), so by the time a server function can reach
@@ -26,6 +26,11 @@ import {
   isServerFunction,
   REVALIDATE_HEADER
 } from "@solidjs/web";
+// The redirect carrier's name and decoder are the exception: two pure,
+// dependency-free bindings off a `sideEffects: false` entry, so they
+// tree-shake to a few hundred bytes without dragging the codec in (the same
+// bindings action.ts already imports statically).
+import { decodeRedirectHeaderValue, REDIRECT_HEADER } from "@solidjs/web/server-functions";
 import { useRouter, getIntent, getInPreloadFn } from "../routing.js";
 import type { CacheEntry, NarrowResponse } from "../types.js";
 
@@ -290,7 +295,28 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
             }
           }
 
-          const url = v.headers.get(LocationHeader);
+          let url = v.headers.get(LocationHeader);
+
+          // A `"use server"` redirect reaches a client-side read masked: the
+          // transport answers scripted callers with a 200, drops `Location`
+          // and carries "<status> <absolute-url>" in REDIRECT_HEADER instead.
+          // Decode it with the runtime's own reader, as action() does. The
+          // carrier arrives RESOLVED to an absolute url, so same-origin vs
+          // cross-origin is a real origin comparison: same-origin folds to
+          // a path the soft branch below navigates under the router, any
+          // other origin keeps its href and the document goes with it. This
+          // stays synchronous on purpose — navigate runs in the same tick as
+          // the `Location` branch would, so the transition semantics match.
+          if (url === null && !isServer && v.headers.has(REDIRECT_HEADER)) {
+            const carried = decodeRedirectHeaderValue(v.headers.get(REDIRECT_HEADER));
+            if (carried) {
+              const target = new URL(carried.url);
+              url =
+                target.origin === window.location.origin
+                  ? target.pathname + target.search + target.hash
+                  : target.href;
+            }
+          }
 
           if (url !== null) {
             // invalidate the redirect's revalidation keys before navigating so

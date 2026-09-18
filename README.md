@@ -519,6 +519,8 @@ getUser.keyFor(5); // "users[5]"
 
 Revalidate with the `revalidate` export or by setting `revalidate` keys on action responses — the whole key invalidates every entry for the query, `keyFor` invalidates one.
 
+A query may also redirect — a guard read that throws or returns `redirect()` (from `@solidjs/web`) navigates instead of resolving: same-origin targets navigate softly with `replace`, other origins leave the document, any `revalidate` keys on the response invalidate first, and the read itself stays pending so nothing renders the redirect as data. This holds for `"use server"` queries too, where the transport carries the redirect to the client rather than letting `fetch` follow it.
+
 ### `liveQuery` (experimental)
 
 `query`'s live sibling: a keyed query over a value-shaped stream. The function is an async iterable (typically an async generator server function) whose yields are successive **values of one logical query** — each yield is the current state, not an event — with the contract that it re-yields current state on every invocation:
