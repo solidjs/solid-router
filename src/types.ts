@@ -125,6 +125,14 @@ export interface RouterIntegration {
   // static integration provides plain functions that can't carry the
   // `$REFRESH` brand.
   signal: [get: () => LocationChange, set: (next: LocationChange) => void];
+  /**
+   * The navigation written but not yet committed to history — the window
+   * between its location write and the settle that pushes it. A destination
+   * in that window was never shown, so a `navigate()` issued inside it (a
+   * guard redirecting as the held route lands) is a hop of that navigation
+   * rather than a new one, exactly as one issued while it is still pending.
+   */
+  inflight?: () => LocationChange | undefined;
   utils?: Partial<RouterUtils>;
 }
 
