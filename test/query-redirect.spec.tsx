@@ -15,7 +15,7 @@ function mount(Router: any, caught: any[]) {
   const Root = (props: ParentProps) => {
     const content = createErrorBoundary(
       () => props.children,
-      (error): any => {
+      (error: () => unknown): any => {
         caught.push(error());
         return <p>caught</p>;
       }

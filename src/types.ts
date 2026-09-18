@@ -120,11 +120,26 @@ export interface LocationChange<S = unknown> {
   /** @internal Positive for programmatic navigation depth; `-1` for native history. */
   _navigation?: number;
 }
+/**
+ * What the router hands the integration to write. `value` may compose on
+ * `headed` — the location the router is heading to: the last write, whether
+ * or not a flush has carried it yet. A write is invisible to every read
+ * channel until its flush (solid's A28 rule: `latest()` answers the
+ * pre-write value, `isPending()` is false), so a second synchronous write
+ * that builds on the first — `setSearchParams` twice in one handler, or once
+ * behind a `navigate()` — composes through the writer's own channel, the
+ * functional updater, rather than reading the first back. `undefined` from
+ * the composer, or a destination the router is already heading to (same
+ * `value` and `state`), writes nothing.
+ */
+export interface LocationWrite<S = unknown> extends Omit<LocationChange<S>, "value"> {
+  value: string | ((headed: LocationChange) => string | undefined);
+}
 export interface RouterIntegration {
   // Structural getter/setter pair rather than solid's `Signal` — the server's
   // static integration provides plain functions that can't carry the
   // `$REFRESH` brand.
-  signal: [get: () => LocationChange, set: (next: LocationChange) => void];
+  signal: [get: () => LocationChange, set: (next: LocationWrite) => void];
   utils?: Partial<RouterUtils>;
 }
 

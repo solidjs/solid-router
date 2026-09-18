@@ -131,7 +131,7 @@ describe("lazy route subtrees", () => {
     const Bounded = () => {
       const content = createErrorBoundary(
         () => <Router />,
-        (error, reset): any => {
+        (error: () => unknown, reset: () => void): any => {
           caught.push(error());
           resetBoundary = reset;
           return <p data-route="error">failed</p>;

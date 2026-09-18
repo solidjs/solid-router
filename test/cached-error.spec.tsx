@@ -43,7 +43,7 @@ describe("#385 error from cached preload stays an error", () => {
       // the fallback receives an error *accessor* in Solid 2, not the error itself
       const content = createErrorBoundary(
         () => props.children,
-        (error): any => {
+        (error: () => unknown): any => {
           caught.push(error());
           return <p>caught</p>;
         }

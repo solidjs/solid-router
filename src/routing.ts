@@ -24,6 +24,7 @@ import type {
   LazyRouteChildren,
   Location,
   LocationChange,
+  LocationWrite,
   MatchFilters,
   MaybePreloadableComponent,
   NavigateOptions,
@@ -68,6 +69,34 @@ import type { FlashSubmission } from "@solidjs/web/server-functions/server";
 import { HREF } from "./paths.js";
 
 const MAX_REDIRECTS = 100;
+
+/**
+ * Resolves a write against `headed`, the location the router is heading to
+ * — the integration's current value as its functional updater serves it, an
+ * unflushed write of this same tick included. `undefined` means nothing to
+ * write: the composer declined, or the router is already heading there (same
+ * `value` and `state`). The one place the no-op rule lives, for every
+ * integration (see `LocationWrite`).
+ */
+export function resolveLocationWrite(
+  headed: LocationChange,
+  next: LocationWrite
+): LocationChange | undefined {
+  const value = typeof next.value === "function" ? next.value(headed) : next.value;
+  if (value === undefined || (value === headed.value && next.state === headed.state)) return;
+  return { ...next, value };
+}
+
+/**
+ * A destination composed on the location the router is heading to, resolved
+ * inside the integration's write (see `LocationWrite`). Internal: the
+ * navigator `useSearchParams` builds on accepts it; `Navigator` does not.
+ */
+type ComposedTarget = (headed: LocationChange) => string;
+type NavigateComposed = (
+  to: string | TypedPath | number | ComposedTarget,
+  options?: Partial<NavigateOptions>
+) => void;
 
 /** Consider this API opaque and internal. It is likely to change in the future. */
 export const RouterContextObj = createContext<RouterContext>();
@@ -283,22 +312,25 @@ export function useSearchParams(
 ): [SearchParams, (params: SetSearchParams, options?: Partial<NavigateOptions>) => void] {
   const router = useRouter();
   const location = router.location;
-  const navigate = useNavigate();
+  const navigate = useNavigate() as NavigateComposed;
   const setSearchParams = (params: SetSearchParams, options?: Partial<NavigateOptions>) => {
-    const to = untrack(() => {
-      // merge onto the in-flight navigation target (if any) so consecutive
-      // synchronous calls compose instead of the later one winning
-      const pending = router.pendingTarget && new URL(router.pendingTarget.value, mockBase);
-      const pathname = pending ? pending.pathname : location.pathname;
-      const search = pending ? pending.search : location.search;
-      const hash = pending ? pending.hash : location.hash;
-      return pathname + mergeSearchString(search, params) + hash;
-    });
-    navigate(to, {
-      scroll: false,
-      resolve: false,
-      ...options
-    });
+    // Merged onto the location the router is heading to, inside the write:
+    // a write is invisible to every read channel until its flush (A28), so
+    // an earlier write of the same tick — a second synchronous call, or a
+    // `navigate()` just before — is only seen by composing on the updater's
+    // `headed`. Consecutive calls both apply; a call during a pending
+    // navigation lands on that navigation's target.
+    navigate(
+      headed => {
+        const url = new URL(headed.value[0] === "/" ? mockBase + headed.value : headed.value, mockBase);
+        return url.pathname + mergeSearchString(url.search, params) + url.hash;
+      },
+      {
+        scroll: false,
+        resolve: false,
+        ...options
+      }
+    );
   };
   // Passing a paths node opts into schema parsing. The node itself is a
   // type-level reference; the schemas that run come from the currently
@@ -987,7 +1019,7 @@ export function createRouterContext(
 
   function navigateFromRoute(
     route: RouteContext,
-    to: string | TypedPath | number,
+    to: string | TypedPath | number | ComposedTarget,
     options?: Partial<NavigateOptions>
   ) {
     // Untrack in case someone navigates in an effect - don't want to track `reference` or route paths
@@ -1002,18 +1034,6 @@ export function createRouterContext(
         }
         return;
       }
-      // A paths node carries its logical path under the Href brand — read
-      // that rather than coercing: toString() renders the *display* href
-      // (eg. hash mode's `#` prefix), which is for the DOM, not for routing.
-      // Foreign Href-branded values without the slot still coerce.
-      if (typeof to !== "string") to = ((to as any)[HREF] as string | undefined) || to.toString();
-      // Display hrefs can still arrive as plain strings: terminating paths
-      // calls type as `string`, and redirect Location headers round-trip
-      // through here. Under hash mode those start with `#` — a spelling no
-      // logical path uses — so map them back through the integration's
-      // parser, exactly like the anchor click handler does. Elsewhere
-      // parsePath is identity and `#...` keeps its URL meaning below.
-      if (to[0] === "#") to = parsePath(to);
 
       const {
         replace,
@@ -1027,26 +1047,61 @@ export function createRouterContext(
         ...options
       };
 
-      // A string means what the same string means as an href. Leading "/"
-      // stays base-prefixed; anything else resolves URL-style against the
-      // current location — `new URL` collapses `..` and handles `?`/`#`-only
-      // references natively (#502). A cross-origin result (scheme or
-      // protocol-relative input) falls through as unroutable.
-      let resolvedTo: string | undefined;
-      if (!resolve)
-        resolvedTo = resolvePath(((!to || to[0] === "?") && location.pathname) || "", to);
-      else if (to[0] === "/") resolvedTo = route.resolvePath(to);
-      else {
+      const resolveTarget = (to: string): string | undefined => {
+        // Display hrefs can still arrive as plain strings: terminating paths
+        // calls type as `string`, and redirect Location headers round-trip
+        // through here. Under hash mode those start with `#` — a spelling no
+        // logical path uses — so map them back through the integration's
+        // parser, exactly like the anchor click handler does. Elsewhere
+        // parsePath is identity and `#...` keeps its URL meaning below.
+        if (to[0] === "#") to = parsePath(to);
+        // A string means what the same string means as an href. Leading "/"
+        // stays base-prefixed; anything else resolves URL-style against the
+        // current location — `new URL` collapses `..` and handles `?`/`#`-only
+        // references natively (#502). A cross-origin result (scheme or
+        // protocol-relative input) falls through as unroutable.
+        if (!resolve) return resolvePath(((!to || to[0] === "?") && location.pathname) || "", to);
+        if (to[0] === "/") return route.resolvePath(to);
         const url = new URL(to, mockBase + location.pathname + location.search + location.hash);
-        resolvedTo =
-          url.origin === mockBase ? url.pathname + url.search + url.hash : undefined;
-      }
+        return url.origin === mockBase ? url.pathname + url.search + url.hash : undefined;
+      };
+      const unroutable = (to: string) => new Error(`Path '${to}' is not a routable path`);
 
-      if (resolvedTo === undefined) {
-        throw new Error(`Path '${to}' is not a routable path`);
-      }
-
+      // The flushed world: the pending navigation when one is held, else the
+      // committed location. Hop depth, the history policy a hop inherits and
+      // the destination the leave guard is told all read it. A write of this
+      // same tick is not in it (A28) — see `compose` below.
       const headed = latest(source);
+
+      // A composed target (`setSearchParams`) is a function of where the
+      // router is heading, an unflushed write of this tick included. Only
+      // the integration's functional updater serves that value, so the
+      // destination is resolved inside the write; `resolvedTo` here is the
+      // flushed world's reading of it — what the leave guard is asked about,
+      // and what the server (which never has an unflushed write) redirects to.
+      let compose: ((headed: LocationChange) => string) | undefined;
+      let resolvedTo: string | undefined;
+      // A paths node carries its logical path under the Href brand — read
+      // that rather than coercing: toString() renders the *display* href
+      // (eg. hash mode's `#` prefix), which is for the DOM, not for routing.
+      // Foreign Href-branded values without the slot still coerce. The node
+      // is callable, so the brand is checked ahead of the composer form.
+      const href = typeof to !== "string" ? ((to as any)[HREF] as string | undefined) : undefined;
+      if (href === undefined && typeof to === "function") {
+        const build = to as ComposedTarget;
+        compose = headed => {
+          const raw = build(headed);
+          const resolved = resolveTarget(raw);
+          if (resolved === undefined) throw unroutable(raw);
+          return resolved;
+        };
+        resolvedTo = compose(headed);
+      } else {
+        if (typeof to !== "string") to = href || to.toString();
+        resolvedTo = resolveTarget(to);
+        if (resolvedTo === undefined) throw unroutable(to);
+      }
+
       const navigationDepth =
         !isServer &&
         isPending(source) &&
@@ -1059,22 +1114,28 @@ export function createRouterContext(
         throw new Error("Too many redirects");
       }
 
-      if (resolvedTo !== headed.value || nextState !== headed.state) {
-        if (isServer) {
-          const e = getRequestEvent();
-          e && (e.response = { status: 302, headers: new Headers({ Location: resolvedTo }) });
-          setSource({ value: resolvedTo, replace, scroll, state: nextState });
-        } else if (!beforeLeave.current || beforeLeave.current.confirm(resolvedTo, options)) {
-          runWithOwner(null, () =>
-            setSource({
-              value: resolvedTo,
-              state: nextState,
-              replace: navigationDepth ? headed.replace : replace,
-              scroll: navigationDepth ? headed.scroll : scroll,
-              _navigation: navigationDepth + 1
-            })
-          );
-        }
+      if (isServer) {
+        // A server render has no unflushed write: the static integration's
+        // value is the whole world, so the no-op rule is applied here, before
+        // the redirect is recorded on the response.
+        if (resolvedTo === headed.value && nextState === headed.state) return;
+        const e = getRequestEvent();
+        e && (e.response = { status: 302, headers: new Headers({ Location: resolvedTo }) });
+        setSource({ value: resolvedTo, replace, scroll, state: nextState });
+      } else if (!beforeLeave.current || beforeLeave.current.confirm(resolvedTo, options)) {
+        // Heading there already (same value and state) writes nothing — the
+        // integration decides that against the updater's `headed`, so a
+        // navigation issued behind another write of the same tick compares
+        // with that write, not with the flushed world.
+        runWithOwner(null, () =>
+          setSource({
+            value: compose || resolvedTo,
+            state: nextState,
+            replace: navigationDepth ? headed.replace : replace,
+            scroll: navigationDepth ? headed.scroll : scroll,
+            _navigation: navigationDepth + 1
+          })
+        );
       }
     });
   }
@@ -1082,8 +1143,8 @@ export function createRouterContext(
   function navigatorFactory(route?: RouteContext): Navigator {
     // Workaround for vite issue (https://github.com/vitejs/vite/issues/3803)
     route = route || useOptionalContext(RouteContextObj) || baseRoute;
-    return (to: string | TypedPath | number, options?: Partial<NavigateOptions>) =>
-      navigateFromRoute(route!, to, options);
+    return ((to: string | TypedPath | number | ComposedTarget, options?: Partial<NavigateOptions>) =>
+      navigateFromRoute(route!, to, options)) as Navigator;
   }
 
   function preloadRoute(url: URL, preloadData?: boolean) {
