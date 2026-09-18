@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { createErrorBoundary, createMemo, Loading, type ParentProps } from "solid-js";
 import { render } from "@solidjs/web";
+import { vi } from "vitest";
 import { createRouter, memoryHistory, query, useSearchParams } from "../src/index.js";
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -85,6 +86,65 @@ describe("redirects thrown from queries", () => {
     expect(root.innerHTML).toContain("user:anonymous");
     expect(caught).toEqual([]);
     dispose();
+  });
+
+  test("the redirect sweep notifies a query fetched within the same millisecond", async () => {
+    // The live version signal is the entry's fetch stamp; when the redirect
+    // lands before the clock ticks past the mount, a stamp-valued write is a
+    // no-op and the surviving layout keeps its stale value. Freeze the clock
+    // so the same-ms case is the only case (it was a coin toss under load).
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      let sessionFetches = 0;
+      const getSession = query(async () => {
+        sessionFetches++;
+        return { user: sessionFetches === 1 ? "expired" : "anonymous" };
+      }, "qr-frozen-session");
+      const getFiles = query(async () => {
+        throw redirectResponse("/login", getSession.key);
+      }, "qr-frozen-files");
+
+      const Layout = (props: ParentProps) => {
+        const session = createMemo(() => getSession());
+        return (
+          <section>
+            <Loading fallback={<span>session-pending</span>}>
+              <header>user:{(session() as any)?.user}</header>
+            </Loading>
+            {props.children}
+          </section>
+        );
+      };
+      const FilePage = () => {
+        const files = createMemo(() => getFiles());
+        return (
+          <Loading fallback={<span>files-pending</span>}>
+            <span>files:{String(files())}</span>
+          </Loading>
+        );
+      };
+
+      const Router = createRouter({
+        routes: [
+          { path: "/files", component: FilePage },
+          { path: "/login", component: () => <span>login-page</span> }
+        ] as const,
+        history: memoryHistory("/files")
+      });
+      const root = document.createElement("div");
+      const dispose = render(
+        () => <Router>{(props: ParentProps) => <Layout>{props.children}</Layout>}</Router>,
+        root
+      );
+
+      await wait(150);
+      expect(root.innerHTML).toContain("login-page");
+      expect(sessionFetches).toBe(2);
+      expect(root.innerHTML).toContain("user:anonymous");
+      dispose();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test("X-Revalidate: * on a query redirect revalidates every surviving query", async () => {
