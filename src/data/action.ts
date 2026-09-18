@@ -4,7 +4,7 @@ import {
   createServerReference,
   decodeRedirectHeaderValue,
   decodeResponsePayload,
-  parseServerFunctionUrl,
+  parseServerFunctionActionUrl,
   REDIRECT_HEADER,
   subscribeFlightData
 } from "@solidjs/web/server-functions";
@@ -141,7 +141,7 @@ export function handleFormAction(evt: SubmitEvent, router: RouterContext, action
 function createServerFormAction(
   url: string
 ): Action<[FormData | URLSearchParams], unknown> | undefined {
-  const id = parseServerFunctionUrl(url);
+  const id = parseServerFunctionActionUrl(url);
   if (!id) return undefined;
   // typecheck resolves the server half of the dual module; this path only
   // runs in the browser, where the client transport's signature applies
