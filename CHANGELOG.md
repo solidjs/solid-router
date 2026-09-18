@@ -1,5 +1,22 @@
 # @solidjs/router
 
+## 2.0.0-next.25
+
+### Patch Changes
+
+- e1e531c: Follow solid 2.0.0-rc.9's A28 rule (solidjs/solid#3473, "a write becomes visible at flush — to every channel"): between `set(x)` and the flush that carries it, `latest(x)` answers the pre-write value and `isPending(x)` is false. The router composed its next location write by reading its own unflushed one back — `setSearchParams` merged onto `pendingTarget` (`latest(source)`), and `navigateFromRoute`'s "already heading there" check compared against it — so under rc.9 the first of two synchronous `setSearchParams` calls was lost, a call issued behind a `navigate()` applied to the old route, and a navigation to the committed location issued behind another write in the same tick was dropped as a no-op. Location writes now compose through the writer's own channel, the integration's functional updater: `RouterIntegration.signal`'s setter takes a `LocationWrite`, whose `value` may be a function of `headed` — the location the router is heading to, an unflushed write of this tick included — and the no-op rule (same `value` and `state`) is decided there too, for every integration. `pendingTarget`, `isRouting()` and redirect-hop detection keep reading the flushed world, which is where A28 puts them.
+
+  Also: `query()` reads the navigation intent untracked. Tracked, every consumer memo depended on the location's `isPending`/`latest` probes and re-ran as each navigation started and landed; under a redirect that leaves a route section, rc.9 runs that leaving memo (a lane-dirtied zombie, solidjs/solid#3444) and it refetched the entry the redirect had just invalidated.
+
+- b57bfcd: A `navigate()` issued while the previous navigation has landed but not yet reached history — a guard redirecting from render as the held route lands — is now a redirect hop of that navigation rather than a new one. The integration tracks the write between its location commit and its history commit (`RouterIntegration.inflight`), and hop depth counts it alongside `isPending(source)`. Observe builds declare one navigation with a `redirects` entry for the abandoned destination, timed from the click; `replace`/`scroll` inherit from the original navigation as they do for a pending hop.
+- 81bd638: Follow the `@solidjs/web` 2.0.0-rc.9 server-function url surface (solidjs/solid#3440): the form-post address parser the generic form-action fallback reads the function id through is now `parseServerFunctionActionUrl` (formerly `parseServerFunctionUrl`; `serverFunctionUrl` there now names the url a `GET()` reference's own call requests). Same url shape, same id — no behavior change.
+
+  Requires `@solidjs/web` 2.0.0-rc.9; the `solid-js` / `@solidjs/web` peer floor is raised to `^2.0.0-rc.9`.
+
+- 8f9e3fd: Honor the reserved `X-Revalidate: *` declaration (`revalidate: "*"`, `REVALIDATE_ALL` in `@solidjs/web`) as "every entry" — the same scope this router already gives an action that declares nothing, so an author who spells "all" explicitly lands on the default path rather than on a literal `*` prefix that matches no key. Applies to the flight consumer, the action metadata path, and a redirect thrown from a `query` read; the empty declaration (`revalidate: []`) still narrows to nothing.
+
+  Pairs with solidjs/solid#3502, which reserves the key at the response helpers and delivers response metadata to flight consumers whether or not data was folded.
+
 ## 2.0.0-next.24
 
 ### Patch Changes
