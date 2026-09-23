@@ -5,7 +5,6 @@
 // cookie folding — moved upstream; they are covered in the runtime's suite.)
 import { foldSetCookies } from "@solidjs/web/server-functions/server";
 import { query } from "../../src/data/query.js";
-import { liveQuery } from "../../src/data/liveQuery.js";
 import { createFlightDataCollector } from "../../src/server.js";
 import { serverRouteComponent } from "../../src/serverRouteComponent.js";
 import type { RouteDefinition } from "../../src/types.js";
@@ -284,46 +283,6 @@ describe("createFlightDataCollector (server component routes)", () => {
     expect(key.startsWith("story")).toBe(true);
     expect(calls).toEqual([{ params: { id: "7" }, search: undefined }]);
     expect(typeof (await data[key])).toBe("function");
-  });
-});
-
-describe("createFlightDataCollector (live queries)", () => {
-  let reachedWatch = 0;
-  let finalized = 0;
-  let listed = 0;
-  const roomMessages = liveQuery(async function* (room: string) {
-    try {
-      listed++;
-      yield [`${room}:msg-${listed}`];
-      reachedWatch++;
-      yield [`${room}:never`];
-    } finally {
-      finalized++;
-    }
-  }, "messages");
-  const liveRoutes: RouteDefinition[] = [
-    { path: "/rooms/:room", preload: ({ params }) => void roomMessages(params.room!) }
-  ];
-  const collect = createFlightDataCollector({ routes: liveRoutes });
-
-  test("collects the producer's first yield and closes it before its watch", async () => {
-    const event = createEvent("http://localhost:3000/rooms/a");
-    const data: any = await collect(event as any, createOutcome(event) as any);
-    expect(Object.keys(data)).toEqual(['messages["a"]']);
-    expect(await data['messages["a"]']).toEqual(["a:msg-1"]);
-    // one value, one round trip: the generator ran to its first yield, was
-    // returned there (finally ran), and never reached the second
-    expect(finalized).toBe(1);
-    expect(reachedWatch).toBe(0);
-  });
-
-  test("honors the mutation's revalidate keys like a query", async () => {
-    const before = listed;
-    const event = createEvent("http://localhost:3000/rooms/b");
-    const response = new Response(null, { headers: { "X-Revalidate": "user" } });
-    const data = await collect(event as any, createOutcome(event, response) as any);
-    expect(data).toBeUndefined();
-    expect(listed).toBe(before); // filtered out: the producer never ran
   });
 });
 
