@@ -374,11 +374,11 @@ Resolution is cached per thunk and append-only: the tree never changes shape aft
 Solid's experimental [server components](https://github.com/solidjs/solid/blob/main/documentation/solid-2.0/11-server-components.md) are `"use server"` functions that return a component. `serverRouteComponent` takes a `query` over one and uses it as a route's `component` directly — the router owns the URL → call translation a client wrapper used to spell out:
 
 ```tsx
-// views.tsx
-"use server";
-import type { ServerRouteArgs } from "@solidjs/router";
+// story.tsx — the source owns its key
+import { query, type ServerRouteArgs } from "@solidjs/router";
 
-export async function storyView({ params }: ServerRouteArgs<{ id: string }>) {
+export const getStory = query(async ({ params }: ServerRouteArgs<{ id: string }>) => {
+  "use server";
   const story = await db.stories.get(params.id);
   return props => (
     <article>
@@ -386,10 +386,9 @@ export async function storyView({ params }: ServerRouteArgs<{ id: string }>) {
       {props.children}
     </article>
   );
-}
+}, "story");
 
 // routes.ts
-const getStory = query(storyView, "story");
 defineRoute({ path: "/stories/:id", component: serverRouteComponent(getStory) });
 ```
 
@@ -398,7 +397,7 @@ The source is called with **derived** arguments, not a live location — the cal
 - `params`: the params this route's pattern (and its ancestors') declares — never a child's, so a layout does not refetch when a leaf param changes. `defineRoute` checks them against the pattern.
 - `search`: the validated output of the route's [`search` schema](#typed-search-params), only when one is declared. Otherwise `undefined`, and the route never tracks the query string.
 
-A route view is route-shaped on purpose — the address stays stable and `defineRoute` can check its params against the pattern — which means it is only callable as a route. Keep the reusable server component in its natural shape and make the route view a thin adapter over it: `export const storyView = ({ params }: ServerRouteArgs<{ id: string }>) => storyCard(params.id)`. The value `serverRouteComponent` returns is a component only so it fits the `component` field; mounting it any other way (through `lazy()`, or by hand) throws, since outside the match there are only merged params to call with.
+A route view is route-shaped on purpose — the address stays stable and `defineRoute` can check its params against the pattern — which means it is only callable as a route. When the same server component is also used elsewhere, keep it a plain (non-exported, non-endpoint) function and have the route view call it with `params.id`. The value `serverRouteComponent` returns is a component only so it fits the `component` field; mounting it any other way (through `lazy()`, or by hand) throws, since outside the match there are only merged params to call with.
 
 The router mounts the resolved component with the outlet as `children`, so a server component can be a layout, and it calls the same source under preload intent — link hover, `preloadRoute`, the [single-flight collector](#server-integration) — with the same derived args. What that call _means_ is the source's: the router does not choose the cache strategy or own the key.
 
