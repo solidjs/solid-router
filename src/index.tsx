@@ -37,6 +37,7 @@ export {
 export type { LinkState } from "./routing.js";
 export { mergeSearchString as _mergeSearchString } from "./utils.js";
 export { int } from "./paths.js";
+export { serverRouteComponent } from "./serverRouteComponent.js";
 export type { RoutePaths, PathParamsOf, PathEnd, TypedMatchFilter, DefaultSearchTypes } from "./paths.js";
 export * from "./data/index.js";
 export type {
@@ -64,6 +65,8 @@ export type {
   RouterUtils,
   SetParams,
   SetSearchParams,
+  ServerRouteArgs,
+  ServerRouteFunction,
   Submission,
   BeforeLeaveEventArgs,
   TypedPath,

@@ -6,6 +6,7 @@
 import { foldSetCookies } from "@solidjs/web/server-functions/server";
 import { query } from "../../src/data/query.js";
 import { createFlightDataCollector } from "../../src/server.js";
+import { serverRouteComponent } from "../../src/serverRouteComponent.js";
 import type { RouteDefinition } from "../../src/types.js";
 
 const getNotes = query(async () => ["note-1"], "notes");
@@ -252,6 +253,33 @@ describe("createFlightDataCollector (shared-parent fold)", () => {
     // fetches on top rather than replacing them or refetching everything
     expect(Object.keys(data).sort()).toEqual(["bData[]", "statsData[]"]);
     expect(executions).toEqual({ statsData: 1, bData: 1 });
+  });
+});
+
+// A server component route's data IS its call: the collector reproduces the
+// call the client is showing — the same function id and router-derived args
+// — so a mutation's single-flight response addresses the mounted region.
+describe("createFlightDataCollector (server component routes)", () => {
+  const SERVER_FUNCTION_METADATA = Symbol.for("solid.ServerFunctionMetadata");
+  const calls: unknown[] = [];
+  const storyRoute = Object.assign(
+    async (args: unknown) => {
+      calls.push(args);
+      return () => "story markup";
+    },
+    { id: "story#1", [SERVER_FUNCTION_METADATA]: {} }
+  );
+
+  test("collects the route's call under its id with this level's params", async () => {
+    const collect = createFlightDataCollector({
+      routes: { path: "/stories/:id", component: serverRouteComponent(storyRoute as any) }
+    });
+    const event = createEvent("http://localhost:3000/stories/7");
+    const data: any = await collect(event as any, createOutcome(event) as any);
+    const key = Object.keys(data)[0];
+    expect(key.startsWith("route:story#1")).toBe(true);
+    expect(calls).toEqual([{ params: { id: "7" }, search: undefined }]);
+    expect(typeof (await data[key])).toBe("function");
   });
 });
 

@@ -70,10 +70,7 @@ export type StandardSchemaResult<Output> =
   | { readonly value: Output; readonly issues?: undefined }
   | { readonly issues: ReadonlyArray<{ readonly message: string }> };
 
-export type SetParams = Record<
-  string,
-  string | number | boolean | null | undefined
->;
+export type SetParams = Record<string, string | number | boolean | null | undefined>;
 export type SetSearchParams = Record<
   string,
   string | string[] | number | number[] | boolean | boolean[] | null | undefined
@@ -179,6 +176,26 @@ export type RouteSectionComponent<T = unknown, P extends Params = Params> =
   | Component<Omit<RouteSectionProps<T, P>, "children">>
   | Component<{}>;
 
+/**
+ * What a server component route is called with (experimental): the params
+ * the route's pattern (and its ancestors') declares, plus — only when the
+ * route declares a `search` schema — that schema's validated output.
+ */
+export interface ServerRouteArgs<P extends Params = Params, S = undefined> {
+  params: P;
+  search: S;
+}
+
+/**
+ * The shape `serverRouteComponent()` accepts (experimental): a `"use server"`
+ * function taking the router-derived {@link ServerRouteArgs} and resolving
+ * to a server component whose only client position is `children` — the route
+ * outlet, which the router fills.
+ */
+export type ServerRouteFunction<P extends Params = Params, S = undefined> = (
+  args: ServerRouteArgs<P, S>
+) => Promise<Component<{ children?: JSX.Element }>>;
+
 // Phantom brand carrying a `defineFileRoute` config's pattern witness (and,
 // through its `preload` property, the data type) into `RouteProps`. Purely
 // type-level — the runtime object never has the key; the identity helper's
@@ -211,8 +228,8 @@ export type RouteProps<Path, T = RouteDataOf<Path>> = RouteSectionProps<
   Path extends TypedPath<infer P>
     ? SimplifyRecord<P> & Params
     : Path extends TypedRouteConfig<infer S>
-    ? RouteParams<S>
-    : RouteParams<Path>
+      ? RouteParams<S>
+      : RouteParams<Path>
 >;
 
 /**
@@ -274,12 +291,12 @@ export type PathParams<P extends string | readonly string[]> =
   P extends `${infer Head}/${infer Tail}`
     ? [...PathParams<Head>, ...PathParams<Tail>]
     : P extends `:${infer S}?`
-    ? [S]
-    : P extends `:${infer S}`
-    ? [S]
-    : P extends `*${infer S}`
-    ? [S]
-    : [];
+      ? [S]
+      : P extends `:${infer S}`
+        ? [S]
+        : P extends `*${infer S}`
+          ? [S]
+          : [];
 
 export type MatchFilters<P extends string | readonly string[] = any> = P extends string
   ? { [K in PathParams<P>[number]]?: MatchFilter }
@@ -290,14 +307,14 @@ export type MatchFilters<P extends string | readonly string[] = any> = P extends
 export type DefinedRouteFilters<S> = S extends readonly (infer Member extends string)[]
   ? MatchFilters<Member>
   : S extends string | readonly string[]
-  ? MatchFilters<S>
-  : MatchFilters;
+    ? MatchFilters<S>
+    : MatchFilters;
 
 type FilterKeysOf<S> = S extends readonly (infer Member extends string)[]
   ? PathParams<Member>[number]
   : S extends string
-  ? PathParams<S>[number]
-  : string;
+    ? PathParams<S>[number]
+    : string;
 
 // Validates an inferred filter record against the params of `S`: keys that
 // aren't params map to `never`, surfacing an error on the offending
@@ -311,12 +328,12 @@ export type ValidFilters<F, S> = {
 type PatternParams<P extends string> = P extends `${infer Head}/${infer Tail}`
   ? PatternParams<Head> & PatternParams<Tail>
   : P extends `:${infer Name}?`
-  ? { [K in Name]?: string }
-  : P extends `:${infer Name}`
-  ? { [K in Name]: string }
-  : P extends `*${infer Name}`
-  ? { [K in Name]: string }
-  : {};
+    ? { [K in Name]?: string }
+    : P extends `:${infer Name}`
+      ? { [K in Name]: string }
+      : P extends `*${infer Name}`
+        ? { [K in Name]: string }
+        : {};
 
 type SimplifyRecord<T> = { [K in keyof T]: T[K] } & {};
 
@@ -331,10 +348,10 @@ type SimplifyRecord<T> = { [K in keyof T]: T[K] } & {};
 export type RouteParams<S> = (S extends readonly (infer Member extends string)[]
   ? SimplifyRecord<PatternParams<Member>>
   : S extends string
-  ? string extends S
-    ? {}
-    : SimplifyRecord<PatternParams<S>>
-  : {}) &
+    ? string extends S
+      ? {}
+      : SimplifyRecord<PatternParams<S>>
+    : {}) &
   Params;
 
 export interface PathMatch<P extends Params = Params> {
@@ -468,7 +485,12 @@ export interface MaybePreloadableComponent extends Component {
   preload?: () => void;
 }
 
-export type CacheEntry = [number, Promise<any>, any, Intent | undefined, Signal<number> & { count: number }];
+export type CacheEntry = [
+  number,
+  Promise<any>,
+  any,
+  Intent | undefined,
+  Signal<number> & { count: number }
+];
 
 export type NarrowResponse<T> = T extends ResponseEnvelope<infer U> ? U : Exclude<T, Response>;
-

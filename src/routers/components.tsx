@@ -13,6 +13,7 @@ import {
     setInPreloadFn,
     unresolvedLazyMatches
 } from "../routing.js";
+import { serverRouteArgs, serverRouteOf } from "../serverRouteShared.js";
 import type {
     Branch,
     RouteContext,
@@ -180,6 +181,9 @@ function dataOnly(event: RequestEvent, routerState: RouterContext, branches: Bra
     if (!prevMatches[match] || matches[match].route !== prevMatches[match].route)
       event.router!.dataOnly = true;
     const { route, params } = matches[match];
+    // a server component route's markup is collected like any query result
+    const server = serverRouteOf(route.component);
+    server && server.call(serverRouteArgs(route, params, routerState.location.query));
     route.preload &&
       route.preload({
         params,

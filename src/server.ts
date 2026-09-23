@@ -35,6 +35,7 @@ import {
   resolveLazySubtree
 } from "./routing.js";
 import { extractSearchParams } from "./utils.js";
+import { serverRouteArgs, serverRouteOf } from "./serverRouteShared.js";
 import type { Branch, RouteDefinition, RoutePreloadFunc } from "./types.js";
 
 export type { CollectFlightDataHook, ServerFunctionOutcome };
@@ -204,6 +205,11 @@ function runPreloads(
     if (!prevMatches[match] || matches[match].route !== prevMatches[match].route)
       event.router!.dataOnly = true;
     const { route, params } = matches[match];
+    // A server component route's markup is collected like any query result:
+    // the same call (function id + derived args) the client is showing, so
+    // the response's region addresses what is mounted.
+    const server = serverRouteOf(route.component);
+    server && server.call(serverRouteArgs(route, params, location.query));
     route.preload &&
       route.preload({
         params,

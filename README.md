@@ -10,7 +10,7 @@
 
 </div>
 
-**Solid Router** brings fine-grained reactivity to route navigation. Routes are config objects — the single source of truth for matching *and* types — and the router upgrades HTML's own interaction verbs instead of wrapping them: `<a href={path}>` and `<form action={action}>` carry typed, URL-addressable values on real platform elements, intercepted by delegation, decorated with a shared attribute vocabulary, and fully functional without JavaScript.
+**Solid Router** brings fine-grained reactivity to route navigation. Routes are config objects — the single source of truth for matching _and_ types — and the router upgrades HTML's own interaction verbs instead of wrapping them: `<a href={path}>` and `<form action={action}>` carry typed, URL-addressable values on real platform elements, intercepted by delegation, decorated with a shared attribute vocabulary, and fully functional without JavaScript.
 
 Explore the official [documentation](https://docs.solidjs.com/solid-router) for detailed guides and examples.
 
@@ -36,6 +36,7 @@ Explore the official [documentation](https://docs.solidjs.com/solid-router) for 
   - [Multiple Paths](#multiple-paths)
   - [Nested Routes](#nested-routes)
   - [Lazy Route Subtrees](#lazy-route-subtrees)
+  - [Server Component Routes (experimental)](#server-component-routes-experimental)
   - [File-System Routes](#file-system-routes)
 - [Typed Paths](#typed-paths)
 - [Links](#links)
@@ -89,7 +90,13 @@ When a tree is composed across files (feature subtrees), wrap the extracted arra
 ```tsx
 // features/admin/routes.ts
 export const adminRoutes = defineRoutes([
-  { path: "/admin", component: Admin, children: [/* ... */] }
+  {
+    path: "/admin",
+    component: Admin,
+    children: [
+      /* ... */
+    ]
+  }
 ]);
 
 // app/router.ts
@@ -138,19 +145,19 @@ The API splits across two surfaces, and the line between them is precise: **coul
 
 The instance is shared — one module-level object serving every mount, every request, every test. It is deliberately non-stateful (on the server there are many "current locations" at once), so it carries only the app's static routing vocabulary. Hooks read the live session from context.
 
-| Instance — facts about the *app* | Hooks — facts about the *session* |
-| --- | --- |
-| `paths` — how to spell URLs | `useLocation`, `useParams` — where am I |
-| `match(url)` — how would a URL match | `useNavigate`, `usePreloadRoute` — move / warm |
-| `routes`, `config` — what exists | `useIsRouting`, `useRouteMatches`, `useSearchParams` — live state |
+| Instance — facts about the _app_     | Hooks — facts about the _session_                                 |
+| ------------------------------------ | ----------------------------------------------------------------- |
+| `paths` — how to spell URLs          | `useLocation`, `useParams` — where am I                           |
+| `match(url)` — how would a URL match | `useNavigate`, `usePreloadRoute` — move / warm                    |
+| `routes`, `config` — what exists     | `useIsRouting`, `useRouteMatches`, `useSearchParams` — live state |
 
 They compose as noun and verb — the instance supplies a typed URL, the hook acts on the current session:
 
 ```tsx
 const navigate = useNavigate();
-navigate(paths.users(2));                 // verb(noun)
+navigate(paths.users(2)); // verb(noun)
 
-const params = useParams(paths.users);    // hook, typed by the instance
+const params = useParams(paths.users); // hook, typed by the instance
 ```
 
 **Hooks are the default; import the router only when you need typed URLs or matching outside a render.** Components that only read their session (params, location, string-path navigation) never need the instance — which also means component files don't form import cycles with the router module that references them in its config.
@@ -159,17 +166,17 @@ const params = useParams(paths.users);    // hook, typed by the instance
 
 A route definition supports:
 
-| key            | type                                    | description                                                        |
-| -------------- | --------------------------------------- | ------------------------------------------------------------------ |
-| `path`         | `string \| string[]`                    | Path partial for this route segment                                |
-| `component`    | `Component`                             | Component rendered for the matched segment                         |
+| key            | type                                                         | description                                                                     |
+| -------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| `path`         | `string \| string[]`                                         | Path partial for this route segment                                             |
+| `component`    | `Component`                                                  | Component rendered for the matched segment                                      |
 | `children`     | `RouteDefinition \| RouteDefinition[] \| () => Promise<...>` | Nested route definitions, or a thunk for a [lazy subtree](#lazy-route-subtrees) |
-| `preload`      | `RoutePreloadFunc`                      | Called on preload intent (hover/focus) and navigation              |
-| `matchFilters` | `MatchFilters`                          | Additional constraints for matching parameters                     |
-| `search`       | `StandardSchemaV1`                      | Search-param validator; its types flow into `paths` and hooks      |
-| `info`         | `Record<string, any>`                   | Arbitrary metadata, readable via `useRouteMatches`                 |
+| `preload`      | `RoutePreloadFunc`                                           | Called on preload intent (hover/focus) and navigation                           |
+| `matchFilters` | `MatchFilters`                                               | Additional constraints for matching parameters                                  |
+| `search`       | `StandardSchemaV1`                                           | Search-param validator; its types flow into `paths` and hooks                   |
+| `info`         | `Record<string, any>`                                        | Arbitrary metadata, readable via `useRouteMatches`                              |
 
-The tree is **immutable and there is one router per app** — that's what makes `paths` and the typed hooks truthful, it lets matching compile once and be shared by every mount, request, and `match()` call, and it means delegation, link state, and preloading all have a single owner. Compose large apps by spreading subtrees into the config (see `defineRoutes` above); mounting a router inside another router is not supported (nested `<Routes>` has been gone since 0.10) and warns in development. Sections whose *code* shouldn't load up front are [lazy route subtrees](#lazy-route-subtrees) — still one tree, still typed.
+The tree is **immutable and there is one router per app** — that's what makes `paths` and the typed hooks truthful, it lets matching compile once and be shared by every mount, request, and `match()` call, and it means delegation, link state, and preloading all have a single owner. Compose large apps by spreading subtrees into the config (see `defineRoutes` above); mounting a router inside another router is not supported (nested `<Routes>` has been gone since 0.10) and warns in development. Sections whose _code_ shouldn't load up front are [lazy route subtrees](#lazy-route-subtrees) — still one tree, still typed.
 
 ### Dynamic Routes
 
@@ -204,8 +211,8 @@ const story = defineRoute({
   preload: ({ params }) => getStory(params.id), // params.id: string
   component: props => (
     <Story
-      id={props.params.id}    // string — the pattern guarantees it
-      tab={props.params.tab}  // string | undefined — optional param
+      id={props.params.id} // string — the pattern guarantees it
+      tab={props.params.tab} // string | undefined — optional param
     />
   )
 });
@@ -242,8 +249,8 @@ Each parameter can be validated with a `MatchFilter` — an enum array, a regex,
 import { int, type MatchFilters } from "@solidjs/router";
 
 const filters: MatchFilters = {
-  parent: ["mom", "dad"],                                    // enum values
-  id: /^\d+$/,                                               // only numbers
+  parent: ["mom", "dad"], // enum values
+  id: /^\d+$/, // only numbers
   withHtmlExtension: (v: string) => v.length > 5 && v.endsWith(".html")
 };
 
@@ -254,7 +261,7 @@ const routes = defineRoutes([
 
 So `/users/mom/123/contact.html` matches, while `/users/aunt/123/contact.html` (invalid `parent`) and `/users/mom/me/contact.html` (non-numeric `id`) don't.
 
-The built-in `int` filter is *typed*: it constrains matching to integers at runtime and types the param as `number` at `paths` callsites:
+The built-in `int` filter is _typed_: it constrains matching to integers at runtime and types the param as `number` at `paths` callsites:
 
 ```tsx
 { path: "/users/:id", matchFilters: { id: int }, component: User }
@@ -362,6 +369,38 @@ The import only fires when something needs the subtree — hovering a link into 
 
 Resolution is cached per thunk and append-only: the tree never changes shape after a subtree lands, it just gets more specific. Keep thunks deterministic — `() => import(...)` — rather than switching tables on runtime state.
 
+### Server Component Routes (experimental)
+
+Solid's experimental [server components](https://github.com/solidjs/solid/blob/main/documentation/solid-2.0/11-server-components.md) are `"use server"` functions that return a component. `serverRouteComponent` uses one as a route's `component` directly — the router owns the URL → call translation a client wrapper used to spell out:
+
+```tsx
+// views.tsx
+"use server";
+import type { ServerRouteArgs } from "@solidjs/router";
+
+export async function storyView({ params }: ServerRouteArgs<{ id: string }>) {
+  const story = await db.stories.get(params.id);
+  return props => (
+    <article>
+      <h1>{story.title}</h1>
+      {props.children}
+    </article>
+  );
+}
+
+// routes.ts
+defineRoute({ path: "/stories/:id", component: serverRouteComponent(storyView) });
+```
+
+The function is called with **derived** arguments, not a live location — the call's `(function, arguments)` address keys both the query cache and the frame store, so the args name exactly what the route depends on:
+
+- `params`: the params this route's pattern (and its ancestors') declares — never a child's, so a layout does not refetch when a leaf param changes. `defineRoute` checks them against the pattern.
+- `search`: the validated output of the route's [`search` schema](#typed-search-params), only when one is declared. Otherwise `undefined`, and the route never tracks the query string.
+
+The router mounts the resolved component with the outlet as `children`, so a server component can be a layout. The call is wrapped in `query` (keyed by the function id): link intent warms the same entry the render reads, actions revalidate it, and the [single-flight collector](#server-integration) reproduces it so a mutation's response carries the route's fresh markup. Argument changes deliver into the mounted boundary — it morphs in place rather than remounting.
+
+`children` is the only client position the router fills, and the helper's type says so: a server component that requires other props — event handlers, refs, named slots — is rejected. Those come from the client, so that route has a client half; write it as an ordinary route component around `dynamic()`. Interaction that lives on the server — form posts to server actions via `action={addTodo.url}` — needs no client component at all.
+
 ### File-System Routes
 
 The `@solidjs/router/fs` adapter turns a `file-routes` manifest into route definitions — the app imports the virtual module, the adapter maps it:
@@ -387,7 +426,7 @@ export const route = defineFileRoute("/blog/:id", {
 
 export default function Post(props: RouteProps<typeof route>) {
   props.params.id; // string
-  props.data;      // ReturnType of the preload above
+  props.data; // ReturnType of the preload above
 }
 ```
 
@@ -398,11 +437,11 @@ The pattern string is a typing witness — at runtime the manifest's path (from 
 `paths` is a proxy inferred from the route tree. Property access descends into static segments, calls bind params, and it mirrors URL anatomy — params, then a search object, then a hash string:
 
 ```tsx
-paths.users(123)                          // ok — matchFilters flow into the callsite
-paths.users(2).settings                   // chainable into children
-paths.users(2, { tab: "x" }, "comments")  // "/users/2?tab=x#comments"
-paths.about()                             // zero-arg/search calls terminate to a plain string
-paths()                                   // "/" — the root
+paths.users(123); // ok — matchFilters flow into the callsite
+paths.users(2).settings; // chainable into children
+paths.users(2, { tab: "x" }, "comments"); // "/users/2?tab=x#comments"
+paths.about(); // zero-arg/search calls terminate to a plain string
+paths(); // "/" — the root
 ```
 
 Every node coerces via `toString`, so nodes drop straight into `href`, `navigate()`, and `redirect()` without explicit termination. Accessing a segment that doesn't exist in the tree, or binding a param with the wrong type, is a compile error.
@@ -413,14 +452,14 @@ There is no link component. Use `<a>`; the router intercepts same-origin clicks 
 
 Behavior modifiers are attributes, so they work identically in client, server-rendered, and third-party markup:
 
-| attribute  | description                                                                    |
-| ---------- | ------------------------------------------------------------------------------ |
-| `replace`  | Replace the history entry instead of pushing                                   |
-| `noscroll` | Turn off scrolling to the top after navigation                                 |
+| attribute  | description                                                                                                     |
+| ---------- | --------------------------------------------------------------------------------------------------------------- |
+| `replace`  | Replace the history entry instead of pushing                                                                    |
+| `noscroll` | Turn off scrolling to the top after navigation                                                                  |
 | `state`    | JSON string [pushed](https://developer.mozilla.org/en-US/docs/Web/API/History/pushState) onto the history stack |
-| `preload`  | Set to `"false"` to opt this link out of hover/focus preloading                |
-| `link`     | Marks a router link when `explicitLinks` is enabled                            |
-| `target`   | Any value (e.g. `_self`) opts the anchor out of router handling                |
+| `preload`  | Set to `"false"` to opt this link out of hover/focus preloading                                                 |
+| `link`     | Marks a router link when `explicitLinks` is enabled                                                             |
+| `target`   | Any value (e.g. `_self`) opts the anchor out of router handling                                                 |
 
 ```tsx
 <a href={paths.login} replace>Log in</a>
@@ -431,9 +470,15 @@ Behavior modifiers are attributes, so they work identically in client, server-re
 Active and pending state is styled with CSS — one vocabulary for every kind of link:
 
 ```css
-nav a[aria-current="page"] { font-weight: 600; }        /* exact match */
-nav a[data-active]         { color: var(--accent); }    /* exact or prefix match */
-a[data-pending]            { opacity: 0.6; }            /* target of in-flight navigation */
+nav a[aria-current="page"] {
+  font-weight: 600;
+} /* exact match */
+nav a[data-active] {
+  color: var(--accent);
+} /* exact or prefix match */
+a[data-pending] {
+  opacity: 0.6;
+} /* target of in-flight navigation */
 ```
 
 (The root path only ever matches exactly, so `href={paths()}` doesn't light up on every page.)
@@ -471,10 +516,10 @@ const routes = defineRoutes([{ path: "/users/:id", component: User, preload: pre
 
 The preload function receives:
 
-| key      | type                                            | description                                                                                                                                                                                                                                     |
-| -------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| params   | object                                          | The route parameters (same value as `useParams()` inside the route component)                                                                                                                                                                    |
-| location | `{ pathname, search, hash, query, state, key }` | Path information (corresponds to [`useLocation()`](#uselocation))                                                                                                                                                                                |
+| key      | type                                               | description                                                                                                                                                       |
+| -------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| params   | object                                             | The route parameters (same value as `useParams()` inside the route component)                                                                                     |
+| location | `{ pathname, search, hash, query, state, key }`    | Path information (corresponds to [`useLocation()`](#uselocation))                                                                                                 |
 | intent   | `"initial" \| "navigate" \| "native" \| "preload"` | Why this is being called: `initial` — first render; `navigate` — router navigation; `native` — browser back/forward; `preload` — link hover/focus, not navigating |
 
 The factory-level `preload` option is the app-wide counterpart: it runs once per mount/request with the merged params of every match, and its result reaches the root render-prop as `props.data`.
@@ -513,7 +558,7 @@ const todos = createProjection(() => getTodos(), []);
 Keys support targeted invalidation:
 
 ```ts
-getUser.key;       // "users"
+getUser.key; // "users"
 getUser.keyFor(5); // "users[5]"
 ```
 
@@ -555,7 +600,7 @@ The callable carries the `query` conventions (`key`, `keyFor`) plus a reactive `
 
 ### `action`
 
-A router action is *an action with a URL* — Solid's mutation primitive plus URL addressability, submission tracking, and response handling. Data helpers come from the router; response helpers (`redirect`, `reload`) come from `@solidjs/web` — they're protocol-level and work without the router:
+A router action is _an action with a URL_ — Solid's mutation primitive plus URL addressability, submission tracking, and response handling. Data helpers come from the router; response helpers (`redirect`, `reload`) come from `@solidjs/web` — they're protocol-level and work without the router:
 
 ```tsx
 import { action } from "@solidjs/router";
@@ -580,7 +625,10 @@ const updateUser = action(async (form: FormData) => {
 Actions only work with POST requests, so put `method="post"` on your form. Submitting forms get `aria-busy="true"` automatically while the action (including its revalidation) is in flight — the same CSS story as links:
 
 ```css
-form[aria-busy] button { pointer-events: none; opacity: 0.6; }
+form[aria-busy] button {
+  pointer-events: none;
+  opacity: 0.6;
+}
 ```
 
 Forms work without JavaScript: a real POST, a redirect back, and the result seeded into submission state through a one-shot flash cookie. Single-flight mutations are on by default — the mutation response carries the refreshed route data in the same round trip.
@@ -664,7 +712,7 @@ const routes = defineRoutes([
 
 ```tsx
 const [search, setSearch] = useSearchParams(paths.search);
-search.page;                          // number (parsed, not "2")
+search.page; // number (parsed, not "2")
 setSearch({ page: search.page + 1 }); // typed setter
 
 <a href={paths.search({ q: "solid", page: 2 })}>Search</a>; // typed builder
@@ -678,26 +726,26 @@ Without a schema, `useSearchParams()` behaves as before: raw string values, merg
 createRouter(config);
 ```
 
-| option          | type                       | description                                                                                            |
-| --------------- | -------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `routes`        | `RouteDefinition[]`        | The route tree — inline arrays infer literally; wrap extracted trees in `defineRoutes`                   |
-| `base`          | `string`                   | Base url to use for matching routes                                                                     |
-| `preload`       | `RoutePreloadFunc`         | App-wide preload: once per mount/request, result reaches the root render-prop as `props.data`           |
-| `history`       | `RouterHistory`            | History adapter; defaults to browser history on the client and the request URL on the server            |
-| `singleFlight`  | `boolean`                  | Single-flight mutations, default `true`                                                                 |
-| `actionBase`    | `string`                   | Root url for server actions, default `/_server`                                                         |
-| `preloadLinks`  | `boolean`                  | Preload route code/data on link hover and focus, default `true`                                         |
-| `explicitLinks` | `boolean`                  | Require the `link` attribute for router handling instead of intercepting all anchors, default `false`   |
-| `transformUrl`  | `(url: string) => string`  | Rewrite URLs before matching                                                                            |
+| option          | type                      | description                                                                                           |
+| --------------- | ------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `routes`        | `RouteDefinition[]`       | The route tree — inline arrays infer literally; wrap extracted trees in `defineRoutes`                |
+| `base`          | `string`                  | Base url to use for matching routes                                                                   |
+| `preload`       | `RoutePreloadFunc`        | App-wide preload: once per mount/request, result reaches the root render-prop as `props.data`         |
+| `history`       | `RouterHistory`           | History adapter; defaults to browser history on the client and the request URL on the server          |
+| `singleFlight`  | `boolean`                 | Single-flight mutations, default `true`                                                               |
+| `actionBase`    | `string`                  | Root url for server actions, default `/_server`                                                       |
+| `preloadLinks`  | `boolean`                 | Preload route code/data on link hover and focus, default `true`                                       |
+| `explicitLinks` | `boolean`                 | Require the `link` attribute for router handling instead of intercepting all anchors, default `false` |
+| `transformUrl`  | `(url: string) => string` | Rewrite URLs before matching                                                                          |
 
 The returned instance is the provider component and carries the static surface:
 
-| member    | description                                                                                     |
-| --------- | ------------------------------------------------------------------------------------------------ |
-| `paths`   | The [typed path proxy](#typed-paths)                                                             |
-| `match`   | Pure matching against an arbitrary URL — no rendering or request context; root→leaf, `[]` if none |
-| `routes`  | The config tree                                                                                   |
-| `config`  | The full config — lets server integrations consume the instance directly                          |
+| member   | description                                                                                       |
+| -------- | ------------------------------------------------------------------------------------------------- |
+| `paths`  | The [typed path proxy](#typed-paths)                                                              |
+| `match`  | Pure matching against an arbitrary URL — no rendering or request context; root→leaf, `[]` if none |
+| `routes` | The config tree                                                                                   |
+| `config` | The full config — lets server integrations consume the instance directly                          |
 
 ## Router Primitives
 
@@ -708,7 +756,7 @@ Hooks read the live session off router context.
 Retrieves a reactive, store-like object of the current route's path parameters. Pass a paths node for typing:
 
 ```tsx
-const params = useParams();            // Params (strings)
+const params = useParams(); // Params (strings)
 const params = useParams(paths.users); // { id: string } — typed from the tree
 ```
 
@@ -756,7 +804,7 @@ In Solid's dev and observe builds the router also declares every navigation to t
 
 ### useMatch
 
-Tests a path *pattern you supply* against the current location; returns a memo of match information or `undefined`. It never consults the route tree — the pattern doesn't have to correspond to a defined route. The match's `params` are typed from the pattern, and a typed path node works too (a concrete URL — useful for "am I here" checks):
+Tests a path _pattern you supply_ against the current location; returns a memo of match information or `undefined`. It never consults the route tree — the pattern doesn't have to correspond to a defined route. The match's `params` are typed from the pattern, and a typed path node works too (a concrete URL — useful for "am I here" checks):
 
 ```tsx
 const match = useMatch(() => "/admin/*rest");
@@ -768,7 +816,7 @@ const here = useMatch(() => paths.users(2));
 
 ### useRouteMatches
 
-Returns an accessor of the router's *resolved* matches for the current location — the chain of route definitions producing the current render, outermost first. This is the counterpart to `useMatch`: one reflects the route tree, the other tests a pattern. Useful for reading `info` metadata:
+Returns an accessor of the router's _resolved_ matches for the current location — the chain of route definitions producing the current render, outermost first. This is the counterpart to `useMatch`: one reflects the route tree, the other tests a pattern. Useful for reading `info` metadata:
 
 ```tsx
 const matches = useRouteMatches();
@@ -890,7 +938,7 @@ This guide maps from the stable 0.x releases (Solid 1). 1.0 removes the componen
 <Router root={App}>
   <Route path="/users" component={Users} />
   <Route path="/users/:id" component={User} />
-</Router>
+</Router>;
 
 // 1.0
 const Router = createRouter({
@@ -900,7 +948,7 @@ const Router = createRouter({
   ]
 });
 
-<Router>{props => <App {...props} />}</Router>
+<Router>{props => <App {...props} />}</Router>;
 ```
 
 - `<HashRouter>` → `createRouter({ routes, history: hashHistory() })`

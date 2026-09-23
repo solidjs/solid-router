@@ -67,6 +67,11 @@ import {
 // values (behind isServer, tree-shaken from client bundles).
 import type { FlashSubmission } from "@solidjs/web/server-functions/server";
 import { HREF } from "./paths.js";
+import {
+  serverRouteOf,
+  serverRouteArgs,
+  serverRouteArgsEqual
+} from "./serverRouteShared.js";
 
 const MAX_REDIRECTS = 100;
 
@@ -1174,24 +1179,29 @@ export function createRouterContext(
       route.component &&
         (route.component as MaybePreloadableComponent).preload &&
         (route.component as MaybePreloadableComponent).preload!();
-      const { preload } = route;
+      const { preload, component } = route;
       inPreloadFn = true;
       preloadData &&
-        preload &&
-        runWithOwner(getContext!(), () =>
-          preload({
-            params,
-            location: {
-              pathname: url.pathname,
-              search: url.search,
-              hash: url.hash,
-              query: extractSearchParams(url),
-              state: null,
-              key: ""
-            },
-            intent: "preload"
-          })
-        );
+        runWithOwner(getContext!(), () => {
+          const query = extractSearchParams(url);
+          // A server component route's data IS its call: warm the same
+          // query entry the render will read, under the same derived args.
+          const server = serverRouteOf(component);
+          server && server.call(serverRouteArgs(route, params, query));
+          preload &&
+            preload({
+              params,
+              location: {
+                pathname: url.pathname,
+                search: url.search,
+                hash: url.hash,
+                query,
+                state: null,
+                key: ""
+              },
+              intent: "preload"
+            });
+        });
       inPreloadFn = false;
     }
     preloadIntent = prevIntent;
@@ -1251,17 +1261,31 @@ export function createRouteContext(
     pattern,
     params,
     path,
-    outlet: () =>
-      component
-        ? createComponent(component, {
-            params,
-            location,
-            data,
-            get children() {
-              return outlet();
-            }
-          })
-        : outlet(),
+    outlet: () => {
+      if (!component) return outlet();
+      const routeProps = {
+        params,
+        location,
+        data,
+        get children() {
+          return outlet();
+        }
+      };
+      // A `serverRouteComponent()` route: the router derives the call from
+      // the match — THIS level's params (never a child's) and the declared
+      // search output — and mounts through the brand. Structural equality
+      // keeps a navigation that leaves this level's args unchanged from
+      // re-entering the call. See serverRouteComponent.ts.
+      const server = serverRouteOf(component);
+      if (server) {
+        const args = createMemo(
+          () => serverRouteArgs(match().route, match().params, location.query),
+          { equals: serverRouteArgsEqual }
+        );
+        return server.render(args, routeProps);
+      }
+      return createComponent(component, routeProps);
+    },
     resolvePath(to: string) {
       return resolvePath(base.path(), to, path());
     }
