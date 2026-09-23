@@ -401,7 +401,7 @@ The source is called with **derived** arguments, not a live location — the cal
 The router mounts the resolved component with the outlet as `children`, so a server component can be a layout, and it calls the same source under preload intent — link hover, `preloadRoute`, the [single-flight collector](#server-integration) — with the same derived args. What that call _means_ is the source's: the router does not choose the cache strategy or own the key.
 
 - `query(fn, key)`: link intent warms the entry the render reads, `revalidate("story")` and action responses refetch it, and the collector reproduces it so a mutation's response carries the route's fresh markup. Argument changes deliver into the mounted boundary — it morphs in place rather than remounting.
-- [`liveQuery(fn, key)`](#livequery-experimental): the frame stream stays open and the channel owns it — hover connects it (held through the preload window, so a hovered link is an open stream), `revalidate(key)` reconnects, and the mutation sweep leaves it alone since the stream is its own freshness. The collector's call is a no-op for a live source: nothing pulls it server-side, matching the delivery-side model.
+- [`liveQuery(fn, key)`](#livequery-experimental): the frame stream stays open and the channel owns it — hover connects it (held through the preload window, so a hovered link is an open stream), `revalidate(key)` reconnects, and the mutation sweep and the single-flight collector both leave it alone — nothing pulls it server-side, and the stream is its own freshness.
 
 Anything else callable with the args works too; wrapping is what gives dedupe, preload, and revalidation.
 
@@ -600,7 +600,7 @@ Live queries ride the router's existing machinery rather than adding their own:
 - **Preload** — calling one in a preload function warms the connection, so navigation renders against an already-delivered value instead of holding the transition on connect.
 - **SSR** — the document face renders the first value; hydration adopts it and reconnects. Server-side, consumers of a key within one request observe the same value.
 - **Revalidation** — explicit `revalidate(key)` reconnects (the producer re-yields current state by contract). The post-mutation sweep leaves healthy connections alone: the stream is its own freshness mechanism.
-- **Single-flight** — a mutation's flight payload pushes straight into open channels, so mutated state lands in the same round trip.
+- **Single-flight** — live keys are neither collected nor swept: the stream is the freshness mechanism, and a mutation reaches a live query through its producer (the `watch` yielding the changed state), not through the mutation response. The flight-data seam that pushes payload values into open channels stays available to an integration that collects live keys itself.
 
 The callable carries the `query` conventions (`key`, `keyFor`) plus a reactive `status(...args)` read (`"idle" | "connecting" | "connected" | "reconnecting" | "closed"`) for surfacing connection state in UI.
 

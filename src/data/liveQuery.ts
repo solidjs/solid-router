@@ -7,12 +7,7 @@ import {
   isServerFunction
 } from "@solidjs/web";
 import { getIntent } from "../routing.js";
-import {
-  hashKey,
-  matchKey,
-  registerFlightDataHook,
-  registerRevalidateHook
-} from "./query.js";
+import { hashKey, matchKey, registerFlightDataHook, registerRevalidateHook } from "./query.js";
 
 // Matches query's preload lifetime: a channel warmed by preload intent
 // stays held this long waiting for its navigation.
@@ -244,7 +239,8 @@ function subscriberIterable(open: () => Channel) {
         }
       };
       return {
-        next: () => (released ? Promise.resolve({ done: true as const, value: undefined }) : pull()),
+        next: () =>
+          released ? Promise.resolve({ done: true as const, value: undefined }) : pull(),
         return(value?: any) {
           release();
           return Promise.resolve({ done: true as const, value });
@@ -278,10 +274,12 @@ function push(ch: Channel, value: any) {
 //   connection is alive and is itself the freshness mechanism — a
 //   push-driven producer yields the mutated state on its own, and tearing
 //   down healthy connections on every mutation defeats the model.
-// - Single-flight payloads deliver INTO open channels, exactly as they seed
-//   the query cache: the mutation response is the round trip, the channel
-//   adopts the value immediately, and the live stream stays authoritative
-//   for everything after.
+// - A single-flight payload carrying a live key delivers INTO the open
+//   channel rather than reconnecting it. The router's own collector does not
+//   produce live keys (the stream is the freshness mechanism; collection
+//   for live server components is an open question — a mutation's region
+//   would outrank the standing frame stream under the transport's version
+//   policy), so this path serves an integration that collects them itself.
 let hooked = false;
 function hookRevalidate() {
   if (hooked) return;
@@ -314,9 +312,7 @@ function hookRevalidate() {
   });
 }
 
-export type LiveFunction<T extends (...args: any) => any> = T extends (
-  ...args: infer A
-) => infer R
+export type LiveFunction<T extends (...args: any) => any> = T extends (...args: infer A) => infer R
   ? ((...args: A) => AsyncIterable<Awaited<R> extends AsyncIterable<infer V> ? V : Awaited<R>>) & {
       keyFor: (...args: A) => string;
       key: string;
@@ -338,11 +334,11 @@ export type LiveFunction<T extends (...args: any) => any> = T extends (
  *   definite rejection (4xx: the transport stamps HTTP statuses onto
  *   failures) ends the channel and surfaces the error to consumers, as does
  *   a first-connect failure.
- * - Server functions are declared GET at creation (like `query`). Live
- *   queries participate in single-flight on the delivery side: a mutation's
- *   flight payload pushes straight into open channels (the mutation
- *   response is the round trip), while the post-mutation sweep leaves the
- *   healthy connection in place — the live stream stays authoritative.
+ * - Server functions are declared GET at creation (like `query`). Live keys
+ *   are neither collected for single-flight nor swept after a mutation: the
+ *   stream is the freshness mechanism, and the mutation reaches a live
+ *   query through its producer. (The flight-data hook below still adopts a
+ *   live key an integration collects itself.)
  * - Calling under preload intent warms the channel (a temporary hold keeps
  *   it open through the preload window), so navigation renders against an
  *   already-connected stream instead of holding the transition on connect
@@ -392,7 +388,7 @@ export function liveQuery<T extends (...args: any) => any>(fn: T, name: string):
       // reads the same guarantee). Channels live in the event, retained
       // past teardown so a later consumer replays the settled value instead
       // of reinvoking; the producer still closes with its last consumer.
-      const router = ((e as any).router || ((e as any).router = {}));
+      const router = (e as any).router || ((e as any).router = {});
       const channels: Map<string, Channel> =
         router.liveChannels || (router.liveChannels = new Map());
       return subscriberIterable(() =>
@@ -420,4 +416,3 @@ export function liveQuery<T extends (...args: any) => any>(fn: T, name: string):
   liveFn.status = (...args: Parameters<T>) => statusSignal(name + hashKey(args))[0]();
   return liveFn;
 }
-
