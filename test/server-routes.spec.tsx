@@ -284,6 +284,14 @@ describe("server component routes", () => {
     cleanup();
   });
 
+  test("mounted directly rather than as a route component, it refuses", () => {
+    // Outside the core there are only merged params to call with — the same
+    // view under a second address. The brand is the only supported mount.
+    const story = serverFunction(async (_args: ServerRouteArgs<{ id: string }>) => () => <p />);
+    const Direct = serverRouteComponent(query(story, "story-direct"));
+    expect(() => (Direct as any)({ params: { id: "1" } })).toThrow(/mount it as a route/);
+  });
+
   test("a plain client component route is untouched", async () => {
     const Client = vi.fn((props: any) => <p data-client>{props.params.id}</p>);
     const Router = createRouter({

@@ -65,12 +65,18 @@ export function serverRouteComponent<P extends Params = Params, S = undefined>(
 ): Component<RouteSectionProps<unknown, P>> {
   const call = source as ServerRouteFunction<any, any>;
 
-  // The component itself is the fallback for a mount the router core does
-  // not drive (a plain `createComponent`): it has only the merged params to
-  // go on, so it calls with those. The core mounts through the brand with
-  // this level's params instead.
-  const route: BrandedRouteComponent = (routeProps: RouteSectionProps) =>
-    render(() => ({ params: { ...routeProps.params }, search: undefined }), routeProps);
+  // The value is a component only so it fits the `component` field; the
+  // router core never calls it — it mounts through the brand, with THIS
+  // level's params and the declared search output. A direct mount (a
+  // `lazy()` wrapper around the helper, a hand-written `<Route />`) would
+  // have only the merged params to call with: the same view under a second
+  // address, missing the cache and owning its own frame. Refuse it.
+  const route: BrandedRouteComponent = () => {
+    throw new Error(
+      "serverRouteComponent(): mount it as a route's `component` — the router derives the " +
+        "call from the match. It was rendered directly (through lazy(), or outside a route)."
+    );
+  };
 
   function render(args: () => ServerRouteArgs<Params, unknown>, routeProps: RouteSectionProps) {
     // The source may answer a component, a promise of one, or (a live query)

@@ -398,6 +398,8 @@ The source is called with **derived** arguments, not a live location — the cal
 - `params`: the params this route's pattern (and its ancestors') declares — never a child's, so a layout does not refetch when a leaf param changes. `defineRoute` checks them against the pattern.
 - `search`: the validated output of the route's [`search` schema](#typed-search-params), only when one is declared. Otherwise `undefined`, and the route never tracks the query string.
 
+A route view is route-shaped on purpose — the address stays stable and `defineRoute` can check its params against the pattern — which means it is only callable as a route. Keep the reusable server component in its natural shape and make the route view a thin adapter over it: `export const storyView = ({ params }: ServerRouteArgs<{ id: string }>) => storyCard(params.id)`. The value `serverRouteComponent` returns is a component only so it fits the `component` field; mounting it any other way (through `lazy()`, or by hand) throws, since outside the match there are only merged params to call with.
+
 The router mounts the resolved component with the outlet as `children`, so a server component can be a layout, and it calls the same source under preload intent — link hover, `preloadRoute`, the [single-flight collector](#server-integration) — with the same derived args. What that call _means_ is the source's: the router does not choose the cache strategy or own the key.
 
 - `query(fn, key)`: link intent warms the entry the render reads, `revalidate("story")` and action responses refetch it, and the collector reproduces it so a mutation's response carries the route's fresh markup. Argument changes deliver into the mounted boundary — it morphs in place rather than remounting.
