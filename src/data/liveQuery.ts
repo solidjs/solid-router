@@ -7,12 +7,7 @@ import {
   isServerFunction
 } from "@solidjs/web";
 import { getIntent } from "../routing.js";
-import {
-  hashKey,
-  matchKey,
-  registerFlightDataHook,
-  registerRevalidateHook
-} from "./query.js";
+import { hashKey, matchKey, registerFlightDataHook, registerRevalidateHook } from "./query.js";
 
 // Matches query's preload lifetime: a channel warmed by preload intent
 // stays held this long waiting for its navigation.
@@ -244,7 +239,8 @@ function subscriberIterable(open: () => Channel) {
         }
       };
       return {
-        next: () => (released ? Promise.resolve({ done: true as const, value: undefined }) : pull()),
+        next: () =>
+          released ? Promise.resolve({ done: true as const, value: undefined }) : pull(),
         return(value?: any) {
           release();
           return Promise.resolve({ done: true as const, value });
@@ -252,6 +248,24 @@ function subscriberIterable(open: () => Channel) {
       };
     }
   };
+}
+
+// One value from a producer: the first yield of a stream (the iterator is
+// then closed), or the resolution of a non-stream result.
+async function firstValue(result: any): Promise<any> {
+  const source = await result;
+  if (source === null || typeof source !== "object" || !source[Symbol.asyncIterator]) return source;
+  const it = source[Symbol.asyncIterator]();
+  try {
+    const r = await it.next();
+    return r.done ? undefined : r.value;
+  } finally {
+    try {
+      const closed = it.return && it.return();
+      if (closed && typeof (closed as any).then === "function")
+        (closed as any).then(undefined, () => {});
+    } catch {}
+  }
 }
 
 function reconnectChannel(ch: Channel) {
@@ -314,9 +328,7 @@ function hookRevalidate() {
   });
 }
 
-export type LiveFunction<T extends (...args: any) => any> = T extends (
-  ...args: infer A
-) => infer R
+export type LiveFunction<T extends (...args: any) => any> = T extends (...args: infer A) => infer R
   ? ((...args: A) => AsyncIterable<Awaited<R> extends AsyncIterable<infer V> ? V : Awaited<R>>) & {
       keyFor: (...args: A) => string;
       key: string;
@@ -387,12 +399,32 @@ export function liveQuery<T extends (...args: any) => any>(fn: T, name: string):
           ? result.then(brand)
           : brand(result);
       }
+      // Single-flight collection (the router's data-only render after a
+      // mutation): the same key filter query applies, then the producer's
+      // FIRST yield — current state, by the liveQuery contract — collected
+      // like a query value. Client-side, the flight hook pushes it into the
+      // open channel, so the mutation response is the round trip; the
+      // channel's own stream stays authoritative for everything after. The
+      // iterator is closed after that one value, as solid's server memo
+      // closes a live source once the document has its first value: a
+      // producer suspended at its first `yield` runs its finally and never
+      // reaches its watch.
+      const router = (e as any).router || ((e as any).router = {});
+      const dataOnly = router.dataOnly;
+      if (dataOnly) {
+        const data = router.data || (router.data = {});
+        if (key in data) return data[key];
+        if (Array.isArray(dataOnly) && !matchKey(key, dataOnly)) {
+          data[key] = undefined;
+          return Promise.resolve();
+        }
+        return (data[key] = firstValue(fn(...(args as any))));
+      }
       // Request-scoped channels: two consumers of one key during one render
       // must observe the SAME first value (query's request cache gives its
       // reads the same guarantee). Channels live in the event, retained
       // past teardown so a later consumer replays the settled value instead
       // of reinvoking; the producer still closes with its last consumer.
-      const router = ((e as any).router || ((e as any).router = {}));
       const channels: Map<string, Channel> =
         router.liveChannels || (router.liveChannels = new Map());
       return subscriberIterable(() =>
@@ -420,4 +452,3 @@ export function liveQuery<T extends (...args: any) => any>(fn: T, name: string):
   liveFn.status = (...args: Parameters<T>) => statusSignal(name + hashKey(args))[0]();
   return liveFn;
 }
-
