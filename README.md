@@ -407,6 +407,13 @@ The router mounts the resolved component with the outlet as `children`, so a ser
 
 Anything else callable with the args works too; wrapping is what gives dedupe, preload, and revalidation.
 
+An app shell is a pathless layout route whose `component` is a server component. With no pattern, its args are the constant `{ params: {}, search: undefined }` — one call, one address, persisting across every navigation — and as a route it gets preload, collection, and `revalidate` like any other. The `<Router>` root slot exists for client providers that need router context without following route rules; a server component has neither, so it does not go there:
+
+```tsx
+const routes = [{ component: serverRouteComponent(query(appShell, "shell")), children: pages }];
+render(() => <Router routes={routes} />, document.body);
+```
+
 `children` is the only client position the router fills, and the helper's type says so: a server component that requires other props — event handlers, refs, named slots — is rejected. Those come from the client, so that route has a client half; write it as an ordinary route component around `dynamic()`. Interaction that lives on the server — form posts to server actions via `action={addTodo.url}` — needs no client component at all.
 
 ### File-System Routes

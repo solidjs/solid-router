@@ -74,7 +74,8 @@ export function serverRouteComponent<P extends Params = Params, S = undefined>(
   const route: BrandedRouteComponent = () => {
     throw new Error(
       "serverRouteComponent(): mount it as a route's `component` — the router derives the " +
-        "call from the match. It was rendered directly (through lazy(), or outside a route)."
+        "call from the match. It was rendered directly (through lazy(), as the <Router> root, " +
+        "or outside a route). For an app shell, make it a pathless layout route with children."
     );
   };
 
