@@ -414,7 +414,7 @@ const routes = [{ component: serverRouteComponent(query(appShell, "shell")), chi
 render(() => <Router routes={routes} />, document.body);
 ```
 
-`children` is the only client position the router fills, and the helper's type says so: a server component that requires other props — event handlers, refs, named slots — is rejected. Those come from the client, so that route has a client half; write it as an ordinary route component around `dynamic()`. Interaction that lives on the server — form posts to server actions via `action={addTodo.url}` — needs no client component at all.
+`children` is the only client position the router fills, and the helper's type says so: a server component that requires other props — event handlers, refs, named slots — is rejected. Those come from the client, so that route has a client half; write it as an ordinary route component around `dynamic()`. Interaction that lives on the server — form posts to server actions via `action={addTodo}` — needs no client component at all.
 
 ### File-System Routes
 
