@@ -61,7 +61,9 @@ import type { Params, RouteSectionProps, ServerRouteArgs, ServerRouteFunction } 
  * ```
  */
 export function serverRouteComponent<P extends Params = Params, S = undefined>(
-  source: ServerRouteFunction<P, S>
+  // A source that ignores its args (an app shell) is `(...args: never[])`
+  // once `query()` has typed it; that is the same call, so accept it too.
+  source: ServerRouteFunction<P, S> | ((...args: never[]) => ReturnType<ServerRouteFunction<P, S>>)
 ): Component<RouteSectionProps<unknown, P>> {
   const call = source as ServerRouteFunction<any, any>;
 

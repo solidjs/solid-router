@@ -1,5 +1,11 @@
 import type { JSX } from "@solidjs/web";
-import { createRouter, defineRoute, defineRoutes, serverRouteComponent } from "../src/index.js";
+import {
+  createRouter,
+  defineRoute,
+  defineRoutes,
+  query,
+  serverRouteComponent
+} from "../src/index.js";
 import type { ServerRouteArgs, ServerRouteFunction } from "../src/index.js";
 
 // A `"use server"` reference as seen by the type system: an async function
@@ -21,6 +27,8 @@ declare const shellRoute: (
   }) => JSX.Element
 >;
 declare const wrongParams: (args: ServerRouteArgs<{ slug: string }>) => Promise<() => JSX.Element>;
+declare const shell: () => Promise<(props: { children?: JSX.Element }) => JSX.Element>;
+declare const open: (args: ServerRouteArgs) => Promise<() => JSX.Element>;
 
 describe("server component route types", () => {
   test("Does not check implementations", () => {});
@@ -55,6 +63,19 @@ describe("server component route types", () => {
       defineRoute({ path: "/users/:id", component: props => props.params.id })
     ]);
     createRouter({ routes });
+
+    // The minimal tree: plain objects, no `defineRoute`. A source that ignores
+    // its args (the shell) is `(...args: never[])` once `query()` types it and
+    // is still a source; an open-`Params` source fits any level. Narrowed
+    // params (`ServerRouteArgs<{ id: string }>`) are what `defineRoute` is for.
+    createRouter({
+      routes: [
+        {
+          component: serverRouteComponent(query(shell, "shell")),
+          children: [{ path: "/stories/:id", component: serverRouteComponent(query(open, "open")) }]
+        }
+      ]
+    });
 
     // The public alias is the shape a server module can declare against.
     const _typed: ServerRouteFunction<{ id: string }> = storyRoute;
