@@ -445,6 +445,45 @@ describe("liveQuery", () => {
     await it.return!();
   });
 
+  test("a preload nobody adopts closes its stream when the hold lapses", async () => {
+    vi.useFakeTimers();
+    try {
+      const producer = makeProducer();
+      const lq = liveQuery(producer.fn, uniqueName());
+      routerState.intent = "preload";
+      try {
+        lq(7);
+      } finally {
+        routerState.intent = undefined;
+      }
+      await vi.advanceTimersByTimeAsync(0);
+      expect(producer.invocations).toBe(1);
+      expect(producer.open).toBe(1);
+      expect(lq.status(7)).toBe("connecting");
+
+      // the hold spans the preload window; short of it the stream stays up
+      await vi.advanceTimersByTimeAsync(4999);
+      expect(producer.open).toBe(1);
+
+      // ...then teardown ends the producer (a transport stream aborts here)
+      await vi.advanceTimersByTimeAsync(1);
+      expect(producer.open).toBe(0);
+      expect(producer.anyReturned).toBe(false); // returned streams leave the set
+      expect(lq.status(7)).toBe("idle");
+
+      // a later consumer is a fresh connection, not a stale replay
+      const it = lq(7)[Symbol.asyncIterator]();
+      const p = it.next();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(producer.invocations).toBe(2);
+      producer.push("fresh");
+      expect((await p).value).toBe("fresh");
+      await it.return!();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("without preload intent, calling still opens nothing", async () => {
     const producer = makeProducer();
     const lq = liveQuery(producer.fn, uniqueName());
