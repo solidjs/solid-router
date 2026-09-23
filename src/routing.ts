@@ -1152,18 +1152,20 @@ export function createRouterContext(
   function navigatorFactory(route?: RouteContext): Navigator {
     // Workaround for vite issue (https://github.com/vitejs/vite/issues/3803)
     route = route || useOptionalContext(RouteContextObj) || baseRoute;
-    return ((to: string | TypedPath | number | ComposedTarget, options?: Partial<NavigateOptions>) =>
-      navigateFromRoute(route!, to, options)) as Navigator;
+    return ((
+      to: string | TypedPath | number | ComposedTarget,
+      options?: Partial<NavigateOptions>
+    ) => navigateFromRoute(route!, to, options)) as Navigator;
   }
 
   function preloadRoute(url: URL, preloadData?: boolean) {
-    const matches = getRouteMatches(branches(), url.pathname);
+    const next = getRouteMatches(branches(), url.pathname);
     // An unresolved lazy subtree in the chain: the placeholder's
     // component.preload (below) kicks the table load; once it lands,
     // preload again so the real inner routes warm too. Preloads are
     // speculative: a failed load (held sync throw or rejection) is ignored
     // here — the real navigation surfaces and retries it.
-    const boundary = matches.find(m => m.route.lazy && !m.route.lazy.resolved);
+    const boundary = next.find(m => m.route.lazy && !m.route.lazy.resolved);
     if (boundary) {
       try {
         (resolveLazySubtree(boundary.route.lazy!) as Promise<unknown>).then(
@@ -1172,18 +1174,41 @@ export function createRouterContext(
         );
       } catch {}
     }
+    // Data preloads run only for levels a navigation would mount fresh or
+    // reuse with changed inputs: this level's params, and search as the
+    // declared schema's output or else the raw string. Navigation itself is
+    // already this selective (a matching level is reused and re-reads through
+    // tracked params), so an unchanged level has nothing new to warm.
+    let current: RouteMatch[] | undefined;
+    try {
+      current = untrack(matches);
+    } catch {}
+    const query = extractSearchParams(url);
+    const inputs = (p: Params, q: SearchParams, s: string, r: RouteDescription) => {
+      const a = serverRouteArgs(r, p, q);
+      a.search === undefined && (a.search = s);
+      return a;
+    };
     const prevIntent = preloadIntent;
     preloadIntent = "preload";
-    for (let match in matches) {
-      const { route, params } = matches[match];
+    for (let match in next) {
+      const { route, params } = next[match];
       route.component &&
         (route.component as MaybePreloadableComponent).preload &&
         (route.component as MaybePreloadableComponent).preload!();
       const { preload, component } = route;
+      const now = current && current[match];
+      const unchanged =
+        now &&
+        now.route.key === route.key &&
+        serverRouteArgsEqual(
+          inputs(params, query, url.search, route),
+          inputs(now.params, location.query, location.search, route)
+        );
       inPreloadFn = true;
       preloadData &&
+        !unchanged &&
         runWithOwner(getContext!(), () => {
-          const query = extractSearchParams(url);
           // A server component route's data IS its call: warm the same
           // query entry the render will read, under the same derived args.
           const server = serverRouteOf(component);
