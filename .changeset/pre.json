@@ -63,6 +63,7 @@
     "router-navigation-warning-fix",
     "scroll-restoration-hydration-transparent",
     "server-component-form-delegation",
+    "server-route-component",
     "server-url-prop",
     "settle-hooks-every-completion",
     "single-flight-revalidate-once",
