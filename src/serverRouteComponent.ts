@@ -1,26 +1,29 @@
 // Server component routes (experimental — rides the experimental server
 // components surface in @solidjs/web; the arg shape may change).
 //
-// `serverRouteComponent(fn)` turns a `"use server"` function that returns a
-// component into a route `component`. It replaces the client wrapper a
-// server-component route used to need:
+// `serverRouteComponent(source)` turns a function of route arguments that
+// resolves to a component into a route `component`. It replaces the client
+// wrapper a server-component route used to need:
 //
 //   // before: a client component exists only to make the call
+//   const getStory = query(storyView, "story");
 //   component: props => {
 //     const View = dynamic(() => getStory(props.params.id));
 //     return <View>{props.children}</View>;
 //   }
 //   // after
-//   component: serverRouteComponent(storyRoute)   // async ({ params }) => { "use server"; ... }
+//   component: serverRouteComponent(query(storyView, "story"))
 //
-// The mechanism is the same one the wrapper used — `query` for cache identity
-// (preload participation, single-flight collection, revalidation after
-// actions) and `dynamic` for the equals-gated mount that morphs in place —
-// applied by the router rather than restated per route. What the router adds
-// is the URL → call translation: it derives the call's arguments from the
-// match and drives the same call from hover preload and from the single
-// flight collector, so one entry serves render, preload, and mutation
-// responses.
+// The source is the app's: `query(fn, key)` for a request/response server
+// component, `liveQuery(fn, key)` for one that streams successive versions,
+// or any function of the args. The router does not choose the cache
+// strategy and does not own the key — `revalidate("story")` is the app's,
+// as it is for any query. What the router adds is the URL → call
+// translation: it derives the call's arguments from the match, mounts the
+// resolved component with the outlet as `children`, and calls the same
+// source under preload intent (link hover, `preloadRoute`, the single-flight
+// collector), so the query or live channel is warm before the navigation
+// renders against it.
 //
 // Arguments are derived, not read from a live location: the call's
 // `(function, arguments)` address keys the frame store and the query cache,
@@ -37,36 +40,30 @@ import { dynamic } from "@solidjs/web";
 import type { JSX } from "@solidjs/web";
 import { createComponent } from "solid-js";
 import type { Component } from "solid-js";
-import { query } from "./data/query.js";
 import { SERVER_ROUTE, type BrandedRouteComponent } from "./serverRouteShared.js";
 import type { Params, RouteSectionProps, ServerRouteArgs, ServerRouteFunction } from "./types.js";
 
 /**
- * Use a server component as a route (experimental). `fn` is a `"use server"`
- * function taking the router-derived {@link ServerRouteArgs} — this route's
- * `params`, and `search` when the route declares a schema — and resolving to
- * a server component. The router mounts it with the outlet as `children`,
- * warms the same call on link intent, and collects it for single-flight
- * mutation responses.
+ * Use a server component as a route (experimental). `source` is a function
+ * of the router-derived {@link ServerRouteArgs} — this route's `params`, and
+ * `search` when the route declares a schema — resolving to a server
+ * component: typically a `"use server"` function wrapped in `query()` or
+ * `liveQuery()`, whose key the app names and revalidates. The router mounts
+ * the result with the outlet as `children` and calls the same source under
+ * preload intent, so link hover and single-flight collection warm it.
  *
  * `children` is the only client position the router fills, so the server
  * component may declare no other. One that takes client handlers, refs, or
  * slots has a client half — write an ordinary route component for it.
  *
  * ```ts
- * defineRoute({ path: "/stories/:id", component: serverRouteComponent(storyView) });
+ * defineRoute({ path: "/stories/:id", component: serverRouteComponent(query(storyView, "story")) });
  * ```
  */
 export function serverRouteComponent<P extends Params = Params, S = undefined>(
-  fn: ServerRouteFunction<P, S>
+  source: ServerRouteFunction<P, S>
 ): Component<RouteSectionProps<unknown, P>> {
-  const reference = fn as ServerRouteFunction<any, any> & { id?: string };
-  // One query entry per reference: the cache key (the function id) has to
-  // agree between the render that mounts the route, the hover preload that
-  // warms it, and the single-flight collector that re-produces its region.
-  // A server function reference always carries its build-stable id; a
-  // hand-built brand (tests) falls back to the function name.
-  const call = query(reference, "route:" + (reference.id || reference.name));
+  const call = source as ServerRouteFunction<any, any>;
 
   // The component itself is the fallback for a mount the router core does
   // not drive (a plain `createComponent`): it has only the merged params to
@@ -76,6 +73,8 @@ export function serverRouteComponent<P extends Params = Params, S = undefined>(
     render(() => ({ params: { ...routeProps.params }, search: undefined }), routeProps);
 
   function render(args: () => ServerRouteArgs<Params, unknown>, routeProps: RouteSectionProps) {
+    // The source may answer a component, a promise of one, or (a live query)
+    // successive components; `dynamic`'s memo lands each the same way.
     const View = dynamic(() => call(args()) as Promise<Component<any>>);
     return createComponent(View, {
       get children() {

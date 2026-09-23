@@ -1,0 +1,5 @@
+---
+"@solidjs/router": minor
+---
+
+`serverRouteComponent(source)` (experimental) now takes the app's query over the server component rather than wrapping the raw `"use server"` function in `query` itself: `serverRouteComponent(query(storyView, "story"))`. The router still derives the arguments from the match, mounts the result with the outlet as `children`, and calls the same source under preload intent — link hover and the single-flight collector — but the cache strategy and the key are the source's. That makes the key nameable (`revalidate("story")` reaches the route; the `"route:" + fn.id` key of 2.0.0-next.27 was not) and lets the source be a `liveQuery`, whose channel contract (hover connects and holds through the preload window, `revalidate` reconnects, the sweep leaves it alone, nothing pulls it in the collector) applies unchanged. `ServerRouteFunction` widens to a function of `ServerRouteArgs` answering a component once, as a promise, or as successive values; `ServerRouteView` names the component type. Breaking for 2.0.0-next.27 callers: wrap the function in `query()`.

@@ -187,14 +187,18 @@ export interface ServerRouteArgs<P extends Params = Params, S = undefined> {
 }
 
 /**
- * The shape `serverRouteComponent()` accepts (experimental): a `"use server"`
- * function taking the router-derived {@link ServerRouteArgs} and resolving
- * to a server component whose only client position is `children` — the route
- * outlet, which the router fills.
+ * The shape `serverRouteComponent()` accepts (experimental): a function of
+ * the router-derived {@link ServerRouteArgs} answering a server component —
+ * once (a `query`-wrapped `"use server"` function), or as successive
+ * versions (a `liveQuery`). The component's only client position is
+ * `children` — the route outlet, which the router fills.
  */
 export type ServerRouteFunction<P extends Params = Params, S = undefined> = (
   args: ServerRouteArgs<P, S>
-) => Promise<Component<{ children?: JSX.Element }>>;
+) => ServerRouteView | Promise<ServerRouteView> | AsyncIterable<ServerRouteView>;
+
+/** The component a server route resolves to: `children` is its only client position. */
+export type ServerRouteView = Component<{ children?: JSX.Element }>;
 
 // Phantom brand carrying a `defineFileRoute` config's pattern witness (and,
 // through its `preload` property, the data type) into `RouteProps`. Purely

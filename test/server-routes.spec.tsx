@@ -1,7 +1,10 @@
-// Server component routes: `serverRouteComponent(fn)` as a route `component`.
+// Server component routes: `serverRouteComponent(source)` as a route
+// `component`, where `source` is the app's `query(fn, key)` (or `liveQuery`).
 // The router derives the call from the match (this level's params, the
 // declared search output), mounts the resolved server component through
-// `dynamic`, and fills its `children` position with the outlet.
+// `dynamic`, fills its `children` position with the outlet, and calls the
+// same source under preload intent. The key is the app's: `revalidate(key)`
+// reaches the route.
 //
 // These specs run without a transport: a "server function" here is a plain
 // async function carrying the registered-symbol brand `isServerFunction`
@@ -15,6 +18,8 @@ import {
   createRouter,
   defineRoute,
   memoryHistory,
+  query,
+  revalidate,
   serverRouteComponent,
   useNavigate,
   usePreloadRoute
@@ -82,7 +87,7 @@ describe("server component routes", () => {
       routes: [
         defineRoute({
           path: "/users/:id",
-          component: serverRouteComponent(userLayout),
+          component: serverRouteComponent(query(userLayout, "layout-a")),
           children: [
             defineRoute({ path: "/", component: () => <p data-leaf>profile</p> }),
             defineRoute({
@@ -123,7 +128,7 @@ describe("server component routes", () => {
       routes: [
         defineRoute({
           path: "/users/:id",
-          component: serverRouteComponent(userLayout),
+          component: serverRouteComponent(query(userLayout, "layout-b")),
           children: [
             defineRoute({ path: "/", component: Leaf }),
             defineRoute({ path: "/posts/:postId", component: Leaf })
@@ -168,7 +173,11 @@ describe("server component routes", () => {
     let navigate!: Navigator;
     const Router = createRouter({
       routes: [
-        defineRoute({ path: "/list", component: serverRouteComponent(list), search: pageSchema }),
+        defineRoute({
+          path: "/list",
+          component: serverRouteComponent(query(list, "list")),
+          search: pageSchema
+        }),
         defineRoute({
           path: "/",
           component: () => {
@@ -212,7 +221,10 @@ describe("server component routes", () => {
     let preload!: ReturnType<typeof usePreloadRoute>;
     const Router = createRouter({
       routes: [
-        defineRoute({ path: "/stories/:id", component: serverRouteComponent(story) }),
+        defineRoute({
+          path: "/stories/:id",
+          component: serverRouteComponent(query(story, "story"))
+        }),
         defineRoute({
           path: "/",
           component: () => {
@@ -238,6 +250,37 @@ describe("server component routes", () => {
     expect(div.querySelector("[data-story]")!.getAttribute("data-story")).toBe("5");
     // the navigation read the preloaded entry
     expect(fn).toHaveBeenCalledTimes(1);
+    cleanup();
+  });
+
+  test("the key is the app's: `revalidate(key)` refetches the route", async () => {
+    let version = 0;
+    const fn = vi.fn(async ({ params }: ServerRouteArgs<{ id: string }>) => {
+      const v = ++version;
+      return () => <article data-story={params.id} data-version={v} />;
+    });
+    const Router = createRouter({
+      routes: [
+        defineRoute({
+          path: "/stories/:id",
+          component: serverRouteComponent(query(serverFunction(fn), "story-rv"))
+        })
+      ],
+      history: memoryHistory("/stories/5")
+    });
+
+    const { div, cleanup } = mount(() => (
+      <Router>{props => <Loading fallback="loading">{props.children}</Loading>}</Router>
+    ));
+    await settle();
+    expect(div.querySelector("[data-version]")!.getAttribute("data-version")).toBe("1");
+    expect(fn).toHaveBeenCalledTimes(1);
+
+    revalidate("story-rv");
+    await settle(20);
+    expect(fn).toHaveBeenCalledTimes(2);
+    expect(fn.mock.calls[1][0]).toEqual({ params: { id: "5" }, search: undefined });
+    expect(div.querySelector("[data-version]")!.getAttribute("data-version")).toBe("2");
     cleanup();
   });
 

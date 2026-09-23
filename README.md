@@ -371,7 +371,7 @@ Resolution is cached per thunk and append-only: the tree never changes shape aft
 
 ### Server Component Routes (experimental)
 
-Solid's experimental [server components](https://github.com/solidjs/solid/blob/main/documentation/solid-2.0/11-server-components.md) are `"use server"` functions that return a component. `serverRouteComponent` uses one as a route's `component` directly — the router owns the URL → call translation a client wrapper used to spell out:
+Solid's experimental [server components](https://github.com/solidjs/solid/blob/main/documentation/solid-2.0/11-server-components.md) are `"use server"` functions that return a component. `serverRouteComponent` takes a `query` over one and uses it as a route's `component` directly — the router owns the URL → call translation a client wrapper used to spell out:
 
 ```tsx
 // views.tsx
@@ -389,15 +389,21 @@ export async function storyView({ params }: ServerRouteArgs<{ id: string }>) {
 }
 
 // routes.ts
-defineRoute({ path: "/stories/:id", component: serverRouteComponent(storyView) });
+const getStory = query(storyView, "story");
+defineRoute({ path: "/stories/:id", component: serverRouteComponent(getStory) });
 ```
 
-The function is called with **derived** arguments, not a live location — the call's `(function, arguments)` address keys both the query cache and the frame store, so the args name exactly what the route depends on:
+The source is called with **derived** arguments, not a live location — the call's `(function, arguments)` address keys both the query cache and the frame store, so the args name exactly what the route depends on:
 
 - `params`: the params this route's pattern (and its ancestors') declares — never a child's, so a layout does not refetch when a leaf param changes. `defineRoute` checks them against the pattern.
 - `search`: the validated output of the route's [`search` schema](#typed-search-params), only when one is declared. Otherwise `undefined`, and the route never tracks the query string.
 
-The router mounts the resolved component with the outlet as `children`, so a server component can be a layout. The call is wrapped in `query` (keyed by the function id): link intent warms the same entry the render reads, actions revalidate it, and the [single-flight collector](#server-integration) reproduces it so a mutation's response carries the route's fresh markup. Argument changes deliver into the mounted boundary — it morphs in place rather than remounting.
+The router mounts the resolved component with the outlet as `children`, so a server component can be a layout, and it calls the same source under preload intent — link hover, `preloadRoute`, the [single-flight collector](#server-integration) — with the same derived args. What that call _means_ is the source's: the router does not choose the cache strategy or own the key.
+
+- `query(fn, key)`: link intent warms the entry the render reads, `revalidate("story")` and action responses refetch it, and the collector reproduces it so a mutation's response carries the route's fresh markup. Argument changes deliver into the mounted boundary — it morphs in place rather than remounting.
+- [`liveQuery(fn, key)`](#livequery-experimental): the frame stream stays open and the channel owns it — hover connects it (held through the preload window, so a hovered link is an open stream), `revalidate(key)` reconnects, and the mutation sweep leaves it alone since the stream is its own freshness. The collector's call is a no-op for a live source: nothing pulls it server-side, matching the delivery-side model.
+
+Anything else callable with the args works too; wrapping is what gives dedupe, preload, and revalidation.
 
 `children` is the only client position the router fills, and the helper's type says so: a server component that requires other props — event handlers, refs, named slots — is rejected. Those come from the client, so that route has a client half; write it as an ordinary route component around `dynamic()`. Interaction that lives on the server — form posts to server actions via `action={addTodo.url}` — needs no client component at all.
 

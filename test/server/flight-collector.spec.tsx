@@ -80,7 +80,7 @@ describe("createFlightDataCollector (preload runner)", () => {
     const event = createEvent("http://localhost:3000/profile");
     const response = new Response(null, { headers: { "X-Revalidate": "user" } });
     const data: any = await collect(event as any, createOutcome(event, response) as any);
-    expect(Object.keys(data)).toEqual(['user[]']);
+    expect(Object.keys(data)).toEqual(["user[]"]);
     expect(await data["user[]"]).toEqual({ name: "solid" });
   });
 
@@ -272,12 +272,15 @@ describe("createFlightDataCollector (server component routes)", () => {
 
   test("collects the route's call under its id with this level's params", async () => {
     const collect = createFlightDataCollector({
-      routes: { path: "/stories/:id", component: serverRouteComponent(storyRoute as any) }
+      routes: {
+        path: "/stories/:id",
+        component: serverRouteComponent(query(storyRoute, "story") as any)
+      }
     });
     const event = createEvent("http://localhost:3000/stories/7");
     const data: any = await collect(event as any, createOutcome(event) as any);
     const key = Object.keys(data)[0];
-    expect(key.startsWith("route:story#1")).toBe(true);
+    expect(key.startsWith("story")).toBe(true);
     expect(calls).toEqual([{ params: { id: "7" }, search: undefined }]);
     expect(typeof (await data[key])).toBe("function");
   });
