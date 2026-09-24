@@ -1,5 +1,8 @@
 import { lazy } from "solid-js";
+import { isServerFunction } from "@solidjs/web";
+import { serverRoutes } from "filesystem-routing/flags";
 
+import * as server from "./fsServer.js";
 import type {
   DefinedRouteFilters,
   RouteDefinition,
@@ -33,6 +36,15 @@ import type {
  * type parameter and the mapped tuple below carry every `path` literal — and
  * each route module's `route` export, `matchFilters` and `search` included —
  * into `RoutePaths`.
+ *
+ * Server pages (`fileRoutes({ serverComponents: true })` on the plugin): a
+ * route file whose default export begins with `"use server"` arrives as an
+ * eager ref flagged `server: true`, and becomes a server component route —
+ * `serverRouteComponent(query(fn, key))`, or `liveQuery` when its `route`
+ * config says `live: true`, keyed by the file's path. That code lives in
+ * fsServer.ts behind `serverRoutes`, a constant the plugin folds from the
+ * scan, so apps without a server page never bundle it. This module itself
+ * imports nothing server-component-shaped.
  */
 
 /**
@@ -53,6 +65,7 @@ export type FileRouteConfig<
   ([Sch] extends [undefined] ? {} : { search: Sch }) & {
     preload?: RoutePreloadFunc<T> | undefined;
     info?: RouteInfo | undefined;
+    live?: boolean | undefined;
   };
 
 /**
@@ -88,6 +101,8 @@ export function defineFileRoute<
     /** Standard Schema validator for this route's search params; its input type flows into the typed path proxy. */
     search?: Sch;
     info?: RouteInfo | undefined;
+    /** For a server page: source successive versions through `liveQuery` instead of `query`. */
+    live?: boolean | undefined;
   }
 ): FileRouteConfig<S, T, F, Sch> {
   return config as FileRouteConfig<S, T, F, Sch>;
@@ -109,7 +124,9 @@ export interface FileRouteEagerRef<M = Record<string, unknown>> {
 export interface FileRouteEntry {
   path: string;
   page?: boolean;
-  /** Code-split by default; an eager ref when delivered with `codeSplitting: false`. */
+  /** The page component is a `"use server"` function; its `$component` is an eager ref to the stub. */
+  server?: boolean;
+  /** Code-split by default; an eager ref when delivered with `codeSplitting: false` or for a server page. */
   $component?: FileRouteLazyRef<any> | FileRouteEagerRef<any> | undefined;
   $$route?: FileRouteEagerRef<any> | undefined;
   children?: readonly FileRouteEntry[] | undefined;
@@ -148,16 +165,36 @@ export function fileRoutes<const T extends readonly FileRouteEntry[]>(
 ): FileRoutesFrom<T> {
   const components = new Map<string, RouteSectionComponent>();
 
-  const componentOf = (ref: FileRouteLazyRef | FileRouteEagerRef) => {
+  const componentOf = (entry: FileRouteEntry, config: RouteDefinition & { live?: boolean }) => {
+    const ref = entry.$component!;
     if ("require" in ref) {
-      return (ref as FileRouteEagerRef<{ default: RouteSectionComponent }>).require().default;
+      const component = (ref as FileRouteEagerRef<{ default: RouteSectionComponent }>).require()
+        .default;
+      // A server page: the stub is the source; the file is the key (unique,
+      // and a directory prefix is a subtree for `revalidate`).
+      return serverRoutes && entry.server
+        ? server.serverRoute(component, (ref.src || entry.path).split("?")[0], config)
+        : component;
     }
     let component = components.get(ref.src);
     if (!component) {
       // moduleUrl is lazy()'s third argument as of solid 2.0.0-rc.1 (options
       // moved second); route components are default exports, so no { export }.
       component = lazy(
-        ref.import as () => Promise<{ default: RouteSectionComponent }>,
+        () =>
+          ref.import().then(mod => {
+            // A `"use server"` default the scanner did not see (behind a
+            // wrapper call or a re-export) — or scanned without the plugin's
+            // `serverComponents` option — was code-split like a client page.
+            if (isServerFunction(mod.default))
+              throw new Error(
+                `Route module "${ref.src}" exports a server function as its page, but it was ` +
+                  "delivered as a client page. Enable `serverComponents: true` on the " +
+                  'file-routes plugin and make the `"use server"` directive the first ' +
+                  "statement of the inline default export."
+              );
+            return mod as { default: RouteSectionComponent };
+          }),
         undefined,
         ref.src
       );
@@ -171,7 +208,7 @@ export function fileRoutes<const T extends readonly FileRouteEntry[]>(
     return {
       ...config,
       path: entry.path,
-      component: entry.$component ? componentOf(entry.$component) : undefined,
+      component: entry.$component ? componentOf(entry, config) : undefined,
       info: { ...config.info, filesystem: true },
       children: entry.children ? entry.children.map(toRoute) : undefined
     };

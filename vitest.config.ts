@@ -4,7 +4,9 @@ import solidPlugin from "@solidjs/vite-plugin";
 export default defineConfig({
   plugins: [solidPlugin() as Plugin],
   resolve: {
-    conditions: ["module", "browser", "development|production"]
+    conditions: ["module", "browser", "development|production"],
+    // the fs adapter's runtime-only peer; the shipped module says `true`
+    alias: { "filesystem-routing/flags": "/test/fixtures/fs-flags.ts" }
   },
   ssr: {
     resolve: {

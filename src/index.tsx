@@ -72,6 +72,7 @@ export type {
   SetParams,
   SetSearchParams,
   ServerRouteArgs,
+  ServerRouteParams,
   ServerRouteFunction,
   ServerRouteView,
   Submission,

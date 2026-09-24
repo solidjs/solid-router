@@ -181,10 +181,22 @@ export type RouteSectionComponent<T = unknown, P extends Params = Params> =
  * the route's pattern (and its ancestors') declares, plus — only when the
  * route declares a `search` schema — that schema's validated output.
  */
-export interface ServerRouteArgs<P extends Params = Params, S = undefined> {
-  params: P;
-  search: S;
+export interface ServerRouteArgs<P extends Params | TypedRouteConfig = Params, S = undefined> {
+  params: ServerRouteParams<P>;
+  search: P extends TypedRouteConfig ? SearchOutputOf<P> : S;
 }
+
+/**
+ * `ServerRouteArgs<typeof route>`: a `defineFileRoute` config is a witness —
+ * params from its pattern, search from its schema — the way
+ * `RouteProps<typeof route>` reads it for a client page.
+ */
+export type ServerRouteParams<P> =
+  P extends TypedRouteConfig<infer Pattern> ? RouteParams<Pattern> : Extract<P, Params>;
+
+type SearchOutputOf<Def> = Def extends { search: infer Sch extends StandardSchemaV1<any, any> }
+  ? NonNullable<Sch["~standard"]["types"]>["output"]
+  : undefined;
 
 /**
  * The shape `serverRouteComponent()` accepts (experimental): a function of
@@ -193,7 +205,7 @@ export interface ServerRouteArgs<P extends Params = Params, S = undefined> {
  * versions (a `liveQuery`). The component's only client position is
  * `children` — the route outlet, which the router fills.
  */
-export type ServerRouteFunction<P extends Params = Params, S = undefined> = (
+export type ServerRouteFunction<P extends Params | TypedRouteConfig = Params, S = undefined> = (
   args: ServerRouteArgs<P, S>
 ) => ServerRouteView | Promise<ServerRouteView> | AsyncIterable<ServerRouteView>;
 

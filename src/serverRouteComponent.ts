@@ -41,7 +41,14 @@ import type { JSX } from "@solidjs/web";
 import { createComponent } from "solid-js";
 import type { Component } from "solid-js";
 import { SERVER_ROUTE, type BrandedRouteComponent } from "./serverRouteShared.js";
-import type { Params, RouteSectionProps, ServerRouteArgs, ServerRouteFunction } from "./types.js";
+import type {
+  Params,
+  RouteSectionProps,
+  ServerRouteArgs,
+  ServerRouteFunction,
+  ServerRouteParams,
+  TypedRouteConfig
+} from "./types.js";
 
 /**
  * Use a server component as a route (experimental). `source` is a function
@@ -60,11 +67,11 @@ import type { Params, RouteSectionProps, ServerRouteArgs, ServerRouteFunction } 
  * defineRoute({ path: "/stories/:id", component: serverRouteComponent(query(storyView, "story")) });
  * ```
  */
-export function serverRouteComponent<P extends Params = Params, S = undefined>(
+export function serverRouteComponent<P extends Params | TypedRouteConfig = Params, S = undefined>(
   // A source that ignores its args (an app shell) is `(...args: never[])`
   // once `query()` has typed it; that is the same call, so accept it too.
   source: ServerRouteFunction<P, S> | ((...args: never[]) => ReturnType<ServerRouteFunction<P, S>>)
-): Component<RouteSectionProps<unknown, P>> {
+): Component<RouteSectionProps<unknown, ServerRouteParams<P>>> {
   const call = source as ServerRouteFunction<any, any>;
 
   // The value is a component only so it fits the `component` field; the
@@ -93,5 +100,5 @@ export function serverRouteComponent<P extends Params = Params, S = undefined>(
   }
 
   route[SERVER_ROUTE] = { call, render };
-  return route as Component<RouteSectionProps<unknown, P>>;
+  return route as Component<RouteSectionProps<unknown, ServerRouteParams<P>>>;
 }

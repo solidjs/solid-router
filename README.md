@@ -446,6 +446,28 @@ export default function Post(props: RouteProps<typeof route>) {
 
 The pattern string is a typing witness — at runtime the manifest's path (from the filename) is the source of truth. With the plugin's `types` option generating a literal declaration for the virtual module, the file paths flow into `paths` and the typed hooks like a hand-written tree — `paths.blog(42)` typechecks, filters and search schemas included, and `useParams(paths.blog)` works as usual anywhere under the route.
 
+#### Server pages
+
+A route file's page can be a [server component](#server-component-routes-experimental): make the default export a `"use server"` function of the route args. With `fileRoutes({ serverComponents: true })` on the `file-routes` plugin, the scanner flags such a file and the adapter builds the route the hand-written tree spells out — `serverRouteComponent(query(fn, key))`, or `liveQuery` when the `route` config says `live: true` — with the file's path as the key. No `query`, key, or wrapper in the route file:
+
+```tsx
+// routes/stories/[id].tsx
+import { defineFileRoute } from "@solidjs/router/fs";
+import type { ServerRouteArgs } from "@solidjs/router";
+
+export const route = defineFileRoute("/stories/:id", { search: storySearch });
+
+export default async function Story({ params, search }: ServerRouteArgs<typeof route>) {
+  "use server";
+  const story = await db.stories.get(params.id);
+  return props => <article>{story.title}{props.children}</article>;
+}
+```
+
+`ServerRouteArgs<typeof route>` reads the config as a witness like `RouteProps` does: `params` from the pattern, `search` as the schema's output (`undefined` with no schema). The key is the file — `revalidate("src/routes/stories/[id].tsx")` refetches this page, and because keys match by prefix, `revalidate("src/routes/stories")` refetches every page under the directory (pathless layouts have no route path of their own, so the file is what tells them apart). The directive has to be the first statement of the inline default export — behind a wrapper call or a re-export the scanner cannot see it, the page is code-split like a client page, and the adapter throws a directed error when the chunk resolves.
+
+Apps with no server page pay nothing for this. The plugin folds the scan into `filesystem-routing/flags`, and the adapter's only path to `serverRouteComponent`, `query`, and `liveQuery` is a module gated on that constant, so the branch — and with it the frames runtime — tree-shakes away. `pnpm build` asserts it.
+
 ## Typed Paths
 
 `paths` is a proxy inferred from the route tree. Property access descends into static segments, calls bind params, and it mirrors URL anatomy — params, then a search object, then a hash string:
