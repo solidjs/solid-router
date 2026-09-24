@@ -62,7 +62,7 @@
   },
   "peerDependencies": {
     "@solidjs/web": "^2.0.0-rc.9",
-    "filesystem-routing": ">=0.3.0",
+    "filesystem-routing": ">=0.4.0",
     "solid-js": "^2.0.0-rc.9"
   },
   "peerDependenciesMeta": {
