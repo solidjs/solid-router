@@ -305,4 +305,41 @@ describe("server component routes", () => {
     expect(Client.mock.calls[0][0]).toHaveProperty("location");
     cleanup();
   });
+
+  test("Router.keysFor names the server routes a URL shows, root to leaf", () => {
+    // What a server action narrows `revalidate` to — route keys, the app's
+    // own, so the action never spells a key or reproduces derived args.
+    const shell = serverFunction(async () => (props: any) => props.children);
+    const story = serverFunction(async (_args: ServerRouteArgs<{ id: string }>) => () => <p />);
+    const Router = createRouter({
+      routes: [
+        {
+          component: serverRouteComponent(query(shell, "shell-keys")),
+          children: [
+            defineRoute({ path: "/", component: () => <p /> }),
+            defineRoute({
+              path: "/stories/:id",
+              component: serverRouteComponent(query(story, "story-keys")),
+              children: [
+                defineRoute({ path: "/", component: () => <p /> }),
+                defineRoute({ path: "/comments", component: () => <p /> })
+              ]
+            })
+          ]
+        }
+      ]
+    });
+
+    expect(Router.keysFor("/stories/7")).toEqual(["shell-keys", "story-keys"]);
+    // a paths node, bound or not, is accepted; a full URL too
+    expect(Router.keysFor(Router.paths.stories(7))).toEqual(["shell-keys", "story-keys"]);
+    expect(Router.keysFor("https://app.test/stories/7/comments?x=1")).toEqual([
+      "shell-keys",
+      "story-keys"
+    ]);
+    // client-only levels contribute nothing; the shell is still on the chain
+    expect(Router.keysFor(Router.paths())).toEqual(["shell-keys"]);
+    // no match: nothing to name
+    expect(Router.keysFor("/nowhere")).toEqual([]);
+  });
 });

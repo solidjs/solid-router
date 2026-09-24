@@ -406,6 +406,18 @@ The router mounts the resolved component with the outlet as `children`, so a ser
 
 Anything else callable with the args works too; wrapping is what gives dedupe, preload, and revalidation.
 
+Mutations reach these routes the way they reach any query, and the cost model is worth knowing: a swept server route is a server-side re-render plus its markup in the response, not a small data blob. From a server action, `redirect(url)` re-collects everything the target shows and a bare `reload()` everything the current page shows — server routes included, shell and layouts too. On a server-component-heavy page, name what a mutation actually changed instead. `Router.keysFor(url)` answers the query keys of the server routes a URL shows, root to leaf — the app's own keys, from pure matching, so it works in an action and never spells a key:
+
+```ts
+export const addComment = action(async (form: FormData) => {
+  "use server";
+  await db.comments.add(form);
+  return reload({ revalidate: Router.keysFor(paths.stories(form.get("id"))) });
+});
+```
+
+Route keys, not addresses: every story page is refetched, which is what prefix matching gives a hand-written `revalidate("story")` too.
+
 An app shell is a pathless layout route whose `component` is a server component. With no pattern, its args are the constant `{ params: {}, search: undefined }` — one call, one address, persisting across every navigation — and as a route it gets preload, collection, and `revalidate` like any other. The `<Router>` root slot exists for client providers that need router context without following route rules; a server component has neither, so it does not go there:
 
 ```tsx
@@ -464,7 +476,7 @@ export default async function Story({ params, search }: ServerRouteArgs<typeof r
 }
 ```
 
-`ServerRouteArgs<typeof route>` reads the config as a witness like `RouteProps` does: `params` from the pattern, `search` as the schema's output (`undefined` with no schema). The key is the file — `revalidate("src/routes/stories/[id].tsx")` refetches this page, and because keys match by prefix, `revalidate("src/routes/stories")` refetches every page under the directory (pathless layouts have no route path of their own, so the file is what tells them apart). The directive has to be the first statement of the inline default export — behind a wrapper call or a re-export the scanner cannot see it, the page is code-split like a client page, and the adapter throws a directed error when the chunk resolves.
+`ServerRouteArgs<typeof route>` reads the config as a witness like `RouteProps` does: `params` from the pattern, `search` as the schema's output (`undefined` with no schema). The key is the file — `Router.keysFor(paths.stories(7))` answers `["src/routes/stories/[id].tsx"]` (plus any server layouts above it), so an action names the page without spelling a path; because keys match by prefix, `revalidate("src/routes/stories")` refetches every page under the directory (pathless layouts have no route path of their own, so the file is what tells them apart). The directive has to be the first statement of the inline default export — behind a wrapper call or a re-export the scanner cannot see it, the page is code-split like a client page, and the adapter throws a directed error when the chunk resolves.
 
 A live page names its wrapper in the `route` config — `defineFileRoute("/feed", { query: liveQuery })` — and the adapter sources through that instead of `query`. The route file imports `liveQuery`, so only an app with a live page carries it.
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { liveQuery } from "../src/data/liveQuery.js";
 import { defineFileRoute, fileRoutes } from "../src/fs.js";
+import { createRouter } from "../src/routers/factory.jsx";
 import { int } from "../src/paths.js";
 import type { RoutePaths } from "../src/paths.js";
 import { serverRouteOf } from "../src/serverRouteShared.js";
@@ -250,6 +251,12 @@ describe("fileRoutes server pages", () => {
     expect(typeof call.status).toBe("function");
     // the config is still spread into the definition (search drives the call's args)
     expect(routes[1].search).toBe(pageSchema);
+  });
+
+  it("Router.keysFor answers file keys, so actions never spell a path", () => {
+    const Router = createRouter({ routes: fileRoutes(entries) });
+    expect(Router.keysFor(Router.paths.stories(7))).toEqual(["/src/routes/stories/[id].tsx"]);
+    expect(Router.keysFor("/feed?page=2")).toEqual(["/src/routes/feed.tsx"]);
   });
 
   it("leaves an eager client page alone", () => {

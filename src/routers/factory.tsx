@@ -19,8 +19,9 @@ import { getRequestEvent, isServer } from "@solidjs/web";
 import type { JSX } from "@solidjs/web";
 import { setupLinkClaims } from "../claims.js";
 import { setupNativeEvents } from "../data/events.js";
-import { createPathsProxy } from "../paths.js";
+import { createPathsProxy, HREF } from "../paths.js";
 import type { RoutePaths } from "../paths.js";
+import { serverRouteOf } from "../serverRouteShared.js";
 import {
   createBranches,
   createRouterContext,
@@ -50,6 +51,7 @@ import type {
   RouteSectionComponent,
   RouteSectionProps,
   StandardSchemaV1,
+  TypedPath,
   ValidFilters
 } from "../types.js";
 import { mockBase } from "../utils.js";
@@ -209,6 +211,15 @@ export interface RouterInstance<R extends readonly RouteDefinition[] = RouteDefi
   readonly config: RouterConfig<R>;
   /** Pure matching against an arbitrary URL — no rendering or request context involved. Root→leaf; `[]` when nothing matches. */
   match(url: string): OutputMatch[];
+  /**
+   * The query keys of the server component routes a URL shows, root→leaf —
+   * what to name in `reload`/`respond`/`redirect`'s `revalidate` (or the
+   * client's `revalidate()`) to refetch those routes and nothing else. Route
+   * keys, not addresses: the app's `query` key for a hand-written route, the
+   * file for a file-system route. Pure matching, so it works in a server
+   * action; a `paths` node is accepted.
+   */
+  keysFor(url: string | TypedPath): string[];
 }
 
 /**
@@ -275,8 +286,7 @@ function createIntegration(
   let inflight: LocationChange | undefined;
   const wrap = (value: string | LocationChange) => (typeof value === "string" ? { value } : value);
   const [read, write] = createSignal(wrap(history.get()), {
-    equals: (a, b) =>
-      a.value === b.value && a.state === b.state && a._navigation === b._navigation,
+    equals: (a, b) => a.value === b.value && a.state === b.state && a._navigation === b._navigation,
     ownedWrite: true,
     name: "location"
   });
@@ -385,7 +395,8 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
     }
     return compiled;
   };
-  const renderPath = (config.history && config.history.utils && config.history.utils.renderPath) || undefined;
+  const renderPath =
+    (config.history && config.history.utils && config.history.utils.renderPath) || undefined;
   const matchPath = (pathname: string) =>
     getRouteMatches(branches(), config.transformUrl ? config.transformUrl(pathname) : pathname);
 
@@ -449,6 +460,16 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
         params,
         info: route.info
       }));
+    },
+    keysFor(url: string | TypedPath): string[] {
+      const pathname =
+        typeof url === "string" ? new URL(url, mockBase).pathname : ((url as any)[HREF] as string);
+      const keys: string[] = [];
+      for (const { route } of matchPath(pathname)) {
+        const key = (serverRouteOf(route.component)?.call as { key?: unknown } | undefined)?.key;
+        typeof key === "string" && key && !keys.includes(key) && keys.push(key);
+      }
+      return keys;
     }
   });
   // Built on first access (a getter via Object.assign would run during the
