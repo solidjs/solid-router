@@ -494,7 +494,8 @@ export type Submission<T, U> = {
   readonly error: any;
   readonly url: string;
   clear: () => void;
-  retry: () => void;
+  /** Re-run the action with the same input; resolves to its result, like the original call. */
+  retry: () => Promise<U>;
 };
 
 export interface MaybePreloadableComponent extends Component {
