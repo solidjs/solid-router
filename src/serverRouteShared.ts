@@ -12,9 +12,9 @@ import type {
   RouteDescription,
   RouteSectionProps,
   SearchParams,
-  ServerRouteArgs,
-  StandardSchemaV1
+  ServerRouteArgs
 } from "./types.js";
+import { validateSearch } from "./utils.js";
 
 export const SERVER_ROUTE = Symbol("solid-router.serverRoute");
 
@@ -37,9 +37,7 @@ export type BrandedRouteComponent = Function & { [SERVER_ROUTE]?: ServerRouteBra
 
 /** The brand carried by a route component built with `serverRouteComponent()`, if any. */
 export function serverRouteOf(component: unknown): ServerRouteBrand | undefined {
-  return typeof component === "function"
-    ? (component as BrandedRouteComponent)[SERVER_ROUTE]
-    : undefined;
+  return (component as BrandedRouteComponent | undefined)?.[SERVER_ROUTE];
 }
 
 /**
@@ -53,30 +51,26 @@ export function serverRouteArgs(
   params: Params,
   query: SearchParams
 ): ServerRouteArgs<Params, unknown> {
-  const schema = (route.key as RouteDefinition | undefined)?.search as
-    | StandardSchemaV1<any, any>
-    | undefined;
-  let search: unknown = undefined;
+  const schema = (route.key as RouteDefinition | undefined)?.search;
+  let search: unknown;
   if (schema) {
-    const outcome = schema["~standard"].validate({ ...query });
-    if (outcome instanceof Promise)
-      throw new Error("Async Standard Schema validation is not supported for search params");
+    const raw = { ...query };
+    const outcome = validateSearch(schema, raw);
     // Issues leave the raw values in place, matching useSearchParams: search
     // strings are user input, so defaults belong in the schema itself.
-    search = outcome.issues ? { ...query } : outcome.value;
+    search = outcome.issues ? raw : outcome.value;
   }
   return { params: { ...params }, search };
 }
 
-function shallowEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (!a || !b || typeof a !== "object" || typeof b !== "object") return false;
-  const ka = Object.keys(a as object);
-  const kb = Object.keys(b as object);
-  if (ka.length !== kb.length) return false;
-  for (const k of ka) if ((a as any)[k] !== (b as any)[k]) return false;
-  return true;
-}
+const shallowEqual = (a: any, b: any): boolean =>
+  a === b ||
+  (!!a &&
+    !!b &&
+    typeof a === "object" &&
+    typeof b === "object" &&
+    Object.keys(a).length === Object.keys(b).length &&
+    Object.keys(a).every(k => a[k] === b[k]));
 
 /**
  * Structural equality for the args memo: a navigation produces fresh match

@@ -399,6 +399,9 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
     (config.history && config.history.utils && config.history.utils.renderPath) || undefined;
   const matchPath = (pathname: string) =>
     getRouteMatches(branches(), config.transformUrl ? config.transformUrl(pathname) : pathname);
+  // a `paths` node carries its logical pathname under the Href brand
+  const pathnameOf = (url: string | TypedPath) =>
+    typeof url === "string" ? new URL(url, mockBase).pathname : ((url as any)[HREF] as string);
 
   function RouterComponent(props: RouterProps): JSX.Element {
     // One router per app: the session (location, history, delegation, link
@@ -453,7 +456,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
     routes: config.routes,
     config,
     match(url: string): OutputMatch[] {
-      return matchPath(new URL(url, mockBase).pathname).map(({ route, path, params }) => ({
+      return matchPath(pathnameOf(url)).map(({ route, path, params }) => ({
         path: route.originalPath,
         pattern: route.pattern,
         match: path,

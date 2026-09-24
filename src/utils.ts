@@ -1,5 +1,6 @@
 import { createMemo, getOwner, runWithOwner } from "solid-js";
 import type {
+  StandardSchemaV1,
   MatchFilter,
   MatchFilters,
   PathMatch,
@@ -47,6 +48,14 @@ export function invariant<T>(value: T | null | undefined, message: string): T {
 
 export function joinPaths(from: string, to: string): string {
   return normalizePath(from).replace(/\/*(\*.*)?$/g, "") + normalizePath(to);
+}
+
+/** Run a Standard Schema synchronously — the only mode search params support. */
+export function validateSearch(schema: StandardSchemaV1<any, any>, raw: Record<string, any>) {
+  const outcome = schema["~standard"].validate(raw);
+  if (outcome instanceof Promise)
+    throw new Error("Async Standard Schema validation is not supported for search params");
+  return outcome;
 }
 
 export function extractSearchParams(url: URL): SearchParams {

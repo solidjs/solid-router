@@ -57,7 +57,8 @@ import {
   joinPaths,
   scoreRoute,
   mergeSearchString,
-  expandOptionals
+  expandOptionals,
+  validateSearch
 } from "./utils.js";
 // Flash-cookie detection/clearing are cookie utilities on the CORE entry
 // (they live beside the cookie codec) — routing is in every app's eager
@@ -350,9 +351,7 @@ export function useSearchParams(
           for (const match of router.matches()) {
             const schema = (match.route.key as RouteDefinition).search;
             if (!schema) continue;
-            const outcome = schema["~standard"].validate(raw);
-            if (outcome instanceof Promise)
-              throw new Error("Async Standard Schema validation is not supported for search params");
+            const outcome = validateSearch(schema, raw);
             if (!outcome.issues) result = Object.assign(result || { ...raw }, outcome.value);
           }
           return result || raw;

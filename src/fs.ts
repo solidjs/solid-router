@@ -1,4 +1,4 @@
-import { lazy } from "solid-js";
+import { DEV, lazy } from "solid-js";
 import { isServerFunction } from "@solidjs/web";
 import { serverRoutes } from "filesystem-routing/flags";
 
@@ -186,20 +186,23 @@ export function fileRoutes<const T extends readonly FileRouteEntry[]>(
       // moduleUrl is lazy()'s third argument as of solid 2.0.0-rc.1 (options
       // moved second); route components are default exports, so no { export }.
       component = lazy(
-        () =>
-          ref.import().then(mod => {
-            // A `"use server"` default the scanner did not see (behind a
-            // wrapper call or a re-export) — or scanned without the plugin's
-            // `serverComponents` option — was code-split like a client page.
-            if (isServerFunction(mod.default))
-              throw new Error(
-                `Route module "${ref.src}" exports a server function as its page, but it was ` +
-                  "delivered as a client page. Enable `serverComponents: true` on the " +
-                  'file-routes plugin and make the `"use server"` directive the first ' +
-                  "statement of the inline default export."
-              );
-            return mod as { default: RouteSectionComponent };
-          }),
+        // A `"use server"` default the scanner did not see (behind a wrapper
+        // call or a re-export) — or scanned without the plugin's
+        // `serverComponents` option — was code-split like a client page:
+        // say so in development rather than mount a stub as a component.
+        DEV
+          ? () =>
+              ref.import().then(mod => {
+                if (isServerFunction(mod.default))
+                  throw new Error(
+                    `Route module "${ref.src}" exports a server function as its page, but it ` +
+                      "was delivered as a client page. Enable `serverComponents: true` on the " +
+                      'file-routes plugin and make the `"use server"` directive the first ' +
+                      "statement of the inline default export."
+                  );
+                return mod as { default: RouteSectionComponent };
+              })
+          : (ref.import as () => Promise<{ default: RouteSectionComponent }>),
         undefined,
         ref.src
       );

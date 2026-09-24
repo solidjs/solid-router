@@ -38,7 +38,7 @@
 // helper does not pretend otherwise. Write the wrapper for that route.
 import { dynamic } from "@solidjs/web";
 import type { JSX } from "@solidjs/web";
-import { createComponent } from "solid-js";
+import { createComponent, DEV } from "solid-js";
 import type { Component } from "solid-js";
 import { SERVER_ROUTE, type BrandedRouteComponent } from "./serverRouteShared.js";
 import type {
@@ -82,9 +82,12 @@ export function serverRouteComponent<P extends Params | TypedRouteConfig = Param
   // address, missing the cache and owning its own frame. Refuse it.
   const route: BrandedRouteComponent = () => {
     throw new Error(
-      "serverRouteComponent(): mount it as a route's `component` — the router derives the " +
-        "call from the match. It was rendered directly (through lazy(), as the <Router> root, " +
-        "or outside a route). For an app shell, make it a pathless layout route with children."
+      "serverRouteComponent(): mount it as a route's `component`" +
+        (DEV
+          ? " — the router derives the call from the match. It was rendered directly (through " +
+            "lazy(), as the <Router> root, or outside a route). For an app shell, make it a " +
+            "pathless layout route with children."
+          : "")
     );
   };
 
