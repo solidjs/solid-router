@@ -460,7 +460,7 @@ The pattern string is a typing witness — at runtime the manifest's path (from 
 
 #### Server pages
 
-A route file's page can be a [server component](#server-component-routes-experimental): make the default export a `"use server"` function of the route args. With `fileRoutes({ serverComponents: true })` on the `file-routes` plugin, the scanner flags such a file and the adapter builds the route the hand-written tree spells out — `serverRouteComponent(query(fn, key))` with the file's path as the key. No `query`, key, or wrapper in the route file:
+A route file's page can be a [server component](#server-component-routes-experimental): make the default export a `"use server"` function of the route args. With `fileRoutes({ serverComponents: true })` on the `file-routes` plugin, the scanner flags such a file and the adapter builds the route the hand-written tree spells out — `serverRouteComponent(query(fn, key))` with the file's path as the key. No `query`, key, or wrapper in the route file. (That option turns on server component _routes_; server components themselves are Solid's plugin's `serverFunctions: { components: true }`, the same switch a hand-written server route needs.)
 
 ```tsx
 // routes/stories/[id].tsx
@@ -476,7 +476,7 @@ export default async function Story({ params, search }: ServerRouteArgs<typeof r
 }
 ```
 
-`ServerRouteArgs<typeof route>` reads the config as a witness like `RouteProps` does: `params` from the pattern, `search` as the schema's output (`undefined` with no schema). The key is the file — `Router.keysFor(paths.stories(7))` answers `["src/routes/stories/[id].tsx"]` (plus any server layouts above it), so an action names the page without spelling a path; because keys match by prefix, `revalidate("src/routes/stories")` refetches every page under the directory (pathless layouts have no route path of their own, so the file is what tells them apart). The directive has to be the first statement of the inline default export — behind a wrapper call or a re-export the scanner cannot see it, the page is code-split like a client page, and the adapter throws a directed error when the chunk resolves.
+`ServerRouteArgs<typeof route>` reads the config as a witness like `RouteProps` does: `params` from the pattern, `search` as the schema's output (`undefined` with no schema). The key is the file — `Router.keysFor(paths.stories(7))` answers `["src/routes/stories/[id].tsx"]` (plus any server layouts above it), so an action names the page without spelling a path; because keys match by prefix, `revalidate("src/routes/stories")` refetches every page under the directory (pathless layouts have no route path of their own, so the file is what tells them apart). The directive has to be the first statement of the inline default export — behind a wrapper call or a re-export the scanner cannot see it, the page is code-split like a client page, and in development the adapter throws a directed error when the chunk resolves.
 
 A live page names its wrapper in the `route` config — `defineFileRoute("/feed", { query: liveQuery })` — and the adapter sources through that instead of `query`. The route file imports `liveQuery`, so only an app with a live page carries it.
 
