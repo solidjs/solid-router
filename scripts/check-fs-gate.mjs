@@ -14,6 +14,9 @@ const dist = fileURLToPath(new URL("../dist/", import.meta.url));
 // a literal from serverRouteComponent.ts that survives minification; the
 // module is fsServer.ts's, so its presence means the whole gated import came in
 const MARKERS = ["serverRouteComponent(): mount it"];
+// a liveQuery status literal: the adapter never imports liveQuery — a live
+// page's route file does — so neither build may carry it
+const LIVE_MARKER = '"reconnecting"';
 
 const root = mkdtempSync(join(tmpdir(), "router-fs-gate-"));
 writeFileSync(
@@ -58,6 +61,9 @@ try {
   const [off, on] = await Promise.all([bundle(false), bundle(true)]);
   const kb = s => (Buffer.byteLength(s) / 1024).toFixed(1) + " KB";
   console.log(`fs gate: serverRoutes=false ${kb(off)}, serverRoutes=true ${kb(on)}`);
+  if (off.includes(LIVE_MARKER) || on.includes(LIVE_MARKER)) {
+    throw new Error("fs gate: liveQuery reached a bundle with no live page");
+  }
   for (const marker of MARKERS) {
     if (off.includes(marker)) {
       throw new Error(`fs gate: "${marker}" reached a bundle with no server page`);

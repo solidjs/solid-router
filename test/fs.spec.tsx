@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { liveQuery } from "../src/data/liveQuery.js";
 import { defineFileRoute, fileRoutes } from "../src/fs.js";
 import { int } from "../src/paths.js";
 import type { RoutePaths } from "../src/paths.js";
@@ -199,7 +200,8 @@ const pageSchema: StandardSchemaV1<{ page?: string }, { page: number }> = {
 describe("fileRoutes server pages", () => {
   const Story = serverFunction(async (_args: ServerRouteArgs) => () => "story" as any);
   const Feed = serverFunction(async (_args: ServerRouteArgs) => () => "feed" as any);
-  const feedRoute = defineFileRoute("/feed", { search: pageSchema, live: true });
+  // the live page imports its wrapper; the adapter never does
+  const feedRoute = defineFileRoute("/feed", { search: pageSchema, query: liveQuery });
 
   const entries = [
     {
@@ -241,7 +243,7 @@ describe("fileRoutes server pages", () => {
     expect(call.status).toBeUndefined();
   });
 
-  it("sources through liveQuery when the route says live", () => {
+  it("sources through the wrapper the route names", () => {
     const routes = fileRoutes(entries);
     const call = serverRouteOf(routes[1].component)!.call as any;
     expect(call.key).toBe("/src/routes/feed.tsx");

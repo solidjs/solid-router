@@ -3,6 +3,7 @@ import { isServerFunction } from "@solidjs/web";
 import { serverRoutes } from "filesystem-routing/flags";
 
 import * as server from "./fsServer.js";
+import type { ServerPageQuery } from "./fsServer.js";
 import type {
   DefinedRouteFilters,
   RouteDefinition,
@@ -40,9 +41,10 @@ import type {
  * Server pages (`fileRoutes({ serverComponents: true })` on the plugin): a
  * route file whose default export begins with `"use server"` arrives as an
  * eager ref flagged `server: true`, and becomes a server component route —
- * `serverRouteComponent(query(fn, key))`, or `liveQuery` when its `route`
- * config says `live: true`, keyed by the file's path. That code lives in
- * fsServer.ts behind `serverRoutes`, a constant the plugin folds from the
+ * `serverRouteComponent(query(fn, key))` keyed by the file's path — or the
+ * wrapper its `route` config names (`{ query: liveQuery }`), imported by that
+ * file, so only an app with a live page carries `liveQuery`. The code lives
+ * in fsServer.ts behind `serverRoutes`, a constant the plugin folds from the
  * scan, so apps without a server page never bundle it. This module itself
  * imports nothing server-component-shaped.
  */
@@ -65,7 +67,7 @@ export type FileRouteConfig<
   ([Sch] extends [undefined] ? {} : { search: Sch }) & {
     preload?: RoutePreloadFunc<T> | undefined;
     info?: RouteInfo | undefined;
-    live?: boolean | undefined;
+    query?: ServerPageQuery | undefined;
   };
 
 /**
@@ -101,8 +103,8 @@ export function defineFileRoute<
     /** Standard Schema validator for this route's search params; its input type flows into the typed path proxy. */
     search?: Sch;
     info?: RouteInfo | undefined;
-    /** For a server page: source successive versions through `liveQuery` instead of `query`. */
-    live?: boolean | undefined;
+    /** For a server page: the wrapper its source goes through — `query` unless named, e.g. `liveQuery`. */
+    query?: ServerPageQuery | undefined;
   }
 ): FileRouteConfig<S, T, F, Sch> {
   return config as FileRouteConfig<S, T, F, Sch>;
@@ -165,7 +167,10 @@ export function fileRoutes<const T extends readonly FileRouteEntry[]>(
 ): FileRoutesFrom<T> {
   const components = new Map<string, RouteSectionComponent>();
 
-  const componentOf = (entry: FileRouteEntry, config: RouteDefinition & { live?: boolean }) => {
+  const componentOf = (
+    entry: FileRouteEntry,
+    config: RouteDefinition & { query?: ServerPageQuery | undefined }
+  ) => {
     const ref = entry.$component!;
     if ("require" in ref) {
       const component = (ref as FileRouteEagerRef<{ default: RouteSectionComponent }>).require()
