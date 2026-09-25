@@ -212,6 +212,43 @@ describe("server component routes", () => {
     cleanup();
   });
 
+  test("a route without a search schema omits the `search` key entirely (#615)", async () => {
+    // Args travel as plain JSON by default and the runtime's JSON-safety
+    // check rejects explicit `undefined` anywhere in them — `toEqual` can't
+    // see the difference, so assert key presence directly.
+    const calls: any[] = [];
+    const page = serverFunction(async (args: ServerRouteArgs) => {
+      calls.push(args);
+      return () => <p>page</p>;
+    });
+    let navigate!: Navigator;
+    const Router = createRouter({
+      routes: [
+        defineRoute({ path: "/page", component: serverRouteComponent(query(page, "no-schema")) }),
+        defineRoute({
+          path: "/",
+          component: () => {
+            navigate = useNavigate();
+            return <p>home</p>;
+          }
+        })
+      ],
+      history: memoryHistory("/")
+    });
+
+    const { div, cleanup } = mount(() => (
+      <Router>{props => <Loading fallback="loading">{props.children}</Loading>}</Router>
+    ));
+    await settle();
+    navigate("/page");
+    await settle(20);
+    expect(calls).toHaveLength(1);
+    expect("search" in calls[0]).toBe(false);
+    expect(Object.keys(calls[0])).toEqual(["params"]);
+    expect(div.textContent).toContain("page");
+    cleanup();
+  });
+
   test("hover preload warms the same call the navigation reads", async () => {
     const fn = vi.fn(async ({ params }: ServerRouteArgs<{ id: string }>) => {
       return () => <article data-story={params.id} />;

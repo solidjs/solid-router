@@ -179,12 +179,20 @@ export type RouteSectionComponent<T = unknown, P extends Params = Params> =
 /**
  * What a server component route is called with (experimental): the params
  * the route's pattern (and its ancestors') declares, plus — only when the
- * route declares a `search` schema — that schema's validated output.
+ * route declares a `search` schema — that schema's validated output. Without
+ * a schema the `search` key is ABSENT, not `undefined`: the args travel as
+ * plain JSON by default, and the runtime's JSON-safety check rejects
+ * explicit `undefined` (#615). The type mirrors that — optional exactly when
+ * the search type admits undefined, required when a schema narrows it.
  */
-export interface ServerRouteArgs<P extends Params | TypedRouteConfig = Params, S = undefined> {
+export type ServerRouteArgs<P extends Params | TypedRouteConfig = Params, S = undefined> = {
   params: ServerRouteParams<P>;
-  search: P extends TypedRouteConfig ? SearchOutputOf<P> : S;
-}
+} & (undefined extends ServerRouteSearch<P, S>
+  ? { search?: ServerRouteSearch<P, S> }
+  : { search: ServerRouteSearch<P, S> });
+
+/** The search half of {@link ServerRouteArgs}: schema output when declared. */
+export type ServerRouteSearch<P, S> = P extends TypedRouteConfig ? SearchOutputOf<P> : S;
 
 /**
  * `ServerRouteArgs<typeof route>`: a `defineFileRoute` config is a witness —

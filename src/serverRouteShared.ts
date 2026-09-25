@@ -52,15 +52,19 @@ export function serverRouteArgs(
   query: SearchParams
 ): ServerRouteArgs<Params, unknown> {
   const schema = (route.key as RouteDefinition | undefined)?.search;
-  let search: unknown;
   if (schema) {
     const raw = { ...query };
     const outcome = validateSearch(schema, raw);
     // Issues leave the raw values in place, matching useSearchParams: search
     // strings are user input, so defaults belong in the schema itself.
-    search = outcome.issues ? raw : outcome.value;
+    return { params: { ...params }, search: outcome.issues ? raw : outcome.value };
   }
-  return { params: { ...params }, search };
+  // No schema: leave the key out rather than carrying `search: undefined` —
+  // the args are sent as plain JSON by default and the runtime's JSON-safety
+  // check rejects explicit `undefined` (#615). Destructuring on the server
+  // reads the same either way, and the args-memo equality treats an absent
+  // key and undefined alike.
+  return { params: { ...params } };
 }
 
 const shallowEqual = (a: any, b: any): boolean =>
