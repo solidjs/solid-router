@@ -76,6 +76,41 @@ describe("SSR flash seeding", () => {
     });
   });
 
+  test("seeds through the lazily-imported codec installRouterIntegrations installs (#616)", async () => {
+    const routing = await loadRouting();
+    const event = createEvent(await flashCookieHeader({ id: 616 }));
+
+    await provideRequestEvent(event, async () => {
+      const router = createContext(routing);
+      // the exact wrapper shape action.ts installs: the server codec module
+      // loads inside the first decode, so the client graph never carries a
+      // static edge to the runtime's server entry
+      routing.provideFlashDecoder(cookieHeader =>
+        import("@solidjs/web/server-functions/server").then(m => m.decodeFlashCookie(cookieHeader))
+      );
+      const seeded = await readSeeded(router);
+      expect(seeded).toHaveLength(1);
+      expect(seeded[0].result).toEqual({ id: 616 });
+    });
+  });
+
+  test("the client module graph carries no static import of the runtime's server entry (#616)", async () => {
+    // Vite dev doesn't tree-shake: a static `import ... from
+    // "@solidjs/web/server-functions/server"` anywhere in the client graph
+    // ships the server codec (and solid-js/internal behind it) to every dev
+    // page. Only erased `import type` statements may name the entry; runtime
+    // access goes through a dynamic import inside the isServer branch.
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const clientSources = ["src/data/action.ts", "src/routing.ts", "src/index.tsx"];
+    for (const file of clientSources) {
+      const text = fs.readFileSync(path.resolve(process.cwd(), file), "utf8");
+      expect(text).not.toMatch(
+        /^import (?!type[\s{])[^;]*["']@solidjs\/web\/server-functions\/server["']/m
+      );
+    }
+  });
+
   test("clears the cookie even when no decoder was ever provided", async () => {
     const routing = await loadRouting();
     const event = createEvent(await flashCookieHeader("saved"));

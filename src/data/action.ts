@@ -8,9 +8,6 @@ import {
   REDIRECT_HEADER,
   subscribeFlightData
 } from "@solidjs/web/server-functions";
-// The explicit /server specifier is safe here: the only call site is
-// server-guarded, so client builds tree-shake the codec away.
-import { decodeFlashCookie } from "@solidjs/web/server-functions/server";
 import { provideFlashDecoder, provideFlightConsumer, useRouter } from "../routing.js";
 import { setRouterFormHandler } from "./events.js";
 import type { RouterContext, Submission, Navigator, NarrowResponse } from "../types.js";
@@ -199,10 +196,18 @@ function installRouterIntegrations() {
   if (integrationsInstalled) return;
   integrationsInstalled = true;
   if (isServer) {
-    // Server-only: initSubmissions only decodes during SSR, so client builds
-    // tree-shake the codec (which now lives behind the runtime's server entry).
-    // The codec is async from @solidjs/web 2.0.0-rc.7 (encrypted cookie).
-    provideFlashDecoder(decodeFlashCookie);
+    // The codec lives behind the runtime's SERVER entry, which must stay off
+    // the client module graph entirely — a static import here shipped it to
+    // every Vite dev page (#616; prod tree-shook it, dev doesn't shake). The
+    // decoder slot must still fill synchronously (a cold-start POST-redirect-
+    // GET reads submissions on the very first render), so install a wrapper
+    // and let the first decode pull the module: the codec is async anyway
+    // (encrypted cookie, @solidjs/web 2.0.0-rc.7+) and the seeding read
+    // already parks on the decode promise; a failed load reads as "no flash",
+    // the runtime's own malformed-cookie semantics.
+    provideFlashDecoder(cookieHeader =>
+      import("@solidjs/web/server-functions/server").then(m => m.decodeFlashCookie(cookieHeader))
+    );
   } else {
     setRouterFormHandler(handleFormAction);
     provideFlightConsumer(setupFlightDataConsumer);
