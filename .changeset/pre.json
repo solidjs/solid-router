@@ -44,6 +44,7 @@
     "navigate-url-semantics",
     "observe-navigation-origin",
     "observe-redirect-inflight",
+    "omit-empty-server-route-search",
     "own-single-flight-and-nojs",
     "popular-pears-boil",
     "preserve-layouts-between-child-routes",
