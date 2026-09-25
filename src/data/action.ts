@@ -260,18 +260,25 @@ function actionImpl<T extends Array<any>, U = void>(
       optimistic?: () => void;
     }) {
       context.optimistic?.();
+      let value: unknown;
+      let error = false;
       try {
-        const value = await context.call();
-        yield;
-        return { error: false, value };
-      } catch (error) {
-        yield;
-        return { error: true, value: error };
+        value = await context.call();
+      } catch (e) {
+        value = e;
+        error = true;
       }
+      const read = await readResponse(value, error);
+      yield;
+      // revalidate inside the transition so it can release optimistic writes (#620)
+      return applyResponse(
+        read,
+        router.navigatorFactory(),
+        flightApplications !== flightApplicationsBefore
+      );
     });
 
     form && setFormBusy(form, 1);
-    let settled;
     let response;
     // The transport consumer is awaited before a single-flight mutation
     // resolves, so a counter delta over the call tells whether this action's
@@ -281,7 +288,7 @@ function actionImpl<T extends Array<any>, U = void>(
     // which misses every response the server returned without flight data.
     const flightApplicationsBefore = flightApplications;
     try {
-      settled = await settleActionResult(
+      response = await settleActionResult(
         run({
           call: runMutation,
           optimistic: submitHooks.size
@@ -290,12 +297,6 @@ function actionImpl<T extends Array<any>, U = void>(
               }
             : undefined
         })
-      );
-      response = await handleResponse(
-        settled.value,
-        settled.error,
-        router.navigatorFactory(),
-        flightApplications !== flightApplicationsBefore
       );
     } finally {
       form && setFormBusy(form, -1);
@@ -511,12 +512,11 @@ function applyResponseMetadata(
   revalidate(keys, false);
 }
 
-async function handleResponse(
-  response: unknown,
-  error: boolean | undefined,
-  navigate: Navigator,
-  metadataHandled: boolean
-) {
+type ReadResponse =
+  | { error: unknown }
+  | { data?: any; flightData?: Record<string, any>; metadata?: Response };
+
+async function readResponse(response: unknown, error: boolean): Promise<ReadResponse> {
   let data: any;
   let flightData: Record<string, any> | undefined;
   let metadata: Response | undefined;
@@ -538,6 +538,12 @@ async function handleResponse(
     }
   } else if (error) return { error: response };
   else data = response;
+  return { data, flightData, metadata };
+}
+
+function applyResponse(read: ReadResponse, navigate: Navigator, metadataHandled: boolean) {
+  if ("error" in read) return { error: read.error };
+  const { data, flightData, metadata } = read;
   // The transport consumer applies metadata before returning a server
   // function's unwrapped value. Do not treat that value as a second plain
   // action response and invalidate the freshly seeded query cache again.
