@@ -35,6 +35,7 @@
     "is-routing-native-pops",
     "late-bound-server-function-codec",
     "lazy-before-leave",
+    "lazy-flash-codec-import",
     "lazy-paths-proxy",
     "lazy-route-subtrees",
     "link-state-collector-instance",
