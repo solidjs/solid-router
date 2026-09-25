@@ -542,7 +542,7 @@ async function readResponse(response: unknown, error: boolean): Promise<ReadResp
 }
 
 function applyResponse(read: ReadResponse, navigate: Navigator, metadataHandled: boolean) {
-  if ("error" in read) return { error: read.error };
+  if ("error" in read) return read;
   const { data, flightData, metadata } = read;
   // The transport consumer applies metadata before returning a server
   // function's unwrapped value. Do not treat that value as a second plain

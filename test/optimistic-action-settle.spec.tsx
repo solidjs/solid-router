@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { action, createMemo, createOptimisticStore, Loading } from "solid-js";
-import { render } from "@solidjs/web";
+import { redirect, render } from "@solidjs/web";
 import {
   action as routerAction,
   createRouter,
@@ -10,6 +10,15 @@ import {
 } from "../src/index.js";
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+async function textBecomes(root: HTMLElement, text: string, timeout = 1000) {
+  const start = Date.now();
+  while (root.textContent !== text) {
+    if (Date.now() - start > timeout)
+      throw new Error(`expected "${text}", still "${root.textContent}"`);
+    await wait(5);
+  }
+}
 
 type Card = { id: string; order: number };
 
@@ -29,7 +38,7 @@ describe("#620 optimistic write reverts when a router action resolves", () => {
         return db.map(c => ({ ...c }));
       }, `cards-620-${label}`);
       const rejectSwap = routerAction(async () => {
-        await wait(20);
+        await wait(50);
         return outcome();
       }, `reject-swap-620-${label}`);
 
@@ -66,15 +75,45 @@ describe("#620 optimistic write reverts when a router action resolves", () => {
         root
       );
 
-      await wait(30);
-      expect(root.textContent).toBe("ab");
-
+      await textBecomes(root, "ab");
       swap();
-      await wait(5);
-      expect(root.textContent).toBe("ba");
+      await textBecomes(root, "ba");
+      await textBecomes(root, "ab");
+      dispose();
+    });
+  }
+});
 
-      await wait(100);
-      expect(root.textContent).toBe("ab");
+describe("router action redirects applied inside the transition", () => {
+  for (const kind of ["returned", "thrown"] as const) {
+    test(`navigates on a ${kind} redirect`, async () => {
+      const go = routerAction(async () => {
+        await wait(5);
+        if (kind === "thrown") throw redirect("/other");
+        return redirect("/other");
+      }, `redirect-620-${kind}`);
+
+      let call!: () => Promise<unknown>;
+      const Home = () => {
+        call = useAction(go);
+        return <span>home</span>;
+      };
+      const Router = createRouter({
+        routes: [
+          { path: "/", component: Home },
+          { path: "/other", component: () => <span>other</span> }
+        ] as const,
+        history: memoryHistory("/")
+      });
+      const root = document.createElement("div");
+      const dispose = render(
+        () => <Router>{props => <Loading fallback="…">{props.children}</Loading>}</Router>,
+        root
+      );
+
+      await textBecomes(root, "home");
+      await expect(call()).resolves.toBeUndefined();
+      await textBecomes(root, "other");
       dispose();
     });
   }
