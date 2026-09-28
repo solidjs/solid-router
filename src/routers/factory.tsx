@@ -289,21 +289,30 @@ function routeParams(
  * no location write to wrap. On the client the engine opens it at the time
  * origin and settles it as the context is built (the first `"navigation"`
  * record, `initial: true`); on the server the same call names the request's
- * `"render"` record (`RenderEvent.route`). `name` and `params` are getters
- * read at settle, as for a navigation, so a lazy subtree that resolved while
- * the server rendered names the exact route.
+ * `"render"` record (`RenderEvent.route`). Every field is a getter read at
+ * settle, as for a navigation: `to` is the location as the router then holds
+ * it — the arrival normalized onto the base path when it came in empty, a
+ * write the frame itself took (see the setter) — and `name`/`params` match
+ * it then, so a lazy subtree that resolved while the server rendered names
+ * the exact route.
  */
-function describeInitial(match: (pathname: string) => RouteMatch[], to: string): NavigationRef {
-  const pathname = new URL(to, mockBase).pathname;
+function describeInitial(
+  match: (pathname: string) => RouteMatch[],
+  location: () => LocationChange
+): NavigationRef {
+  const to = () => untrack(location).value;
+  const pathname = () => new URL(to(), mockBase).pathname;
   return {
     kind: "navigation",
     initial: true,
-    to,
+    get to() {
+      return to();
+    },
     get name() {
-      return routeName(match, pathname);
+      return routeName(match, pathname());
     },
     get params() {
-      return routeParams(match, pathname);
+      return routeParams(match, pathname());
     }
   };
 }
@@ -359,9 +368,16 @@ function createIntegration(
       // while a navigation is pending, which is the `from` a hop wants too.
       // A write the no-op rule drops is still declared: the engine settles a
       // navigation whose write "did not survive the equality gate" on the spot.
-      OBSERVE
+      // A write from NO location is not a navigation: it is the arrival being
+      // normalized (`createRouterContext` moving an empty location — a hash
+      // history with no hash, a memory history seeded with "" — onto the base
+      // path), and the arrival is already declared by the initial frame open
+      // around the context build (`describeInitial`), which this write then
+      // stamps. The location is never empty again after that first write.
+      const from = untrack(read).value;
+      OBSERVE && from
         ? OBSERVE.attribution.withOrigin(
-            describeNavigation(match, next, () => written, untrack(read).value),
+            describeNavigation(match, next, () => written, from),
             commit
           )
         : commit();
@@ -467,7 +483,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
     // (see `describeInitial`); folded out of shipped bundles with `OBSERVE`.
     const routerState = OBSERVE
       ? OBSERVE.attribution.withOrigin(
-          describeInitial(matchPath, untrack(integration.signal[0]).value),
+          describeInitial(matchPath, integration.signal[0]),
           buildContext
         )
       : buildContext();

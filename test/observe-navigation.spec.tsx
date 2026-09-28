@@ -89,6 +89,37 @@ describe("observe tier: navigations declared to attribution", () => {
     }
   });
 
+  test("an empty arrival normalized onto the base path is one initial record, not a navigation", async () => {
+    // A hash history with no hash, a memory history seeded with "": the
+    // router moves the empty location onto the base. That write is the
+    // arrival's, not a navigation's — it stamps the initial frame, and the
+    // record reads the normalized location when it settles.
+    const Router = createRouter({
+      base: "/app",
+      routes: [
+        { path: "/", component: () => <div data-route="home">Home</div> },
+        { path: "/about", component: () => <div data-route="about">About</div> }
+      ] as const,
+      history: memoryHistory("")
+    });
+    const before = attribution.history("navigation").length;
+    const { div, cleanup } = mount(Router);
+    try {
+      await settle();
+      expect(div.querySelector('[data-route="home"]')).toBeTruthy();
+      expect(attribution.history("navigation").length).toBe(before + 1);
+      const nav = last();
+      expect(nav.initial).toBe(true);
+      expect(nav.to).toBe("/app");
+      expect(nav.name).toBe("/app");
+      expect(nav.writes).toBe(1);
+      expect(nav.outcome).toBe("committed");
+      expect(nav.redirects).toBeUndefined();
+    } finally {
+      cleanup();
+    }
+  });
+
   test("the initial declaration is not a row in feedback().navigations", async () => {
     let navigate!: Navigator;
     const Router = createRouter({

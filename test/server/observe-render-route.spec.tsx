@@ -5,6 +5,7 @@
 // where the URL would scatter one page across as many names as it has
 // parameters. There is no attribution engine on the server; the declaration
 // is the whole of what the call does there.
+import { vi } from "vitest";
 import { OBSERVE } from "solid-js";
 import { renderToStream, renderToString } from "@solidjs/web";
 import type { RenderEvent } from "@solidjs/web";
@@ -98,6 +99,24 @@ describe("observe tier, server: RenderEvent.route from the router's initial matc
       to: "/plugins/widgets/7",
       params: { id: "7" }
     });
+  });
+
+  test("an empty arrival normalized onto the base path names the render by the base", async () => {
+    // No url and no request event: the static location is "" and the router
+    // moves it onto the base. The ref reads the location at settle.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const seen = renders();
+      const Router = createRouter({
+        base: "/app",
+        routes: [{ path: "/", component: () => <div data-route="home">Home</div> }] as const
+      });
+      const html = await renderToString(() => <Router />);
+      expect(html).toContain('data-route="home"');
+      expect(seen[0].route).toMatchObject({ name: "/app", to: "/app" });
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   test("a render without a router has no route", async () => {
