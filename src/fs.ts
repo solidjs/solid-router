@@ -105,7 +105,7 @@ export function defineFileRoute<
     info?: RouteInfo | undefined;
     /** For a server page: the wrapper its source goes through — `query` unless named, e.g. `liveQuery`. */
     query?: ServerPageQuery | undefined;
-  }
+  } = {}
 ): FileRouteConfig<S, T, F, Sch> {
   return config as FileRouteConfig<S, T, F, Sch>;
 }

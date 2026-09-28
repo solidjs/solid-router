@@ -112,6 +112,7 @@ describe("fileRoutes", () => {
     const post = routes[1].children![0];
     expect(post.matchFilters).toEqual({ id: int });
     expect(typeof post.preload).toBe("function");
+    expect(defineFileRoute("/about")).toEqual({});
 
     // compile-time assertions only — `test:types` enforces them
     () => {
@@ -136,6 +137,13 @@ describe("fileRoutes", () => {
         const _data: string = props.data; // preload returns params.id
         // @ts-expect-error data is the preload's return type, not a number
         const _wrong: number = props.data;
+        return null;
+      };
+
+      // the pattern alone is enough of a witness
+      const pageRoute = defineFileRoute("/pages/:slug");
+      const _Page = (props: RouteProps<typeof pageRoute>) => {
+        const _slug: string = props.params.slug;
         return null;
       };
 
@@ -307,7 +315,7 @@ describe("fileRoutes server pages", () => {
       };
 
       // no schema: search is undefined
-      const bare = defineFileRoute("/about", {});
+      const bare = defineFileRoute("/about");
       const _About = async ({ search }: ServerRouteArgs<typeof bare>) => {
         const _s: undefined = search;
         return () => null;
