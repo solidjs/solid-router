@@ -2,4 +2,4 @@
 "@solidjs/router": patch
 ---
 
-Optimistic writes made around a router action now revert when the action resolves without changing the data (returning an `Error`, a value, or nothing). The action's default revalidation used to run after its inner Solid action had finished, outside the transition, so a refetch that returned the same data never released the caller's optimistic overlay. The response is now applied inside the transition (#620).
+A router action's default revalidation now runs inside the action's transition, so the refetch and the release of the caller's optimistic writes commit as one frame. The response used to be applied after the inner Solid action had settled: the optimistic overlay released when that action's transition committed while the refetch was still in flight, so the rows re-rendered against stale query data until it landed — a torn frame when the server rejected the change, and a flash away from and back to the optimistic result when it committed the change (#619).

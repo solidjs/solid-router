@@ -270,7 +270,8 @@ function actionImpl<T extends Array<any>, U = void>(
       }
       const read = await readResponse(value, error);
       yield;
-      // revalidate inside the transition so it can release optimistic writes (#620)
+      // Apply inside the transition so the default revalidation's refetch and
+      // the release of the caller's optimistic writes commit as one frame (#619).
       return applyResponse(
         read,
         router.navigatorFactory(),
