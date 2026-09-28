@@ -14,7 +14,7 @@ import {
 // `OBSERVE` outside its observe/dev builds, so app bundlers fold the
 // `DEV &&` diagnostics and the `OBSERVE &&` attribution out of shipped bundles
 import { DEV, OBSERVE } from "solid-js";
-import type { NavigationRef } from "solid-js/attribution";
+import type { NavigationRef } from "solid-js";
 import { getRequestEvent, isServer } from "@solidjs/web";
 import type { JSX } from "@solidjs/web";
 import { setupLinkClaims } from "../claims.js";
