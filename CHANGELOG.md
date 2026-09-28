@@ -1,5 +1,15 @@
 # @solidjs/router
 
+## 2.0.0-next.31
+
+### Patch Changes
+
+- 49c84ff: Follow solid-js 2.0.0-rc.10: `NavigationRef` is imported from `solid-js`, navigation history reads `attribution.history("navigation")`; peer range now `^2.0.0-rc.10`.
+- 157045e: Smaller client bundles, no behavior change: the `name` diagnostics on the router's internal memos are development-only (`DEV &&`, folded out of shipped builds), the segment matcher and match-filter lookup are a single expression, `query()` settles a cached or fresh read through one helper, the `keysFor()` instance method reuses `match()`'s pathname derivation, and a handful of one-use closures and repeated property chains (`window.history`, a form submit's `evt.target`, the paths proxy's `toString`/`Symbol.toPrimitive` branch) are folded. Production savings for a typical app (`createRouter` + `paths` links + `useNavigate` + `query` + `action`): ~440 bytes minified, ~80 bytes brotli on the router's share of the bundle.
+- 8d7c627: `browserHistory()` no longer throws when `history.state` is still null after `replaceState` (seen in iOS WKWebView embeds)
+- 0698a66: `defineFileRoute`'s config argument is now optional, so a route file that only needs the pattern to type its component can write `defineFileRoute("/pages/:slug")` instead of passing `{}`.
+- 9600479: A router action's default revalidation now runs inside the action's transition, so the refetch and the release of the caller's optimistic writes commit as one frame. The response used to be applied after the inner Solid action had settled: the optimistic overlay released when that action's transition committed while the refetch was still in flight, so the rows re-rendered against stale query data until it landed — a torn frame when the server rejected the change, and a flash away from and back to the optimistic result when it committed the change (#619).
+
 ## 2.0.0-next.30
 
 ### Patch Changes
