@@ -69,7 +69,7 @@ export function setupNativeEvents({
       if (target || (!href && !a.hasAttribute("state"))) return;
 
       const rel = (a.getAttribute("rel") || "").split(/\s+/);
-      if (a.hasAttribute("download") || (rel && rel.includes("external"))) return;
+      if (a.hasAttribute("download") || rel.includes("external")) return;
 
       const url = svg ? new URL(href, document.baseURI) : new URL(href);
       // Skip non-http(s) schemes (blob:, mailto:, tel:, data:, ...). blob: URLs

@@ -107,9 +107,7 @@ export function Routes(props: { routerState: RouterContext; branches: () => Bran
           next[i] = prev[i];
         } else {
           equal = false;
-          if (disposers[i]) {
-            disposers[i]();
-          }
+          disposers[i]?.();
 
           runWithOwner(owner, () =>
             createRoot(dispose => {

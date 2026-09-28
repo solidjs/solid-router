@@ -13,10 +13,11 @@ export function bindEvent(target: EventTarget, type: string, handler: EventListe
 
 let depth: number;
 export function saveCurrentDepth() {
-  if (!window.history.state || window.history.state._depth == null) {
-    window.history.replaceState({ ...window.history.state, _depth: window.history.length - 1 }, "");
+  const h = window.history;
+  if (!h.state || h.state._depth == null) {
+    h.replaceState({ ...h.state, _depth: h.length - 1 }, "");
   }
-  depth = window.history.state?._depth ?? window.history.length - 1;
+  depth = h.state?._depth ?? h.length - 1;
 }
 
 function keepDepth(state: any) {
@@ -72,16 +73,10 @@ export interface RouterHistory {
 
 export function browserHistory(): RouterHistory {
   const getSource = () => {
-    const url = window.location.pathname + window.location.search;
-    const state =
-      window.history.state &&
-      window.history.state._depth &&
-      Object.keys(window.history.state).length === 1
-        ? undefined
-        : window.history.state;
+    const s = window.history.state;
     return {
-      value: url + window.location.hash,
-      state
+      value: window.location.pathname + window.location.search + window.location.hash,
+      state: s && s._depth && Object.keys(s).length === 1 ? undefined : s
     };
   };
   const beforeLeave: BeforeLeaveSlot = {};

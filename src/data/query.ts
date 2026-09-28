@@ -191,10 +191,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
       }
       let res = cached[1];
       if (intent !== "preload") {
-        res =
-          "then" in cached[1]
-            ? cached[1].then(handleResponse(false), handleResponse(true))
-            : handleResponse(false)(cached[1]);
+        res = settle(res);
         !isServer && intent === "navigate" && cached[4][1](cached[0]); // update version
       }
       inPreloadFn && "then" in res && res.catch(() => {});
@@ -261,12 +258,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
       const e = getRequestEvent();
       if (e && e.router!.dataOnly) return (e.router!.data![key] = res);
     }
-    if (intent !== "preload") {
-      res =
-        "then" in res
-          ? res.then(handleResponse(false), handleResponse(true))
-          : handleResponse(false)(res);
-    }
+    if (intent !== "preload") res = settle(res);
     inPreloadFn && "then" in res && res.catch(() => {});
     // serialize on server
     if (
@@ -279,6 +271,13 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
       (!e || !e.serverOnly) && (sharedConfig as any).context.serialize(key, res);
     }
     return res;
+
+    // a settled read: the response handling applied to the value or the promise
+    function settle(v: any) {
+      return "then" in v
+        ? v.then(handleResponse(false), handleResponse(true))
+        : handleResponse(false)(v);
+    }
 
     function handleResponse(error: boolean) {
       return async (v: any) => {

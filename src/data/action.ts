@@ -91,10 +91,11 @@ export const actions = /* #__PURE__ */ new Map<string, Action<any, any>>();
  */
 export function handleFormAction(evt: SubmitEvent, router: RouterContext, actionBase: string) {
   if (evt.defaultPrevented) return;
+  const form = evt.target as HTMLFormElement;
   let actionRef =
     evt.submitter && evt.submitter.hasAttribute("formaction")
       ? evt.submitter.getAttribute("formaction")
-      : (evt.target as HTMLElement).getAttribute("action");
+      : form.getAttribute("action");
   if (!actionRef) return;
   const serverAction = !actionRef.startsWith("https://action/");
   if (serverAction) {
@@ -103,7 +104,7 @@ export function handleFormAction(evt: SubmitEvent, router: RouterContext, action
     actionRef = router.parsePath(url.pathname + url.search);
     if (!actionRef.startsWith(actionBase)) return;
   }
-  if ((evt.target as HTMLFormElement).method.toUpperCase() !== "POST")
+  if (form.method.toUpperCase() !== "POST")
     throw new Error("Only POST forms are supported for Actions");
   // A registry miss on a server-action url is a direct bind whose module
   // never loaded client-side (server components): the url is self-describing
@@ -115,12 +116,10 @@ export function handleFormAction(evt: SubmitEvent, router: RouterContext, action
   const handler = actions.get(actionRef) || (serverAction && createServerFormAction(actionRef));
   if (handler) {
     evt.preventDefault();
-    const data = new FormData(evt.target as HTMLFormElement, evt.submitter);
+    const data = new FormData(form, evt.submitter);
     handler.call(
-      { r: router, f: evt.target },
-      (evt.target as HTMLFormElement).enctype === "multipart/form-data"
-        ? data
-        : new URLSearchParams(data as any)
+      { r: router, f: form },
+      form.enctype === "multipart/form-data" ? data : new URLSearchParams(data as any)
     );
   }
 }
@@ -307,8 +306,8 @@ function actionImpl<T extends Array<any>, U = void>(
     submission = {
       input: variables,
       url,
-      result: response && response.data,
-      error: response && response.error,
+      result: response?.data,
+      error: response?.error,
       clear() {
         router.submissions[1](entries => entries.filter(entry => entry !== submission));
       },
@@ -365,7 +364,7 @@ function toAction<T extends Array<any>, U, V = T>(
   ) {
     const uri = new URL(url, mockBase);
     uri.searchParams.set("args", hashKey(args));
-    const next = toAction<B, U, V>(
+    return toAction<B, U, V>(
       invoke,
       (uri.origin === "https://action" ? uri.origin : "") + uri.pathname + uri.search,
       [...boundArgs, ...args],
@@ -373,7 +372,6 @@ function toAction<T extends Array<any>, U, V = T>(
       submitHooks,
       settledHooks
     ) as unknown as InternalAction<B, U, V>;
-    return next;
   };
   fn.onSubmit = function (hook: (...args: V extends Array<any> ? V : T) => void) {
     const id = Symbol("actionOnSubmitHook");
@@ -503,8 +501,10 @@ function applyResponseMetadata(
   cacheKeyOp(keys, entry => (entry[0] = 0));
   // set cache — and fan the payload out to other keyed stores (live query
   // channels adopt delivered values instead of reconnecting)
-  flightData && Object.keys(flightData).forEach(k => query.set(k, flightData[k]));
-  flightData && deliverFlightData(flightData);
+  if (flightData) {
+    Object.keys(flightData).forEach(k => query.set(k, flightData[k]));
+    deliverFlightData(flightData);
+  }
   // trigger revalidation inside the same transition as the navigation, so
   // the redirect commits atomically with fresh data: surviving consumers
   // (shared layouts) the flight payload didn't seed refetch and hold the

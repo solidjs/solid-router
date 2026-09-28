@@ -95,8 +95,7 @@ export function createMatcher<S extends string>(
       params: {}
     };
 
-    const matchFilter = (s: string) =>
-      matchFilters === undefined ? undefined : (matchFilters as Record<string, MatchFilter>)[s];
+    const filters = matchFilters as Record<string, MatchFilter> | undefined;
 
     for (let i = 0; i < len; i++) {
       const segment = segments[i];
@@ -104,7 +103,7 @@ export function createMatcher<S extends string>(
       const locSegment = dynamic ? locSegments[i] : locSegments[i].toLowerCase();
       const key = dynamic ? segment.slice(1) : segment.toLowerCase();
 
-      if (dynamic && matchSegment(locSegment, matchFilter(key))) {
+      if (dynamic && matchSegment(locSegment, filters?.[key])) {
         match.params[key] = locSegment;
       } else if (dynamic || !matchSegment(locSegment, key)) {
         return null;
@@ -114,7 +113,7 @@ export function createMatcher<S extends string>(
 
     if (splat) {
       const remainder = lenDiff ? locSegments.slice(-lenDiff).join("/") : "";
-      if (matchSegment(remainder, matchFilter(splat))) {
+      if (matchSegment(remainder, filters?.[splat])) {
         match.params[splat] = remainder;
       } else {
         return null;
@@ -125,22 +124,16 @@ export function createMatcher<S extends string>(
   };
 }
 
-function matchSegment(input: string, filter?: string | MatchFilter): boolean {
-  const isEqual = (s: string) => s === input;
-
-  if (filter === undefined) {
-    return true;
-  } else if (typeof filter === "string") {
-    return isEqual(filter);
-  } else if (typeof filter === "function") {
-    return (filter as Function)(input);
-  } else if (Array.isArray(filter)) {
-    return (filter as string[]).some(isEqual);
-  } else if (filter instanceof RegExp) {
-    return (filter as RegExp).test(input);
-  }
-  return false;
-}
+// a string filter is the segment itself; anything else not listed never matches
+const matchSegment = (input: string, filter?: string | MatchFilter): boolean =>
+  filter === undefined ||
+  (typeof filter === "function"
+    ? (filter as Function)(input)
+    : Array.isArray(filter)
+      ? filter.includes(input)
+      : filter instanceof RegExp
+        ? filter.test(input)
+        : filter === input);
 
 export function scoreRoute(route: RouteDescription): number {
   const [pattern, splat] = route.pattern.split("/*", 2);
