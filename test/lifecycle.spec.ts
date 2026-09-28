@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import { createBeforeLeave } from "../src/lifecycle.js";
+import { createBeforeLeave, saveCurrentDepth } from "../src/lifecycle.js";
 import type { BeforeLeaveEventArgs, Location } from "../src/types.js";
 
 const mockLocation = { pathname: "/", search: "", hash: "", query: {}, state: null, key: "" } as unknown as Location;
@@ -47,5 +47,16 @@ describe("createBeforeLeave", () => {
     unsubscribe();
     expect(beforeLeave.confirm("/next")).toBe(true);
     expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+describe("saveCurrentDepth", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  test("does not throw when replaceState leaves history.state null", () => {
+    vi.spyOn(window.history, "state", "get").mockReturnValue(null);
+    vi.spyOn(window.history, "replaceState").mockImplementation(() => {});
+
+    expect(() => saveCurrentDepth()).not.toThrow();
   });
 });
