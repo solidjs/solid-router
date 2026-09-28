@@ -465,10 +465,8 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
       }));
     },
     keysFor(url: string | TypedPath): string[] {
-      const pathname =
-        typeof url === "string" ? new URL(url, mockBase).pathname : ((url as any)[HREF] as string);
       const keys: string[] = [];
-      for (const { route } of matchPath(pathname)) {
+      for (const { route } of matchPath(pathnameOf(url))) {
         const key = (serverRouteOf(route.component)?.call as { key?: unknown } | undefined)?.key;
         typeof key === "string" && key && !keys.includes(key) && keys.push(key);
       }

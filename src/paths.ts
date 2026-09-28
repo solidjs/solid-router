@@ -250,13 +250,8 @@ export function createPathsProxy(
     };
     return new Proxy(build, {
       get(_, prop) {
-        if (prop === "toString") return () => toHref(pathname);
-        if (typeof prop === "symbol")
-          return prop === Symbol.toPrimitive
-            ? () => toHref(pathname)
-            : prop === HREF
-            ? pathname || "/"
-            : undefined;
+        if (prop === "toString" || prop === Symbol.toPrimitive) return () => toHref(pathname);
+        if (typeof prop === "symbol") return prop === HREF ? pathname || "/" : undefined;
         return node(`${pathname}/${prop}`);
       }
     });

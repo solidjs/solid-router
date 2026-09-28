@@ -575,9 +575,7 @@ export function createRoutes(routeDef: RouteDefinition, base: string = ""): Rout
       let pattern = isLeaf ? path : path.split("/*", 1)[0];
       pattern = pattern
         .split("/")
-        .map((s: string) => {
-          return s.startsWith(":") || s.startsWith("*") ? s : encodeSegment(s);
-        })
+        .map(s => (/^[:*]/.test(s) ? s : encodeSegment(s)))
         .join("/");
       acc.push({
         ...shared,
@@ -686,14 +684,13 @@ function createLocation(
   state: Accessor<any>,
   queryWrapper?: (getQuery: () => SearchParams) => SearchParams
 ): Location {
-  const origin = new URL(mockBase);
   const url = createMemo<URL>(
-    (prev = origin) => {
+    (prev = new URL(mockBase)) => {
       const path_ = path();
       try {
         // anchor rooted paths against the origin explicitly - a path with
         // doubled leading slashes would otherwise parse as protocol-relative
-        return new URL(path_[0] === "/" ? mockBase + path_ : path_, origin);
+        return new URL(path_[0] === "/" ? mockBase + path_ : path_, mockBase);
       } catch (err) {
         DEV && console.error(`Invalid path ${path_}`);
         return prev;
@@ -707,7 +704,6 @@ function createLocation(
   const pathname = createMemo(() => url().pathname);
   const search = createMemo(() => url().search);
   const hash = createMemo(() => url().hash);
-  const key = () => "";
   const queryFn = createMemo(() => extractSearchParams(url()));
 
   return {
@@ -724,7 +720,7 @@ function createLocation(
       return state();
     },
     get key() {
-      return key();
+      return "";
     },
     query: queryWrapper ? queryWrapper(queryFn) : createMemoObject(queryFn)
   };
@@ -909,7 +905,7 @@ export function createRouterContext(
             const result = resolveLazySubtree(record);
             return result instanceof Promise ? result.then(() => undefined) : undefined;
           },
-          { name: "lazyRoutes" }
+          DEV && { name: "lazyRoutes" }
         )
       );
       lazyReaders.set(record, read);
@@ -948,7 +944,7 @@ export function createRouterContext(
       }
       return m;
     },
-    { name: "matches" }
+    DEV && { name: "matches" }
   );
 
   const routingPending = createMemo(
@@ -962,7 +958,7 @@ export function createRouterContext(
         location.search;
         location.hash;
       }),
-    { name: "routingPending" }
+    DEV && { name: "routingPending" }
   );
   const isRouting = () => routingPending() || isPending(source);
 
@@ -1192,10 +1188,8 @@ export function createRouterContext(
     preloadIntent = "preload";
     for (let match in next) {
       const { route, params } = next[match];
-      route.component &&
-        (route.component as MaybePreloadableComponent).preload &&
-        (route.component as MaybePreloadableComponent).preload!();
       const { preload, component } = route;
+      (component as MaybePreloadableComponent | undefined)?.preload?.();
       const now = current && current[match];
       const unchanged =
         now &&
@@ -1271,9 +1265,7 @@ export function createRouteContext(
   // components and preloads never observe another route's params.
   const params = wrapParams(() => mergeParams(matches()));
 
-  component &&
-    (component as MaybePreloadableComponent).preload &&
-    (component as MaybePreloadableComponent).preload!();
+  (component as MaybePreloadableComponent | undefined)?.preload?.();
   inPreloadFn = true;
   const data = preload
     ? preload({ params, location, intent: router.intent?.() || "initial" })

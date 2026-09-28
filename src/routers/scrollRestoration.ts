@@ -109,8 +109,7 @@ export function createScrollRestoration() {
       // reload/back_forward document loads land on an existing entry (a fresh
       // navigation starts a new one and belongs at the top); the effect's
       // initial run performs the restore after first render
-      const [nav] = (performance.getEntriesByType &&
-        performance.getEntriesByType("navigation")) as PerformanceNavigationTiming[];
+      const [nav] = performance.getEntriesByType?.("navigation") as PerformanceNavigationTiming[];
       if (nav && nav.type !== "navigate") pending = depth();
     }
   };
