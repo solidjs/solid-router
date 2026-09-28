@@ -850,7 +850,7 @@ const isRouting = useIsRouting();
 return <div classList={{ "grey-out": isRouting() }}>...</div>;
 ```
 
-In Solid's dev and observe builds the router also declares every navigation to the attribution engine (`solid-js/attribution`): holds and re-runs caused by a navigation are named after the route pattern (`navigation to /users/:id`), timed from the user event that started it, and redirect hops fold onto the navigation they belong to. `attribution.navigations()` and `feedback().navigations` list them; nothing of this exists in production builds.
+In Solid's dev and observe builds the router also declares every navigation to the attribution engine (`solid-js/attribution`): holds and re-runs caused by a navigation are named after the route pattern (`navigation to /users/:id`), timed from the user event that started it, and redirect hops fold onto the navigation they belong to. `attribution.history("navigation")` and `feedback().navigations` list them; nothing of this exists in production builds.
 
 ### useMatch
 

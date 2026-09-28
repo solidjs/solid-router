@@ -39,7 +39,7 @@ function mount(Router: (props: any) => any) {
   };
 }
 
-const last = () => attribution.navigations()[attribution.navigations().length - 1];
+const last = () => attribution.history("navigation")[attribution.history("navigation").length - 1];
 
 describe("observe tier: navigations declared to attribution", () => {
   const originalScrollTo = window.scrollTo;
@@ -76,12 +76,12 @@ describe("observe tier: navigations declared to attribution", () => {
 
     const { div, cleanup } = mount(Router);
     try {
-      const before = attribution.navigations().length;
+      const before = attribution.history("navigation").length;
       navigate("/users/42");
       await settle();
       expect(div.querySelector('[data-route="user"]')?.textContent).toBe("42");
 
-      expect(attribution.navigations().length).toBe(before + 1);
+      expect(attribution.history("navigation").length).toBe(before + 1);
       const nav = last();
       expect(nav.name).toBe("/users/:id");
       expect(nav.to).toBe("/users/42");
@@ -147,13 +147,13 @@ describe("observe tier: navigations declared to attribution", () => {
 
     const { div, cleanup } = mount(Router);
     try {
-      const before = attribution.navigations().length;
+      const before = attribution.history("navigation").length;
       navigate("/files");
       await settle(60);
       expect(div.querySelector('[data-route="login"]')).toBeTruthy();
 
       // one navigation, two writes, the abandoned destination recorded as a hop
-      expect(attribution.navigations().length).toBe(before + 1);
+      expect(attribution.history("navigation").length).toBe(before + 1);
       const nav = last();
       expect(nav.name).toBe("/login");
       expect(nav.to).toBe("/login");
@@ -204,12 +204,12 @@ describe("observe tier: navigations declared to attribution", () => {
 
     const { div, cleanup } = mount(Router);
     try {
-      const before = attribution.navigations().length;
+      const before = attribution.history("navigation").length;
       navigate("/private");
       await settle(60);
       expect(div.querySelector('[data-route="login"]')).toBeTruthy();
 
-      expect(attribution.navigations().length).toBe(before + 1);
+      expect(attribution.history("navigation").length).toBe(before + 1);
       const nav = last();
       expect(nav.name).toBe("/login");
       expect(nav.from).toBe("/");
@@ -290,11 +290,11 @@ describe("observe tier: navigations declared to attribution", () => {
       await settle();
       expect(div.querySelector('[data-route="user"]')).toBeTruthy();
 
-      const before = attribution.navigations().length;
+      const before = attribution.history("navigation").length;
       history.go(-1);
       await settle();
       expect(div.querySelector('[data-route="home"]')).toBeTruthy();
-      expect(attribution.navigations().length).toBe(before + 1);
+      expect(attribution.history("navigation").length).toBe(before + 1);
       const nav = last();
       expect(nav.name).toBe("/");
       expect(nav.from).toBe("/users/1");
