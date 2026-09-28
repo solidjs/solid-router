@@ -16,7 +16,7 @@ export function saveCurrentDepth() {
   if (!window.history.state || window.history.state._depth == null) {
     window.history.replaceState({ ...window.history.state, _depth: window.history.length - 1 }, "");
   }
-  depth = window.history.state._depth;
+  depth = window.history.state?._depth ?? window.history.length - 1;
 }
 
 function keepDepth(state: any) {
