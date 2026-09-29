@@ -37,6 +37,20 @@ import type { CacheEntry, NarrowResponse } from "../types.js";
 const LocationHeader = "Location";
 const PRELOAD_TIMEOUT = 5000;
 const CACHE_TIMEOUT = 180000;
+const responseBodyHeaders = /* #__PURE__ */ new Set([
+  "content-type",
+  "content-length",
+  "content-encoding",
+  "transfer-encoding",
+  "content-disposition",
+  "content-language",
+  "content-location",
+  "content-range",
+  "accept-ranges",
+  "etag",
+  "last-modified"
+]);
+const forwardedCookies = /* #__PURE__ */ new WeakMap<CacheEntry, WeakSet<Headers>>();
 // When this client booted. Flight-registry entries (sharedConfig.has/load)
 // hold values the server computed while rendering THIS page, so their age is
 // anchored here — not at whenever a late query() call happens to consume one.
@@ -233,6 +247,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     // it would for a preload performed when the server fetched the data.
     const stamp = adopted ? bootTime : now;
     if (cached) {
+      isServer && forwardedCookies.delete(cached);
       cached[0] = stamp;
       cached[1] = res;
       cached[3] = intent;
@@ -274,12 +289,14 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
 
     // a settled read: the response handling applied to the value or the promise
     function settle(v: any) {
+      let cookies = isServer ? forwardedCookies.get(cached) : undefined;
+      if (isServer && !cookies) forwardedCookies.set(cached, (cookies = new WeakSet()));
       return "then" in v
-        ? v.then(handleResponse(false), handleResponse(true))
-        : handleResponse(false)(v);
+        ? v.then(handleResponse(false, cookies), handleResponse(true, cookies))
+        : handleResponse(false, cookies)(v);
     }
 
-    function handleResponse(error: boolean) {
+    function handleResponse(error: boolean, cookies?: WeakSet<Headers>) {
       return async (v: any) => {
         let enveloped: any;
         let hasEnveloped = false;
@@ -293,17 +310,18 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
           const e = getRequestEvent();
 
           if (e) {
+            const headers = e.response.headers;
+            const skipCookies = cookies?.has(headers);
             for (const [key, value] of v.headers) {
-              // These headers describe the query's body, not the SSR document.
-              if (
-                key === "content-type" ||
-                key === "content-length" ||
-                key === "content-encoding" ||
-                key === "transfer-encoding"
-              )
-                continue;
-              if (key == "set-cookie") e.response.headers.append("set-cookie", value);
-              else e.response.headers.set(key, value);
+              // Keep metadata for the query's body off the document response.
+              if (responseBodyHeaders.has(key)) continue;
+              if (key === "set-cookie") {
+                if (!skipCookies) headers.append(key, value);
+              } else if (headers.get(key) !== value) headers.set(key, value);
+            }
+            // Each cached result contributes its cookies once per document.
+            if (!skipCookies && v.headers.has("set-cookie")) {
+              cookies?.add(headers);
             }
           }
 
@@ -395,6 +413,7 @@ query.set = <T>(key: string, value: T extends Promise<any> ? never : T) => {
   const now = Date.now();
   let cached = cache.get(key);
   if (cached) {
+    isServer && forwardedCookies.delete(cached);
     cached[0] = now;
     cached[1] = Promise.resolve(value);
     cached[2] = value;

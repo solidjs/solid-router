@@ -25,6 +25,18 @@ describe.each(["returned", "thrown"] as const)(
         response.headers.set("Content-Length", "42");
         response.headers.set("Content-Encoding", "br");
         response.headers.set("Transfer-Encoding", "chunked");
+        const representationHeaders = {
+          "Content-Disposition": 'attachment; filename="query.json"',
+          "Content-Language": "en",
+          "Content-Location": "/api/query",
+          "Content-Range": "bytes 0-41/100",
+          "Accept-Ranges": "bytes",
+          ETag: '"query-v1"',
+          "Last-Modified": "Mon, 28 Sep 2026 10:00:00 GMT"
+        };
+        for (const [name, value] of Object.entries(representationHeaders)) {
+          response.headers.set(name, value);
+        }
         response.headers.append("Set-Cookie", "first=1; Path=/; HttpOnly");
         response.headers.append("Set-Cookie", "second=2; Path=/; HttpOnly");
         response.headers.set("Cache-Control", "private, no-store");
@@ -45,7 +57,12 @@ describe.each(["returned", "thrown"] as const)(
         });
 
         expect(event.response.headers.get("Content-Type")).toBe("text/html; charset=utf-8");
-        for (const name of ["Content-Length", "Content-Encoding", "Transfer-Encoding"]) {
+        for (const name of [
+          "Content-Length",
+          "Content-Encoding",
+          "Transfer-Encoding",
+          ...Object.keys(representationHeaders)
+        ]) {
           expect(event.response.headers.has(name)).toBe(false);
         }
         expect(event.response.headers.getSetCookie()).toEqual([
@@ -63,8 +80,9 @@ describe.each(["returned", "thrown"] as const)(
     test("keeps the final SSR document's HTML content type", async () => {
       const event = createRequestEvent(new Request("http://localhost/"));
       const read = query(async () => {
-        if (outcome === "thrown") throw respond({ message: "conflict" }, { status: 409 });
-        return respond({ message: "accepted" }, { status: 202 });
+        const headers = { "Content-Disposition": 'attachment; filename="query.json"' };
+        if (outcome === "thrown") throw respond({ message: "conflict" }, { status: 409, headers });
+        return respond({ message: "accepted" }, { status: 202, headers });
       }, "ssr-document");
       const Router = createRouter({
         routes: [
@@ -92,6 +110,7 @@ describe.each(["returned", "thrown"] as const)(
       });
 
       expect(response.headers.get("Content-Type")).toBe("text/html; charset=utf-8");
+      expect(response.headers.has("Content-Disposition")).toBe(false);
       expect(response.status).toBe(outcome === "thrown" ? 500 : 200);
       expect(await response.text()).toContain(outcome === "thrown" ? "failed" : "accepted");
     });
@@ -178,7 +197,14 @@ test("a synchronous query leaves the document's existing body headers intact", a
     "Content-Type": "text/html; charset=utf-8",
     "Content-Length": "1024",
     "Content-Encoding": "gzip",
-    "Transfer-Encoding": "chunked"
+    "Transfer-Encoding": "chunked",
+    "Content-Disposition": "inline",
+    "Content-Language": "pt-BR",
+    "Content-Location": "/document",
+    "Content-Range": "bytes 0-1023/2048",
+    "Accept-Ranges": "none",
+    ETag: '"document-v1"',
+    "Last-Modified": "Tue, 29 Sep 2026 10:00:00 GMT"
   };
   for (const [name, value] of Object.entries(headers)) event.response.headers.set(name, value);
   const response = new Response("query body", {
@@ -186,7 +212,14 @@ test("a synchronous query leaves the document's existing body headers intact", a
       "Content-Type": "text/plain",
       "Content-Length": "10",
       "Content-Encoding": "br",
-      "Transfer-Encoding": "identity"
+      "Transfer-Encoding": "identity",
+      "Content-Disposition": 'attachment; filename="query.txt"',
+      "Content-Language": "en",
+      "Content-Location": "/api/query",
+      "Content-Range": "bytes 0-9/100",
+      "Accept-Ranges": "bytes",
+      ETag: '"query-v1"',
+      "Last-Modified": "Mon, 28 Sep 2026 10:00:00 GMT"
     }
   });
   const read = query(() => response, "sync-response-headers");
