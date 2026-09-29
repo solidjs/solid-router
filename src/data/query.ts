@@ -294,6 +294,14 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
 
           if (e) {
             for (const [key, value] of v.headers) {
+              // These headers describe the query's body, not the SSR document.
+              if (
+                key === "content-type" ||
+                key === "content-length" ||
+                key === "content-encoding" ||
+                key === "transfer-encoding"
+              )
+                continue;
               if (key == "set-cookie") e.response.headers.append("set-cookie", value);
               else e.response.headers.set(key, value);
             }
