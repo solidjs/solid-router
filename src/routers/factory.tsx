@@ -284,6 +284,8 @@ function createIntegration(
   let committing = false;
   // Written, not yet in history (see `RouterIntegration.inflight`).
   let inflight: LocationChange | undefined;
+  let hydrationWrites: LocationWrite[] | undefined;
+  onCleanup(() => (hydrationWrites = undefined));
   const wrap = (value: string | LocationChange) => (typeof value === "string" ? { value } : value);
   const [read, write] = createSignal(wrap(history.get()), {
     equals: (a, b) => a.value === b.value && a.state === b.state && a._navigation === b._navigation,
@@ -293,7 +295,23 @@ function createIntegration(
   const signal: RouterIntegration["signal"] = [
     read,
     (next: LocationWrite) => {
-      if (sharedConfig.registry && !sharedConfig.done) sharedConfig.done = true;
+      if (hydrationWrites) {
+        hydrationWrites.push(next);
+        return;
+      }
+      if (sharedConfig.isHydrationInProgress?.()) {
+        // Pending boundaries must claim their server DOM before routes change.
+        hydrationWrites = [next];
+        sharedConfig.onHydrationEnd(() =>
+          queueMicrotask(() => {
+            // Hydration can also end during disposal; let cleanups run first.
+            const writes = hydrationWrites;
+            hydrationWrites = undefined;
+            writes?.forEach(write => signal[1](write));
+          })
+        );
+        return;
+      }
       // What the write resolved to, or undefined when there was nothing to
       // write (see `resolveLocationWrite`).
       let written: LocationChange | undefined;
