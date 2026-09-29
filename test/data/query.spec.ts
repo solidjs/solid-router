@@ -95,6 +95,27 @@ describe("query", () => {
     });
   });
 
+  test("cache arguments with own __proto__ properties separately", async () => {
+    return createRoot(async dispose => {
+      const fetchValue = vi.fn(async (value: Record<string, unknown>) => JSON.stringify(value));
+      const cachedFn = query(fetchValue, "prototypeQuery");
+      const first = { ["__proto__"]: "a" };
+      const second = { ["__proto__"]: "b" };
+
+      try {
+        expect(await cachedFn(first)).toBe('{"__proto__":"a"}');
+        expect(await cachedFn(second)).toBe('{"__proto__":"b"}');
+        expect(await cachedFn({})).toBe("{}");
+        expect(await cachedFn({ ["__proto__"]: "a" })).toBe('{"__proto__":"a"}');
+        expect(fetchValue).toHaveBeenCalledTimes(3);
+        expect(cachedFn.keyFor(first)).not.toBe(cachedFn.keyFor(second));
+        expect(cachedFn.keyFor(first)).not.toBe(cachedFn.keyFor({}));
+      } finally {
+        dispose();
+      }
+    });
+  });
+
   test("should handle synchronous functions", async () => {
     return createRoot(async () => {
       const testFn = (id: number) => Promise.resolve(`data-${id}`);
@@ -565,5 +586,40 @@ describe("hashKey should", () => {
     const hash = hashKey([]);
     expect(typeof hash).toBe("string");
     expect(hash).toBe("[]");
+  });
+
+  test.each([
+    ["string", "a", '[{"__proto__":"a"}]'],
+    ["null", null, '[{"__proto__":null}]'],
+    ["object", { b: 2, a: 1 }, '[{"__proto__":{"a":1,"b":2}}]'],
+    ["array", [{ b: 2, a: 1 }], '[{"__proto__":[{"a":1,"b":2}]}]']
+  ])("retain own __proto__ values (%s)", (_label, value, expected) => {
+    const input = { ["__proto__"]: value };
+    expect(hashKey([input])).toBe(expected);
+    expect(Object.getPrototypeOf(input)).toBe(Object.prototype);
+    expect(input.__proto__).toBe(value);
+  });
+
+  test("sort nested objects containing __proto__ consistently", () => {
+    const first = { outer: { z: 1, ["__proto__"]: "a" } };
+    const second = { outer: { ["__proto__"]: "a", z: 1 } };
+    const expected = '[{"outer":{"__proto__":"a","z":1}}]';
+    expect(hashKey([first])).toBe(expected);
+    expect(hashKey([second])).toBe(expected);
+  });
+
+  test("hash null-prototype objects like ordinary objects", () => {
+    const input = Object.create(null);
+    input.z = 1;
+    input.__proto__ = "a";
+    expect(hashKey([input])).toBe('[{"__proto__":"a","z":1}]');
+    expect(hashKey([input])).toBe(hashKey([{ z: 1, ["__proto__"]: "a" }]));
+    expect(Object.getPrototypeOf(input)).toBeNull();
+  });
+
+  test("preserve the serialized keys of ordinary arguments", () => {
+    expect(hashKey([{ b: 2, a: 1 }, [3, { z: 2, a: 1 }], null])).toBe(
+      '[{"a":1,"b":2},[3,{"a":1,"z":2}],null]'
+    );
   });
 });

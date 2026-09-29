@@ -448,7 +448,7 @@ export function hashKey<T extends Array<any>>(args: T): string {
           .reduce((result, key) => {
             result[key] = val[key];
             return result;
-          }, {} as any)
+          }, Object.create(null))
       : val
   );
 }
