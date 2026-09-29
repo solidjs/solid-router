@@ -1,4 +1,6 @@
 import { render } from "@solidjs/web";
+import { createMemo } from "solid-js";
+import { vi } from "vitest";
 import { createRouter, memoryHistory, useSearchParams, useNavigate, useLocation } from "../src/index.js";
 import type { Location, Navigator } from "../src/index.js";
 import { awaitPromise } from "./helpers.js";
@@ -61,6 +63,66 @@ describe("useSearchParams", () => {
       await awaitPromise();
       expect(location.pathname).toBe("/other");
       expect(location.search).toBe("?a=1");
+    } finally {
+      document.body.innerHTML = "";
+      dispose();
+    }
+  });
+
+  test("pathname or hash navigation with the same search keeps query consumers stable", async () => {
+    let navigate!: Navigator;
+    let location!: Location;
+    let snapshot!: () => Record<string, any>;
+    let runs = 0;
+
+    const Page = () => {
+      navigate = useNavigate();
+      location = useLocation();
+      snapshot = createMemo(() => {
+        runs++;
+        return { ...location.query };
+      });
+      return null;
+    };
+
+    const history = memoryHistory("/one?tag=a&tag=b&empty=#start");
+    const Router = createRouter({
+      routes: [{ path: "/*rest", component: Page }] as const,
+      history
+    });
+
+    const dispose = render(() => <Router />, document.body);
+
+    try {
+      await vi.waitFor(() => expect(location.pathname).toBe("/one"));
+      const query = location.query;
+      const first = snapshot();
+      expect(first).toEqual({ tag: ["a", "b"], empty: "" });
+      expect(runs).toBe(1);
+
+      navigate("/two?tag=a&tag=b&empty=#start", { scroll: false });
+      await vi.waitFor(() => expect(location.pathname).toBe("/two"));
+      expect(snapshot()).toBe(first);
+      expect(location.query.tag).toBe(first.tag);
+
+      navigate("/two?tag=a&tag=b&empty=#end", { scroll: false });
+      await vi.waitFor(() => expect(location.hash).toBe("#end"));
+      expect(snapshot()).toBe(first);
+      expect(location.query.tag).toBe(first.tag);
+      expect(runs).toBe(1);
+
+      navigate("/two?tag=c#end", { scroll: false });
+      await vi.waitFor(() => expect(snapshot()).toEqual({ tag: "c" }));
+      expect(runs).toBe(2);
+
+      history.back();
+      await vi.waitFor(() => expect(location.search).toBe("?tag=a&tag=b&empty="));
+      expect(snapshot()).toEqual({ tag: ["a", "b"], empty: "" });
+
+      history.forward();
+      await vi.waitFor(() => expect(location.search).toBe("?tag=c"));
+      expect(snapshot()).toEqual({ tag: "c" });
+      expect(location.query).toBe(query);
     } finally {
       document.body.innerHTML = "";
       dispose();
