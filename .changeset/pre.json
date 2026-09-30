@@ -56,6 +56,7 @@
     "public-hydration-api",
     "query-cache-prototype-keys",
     "query-decodes-redirect-carrier",
+    "query-hydration-hang",
     "query-implies-get",
     "query-prototype-keys",
     "query-redirect-revalidate-pending",
