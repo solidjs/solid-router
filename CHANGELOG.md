@@ -1,5 +1,18 @@
 # @solidjs/router
 
+## 2.0.0-next.32
+
+### Patch Changes
+
+- 1db62b1: Observe tier: the router declares the route the document arrived on, with the same `OBSERVE.attribution.withOrigin` call it makes for every navigation — around the work that builds its context (`initial: true` on the ref), on both sides. On the client this is the first `"navigation"` record (`initial: true`, `at` the document's navigation start, no write to wait for); on the server the same declaration names the request's `"render"` record (`RenderEvent.route`: the matched pattern, the path, the params). A consumer naming page loads and requests by route (`/users/:id` rather than one name per user) had this for every navigation but the first; now it has the first too. Nothing in production builds: `OBSERVE` is undefined there and the declaration folds out. Needs `solid-js` / `@solidjs/web` `2.0.0-rc.12` or later (`NavigationRef.initial`, `RenderEvent.route`), already inside the `^2.0.0-rc.13` peer range.
+- 2b2f244: Move off `sharedConfig` onto Solid's public hydration APIs: `query()` writes server results with `getHydrationWriter()` (gated by `isHydratable()`, so `<NoHydration>` suppresses it) and adopts them on the client with `takeHydrationValue()`. Drops the obsolete `sharedConfig.done` write on the first location change. Requires solid-js / @solidjs/web 2.0.0-rc.13; peer range now `^2.0.0-rc.13`.
+- daa7713: Include own `__proto__` properties when generating query cache keys. Arguments that differ in those values now use separate cache entries instead of returning another argument's cached result.
+- 4b5cb10: Parse search parameters such as `constructor`, `toString` and `__proto__` as ordinary keys. Single values remain strings, repeated values keep URL order, and all parsed keys are included in enumeration and serialization.
+- 6e47fbb: Keep `location.query` data stable when navigation changes only the pathname or hash. Consumers that enumerate the query no longer rerun when the search string is unchanged, and repeated parameters keep the same array references.
+- 87b5caa: Keep query responses from changing an SSR page's content type or making it download as a file. Representation metadata such as `Content-Language`, `ETag` and `Last-Modified` also stays on the query response. Use `httpHeader()` from `@solidjs/web` to set these headers on the page itself.
+
+  Append cookies once per cached query result. New results can still update cookies, and redirects continue to work after streaming starts.
+
 ## 2.0.0-next.31
 
 ### Patch Changes
