@@ -48,22 +48,22 @@
     "@rollup/plugin-node-resolve": "15.3.0",
     "@rollup/plugin-terser": "0.4.4",
     "@solidjs/vite-plugin": "3.0.0-next.35",
-    "@solidjs/web": "^2.0.0-rc.11",
+    "@solidjs/web": "^2.0.0-rc.13",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.10.0",
     "babel-preset-solid": "^2.0.0-rc.2",
     "jsdom": "^25.0.1",
     "prettier": "^3.4.1",
     "rollup": "^4.27.4",
-    "solid-js": "^2.0.0-rc.11",
+    "solid-js": "^2.0.0-rc.13",
     "typescript": "^5.7.2",
     "vite": "^8.2.2",
     "vitest": "^4.1.11"
   },
   "peerDependencies": {
-    "@solidjs/web": "^2.0.0-rc.10",
+    "@solidjs/web": "^2.0.0-rc.12",
     "filesystem-routing": ">=0.4.0",
-    "solid-js": "^2.0.0-rc.10"
+    "solid-js": "^2.0.0-rc.12"
   },
   "peerDependenciesMeta": {
     "filesystem-routing": {
