@@ -166,6 +166,45 @@ describe("extractSearchParams should", () => {
     const actual = extractSearchParams(url);
     expect(actual).toEqual(expected);
   });
+
+  test.each(["constructor", "toString", "hasOwnProperty", "__proto__"])(
+    "treat %s as an own search parameter",
+    key => {
+      const actual = extractSearchParams(new URL(`http://localhost/?${key}=first`));
+      expect(Object.getOwnPropertyDescriptor(actual, key)).toEqual({
+        value: "first",
+        writable: true,
+        enumerable: true,
+        configurable: true
+      });
+      expect(Object.getPrototypeOf(actual)).toBe(Object.prototype);
+      expect(Object.entries(actual)).toEqual([[key, "first"]]);
+    }
+  );
+
+  test.each(["constructor", "toString", "hasOwnProperty", "__proto__"])(
+    "collect repeated %s values in URL order",
+    key => {
+      const url = new URL(`http://localhost/?${key}=first&foo=bar&${key}=&${key}=last`);
+      const actual = extractSearchParams(url);
+      expect(actual[key]).toEqual(["first", "", "last"]);
+      expect(Object.keys(actual)).toEqual([key, "foo"]);
+      expect(Object.getPrototypeOf(actual)).toBe(Object.prototype);
+      expect(JSON.stringify(actual)).toBe(
+        JSON.stringify({ [key]: ["first", "", "last"], foo: "bar" })
+      );
+    }
+  );
+
+  test("keep decoded prototype names separate from numeric parameters", () => {
+    const url = new URL("http://localhost/?%5F%5Fproto%5F%5F=first&0=zero&__proto__=last");
+    const actual = extractSearchParams(url);
+    expect(Object.entries(actual)).toEqual([
+      ["0", "zero"],
+      ["__proto__", ["first", "last"]]
+    ]);
+    expect(Object.getPrototypeOf(actual)).toBe(Object.prototype);
+  });
 });
 
 describe("createMatcher should", () => {

@@ -59,14 +59,15 @@ export function validateSearch(schema: StandardSchemaV1<any, any>, raw: Record<s
 }
 
 export function extractSearchParams(url: URL): SearchParams {
-  const params: SearchParams = {};
+  const params: SearchParams = Object.create(null);
   url.searchParams.forEach((value, key) => {
     if (key in params) {
       if (Array.isArray(params[key])) (params[key] as string[]).push(value);
       else params[key] = [params[key] as string, value];
     } else params[key] = value;
   });
-  return params;
+  // Keep __proto__ as an own property on the plain object returned to callers.
+  return { ...params };
 }
 
 export function createMatcher<S extends string>(
