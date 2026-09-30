@@ -245,7 +245,6 @@ function describeNavigation(
     const t = to();
     return t === undefined ? undefined : new URL(t, mockBase).pathname;
   };
-  const matches = (pathname: string) => untrack(() => match(pathname));
   const ref: NavigationRef = {
     kind: "navigation",
     get to() {
@@ -253,19 +252,69 @@ function describeNavigation(
     },
     from,
     get name() {
-      const p = pathname();
-      if (p === undefined) return undefined;
-      const m = matches(p);
-      return m.length ? m[m.length - 1].route.pattern || "/" : p;
+      return routeName(match, pathname());
     },
     get params() {
-      const p = pathname();
-      const m = p === undefined ? [] : matches(p);
-      return m.length ? (mergeParams(m) as Readonly<Record<string, string>>) : undefined;
+      return routeParams(match, pathname());
     }
   };
   if (next._navigation !== undefined && next._navigation > 1) ref.redirect = next._navigation - 1;
   return ref;
+}
+
+/** The parametrized route `pathname` matches — the last match's pattern, `/` for the root; the pathname itself when nothing matched. */
+function routeName(
+  match: (pathname: string) => RouteMatch[],
+  pathname: string | undefined
+): string | undefined {
+  if (pathname === undefined) return undefined;
+  const m = untrack(() => match(pathname));
+  return m.length ? m[m.length - 1].route.pattern || "/" : pathname;
+}
+
+/** The params the matched chain bound, merged; `undefined` when nothing matched. */
+function routeParams(
+  match: (pathname: string) => RouteMatch[],
+  pathname: string | undefined
+): Readonly<Record<string, string>> | undefined {
+  if (pathname === undefined) return undefined;
+  const m = untrack(() => match(pathname));
+  return m.length ? (mergeParams(m) as Readonly<Record<string, string>>) : undefined;
+}
+
+/**
+ * The route the document arrived on, for solid's observe tier: the same
+ * declaration as a navigation's, around the work that establishes the
+ * router's initial match — building its context — since a fresh document has
+ * no location write to wrap. On the client the engine opens it at the time
+ * origin and settles it as the context is built (the first `"navigation"`
+ * record, `initial: true`); on the server the same call names the request's
+ * `"render"` record (`RenderEvent.route`). Every field is a getter read at
+ * settle, as for a navigation: `to` is the location as the router then holds
+ * it — the arrival normalized onto the base path when it came in empty, a
+ * write the frame itself took (see the setter) — and `name`/`params` match
+ * it then, so a lazy subtree that resolved while the server rendered names
+ * the exact route.
+ */
+function describeInitial(
+  match: (pathname: string) => RouteMatch[],
+  location: () => LocationChange
+): NavigationRef {
+  const to = () => untrack(location).value;
+  const pathname = () => new URL(to(), mockBase).pathname;
+  return {
+    kind: "navigation",
+    initial: true,
+    get to() {
+      return to();
+    },
+    get name() {
+      return routeName(match, pathname());
+    },
+    get params() {
+      return routeParams(match, pathname());
+    }
+  };
 }
 
 /** Wraps a history adapter in the integration signal the router core consumes. Must run under a reactive owner. */
@@ -319,9 +368,16 @@ function createIntegration(
       // while a navigation is pending, which is the `from` a hop wants too.
       // A write the no-op rule drops is still declared: the engine settles a
       // navigation whose write "did not survive the equality gate" on the spot.
-      OBSERVE
+      // A write from NO location is not a navigation: it is the arrival being
+      // normalized (`createRouterContext` moving an empty location — a hash
+      // history with no hash, a memory history seeded with "" — onto the base
+      // path), and the arrival is already declared by the initial frame open
+      // around the context build (`describeInitial`), which this write then
+      // stamps. The location is never empty again after that first write.
+      const from = untrack(read).value;
+      OBSERVE && from
         ? OBSERVE.attribution.withOrigin(
-            describeNavigation(match, next, () => written, untrack(read).value),
+            describeNavigation(match, next, () => written, from),
             commit
           )
         : commit();
@@ -417,11 +473,20 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
       ? staticIntegration(props.url, config.history && config.history.utils)
       : createIntegration(history || browserHistory(), matchPath);
     let context: Owner;
-    const routerState = createRouterContext(integration, branches, () => context, {
-      base: basePath,
-      singleFlight: config.singleFlight,
-      transformUrl: config.transformUrl
-    });
+    const buildContext = () =>
+      createRouterContext(integration, branches, () => context, {
+        base: basePath,
+        singleFlight: config.singleFlight,
+        transformUrl: config.transformUrl
+      });
+    // The route the document arrived on, declared around the initial match
+    // (see `describeInitial`); folded out of shipped bundles with `OBSERVE`.
+    const routerState = OBSERVE
+      ? OBSERVE.attribution.withOrigin(
+          describeInitial(matchPath, integration.signal[0]),
+          buildContext
+        )
+      : buildContext();
     if (!isServer) {
       setupNativeEvents({
         preload: config.preloadLinks,
