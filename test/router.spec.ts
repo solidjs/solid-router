@@ -225,6 +225,66 @@ describe("Router should", () => {
             resolve();
           });
         }));
+
+      test(`not be reparsed when only the pathname or hash changes`, () =>
+        createRoot(dispose => {
+          const signal = createSignal<LocationChange>({
+            value: "/one?tag=a&tag=b&empty=#start"
+          });
+          const { location } = createRouterContext({ signal }, fakeBranches);
+          const tag = location.query.tag;
+          const count = createCounter(() => {
+            Object.keys(location.query);
+            Object.entries(location.query);
+            ({ ...location.query });
+          });
+
+          expect(tag).toEqual(["a", "b"]);
+          expect(count()).toBe(0);
+
+          signal[1]({ value: "/two?tag=a&tag=b&empty=#start" });
+          flush();
+          expect(location.pathname).toBe("/two");
+          expect(count()).toBe(0);
+          expect(location.query.tag).toBe(tag);
+
+          signal[1]({ value: "/two?tag=a&tag=b&empty=#end" });
+          flush();
+          expect(location.hash).toBe("#end");
+          expect(count()).toBe(0);
+          expect(location.query.tag).toBe(tag);
+
+          signal[1]({ value: "/two?tag=a&tag=c#end" });
+          flush();
+          expect(count()).toBe(1);
+          expect({ ...location.query }).toEqual({ tag: ["a", "c"] });
+          dispose();
+        }));
+
+      test(`hand queryWrapper a getter that is stable across pathname and hash changes`, () =>
+        createRoot(dispose => {
+          let getQuery!: () => Record<string, any>;
+          const queryWrapper = (get: () => Record<string, any>) => ((getQuery = get), {});
+          const signal = createSignal<LocationChange>({
+            value: "/one?tag=a&tag=b#start"
+          });
+          const { location } = createRouterContext(
+            { signal, utils: { queryWrapper } },
+            fakeBranches
+          );
+          const query = getQuery();
+
+          signal[1]({ value: "/two?tag=a&tag=b#end" });
+          flush();
+          expect(location.pathname).toBe("/two");
+          expect(location.hash).toBe("#end");
+          expect(getQuery()).toBe(query);
+
+          signal[1]({ value: "/two?tag=b#end" });
+          flush();
+          expect(getQuery()).toEqual({ tag: "b" });
+          dispose();
+        }));
     }); // end of "have member `query`"
   }); // end "have member `location`"
 

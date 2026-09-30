@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createErrorBoundary, createMemo, type ParentProps } from "solid-js";
+import { Errored, createMemo, type ParentProps } from "solid-js";
 import { render } from "@solidjs/web";
 import { createRouter, memoryHistory, query, useNavigate } from "../src/index.js";
 
@@ -41,14 +41,18 @@ describe("#385 error from cached preload stays an error", () => {
     const Root = (props: ParentProps) => {
       nav = useNavigate();
       // the fallback receives an error *accessor* in Solid 2, not the error itself
-      const content = createErrorBoundary(
-        () => props.children,
-        (error: () => unknown): any => {
-          caught.push(error());
-          return <p>caught</p>;
-        }
+      return (
+        <div>
+          <Errored
+            fallback={error => {
+              caught.push(error());
+              return <p>caught</p>;
+            }}
+          >
+            {props.children}
+          </Errored>
+        </div>
       );
-      return <div>{content() as any}</div>;
     };
 
     const Router = createRouter({
