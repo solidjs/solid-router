@@ -704,7 +704,8 @@ function createLocation(
   const pathname = createMemo(() => url().pathname);
   const search = createMemo(() => url().search);
   const hash = createMemo(() => url().hash);
-  const queryFn = createMemo(() => extractSearchParams(url()));
+  // Pathname and hash changes do not affect the query.
+  const queryFn = createMemo(() => extractSearchParams(new URL(search(), mockBase)));
 
   return {
     get pathname() {
