@@ -7,7 +7,11 @@ import { vi } from "vitest";
 
 const { JSDOM, VirtualConsole } = createRequire(import.meta.url)("jsdom");
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const fixtures = ["hydration-navigation", "hydration-late-boundary"] as const;
+const fixtures = [
+  "hydration-navigation",
+  "hydration-late-boundary",
+  "hydration-lazy-route"
+] as const;
 type Fixture = (typeof fixtures)[number];
 const serverEntry = (fixture: Fixture) => `${root}test/fixtures/${fixture}-server.tsx`;
 const clientEntry = (fixture: Fixture) => `${root}test/fixtures/${fixture}-client.tsx`;
@@ -23,6 +27,7 @@ for (const fixture of fixtures) {
       import { hydrate } from "@solidjs/web";
       import { createApp } from "./${fixture}";
       const app = createApp(globalThis.hydrationOptions);
+      app.preload?.(globalThis._$HY);
       const dispose = hydrate(() => <app.App />, document.getElementById("app"));
       globalThis.hydrationTest = { ...app, dispose };
     `
@@ -41,7 +46,7 @@ for (const fixture of fixtures) {
           let resolveShell, resolveEnd;
           const shell = new Promise(resolve => resolveShell = resolve);
           const end = new Promise(resolve => resolveEnd = resolve);
-          renderToStream(() => <app.App />).pipe({
+          renderToStream(() => <app.App />, { manifest: app.manifest }).pipe({
             write(chunk) { chunks.push(String(chunk)); resolveShell(); },
             end() { resolveEnd(); }
           });
@@ -225,6 +230,31 @@ describe("navigation during hydration", () => {
       await finish();
       expect(window.document.querySelector('template[id^="pl-"]')).toBeNull();
       await roundTrip(window, app);
+      expect(errors).toEqual([]);
+    } finally {
+      await finish();
+      app.dispose();
+      dom.window.close();
+    }
+  });
+
+  // #625: the server showed the page, but the root boundary is still waiting
+  // for its route module when the click lands.
+  test("a link click before the root boundary's route module loads claims the server DOM", async () => {
+    const { dom, window, app, errors, finish } = await setup("hydration-lazy-route");
+    try {
+      expect(Object.keys(window._$HY.loading)).not.toHaveLength(0);
+      expect(window.document.querySelector("h1").textContent).toBe("Home ready");
+      const click = new window.MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+      window.document.querySelector("a").dispatchEvent(click);
+      expect(click.defaultPrevented).toBe(true);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      app.releaseModules();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      app.releaseDestination();
+      await finish();
+      await roundTrip(window, app);
+      expect(window.document.querySelectorAll("main")).toHaveLength(1);
       expect(errors).toEqual([]);
     } finally {
       await finish();
