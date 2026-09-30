@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createErrorBoundary, createMemo, Loading, type ParentProps } from "solid-js";
+import { Errored, createMemo, Loading, type ParentProps } from "solid-js";
 import { render } from "@solidjs/web";
 import { vi } from "vitest";
 import { createRouter, memoryHistory, query, useSearchParams } from "../src/index.js";
@@ -14,14 +14,18 @@ const redirectResponse = (to: string, revalidate?: string) =>
 
 function mount(Router: any, caught: any[]) {
   const Root = (props: ParentProps) => {
-    const content = createErrorBoundary(
-      () => props.children,
-      (error: () => unknown): any => {
-        caught.push(error());
-        return <p>caught</p>;
-      }
+    return (
+      <div>
+        <Errored
+          fallback={error => {
+            caught.push(error());
+            return <p>caught</p>;
+          }}
+        >
+          {props.children}
+        </Errored>
+      </div>
     );
-    return <div>{content() as any}</div>;
   };
   const root = document.createElement("div");
   const dispose = render(

@@ -1,4 +1,4 @@
-import { createRoot, sharedConfig } from "solid-js";
+import { createRoot } from "solid-js";
 import { vi } from "vitest";
 import { query } from "../../src/data/query.js";
 import { createMockRouter } from "../helpers.js";
@@ -20,13 +20,11 @@ vi.mock("../../src/routing.js", () => ({
 const PRELOAD_TIMEOUT = 5000;
 const CACHE_TIMEOUT = 180000;
 
-// The client-side keyed consumption path (sharedConfig.has/load -> cache
-// seeding). The registry is seeded the way hydrate() leaves it: `_$HY.r`
-// holding the seroval-revived promise, sharedConfig.has/load reading it.
+// The client-side keyed consumption path (takeHydrationValue -> cache
+// seeding). The registry is seeded the way the page leaves it: `_$HY.r`
+// holding the seroval-revived promise.
 function seedFlightEntry(key: string, value: any) {
   (globalThis as any)._$HY = { r: { [key]: Promise.resolve(value) } };
-  sharedConfig.has = (k: string) => k in (globalThis as any)._$HY.r;
-  sharedConfig.load = (k: string) => (globalThis as any)._$HY.r[k];
 }
 
 function advanceClock(ms: number) {
@@ -41,8 +39,6 @@ describe("query cache freshness windows", () => {
   });
 
   afterEach(() => {
-    sharedConfig.has = undefined;
-    sharedConfig.load = undefined;
     delete (globalThis as any)._$HY;
     vi.useRealTimers();
   });

@@ -1,15 +1,7 @@
 /*@refresh skip*/
 
 import type { Owner } from "solid-js";
-import {
-  createSignal,
-  getOwner,
-  onCleanup,
-  onSettled,
-  runWithOwner,
-  sharedConfig,
-  untrack
-} from "solid-js";
+import { createSignal, getOwner, onCleanup, onSettled, runWithOwner, untrack } from "solid-js";
 // standalone imports: `DEV` is undefined in solid's production build and
 // `OBSERVE` outside its observe/dev builds, so app bundlers fold the
 // `DEV &&` diagnostics and the `OBSERVE &&` attribution out of shipped bundles
@@ -293,7 +285,6 @@ function createIntegration(
   const signal: RouterIntegration["signal"] = [
     read,
     (next: LocationWrite) => {
-      if (sharedConfig.registry && !sharedConfig.done) sharedConfig.done = true;
       // What the write resolved to, or undefined when there was nothing to
       // write (see `resolveLocationWrite`).
       let written: LocationChange | undefined;

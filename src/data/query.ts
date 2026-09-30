@@ -2,8 +2,8 @@ import {
   createSignal,
   getObserver,
   getOwner,
+  isHydratable,
   onCleanup,
-  sharedConfig,
   untrack,
   type Signal
 } from "solid-js";
@@ -18,13 +18,15 @@ import {
 // output, module scope), so by the time a server function can reach
 // query() the seam is filled; plain-fetch apps read undefined forever.
 import {
+  getHydrationWriter,
   getRequestEvent,
   getServerFunctionMetadata,
   getServerFunctionRPC,
   isResponseEnvelope,
   isServer,
   isServerFunction,
-  REVALIDATE_HEADER
+  REVALIDATE_HEADER,
+  takeHydrationValue
 } from "@solidjs/web";
 // The redirect carrier's name and decoder are the exception: two pure,
 // dependency-free bindings off a `sideEffects: false` entry, so they
@@ -37,10 +39,20 @@ import type { CacheEntry, NarrowResponse } from "../types.js";
 const LocationHeader = "Location";
 const PRELOAD_TIMEOUT = 5000;
 const CACHE_TIMEOUT = 180000;
-// When this client booted. Flight-registry entries (sharedConfig.has/load)
+// When this client booted. Flight-registry entries (takeHydrationValue)
 // hold values the server computed while rendering THIS page, so their age is
 // anchored here — not at whenever a late query() call happens to consume one.
 const bootTime = Date.now();
+
+// Every hydratable read ships its entry: the writer keeps the first write
+// per key, so a read skipped in a NoHydration zone never hides the entry
+// from an island that reads the same key later.
+function serializeForHydration(key: string, res: unknown) {
+  const writer = getHydrationWriter();
+  if (!writer || !writer.async || !isHydratable()) return;
+  const e = getRequestEvent();
+  (!e || !e.serverOnly) && writer.write(key, res);
+}
 let cacheMap = new Map<string, CacheEntry>();
 
 // cleanup forward/back cache
@@ -195,6 +207,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
         !isServer && intent === "navigate" && cached[4][1](cached[0]); // update version
       }
       inPreloadFn && "then" in res && res.catch(() => {});
+      isServer && serializeForHydration(key, res);
       return res;
     }
     let res;
@@ -211,13 +224,19 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     // active navigation (or its preload) accepts the payload only while a
     // real preload of the same age would still satisfy it — anything older
     // refetches instead of serving a minutes-old value on a fresh navigation.
-    if (!isServer && sharedConfig.has && sharedConfig.has(key)) {
-      const payloadAge = now - bootTime;
-      if (!intent || payloadAge < (intent === "native" ? CACHE_TIMEOUT : PRELOAD_TIMEOUT)) {
+    if (
+      !isServer &&
+      (!intent || now - bootTime < (intent === "native" ? CACHE_TIMEOUT : PRELOAD_TIMEOUT))
+    ) {
+      const entry = takeHydrationValue(key); // hydrating
+      if (entry) {
         adopted = true;
-        res = sharedConfig.load!(key); // hydrating
-        // @ts-ignore at least until we add a delete method to sharedConfig
-        delete globalThis._$HY.r[key];
+        res =
+          entry.status === "pending"
+            ? entry.promise
+            : entry.status === "resolved"
+              ? Promise.resolve(entry.value)
+              : Promise.reject(entry.error);
       }
       // A payload too old for this intent stays in the registry: it is
       // inert while the refetched entry below lives, but a later claim
@@ -260,16 +279,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     }
     if (intent !== "preload") res = settle(res);
     inPreloadFn && "then" in res && res.catch(() => {});
-    // serialize on server
-    if (
-      isServer &&
-      (sharedConfig as any).context &&
-      (sharedConfig as any).context.async &&
-      !(sharedConfig as any).context.noHydrate
-    ) {
-      const e = getRequestEvent();
-      (!e || !e.serverOnly) && (sharedConfig as any).context.serialize(key, res);
-    }
+    isServer && serializeForHydration(key, res);
     return res;
 
     // a settled read: the response handling applied to the value or the promise

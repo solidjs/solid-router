@@ -2,7 +2,7 @@
 // The table's code loads on demand — hover intent or navigation kicks it and
 // the load folds into the navigation transition — while matching, params,
 // preloads, and `match()` all continue through the resolved routes.
-import { createErrorBoundary } from "solid-js";
+import { Errored } from "solid-js";
 import { render } from "@solidjs/web";
 import { vi } from "vitest";
 import {
@@ -129,15 +129,19 @@ describe("lazy route subtrees", () => {
 
     let resetBoundary!: () => void;
     const Bounded = () => {
-      const content = createErrorBoundary(
-        () => <Router />,
-        (error: () => unknown, reset: () => void): any => {
-          caught.push(error());
-          resetBoundary = reset;
-          return <p data-route="error">failed</p>;
-        }
+      return (
+        <div>
+          <Errored
+            fallback={(error, reset) => {
+              caught.push(error());
+              resetBoundary = reset;
+              return <p data-route="error">failed</p>;
+            }}
+          >
+            <Router />
+          </Errored>
+        </div>
       );
-      return <div>{content() as any}</div>;
     };
 
     const { div, cleanup } = mount(Bounded);
@@ -298,7 +302,9 @@ describe("lazy route subtrees", () => {
 
   test("match() sees the boundary before resolution and the real routes after", async () => {
     const Router = createRouter({
-      routes: [{ path: "/plugins", children: () => Promise.resolve({ default: pluginRoutes }) }] as const,
+      routes: [
+        { path: "/plugins", children: () => Promise.resolve({ default: pluginRoutes }) }
+      ] as const,
       history: memoryHistory("/plugins")
     });
 
@@ -330,7 +336,8 @@ describe("lazy route subtrees", () => {
         },
         {
           path: "/b",
-          children: () => Promise.resolve({ routes: [{ path: "/y", component: () => <div data-route="by" /> }] })
+          children: () =>
+            Promise.resolve({ routes: [{ path: "/y", component: () => <div data-route="by" /> }] })
         }
       ] as const,
       history: memoryHistory("/a/x")
