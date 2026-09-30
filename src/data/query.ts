@@ -3,6 +3,7 @@ import {
   getObserver,
   getOwner,
   isHydratable,
+  isHydrating,
   onCleanup,
   untrack,
   type Signal
@@ -57,6 +58,13 @@ const forwardedCookies = /* #__PURE__ */ new WeakMap<CacheEntry, WeakSet<Headers
 // hold values the server computed while rendering THIS page, so their age is
 // anchored here — not at whenever a late query() call happens to consume one.
 const bootTime = Date.now();
+// Captured at module load: a hydrating client runs a serialized node's
+// compute once as a dependency trace with the global `Promise` swapped for a
+// never-settling mock, and a query() read inside that trace still consumes
+// and caches its flight entry. Wrapped with the global there, a settled
+// entry would cache a promise that never resolves, hanging every navigation
+// that reuses it.
+const NativePromise = Promise;
 
 // Every hydratable read ships its entry: the writer keeps the first write
 // per key, so a read skipped in a NoHydration zone never hides the entry
@@ -200,12 +208,19 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
       onCleanup(() => cached[4].count--);
     }
 
+    // A read with no navigation in flight while hydrating is claiming server
+    // DOM, so it takes the cached entry at any age — the rule adoption below
+    // applies to flight entries. It can come from a boundary resuming long
+    // after boot, once the entry was adopted and its first reader disposed;
+    // refetching there would run inside Solid's hydration trace, where fetch
+    // and Promise never settle, and cache that.
     if (
       cached &&
       cached[0] &&
       (isServer ||
         intent === "native" ||
         cached[4].count ||
+        (!intent && isHydrating()) ||
         Date.now() - cached[0] < PRELOAD_TIMEOUT)
     ) {
       if (tracking) {
@@ -249,8 +264,8 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
           entry.status === "pending"
             ? entry.promise
             : entry.status === "resolved"
-              ? Promise.resolve(entry.value)
-              : Promise.reject(entry.error);
+              ? NativePromise.resolve(entry.value)
+              : NativePromise.reject(entry.error);
       }
       // A payload too old for this intent stays in the registry: it is
       // inert while the refetched entry below lives, but a later claim
@@ -259,11 +274,10 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     if (!adopted) res = fn(...(args as any));
 
     // Adopted entries are stamped at boot — when their data was actually
-    // fetched — not at consumption. The hydration render burst still dedups
-    // through the normal window/count reuse above (it happens within
-    // milliseconds of boot), while a navigation that comes along later sees
-    // the payload's true age and refetches past PRELOAD_TIMEOUT, exactly as
-    // it would for a preload performed when the server fetched the data.
+    // fetched — not at consumption. Later hydration reads still reuse them
+    // through the claim rule above, while a navigation that comes along later
+    // sees the payload's true age and refetches past PRELOAD_TIMEOUT, exactly
+    // as it would for a preload performed when the server fetched the data.
     const stamp = adopted ? bootTime : now;
     if (cached) {
       isServer && forwardedCookies.delete(cached);
