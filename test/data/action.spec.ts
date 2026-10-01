@@ -918,7 +918,8 @@ describe("generic server actions", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(mockRouterContext.submissions[0]()).toHaveLength(1));
     const [submission] = mockRouterContext.submissions[0]();
-    expect(submission.url).toBe(toggle.base);
+    // recorded under the unbound action, which is what useSubmissions(toggle) matches
+    expect(submission.url).toBe(toggle.url);
     expect(submission.input[0]).toBe("a");
     expect(submission.result).toEqual({ ok: true });
   });
@@ -938,7 +939,7 @@ describe("generic server actions", () => {
     expect(clientFn.mock.calls[0][0]).toBe("a");
     expect(hook).toHaveBeenCalledWith("a", expect.anything());
     await vi.waitFor(() => expect(mockRouterContext.submissions[0]()).toHaveLength(1));
-    expect(mockRouterContext.submissions[0]()[0].url).toBe(toggle.base);
+    expect(mockRouterContext.submissions[0]()[0].url).toBe(toggle.url);
   });
 
   test("a registered action takes precedence over synthesis", () => {
