@@ -4,7 +4,7 @@
  * wrapper component. These specs compile real JSX, so they exercise the full
  * chain — compiler claim emission → runtime claim hook → router consumer.
  */
-import { render } from "@solidjs/web";
+import { claimElement, render } from "@solidjs/web";
 import { createRoot, createSignal, createMemo, getNextChildId, getOwner, Loading, Show } from "solid-js";
 import { vi } from "vitest";
 import { setupLinkClaims } from "../src/claims.js";
@@ -303,6 +303,105 @@ describe("compiler-claimed anchors", () => {
       expect(about.hasAttribute("data-pending")).toBe(false);
       expect(about.hasAttribute("data-active")).toBe(true);
       expect(about.getAttribute("aria-current")).toBe("page");
+    } finally {
+      dispose();
+      div.remove();
+    }
+  });
+
+  test("reasserts state a re-claim finds stripped", async () => {
+    // A server-component morph makes attributes match server output exactly,
+    // removing what the consumer applied, then re-claims the element.
+    const div = mount();
+
+    const Router = createRouter({ routes, history: memoryHistory("/about") });
+    const dispose = render(
+      () => (
+        <Router>
+          {props => (
+            <>
+              <a data-testid="about" href="/about">
+                About
+              </a>
+              {props.children}
+            </>
+          )}
+        </Router>
+      ),
+      div
+    );
+    try {
+      const about = div.querySelector('[data-testid="about"]')!;
+      expect(about.getAttribute("aria-current")).toBe("page");
+
+      about.removeAttribute("aria-current");
+      about.removeAttribute("data-active");
+      claimElement(about);
+
+      expect(about.getAttribute("aria-current")).toBe("page");
+      expect(about.hasAttribute("data-active")).toBe(true);
+    } finally {
+      dispose();
+      div.remove();
+    }
+  });
+
+  test("matches the query for aria-current, the pathname for data-active", async () => {
+    const div = mount();
+    let navigate!: Navigator;
+
+    const Router = createRouter({ routes, history: memoryHistory("/?filter=active") });
+    const dispose = render(
+      () => (
+        <Router>
+          {props => {
+            navigate = useNavigate();
+            return (
+              <>
+                <a data-testid="all" href="/">
+                  All
+                </a>
+                <a data-testid="active" href="/?filter=active">
+                  Active
+                </a>
+                <a data-testid="completed" href="/?filter=completed">
+                  Completed
+                </a>
+                <a data-testid="reordered" href="/?b=2&a=1">
+                  Reordered
+                </a>
+                {props.children}
+              </>
+            );
+          }}
+        </Router>
+      ),
+      div
+    );
+    try {
+      const get = (id: string) => div.querySelector(`[data-testid="${id}"]`)!;
+      const current = () =>
+        ["all", "active", "completed", "reordered"].filter(id =>
+          get(id).hasAttribute("aria-current")
+        );
+
+      expect(current()).toEqual(["active"]);
+      for (const id of ["all", "active", "completed", "reordered"])
+        expect(get(id).hasAttribute("data-active")).toBe(true);
+
+      // a query-only navigation moves aria-current
+      navigate("/?filter=completed");
+      await settle();
+      expect(current()).toEqual(["completed"]);
+
+      navigate("/");
+      await settle();
+      expect(current()).toEqual(["all"]);
+
+      // parameter order does not matter
+      navigate("/?a=1&b=2");
+      await settle();
+      expect(current()).toEqual(["reordered"]);
     } finally {
       dispose();
       div.remove();
