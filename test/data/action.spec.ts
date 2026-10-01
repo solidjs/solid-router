@@ -139,6 +139,18 @@ describe("action", () => {
     expect(curriedAction.url).toMatch(/with-test\?args=/);
   });
 
+  test("a chained `.with` url carries every bound argument", () => {
+    const move = action(async (from: string, to: string, data: string) => data, "chained-with");
+    const fromA = move.with("a").with("x");
+    const fromB = move.with("b").with("x");
+
+    expect(new URL(fromA.url, "http://localhost").searchParams.get("args")).toBe('["a","x"]');
+    // same last argument, different binding: the urls (and registrations) must differ
+    expect(fromA.url).not.toBe(fromB.url);
+    expect(actions.get(fromA.url)).toBe(fromA);
+    expect(fromA.url).toBe(move.with("a", "x").url);
+  });
+
   // actions are invoked outside `createRoot` — as of Solid 2.0.0-beta.18 calling an
   // action inside an owned scope throws ACTION_CALLED_IN_OWNED_SCOPE in dev
   test("should execute action and create submission", async () => {
@@ -881,6 +893,53 @@ describe("generic server actions", () => {
     // the data sibling keeps the rendered url's query — bound arguments ride
     // where the server reads them for natural-encoding bodies
     expect(fetchMock.mock.calls[0][0]).toBe("/_server/data/bound%230?args=%5B7%5D");
+  });
+
+  test("a server-rendered `.with()` form runs through its registered base action", async () => {
+    // The server renders `toggle.with("a")` as the form's action. The client
+    // loaded `toggle`'s module, so `toggle` is registered, but it never called
+    // `.with("a")` itself, so the rendered url is not in the registry. The
+    // submission must still run as `toggle`: its submit hooks see the bound
+    // arguments, and `useSubmissions(toggle)` sees the outcome.
+    const serverFn = Object.assign(
+      vi.fn(async (_id: string, _form: unknown) => ({ ok: true })),
+      { url: "/_server/toggle%230" }
+    );
+    const toggle = action(serverFn);
+    const hook = vi.fn();
+    toggle.onSubmit(hook);
+    const ref = `/_server/toggle%230?args=${encodeURIComponent(JSON.stringify(["a"]))}`;
+
+    handleFormAction(createSubmitEvent(createServerForm(ref)), mockRouterContext, ACTION_BASE);
+
+    await vi.waitFor(() => expect(serverFn).toHaveBeenCalled());
+    expect(serverFn.mock.calls[0][0]).toBe("a");
+    expect(hook).toHaveBeenCalledWith("a", expect.anything());
+    expect(fetchMock).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(mockRouterContext.submissions[0]()).toHaveLength(1));
+    const [submission] = mockRouterContext.submissions[0]();
+    // recorded under the unbound action, which is what useSubmissions(toggle) matches
+    expect(submission.url).toBe(toggle.url);
+    expect(submission.input[0]).toBe("a");
+    expect(submission.result).toEqual({ ok: true });
+  });
+
+  test("a server-rendered `.with()` form on a client action runs through its base action", async () => {
+    const clientFn = vi.fn(async (_id: string, _form: unknown) => ({ ok: true }));
+    const toggle = action(clientFn, "toggle");
+    const hook = vi.fn();
+    toggle.onSubmit(hook);
+    const ref = `${toggle.url}?args=${encodeURIComponent(JSON.stringify(["a"]))}`;
+    const event = createSubmitEvent(createServerForm(ref));
+
+    handleFormAction(event, mockRouterContext, ACTION_BASE);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    await vi.waitFor(() => expect(clientFn).toHaveBeenCalled());
+    expect(clientFn.mock.calls[0][0]).toBe("a");
+    expect(hook).toHaveBeenCalledWith("a", expect.anything());
+    await vi.waitFor(() => expect(mockRouterContext.submissions[0]()).toHaveLength(1));
+    expect(mockRouterContext.submissions[0]()[0].url).toBe(toggle.url);
   });
 
   test("a registered action takes precedence over synthesis", () => {
