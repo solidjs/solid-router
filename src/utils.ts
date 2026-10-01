@@ -22,6 +22,40 @@ export function normalizePath(path: string, omitSlash: boolean = false) {
 export const comparablePath = (path: string) =>
   normalizePath(path.split(/[?#]/, 1)[0]).toLowerCase().replace(/\/$/, "");
 
+/** A query string as an order-independent comparable string. */
+const comparableQuery = (search: string) => {
+  const params = new URLSearchParams(search);
+  params.sort();
+  return params.toString();
+};
+
+/**
+ * The link-state rule shared by claimed anchors and `useLinkState`, given
+ * the location and a link's already-resolved target (path, optional query
+ * and hash):
+ *
+ * - `current` — same pathname and same query (parameter order and hash aside)
+ * - `active` — same pathname or one under it; the root only matches exactly,
+ *   since it is a prefix of everything. `end` makes every link exact-only.
+ */
+export function matchLink(
+  location: { pathname: string; search: string },
+  target: string | undefined,
+  end?: boolean
+): { active: boolean; current: boolean } {
+  if (target === undefined) return { active: false, current: false };
+  const loc = decodeURI(comparablePath(location.pathname));
+  const path = comparablePath(target);
+  const exact = loc === path;
+  const hashless = target.split("#", 1)[0];
+  const q = hashless.indexOf("?");
+  return {
+    active: exact || (!end && path !== "" && loc.startsWith(path + "/")),
+    current:
+      exact && comparableQuery(location.search) === comparableQuery(q < 0 ? "" : hashless.slice(q))
+  };
+}
+
 export function resolvePath(base: string, path: string, from?: string): string | undefined {
   if (hasSchemeRegex.test(path)) {
     return undefined;

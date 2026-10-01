@@ -1,14 +1,7 @@
 import { registerElementClaim } from "@solidjs/web";
 import { createRenderEffect, getOwner, onCleanup, untrack } from "solid-js";
 import type { RouterContext } from "./types.js";
-import { comparablePath } from "./utils.js";
-
-/** A query string as an order-independent comparable string. */
-const comparableQuery = (search: string) => {
-  const params = new URLSearchParams(search);
-  params.sort();
-  return params.toString();
-};
+import { matchLink } from "./utils.js";
 
 /**
  * The compiler claims every `a[href]` (and `form[action]`, which this handler
@@ -18,8 +11,12 @@ const comparableQuery = (search: string) => {
  *
  * - `aria-current="page"` — the location matches the link exactly, query
  *   included (parameter order aside)
- * - `data-active` — exact or prefix match
+ * - `data-active` — pathname exact or prefix match (the root exact only)
  * - `data-pending` — the link is the target of an in-flight navigation
+ *
+ * The matching rule is `matchLink`, shared with `useLinkState`. The router
+ * only touches an `aria-current` it wrote itself: one the author set (a
+ * stepper's `"step"`, a static `"page"`) is left in place, current or not.
  *
  * Elements are claimed at creation, so late mounts (`<Show>`, `<For>`,
  * portals) are correct immediately. One render effect (owned by the router)
@@ -32,9 +29,9 @@ const comparableQuery = (search: string) => {
  */
 export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) {
   const basePath = router.base.path();
-  // per-element record; `current` remembers whether we set `aria-current`,
-  // so user-authored values (steppers, breadcrumbs) are never stripped
-  const claimed = new WeakMap<Node, { current: boolean }>();
+  // per-element record; `owned` is whether the `aria-current` on the element
+  // is the router's, so it never writes over or removes an authored one
+  const claimed = new WeakMap<Node, { owned: boolean }>();
   const registry = new Set<HTMLAnchorElement | SVGAElement>();
 
   function isSvg<T extends SVGElement>(el: T | HTMLElement): el is T {
@@ -70,48 +67,48 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
   function linkState(a: HTMLAnchorElement | SVGAElement) {
     // read reactive sources unconditionally so the owning effect stays
     // subscribed even while the anchor is not router-managed
-    const loc = decodeURI(comparablePath(router.location.pathname));
-    const query = comparableQuery(router.location.search);
+    const location = router.location;
     const routing = router.isRouting();
     const url = managedUrl(a);
-    const path = url && comparablePath(url.pathname);
-    // the root path is a prefix of everything, so it only matches exactly —
-    // there is no per-anchor `end` opt-out like useLinkState has
-    const matches = (target: string) =>
-      path !== undefined && (target === path || (path !== "" && target.startsWith(path + "/")));
+    const target = url && url.pathname + url.search;
+    // no per-anchor `end` opt-out like useLinkState has
+    const { active, current } = matchLink(location, target);
     // effects observe the committed location during a transition, so the
     // in-flight target comes from pendingTarget — readable here because the
     // isRouting write flushes after the target is assigned
     const pending =
-      routing && !!router.pendingTarget && matches(decodeURI(comparablePath(router.pendingTarget.value)));
-    // `aria-current="page"` is the page itself, query included: `/` is not
-    // current on `/?filter=active`. Active and pending stay pathname matches.
-    return {
-      active: matches(loc),
-      pending,
-      exact: path !== undefined && loc === path && query === comparableQuery(url!.search)
-    };
+      routing &&
+      !!router.pendingTarget &&
+      matchLink({ pathname: router.pendingTarget.value, search: "" }, target).active;
+    return { active, pending, current };
   }
 
   function apply(
     a: HTMLAnchorElement | SVGAElement,
-    rec: { current: boolean },
-    { active, pending, exact }: ReturnType<typeof linkState>
+    rec: { owned: boolean },
+    { active, pending, current }: ReturnType<typeof linkState>
   ) {
     active ? a.setAttribute("data-active", "") : a.removeAttribute("data-active");
     pending ? a.setAttribute("data-pending", "") : a.removeAttribute("data-pending");
-    // checked against the DOM, not just the record: a server-component morph
-    // strips what we set and re-claims, and the record alone would skip it
-    if (exact) {
-      if (a.getAttribute("aria-current") !== "page") a.setAttribute("aria-current", "page");
-      rec.current = true;
-    } else if (rec.current) {
-      a.removeAttribute("aria-current");
-      rec.current = false;
+    // Ownership is read against the element, not just the record. A
+    // server-component morph resets attributes to the server HTML, which
+    // never carries router link state, then re-claims: an owned value that
+    // went missing is re-applied, while a value the morph restored from the
+    // server HTML (or the author wrote since) is authored and left alone.
+    const value = a.getAttribute("aria-current");
+    if (rec.owned && value !== null && value !== "page") rec.owned = false;
+    else if (current) {
+      if (value === null) {
+        a.setAttribute("aria-current", "page");
+        rec.owned = true;
+      }
+    } else if (rec.owned) {
+      if (value !== null) a.removeAttribute("aria-current");
+      rec.owned = false;
     }
   }
 
-  const refresh = (a: HTMLAnchorElement | SVGAElement, rec: { current: boolean }) =>
+  const refresh = (a: HTMLAnchorElement | SVGAElement, rec: { owned: boolean }) =>
     untrack(() => apply(a, rec, linkState(a)));
 
   // The one subscription for every anchor: compute tracks the sources
@@ -139,7 +136,7 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
       // effect, so refresh without leaking subscriptions into it
       const existing = claimed.get(a);
       if (existing) return refresh(a, existing);
-      const rec = { current: false };
+      const rec = { owned: false };
       claimed.set(a, rec);
       // claims fire during component setup, so an owner is present in
       // practice to bound the registry entry's lifetime; without one, state

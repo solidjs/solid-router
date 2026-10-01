@@ -5,12 +5,20 @@
  * chain — compiler claim emission → runtime claim hook → router consumer.
  */
 import { claimElement, render } from "@solidjs/web";
-import { createRoot, createSignal, createMemo, getNextChildId, getOwner, Loading, Show } from "solid-js";
+import {
+  createRoot,
+  createSignal,
+  createMemo,
+  getNextChildId,
+  getOwner,
+  Loading,
+  Show
+} from "solid-js";
 import { vi } from "vitest";
 import { setupLinkClaims } from "../src/claims.js";
 import { createRouter, memoryHistory } from "../src/index.js";
-import type { Navigator } from "../src/index.js";
-import { useNavigate } from "../src/index.js";
+import type { LinkState, Navigator } from "../src/index.js";
+import { useLinkState, useNavigate } from "../src/index.js";
 import type { RouterContext } from "../src/types.js";
 
 const settle = async (ms = 0) => {
@@ -547,6 +555,162 @@ describe("compiler-claimed anchors", () => {
     );
   });
 
+  test("leaves an authored aria-current alone across navigation and morphs", async () => {
+    const div = mount();
+    let navigate!: Navigator;
+
+    const Router = createRouter({ routes, history: memoryHistory("/about") });
+    const dispose = render(
+      () => (
+        <Router>
+          {props => {
+            navigate = useNavigate();
+            return (
+              <>
+                <a data-testid="step" aria-current="step" href="/about">
+                  Step
+                </a>
+                <a data-testid="page" aria-current="page" href="/">
+                  Page
+                </a>
+                {props.children}
+              </>
+            );
+          }}
+        </Router>
+      ),
+      div
+    );
+    try {
+      const step = div.querySelector('[data-testid="step"]')!;
+      const page = div.querySelector('[data-testid="page"]')!;
+      // current, but the authored value is not overwritten
+      expect(step.getAttribute("aria-current")).toBe("step");
+      expect(step.hasAttribute("data-active")).toBe(true);
+      // not current, but an authored "page" is not the router's to remove
+      expect(page.getAttribute("aria-current")).toBe("page");
+
+      navigate("/");
+      await settle();
+      expect(step.getAttribute("aria-current")).toBe("step");
+      expect(page.getAttribute("aria-current")).toBe("page");
+
+      navigate("/about");
+      await settle();
+      expect(step.getAttribute("aria-current")).toBe("step");
+
+      // a morph restores the server HTML (authored value included, link
+      // state stripped) and re-claims
+      step.setAttribute("aria-current", "step");
+      step.removeAttribute("data-active");
+      claimElement(step);
+      expect(step.getAttribute("aria-current")).toBe("step");
+      expect(step.hasAttribute("data-active")).toBe(true);
+
+      navigate("/");
+      await settle();
+      expect(step.getAttribute("aria-current")).toBe("step");
+    } finally {
+      dispose();
+      div.remove();
+    }
+  });
+
+  test("gives up aria-current it owned once the author writes a value", async () => {
+    const div = mount();
+    let navigate!: Navigator;
+
+    const Router = createRouter({ routes, history: memoryHistory("/about") });
+    const dispose = render(
+      () => (
+        <Router>
+          {props => {
+            navigate = useNavigate();
+            return (
+              <>
+                <a data-testid="about" href="/about">
+                  About
+                </a>
+                {props.children}
+              </>
+            );
+          }}
+        </Router>
+      ),
+      div
+    );
+    try {
+      const about = div.querySelector('[data-testid="about"]')!;
+      expect(about.getAttribute("aria-current")).toBe("page");
+
+      about.setAttribute("aria-current", "step");
+
+      navigate("/");
+      await settle();
+      expect(about.getAttribute("aria-current")).toBe("step");
+
+      navigate("/about");
+      await settle();
+      expect(about.getAttribute("aria-current")).toBe("step");
+    } finally {
+      dispose();
+      div.remove();
+    }
+  });
+
+  test("reasserts its own aria-current through morphs and navigation", async () => {
+    const div = mount();
+    let navigate!: Navigator;
+
+    const Router = createRouter({ routes, history: memoryHistory("/about") });
+    const dispose = render(
+      () => (
+        <Router>
+          {props => {
+            navigate = useNavigate();
+            return (
+              <>
+                <a data-testid="about" href="/about">
+                  About
+                </a>
+                {props.children}
+              </>
+            );
+          }}
+        </Router>
+      ),
+      div
+    );
+    // server HTML never carries link state: a morph strips it all and re-claims
+    const morph = (a: Element) => {
+      a.removeAttribute("aria-current");
+      a.removeAttribute("data-active");
+      claimElement(a);
+    };
+    try {
+      const about = div.querySelector('[data-testid="about"]')!;
+      morph(about);
+      expect(about.getAttribute("aria-current")).toBe("page");
+
+      navigate("/");
+      await settle();
+      expect(about.hasAttribute("aria-current")).toBe(false);
+      morph(about);
+      expect(about.hasAttribute("aria-current")).toBe(false);
+      expect(about.hasAttribute("data-active")).toBe(false);
+
+      navigate("/about");
+      await settle();
+      expect(about.getAttribute("aria-current")).toBe("page");
+      morph(about);
+      expect(about.getAttribute("aria-current")).toBe("page");
+      expect(about.hasAttribute("data-active")).toBe(true);
+    } finally {
+      dispose();
+      div.remove();
+    }
+  });
+
   test("ignores forms and stops claiming after the router unmounts", async () => {
     const div = mount();
 
@@ -577,6 +741,180 @@ describe("compiler-claimed anchors", () => {
     } finally {
       dispose2();
       div2.remove();
+    }
+  });
+});
+
+/**
+ * Claimed anchors and `useLinkState` share one matching rule. Every scenario
+ * runs through both so they cannot drift: `current` is pathname + query
+ * (order and hash aside), `active` is pathname-only with the root exact.
+ * Anchors have no `end`, so `end` links run through `useLinkState` only.
+ */
+describe("link state parity: claimed anchors and useLinkState", () => {
+  const originalScrollTo = window.scrollTo;
+  beforeEach(() => {
+    window.scrollTo = vi.fn();
+  });
+  afterAll(() => {
+    window.scrollTo = originalScrollTo;
+  });
+
+  type Link = { href: string; end?: boolean; active: boolean; current: boolean };
+  const scenarios: { name: string; location: string; links: Link[] }[] = [
+    {
+      name: "filter links: only the matching query is current, all are active",
+      location: "/?filter=active",
+      links: [
+        { href: "/", active: true, current: false },
+        { href: "/?filter=active", active: true, current: true },
+        { href: "/?filter=completed", active: true, current: false }
+      ]
+    },
+    {
+      name: "parameter order does not matter",
+      location: "/products?b=2&a=1",
+      links: [
+        { href: "/products?a=1&b=2", active: true, current: true },
+        { href: "/products?a=1", active: true, current: false }
+      ]
+    },
+    {
+      name: "a nav link is active but not current under a query",
+      location: "/products?page=2",
+      links: [
+        { href: "/products", active: true, current: false },
+        { href: "/products?page=2#reviews", active: true, current: true }
+      ]
+    },
+    {
+      name: "the root link is exact-only",
+      location: "/about",
+      links: [
+        { href: "/", active: false, current: false },
+        { href: "/about", active: true, current: true }
+      ]
+    },
+    {
+      name: "the root link on the root",
+      location: "/",
+      links: [
+        { href: "/", active: true, current: true },
+        { href: "/about", active: false, current: false }
+      ]
+    },
+    {
+      name: "end makes active exact-path",
+      location: "/products/42",
+      links: [
+        { href: "/products", active: true, current: false },
+        { href: "/products", end: true, active: false, current: false },
+        { href: "/products/42", end: true, active: true, current: true }
+      ]
+    }
+  ];
+
+  const allLinks = scenarios.flatMap(s => s.links);
+  const key = (link: Link) => `${link.href}|${link.end ? "end" : ""}`;
+  const uniqueLinks = [...new Map(allLinks.map(link => [key(link), link])).values()];
+
+  const mountAll = (location: string) => {
+    const div = mount();
+    let navigate!: Navigator;
+    const states = new Map<string, LinkState>();
+    const Router = createRouter({
+      routes: [{ path: "*all", component: () => <div data-route="page" /> }] as const,
+      history: memoryHistory(location)
+    });
+    const dispose = render(
+      () => (
+        <Router>
+          {props => {
+            navigate = useNavigate();
+            for (const link of uniqueLinks)
+              states.set(
+                key(link),
+                useLinkState(() => link.href, { end: link.end })
+              );
+            return (
+              <>
+                {uniqueLinks
+                  .filter(link => !link.end)
+                  .map(link => (
+                    <a data-key={key(link)} href={link.href} />
+                  ))}
+                {props.children}
+              </>
+            );
+          }}
+        </Router>
+      ),
+      div
+    );
+    const check = (scenario: (typeof scenarios)[number]) => {
+      for (const link of scenario.links) {
+        // the label rides along so a failure names the link and location
+        const expected = (via: string) => ({
+          via: `${via} ${key(link)} on ${scenario.location}`,
+          active: link.active,
+          current: link.current
+        });
+        const state = states.get(key(link))!;
+        expect({
+          via: `useLinkState ${key(link)} on ${scenario.location}`,
+          active: state.active(),
+          current: state.current()
+        }).toEqual(expected("useLinkState"));
+        if (link.end) continue;
+        const a = div.querySelector(`[data-key="${key(link)}"]`)!;
+        expect({
+          via: `anchor ${key(link)} on ${scenario.location}`,
+          active: a.hasAttribute("data-active"),
+          current: a.getAttribute("aria-current") === "page"
+        }).toEqual(expected("anchor"));
+      }
+    };
+    return {
+      check,
+      navigate: (to: string) => navigate(to),
+      cleanup: () => {
+        dispose();
+        div.remove();
+      }
+    };
+  };
+
+  test.each(scenarios)("$name (at creation)", scenario => {
+    const { check, cleanup } = mountAll(scenario.location);
+    try {
+      check(scenario);
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("every scenario after navigating, query-only changes included", async () => {
+    const { check, navigate, cleanup } = mountAll("/elsewhere");
+    try {
+      for (const scenario of [...scenarios, ...scenarios.slice(0, 1)]) {
+        navigate(scenario.location);
+        await settle();
+        check(scenario);
+      }
+      // query-only moves between the filter links
+      navigate("/?filter=completed");
+      await settle();
+      check({
+        name: "",
+        location: "/?filter=completed",
+        links: [
+          { href: "/", active: true, current: false },
+          { href: "/?filter=active", active: true, current: false },
+          { href: "/?filter=completed", active: true, current: true }
+        ]
+      });
+    } finally {
+      cleanup();
     }
   });
 });

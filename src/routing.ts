@@ -47,10 +47,10 @@ import type {
 } from "./types.js";
 import {
   mockBase,
-  comparablePath,
   createMemoObject,
   extractSearchParams,
   invariant,
+  matchLink,
   normalizePath,
   resolvePath,
   createMatcher,
@@ -362,9 +362,16 @@ export function useSearchParams(
 }
 
 export interface LinkState {
-  /** The location matches this link or lives under it (exact-only when `end`). Styling: `data-active`. */
+  /**
+   * The location's pathname matches this link's or lives under it; the query
+   * is ignored. A root link (`/`) is exact-only, as is every link with `end`.
+   * Styling: `data-active`.
+   */
   active: () => boolean;
-  /** The location matches this link exactly — what `aria-current="page"` reflects. */
+  /**
+   * The location matches this link exactly: same pathname and same query,
+   * parameter order and hash aside — what `aria-current="page"` reflects.
+   */
   current: () => boolean;
   /** This link is the target of an in-flight navigation. Styling: `data-pending`. */
   pending: () => boolean;
@@ -395,21 +402,10 @@ export const useLinkState = (
   const router = useRouter();
   const location = router.location;
   const to = useResolvedPath(() => String(href()));
-  // trailing slashes are ignored so `/route` and `/route/` share state
-  const path = createMemo(() => {
-    const to_ = to();
-    return to_ === undefined ? undefined : comparablePath(to_);
-  });
-  const matches = (loc: string) => {
-    const path_ = path();
-    if (path_ === undefined) return [false, false] as const;
-    const exact = loc === path_;
-    return [exact || (!options.end && loc.startsWith(path_ + "/")), exact] as const;
-  };
-  const state = createMemo(() => matches(decodeURI(comparablePath(location.pathname))));
+  const state = createMemo(() => matchLink(location, to(), options.end));
   return {
-    active: () => state()[0],
-    current: () => state()[1],
+    active: createMemo(() => state().active),
+    current: createMemo(() => state().current),
     // match the in-flight target explicitly (rather than active-while-routing)
     // so the answer is the same from pure reads and from effects, which
     // observe the committed location during a transition
@@ -418,7 +414,7 @@ export const useLinkState = (
       return (
         router.isRouting() &&
         !!router.pendingTarget &&
-        matches(decodeURI(comparablePath(router.pendingTarget.value)))[0]
+        matchLink({ pathname: router.pendingTarget.value, search: "" }, to(), options.end).active
       );
     })
   };
