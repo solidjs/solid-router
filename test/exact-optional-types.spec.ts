@@ -31,5 +31,6 @@ describe("route definitions under exactOptionalPropertyTypes", () => {
     });
 
     expect(diagnostics).toEqual([]);
-  });
+    // building a full program takes seconds, more under full-suite load
+  }, 30_000);
 });

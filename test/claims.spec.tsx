@@ -260,10 +260,12 @@ describe("compiler-claimed anchors", () => {
   test("flags the navigation target with data-pending while routing", async () => {
     const div = mount();
     let navigate!: Navigator;
+    let release!: () => void;
+    const loaded = new Promise<void>(resolve => (release = resolve));
 
     const SlowAbout = () => {
       const data = createMemo(async () => {
-        await new Promise(resolve => setTimeout(resolve, 25));
+        await loaded;
         return "About";
       });
       return <div data-route="about">{data()}</div>;
@@ -306,9 +308,13 @@ describe("compiler-claimed anchors", () => {
       expect(about.hasAttribute("data-pending")).toBe(true);
       expect(about.hasAttribute("data-active")).toBe(false);
 
-      await settle(50);
+      // still held open until the route's data resolves
+      await settle(10);
+      expect(about.hasAttribute("data-pending")).toBe(true);
+      expect(about.hasAttribute("data-active")).toBe(false);
 
-      expect(about.hasAttribute("data-pending")).toBe(false);
+      release();
+      await vi.waitFor(() => expect(about.hasAttribute("data-pending")).toBe(false));
       expect(about.hasAttribute("data-active")).toBe(true);
       expect(about.getAttribute("aria-current")).toBe("page");
     } finally {
