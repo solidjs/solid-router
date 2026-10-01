@@ -5,8 +5,7 @@
 // A decode cached on the instance restarted with every new router, so the
 // seeding read never settled and the stream retried forever.
 import { Errored, Loading } from "solid-js";
-import type { JSX } from "solid-js";
-import { createRequestEvent, renderToStream } from "@solidjs/web";
+import { createRequestEvent, renderToStream, type JSX } from "@solidjs/web";
 import { provideRequestEvent } from "@solidjs/web/storage";
 import { decodeFlashCookie, encodeFlashCookie } from "@solidjs/web/server-functions/server";
 import { action, useSubmissions } from "../../src/data/action.js";
