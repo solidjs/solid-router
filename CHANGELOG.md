@@ -1,5 +1,13 @@
 # @solidjs/router
 
+## 2.0.0-next.34
+
+### Patch Changes
+
+- 9ba0fca: A chained `.with()` (`action.with(a).with(b)`) now puts every bound argument in its url (`?args=[a,b]`). Previously the url carried only the last call's arguments, so a server-rendered or no-JavaScript submission ran with arguments missing, and two chains ending in the same argument shared one url and overwrote each other's client registration.
+- a6a2cee: The flash cookie is now detected, cleared and decoded once per request rather than once per router instance. A server render can re-create the router while it retries a suspension — a `useSubmissions` read under `<Errored>`, inside a document shell, retries from above the router — and each new router restarted the decode, so the render never settled and the stream retried until the process ran out of memory. Each re-created router also appended another `Set-Cookie` clear.
+- 9ba0fca: A form rendered with `action.with(...args)` on the server now submits through the registered action on the client, so its `onSubmit` and `onSettled` hooks run with the bound arguments and `useSubmissions(action)` sees the outcome. Previously the rendered `?args` url missed the registry and fell back to a generic invocation (server actions) or native submission (client actions).
+
 ## 2.0.0-next.33
 
 ### Patch Changes
