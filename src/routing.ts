@@ -779,6 +779,23 @@ export function provideFlashDecoder(decoder: FlashDecoder): void {
   flashDecoder || (flashDecoder = decoder);
 }
 
+/**
+ * A request's flash cookie and its decode, shared by every router created
+ * for that request. A server render can re-create the router — a suspension
+ * under `<Errored>` retries from the nearest hole above it, which may sit
+ * above the router — so state kept on one router instance would restart the
+ * decode with every re-creation and the seeding read would never settle.
+ * Keyed by the request event, so it lives exactly as long as the request.
+ */
+type FlashState = {
+  cookieHeader: string | null;
+  decode?:
+    | { done: true; value: FlashSubmission | undefined }
+    | { done: false; promise: Promise<void> };
+};
+
+const flashStates = new WeakMap<object, FlashState>();
+
 let preloadIntent: Intent | undefined;
 export function getIntent() {
   return preloadIntent || useOptionalContext(RouterContextObj)?.intent?.();
@@ -826,38 +843,37 @@ export function createRouterContext(
   // unread outcome must not haunt a later request's render. Only detection
   // and clearing happen here (the runtime's isomorphic half); the raw header
   // is stashed and decoding waits for the action-provided codec, read when
-  // the lazily allocated submissions signal below first initializes.
-  let flashCookieHeader: string | null | undefined;
+  // the lazily allocated submissions signal below first initializes. Both
+  // happen once per request: a router re-created for the same request finds
+  // the request's flash state (see `flashStates`) and neither clears again
+  // nor decodes again.
+  let flash: FlashState | undefined;
   if (isServer) {
     const e = getRequestEvent();
     if (e && !(e.router && e.router.submission)) {
-      const cookieHeader = e.request.headers.get("cookie");
-      if (hasFlashCookie(cookieHeader)) {
-        flashCookieHeader = cookieHeader;
-        // one-shot: clear it even when unreadable so it can't haunt later renders
-        if (e.response && e.response.headers)
-          e.response.headers.append("Set-Cookie", clearFlashCookie());
+      flash = flashStates.get(e);
+      if (!flash) {
+        const cookieHeader = e.request.headers.get("cookie");
+        if (hasFlashCookie(cookieHeader)) {
+          flashStates.set(e, (flash = { cookieHeader }));
+          // one-shot: clear it even when unreadable so it can't haunt later renders
+          if (e.response && e.response.headers)
+            e.response.headers.append("Set-Cookie", clearFlashCookie());
+        }
       }
     }
   }
 
-  // The decode, at most once per request: the decoder may answer with a
-  // Promise (the cookie is encrypted; the runtime's decodeFlashCookie is
-  // async), and this cache is what keeps the parked read's rerun from
-  // restarting it — resumption finds the settled outcome and just reads it.
-  // A decoder that rejects reads as "no flash", matching the runtime's own
-  // malformed-cookie semantics.
-  let flashDecode:
-    | { done: true; value: FlashSubmission | undefined }
-    | { done: false; promise: Promise<void> }
-    | undefined;
-
   // The seeding read, as a memo: NotReadyError must surface from a reactive
   // node the graph can park and retry — never from router setup, which no
-  // boundary guards — and the memo bounds the recompute to this function;
-  // a parked reader resumes into the settled cache above, never a second
-  // decode. Created only when a flash cookie actually arrived (server-only
-  // by construction: flashCookieHeader is only ever set there), and
+  // boundary guards — and the memo bounds the recompute to this function.
+  // The decode runs at most once per request: the decoder may answer with a
+  // Promise (the cookie is encrypted; the runtime's decodeFlashCookie is
+  // async), and the request's cached state is what keeps a parked read's
+  // rerun — or a re-created router's first read — from restarting it. A
+  // decoder that rejects reads as "no flash", matching the runtime's own
+  // malformed-cookie semantics. Created only when a flash cookie actually
+  // arrived (server-only by construction: `flash` is only ever set there), and
   //   - `lazy`: server memos compute eagerly by default — deferred to first
   //     read, a request whose submissions are never read never decodes;
   //   - `transparent`: the memo exists on the server only, so its owner
@@ -865,25 +881,26 @@ export function createRouterContext(
   //     submissions as [] without ever creating this memo, would miss it
   //     and every sibling id would shift.
   const flashSubmission =
-    flashCookieHeader !== undefined
+    flash !== undefined
       ? createMemo<FlashSubmission | undefined>(
           () => {
+            const state = flash!;
             if (!flashDecoder) return undefined;
-            if (!flashDecode) {
-              const promise = flashDecoder(flashCookieHeader!).then(
+            if (!state.decode) {
+              const promise = flashDecoder(state.cookieHeader).then(
                 value => {
-                  flashDecode = { done: true, value };
+                  state.decode = { done: true, value };
                 },
                 () => {
-                  flashDecode = { done: true, value: undefined };
+                  state.decode = { done: true, value: undefined };
                 }
               );
-              flashDecode = { done: false, promise };
+              state.decode = { done: false, promise };
             }
             // SSR carries the Promise through NotReadyError so the parked
             // reader can resume, exactly like the lazy matches above.
-            if (!flashDecode.done) throw new NotReadyError(flashDecode.promise);
-            return flashDecode.value;
+            if (!state.decode.done) throw new NotReadyError(state.decode.promise);
+            return state.decode.value;
           },
           { lazy: true, transparent: true }
         )
