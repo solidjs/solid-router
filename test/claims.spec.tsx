@@ -761,7 +761,10 @@ describe("link state parity: claimed anchors and useLinkState", () => {
   });
 
   type Link = { href: string; end?: boolean; active: boolean; current: boolean };
-  const scenarios: { name: string; location: string; links: Link[] }[] = [
+  // `href` and `location` are full URL paths; under a `base`, useLinkState
+  // and navigate get the base-relative path, as an app would write them
+  type Scenario = { name: string; base?: string; location: string; links: Link[] };
+  const scenarios: Scenario[] = [
     {
       name: "filter links: only the matching query is current, all are active",
       location: "/?filter=active",
@@ -811,19 +814,93 @@ describe("link state parity: claimed anchors and useLinkState", () => {
         { href: "/products", end: true, active: false, current: false },
         { href: "/products/42", end: true, active: true, current: true }
       ]
+    },
+    {
+      name: "a non-ASCII link matches the encoded location",
+      location: "/café",
+      links: [
+        { href: "/café", active: true, current: true },
+        { href: "/caf%C3%A9", active: true, current: true },
+        { href: "/café/menu", active: false, current: false }
+      ]
+    },
+    {
+      name: "a non-ASCII link is active on its children",
+      location: "/café/menu",
+      links: [
+        { href: "/café", active: true, current: false },
+        { href: "/caf%C3%A9", active: true, current: false },
+        { href: "/café/menu", active: true, current: true }
+      ]
+    },
+    {
+      name: "an encoded slash is not a path separator",
+      location: "/a%2Fb",
+      links: [
+        { href: "/a", active: false, current: false },
+        { href: "/a/b", active: false, current: false },
+        { href: "/a%2Fb", active: true, current: true }
+      ]
+    },
+    {
+      name: "a link with an encoded slash only matches its own path",
+      location: "/a/b",
+      links: [
+        { href: "/a", active: true, current: false },
+        { href: "/a/b", active: true, current: true },
+        { href: "/a%2Fb", active: false, current: false }
+      ]
+    },
+    {
+      name: "a stray percent sign is compared, not decoded",
+      location: "/100%",
+      links: [{ href: "/100%", active: true, current: true }]
+    },
+    {
+      name: "the base root link on the base root",
+      base: "/app",
+      location: "/app",
+      links: [
+        { href: "/app", active: true, current: true },
+        { href: "/app/", active: true, current: true },
+        { href: "/app/about", active: false, current: false }
+      ]
+    },
+    {
+      name: "the base root link is exact-only",
+      base: "/app",
+      location: "/app/about",
+      links: [
+        { href: "/app", active: false, current: false },
+        { href: "/app/", active: false, current: false },
+        { href: "/app/about", active: true, current: true }
+      ]
+    },
+    {
+      name: "links under the base match by prefix",
+      base: "/app",
+      location: "/app/about/team",
+      links: [
+        { href: "/app", active: false, current: false },
+        { href: "/app/about", active: true, current: false }
+      ]
     }
   ];
 
-  const allLinks = scenarios.flatMap(s => s.links);
   const key = (link: Link) => `${link.href}|${link.end ? "end" : ""}`;
-  const uniqueLinks = [...new Map(allLinks.map(link => [key(link), link])).values()];
+  const relative = (base: string, path: string) => path.slice(base.length) || "/";
+  const bases = [...new Set(scenarios.map(s => s.base ?? ""))];
+  const scenariosUnder = (base: string) => scenarios.filter(s => (s.base ?? "") === base);
 
-  const mountAll = (location: string) => {
+  const mountAll = (location: string, base = "") => {
+    const allLinks = scenariosUnder(base).flatMap(s => s.links);
+    const uniqueLinks = [...new Map(allLinks.map(link => [key(link), link])).values()];
     const div = mount();
     let navigate!: Navigator;
     const states = new Map<string, LinkState>();
     const Router = createRouter({
       routes: [{ path: "*all", component: () => <div data-route="page" /> }] as const,
+      ...(base ? { base } : {}),
       history: memoryHistory(location)
     });
     const dispose = render(
@@ -834,7 +911,7 @@ describe("link state parity: claimed anchors and useLinkState", () => {
             for (const link of uniqueLinks)
               states.set(
                 key(link),
-                useLinkState(() => link.href, { end: link.end })
+                useLinkState(() => relative(base, link.href), { end: link.end })
               );
             return (
               <>
@@ -851,7 +928,7 @@ describe("link state parity: claimed anchors and useLinkState", () => {
       ),
       div
     );
-    const check = (scenario: (typeof scenarios)[number]) => {
+    const check = (scenario: Scenario) => {
       for (const link of scenario.links) {
         // the label rides along so a failure names the link and location
         const expected = (via: string) => ({
@@ -876,7 +953,7 @@ describe("link state parity: claimed anchors and useLinkState", () => {
     };
     return {
       check,
-      navigate: (to: string) => navigate(to),
+      navigate: (to: string) => navigate(relative(base, to)),
       cleanup: () => {
         dispose();
         div.remove();
@@ -885,9 +962,23 @@ describe("link state parity: claimed anchors and useLinkState", () => {
   };
 
   test.each(scenarios)("$name (at creation)", scenario => {
-    const { check, cleanup } = mountAll(scenario.location);
+    const { check, cleanup } = mountAll(scenario.location, scenario.base);
     try {
       check(scenario);
+    } finally {
+      cleanup();
+    }
+  });
+
+  test.each(bases.filter(Boolean))("every scenario under base %s after navigating", async base => {
+    const { check, navigate, cleanup } = mountAll(base + "/elsewhere", base);
+    try {
+      const under = scenariosUnder(base);
+      for (const scenario of [...under, ...under.slice(0, 1)]) {
+        navigate(scenario.location);
+        await settle();
+        check(scenario);
+      }
     } finally {
       cleanup();
     }
@@ -896,7 +987,8 @@ describe("link state parity: claimed anchors and useLinkState", () => {
   test("every scenario after navigating, query-only changes included", async () => {
     const { check, navigate, cleanup } = mountAll("/elsewhere");
     try {
-      for (const scenario of [...scenarios, ...scenarios.slice(0, 1)]) {
+      const under = scenariosUnder("");
+      for (const scenario of [...under, ...under.slice(0, 1)]) {
         navigate(scenario.location);
         await settle();
         check(scenario);

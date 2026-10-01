@@ -11,7 +11,8 @@ import { matchLink } from "./utils.js";
  *
  * - `aria-current="page"` — the location matches the link exactly, query
  *   included (parameter order aside)
- * - `data-active` — pathname exact or prefix match (the root exact only)
+ * - `data-active` — pathname exact or prefix match (the router's root, its
+ *   base path, exact only)
  * - `data-pending` — the link is the target of an in-flight navigation
  *
  * The matching rule is `matchLink`, shared with `useLinkState`. The router
@@ -72,14 +73,14 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
     const url = managedUrl(a);
     const target = url && url.pathname + url.search;
     // no per-anchor `end` opt-out like useLinkState has
-    const { active, current } = matchLink(location, target);
+    const { active, current } = matchLink(location, target, basePath);
     // effects observe the committed location during a transition, so the
     // in-flight target comes from pendingTarget — readable here because the
     // isRouting write flushes after the target is assigned
     const pending =
       routing &&
       !!router.pendingTarget &&
-      matchLink({ pathname: router.pendingTarget.value, search: "" }, target).active;
+      matchLink({ pathname: router.pendingTarget.value, search: "" }, target, basePath).active;
     return { active, pending, current };
   }
 

@@ -364,7 +364,8 @@ export function useSearchParams(
 export interface LinkState {
   /**
    * The location's pathname matches this link's or lives under it; the query
-   * is ignored. A root link (`/`) is exact-only, as is every link with `end`.
+   * is ignored. A link to the router's root (`/`, under the router's `base`)
+   * is exact-only, as is every link with `end`.
    * Styling: `data-active`.
    */
   active: () => boolean;
@@ -402,7 +403,8 @@ export const useLinkState = (
   const router = useRouter();
   const location = router.location;
   const to = useResolvedPath(() => String(href()));
-  const state = createMemo(() => matchLink(location, to(), options.end));
+  const base = router.base.path();
+  const state = createMemo(() => matchLink(location, to(), base, options.end));
   return {
     active: createMemo(() => state().active),
     current: createMemo(() => state().current),
@@ -414,7 +416,8 @@ export const useLinkState = (
       return (
         router.isRouting() &&
         !!router.pendingTarget &&
-        matchLink({ pathname: router.pendingTarget.value, search: "" }, to(), options.end).active
+        matchLink({ pathname: router.pendingTarget.value, search: "" }, to(), base, options.end)
+          .active
       );
     })
   };

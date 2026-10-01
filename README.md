@@ -534,7 +534,7 @@ a[data-pending] {
 One rule decides both, for anchors and `useLinkState` alike:
 
 - **current** (`aria-current="page"`) — same path and same query, ignoring parameter order and the hash. On `/?filter=active`, `<a href="/?filter=active">` is current and `<a href="/">` is not.
-- **active** (`data-active`, and `data-pending` for the in-flight target) — the path only, exact or prefix, so both of those links are active there. The root path only ever matches exactly, so `href={paths()}` doesn't light up on every page.
+- **active** (`data-active`, and `data-pending` for the in-flight target) — the path only, exact or prefix, so both of those links are active there. The root path (the router's `base`, when it has one) only ever matches exactly, so `href={paths()}` doesn't light up on every page.
 
 An `aria-current` you write yourself (`aria-current="step"` in a stepper, say) is yours: the router never overwrites or removes it, and only manages the attribute on links where it set it.
 
@@ -902,7 +902,7 @@ preload(paths.users(2).settings, { preloadData: true });
 Reactive `active`/`current`/`pending` state for [custom link components](#links), matched by the same rule as plain anchors:
 
 - `current()` — same path and same query as the location, ignoring parameter order and the hash (what `aria-current="page"` reflects)
-- `active()` — the location's path is the link's path or lives under it, query ignored (`data-active`); a root link (`/`) is exact-only
+- `active()` — the location's path is the link's path or lives under it, query ignored (`data-active`); a root link (`/`, which resolves to the router's `base`) is exact-only
 - `pending()` — the link's path is the target of an in-flight navigation (`data-pending`)
 
 Pass `{ end: true }` to make `active` (and `pending`) exact-path for any link.
