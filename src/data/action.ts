@@ -386,12 +386,15 @@ function toAction<T extends Array<any>, U, V = T>(
     this: InternalAction<[...A, ...B], U, V>,
     ...args: A
   ) {
+    const bound = [...boundArgs, ...args];
     const uri = new URL(url, mockBase);
-    uri.searchParams.set("args", hashKey(args));
+    // the server prepends `args` to the submitted arguments, so it must carry
+    // the whole binding, not just this call's part of a chain
+    uri.searchParams.set("args", hashKey(bound));
     return toAction<B, U, V>(
       invoke,
       (uri.origin === "https://action" ? uri.origin : "") + uri.pathname + uri.search,
-      [...boundArgs, ...args],
+      bound,
       base,
       submitHooks,
       settledHooks

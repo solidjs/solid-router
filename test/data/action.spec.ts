@@ -139,6 +139,18 @@ describe("action", () => {
     expect(curriedAction.url).toMatch(/with-test\?args=/);
   });
 
+  test("a chained `.with` url carries every bound argument", () => {
+    const move = action(async (from: string, to: string, data: string) => data, "chained-with");
+    const fromA = move.with("a").with("x");
+    const fromB = move.with("b").with("x");
+
+    expect(new URL(fromA.url, "http://localhost").searchParams.get("args")).toBe('["a","x"]');
+    // same last argument, different binding: the urls (and registrations) must differ
+    expect(fromA.url).not.toBe(fromB.url);
+    expect(actions.get(fromA.url)).toBe(fromA);
+    expect(fromA.url).toBe(move.with("a", "x").url);
+  });
+
   // actions are invoked outside `createRoot` — as of Solid 2.0.0-beta.18 calling an
   // action inside an owned scope throws ACTION_CALLED_IN_OWNED_SCOPE in dev
   test("should execute action and create submission", async () => {
