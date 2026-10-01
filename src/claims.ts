@@ -3,13 +3,21 @@ import { createRenderEffect, getOwner, onCleanup, untrack } from "solid-js";
 import type { RouterContext } from "./types.js";
 import { comparablePath } from "./utils.js";
 
+/** A query string as an order-independent comparable string. */
+const comparableQuery = (search: string) => {
+  const params = new URLSearchParams(search);
+  params.sort();
+  return params.toString();
+};
+
 /**
  * The compiler claims every `a[href]` (and `form[action]`, which this handler
- * ignores) at creation, and the runtime re-claims on `href` writes. This
- * consumer gives each router-managed anchor the link-state vocabulary without
- * a wrapper component:
+ * ignores) at creation, and the runtime re-claims on `href` writes and after
+ * a server-component morph changes the element. This consumer gives each router-managed anchor the link-state
+ * vocabulary without a wrapper component:
  *
- * - `aria-current="page"` — the location matches the link exactly
+ * - `aria-current="page"` — the location matches the link exactly, query
+ *   included (parameter order aside)
  * - `data-active` — exact or prefix match
  * - `data-pending` — the link is the target of an in-flight navigation
  *
@@ -33,8 +41,8 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
     return el.namespaceURI === "http://www.w3.org/2000/svg";
   }
 
-  /** The comparable pathname when the router manages this anchor, else `undefined`. */
-  function managedPath(a: HTMLAnchorElement | SVGAElement): string | undefined {
+  /** The anchor's resolved URL when the router manages it, else `undefined`. */
+  function managedUrl(a: HTMLAnchorElement | SVGAElement): URL | undefined {
     if (explicitLinks && !a.hasAttribute("link")) return;
     const svg = isSvg(a);
     // claims fire at creation while the element is still in the template's
@@ -56,15 +64,17 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
       (basePath && url.pathname && !url.pathname.toLowerCase().startsWith(basePath.toLowerCase()))
     )
       return;
-    return comparablePath(url.pathname);
+    return url;
   }
 
   function linkState(a: HTMLAnchorElement | SVGAElement) {
     // read reactive sources unconditionally so the owning effect stays
     // subscribed even while the anchor is not router-managed
     const loc = decodeURI(comparablePath(router.location.pathname));
+    const query = comparableQuery(router.location.search);
     const routing = router.isRouting();
-    const path = managedPath(a);
+    const url = managedUrl(a);
+    const path = url && comparablePath(url.pathname);
     // the root path is a prefix of everything, so it only matches exactly —
     // there is no per-anchor `end` opt-out like useLinkState has
     const matches = (target: string) =>
@@ -74,7 +84,13 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
     // isRouting write flushes after the target is assigned
     const pending =
       routing && !!router.pendingTarget && matches(decodeURI(comparablePath(router.pendingTarget.value)));
-    return { active: matches(loc), pending, exact: path !== undefined && loc === path };
+    // `aria-current="page"` is the page itself, query included: `/` is not
+    // current on `/?filter=active`. Active and pending stay pathname matches.
+    return {
+      active: matches(loc),
+      pending,
+      exact: path !== undefined && loc === path && query === comparableQuery(url!.search)
+    };
   }
 
   function apply(
@@ -84,9 +100,14 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
   ) {
     active ? a.setAttribute("data-active", "") : a.removeAttribute("data-active");
     pending ? a.setAttribute("data-pending", "") : a.removeAttribute("data-pending");
-    if (exact !== rec.current) {
-      exact ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current");
-      rec.current = exact;
+    // checked against the DOM, not just the record: a server-component morph
+    // strips what we set and re-claims, and the record alone would skip it
+    if (exact) {
+      if (a.getAttribute("aria-current") !== "page") a.setAttribute("aria-current", "page");
+      rec.current = true;
+    } else if (rec.current) {
+      a.removeAttribute("aria-current");
+      rec.current = false;
     }
   }
 
@@ -105,7 +126,7 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
   // unclaimed. (The option is honored by the runtime but missing from the
   // published EffectOptions type, hence the cast.)
   createRenderEffect(
-    () => (router.location.pathname, router.isRouting()),
+    () => (router.location.pathname, router.location.search, router.isRouting()),
     () => registry.forEach(a => refresh(a, claimed.get(a)!)),
     { transparent: true } as {}
   );

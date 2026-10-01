@@ -522,16 +522,18 @@ Active and pending state is styled with CSS — one vocabulary for every kind of
 ```css
 nav a[aria-current="page"] {
   font-weight: 600;
-} /* exact match */
+} /* exact match, query included */
 nav a[data-active] {
   color: var(--accent);
-} /* exact or prefix match */
+} /* exact or prefix match on the path */
 a[data-pending] {
   opacity: 0.6;
 } /* target of in-flight navigation */
 ```
 
 (The root path only ever matches exactly, so `href={paths()}` doesn't light up on every page.)
+
+`aria-current="page"` compares the query too, ignoring parameter order: on `/?filter=active`, `<a href="/?filter=active">` is current and `<a href="/">` is not. `data-active` and `data-pending` compare the path only, so both links are active there.
 
 For component-library links that need reactive state beyond CSS, `useLinkState` is the programmatic counterpart of the attribute vocabulary:
 

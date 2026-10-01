@@ -22,28 +22,21 @@ needs wiring; the plugin only reclaims bytes it can prove are dead.
 Cost of adopting: a define name shared between the plugin and the router —
 mint it when the plugin lands, not speculatively.
 
-## Claims for server-component-rendered elements
+## Link state in server-rendered HTML
 
-Element claims are emitted by the compiler in client template output and
-re-fired by the runtime on attribute writes — which is exactly why they never
-fire for elements that arrive through server-component rendering: that HTML
-is materialized from the flight payload, not from compiled client templates.
+The frames runtime claims every `a[href]` / `form[action]` it materializes
+from server-component content, and re-claims an element after a morph changes
+its attributes — so link state (`src/claims.ts`) is applied to
+server-component markup, and reapplied when a response's morph strips it.
+`aria-busy` on forms is not yet: it is stripped by a morph mid-flight, and its
+release runs before the action's transition commits (#649).
 
-What this means today:
-
-- **Behavior works**: navigation, hover preload, and form submission in
-  server components all ride document-level delegation, which doesn't care
-  where an element came from.
-- **Per-element state doesn't**: `aria-current` / `data-active` /
-  `data-pending` on anchors (and `aria-busy` on forms) are applied by the
-  claims consumer (`src/claims.ts`), so anchors rendered by server
-  components don't get live link state.
-
-Closing the gap needs a claim (or equivalent registration) fired when the
-server-component renderer materializes a claimable element — a platform hook
-in the flight/hydration runtime, not a router-side change; the router's
-consumer already handles late claims correctly (late mounts via `<Show>`,
-portals). Design belongs with dom-expressions' server-component work.
+What remains is the first paint: claims are client-only, so the server's HTML
+carries no `aria-current` / `data-active`, and a page without JavaScript never
+gets them. Rendering them on the server needs an SSR-side claim (a hook the
+server runtime calls for claimable elements, letting a consumer add
+attributes) — a platform hook in `@solidjs/web`, with a cost on every
+server-rendered anchor, so it wants a design of its own.
 
 ## Changeable route subtrees
 
