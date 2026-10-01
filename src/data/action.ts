@@ -113,7 +113,7 @@ export function handleFormAction(evt: SubmitEvent, router: RouterContext, action
   // stays a no-JS fallback.
   // Client-only actions (`https://action/`) are their module's JS by
   // definition, so a miss there falls through to native submission.
-  const handler = actions.get(actionRef) || (serverAction && createServerFormAction(actionRef));
+  const handler = findAction(actionRef) || (serverAction && createServerFormAction(actionRef));
   if (handler) {
     evt.preventDefault();
     const data = new FormData(form, evt.submitter);
@@ -122,6 +122,30 @@ export function handleFormAction(evt: SubmitEvent, router: RouterContext, action
       form.enctype === "multipart/form-data" ? data : new URLSearchParams(data as any)
     );
   }
+}
+
+/**
+ * Looks a rendered action url up in the registry. A server-rendered
+ * `.with()` url is only registered if this client made the same binding
+ * itself; otherwise its base action (the url without `?args`) is rebound to
+ * the rendered arguments, so the submission runs through that action's
+ * submit and settled hooks and is recorded under its base.
+ */
+function findAction(url: string): Action<any, any> | undefined {
+  const handler = actions.get(url);
+  if (handler) return handler;
+  const query = url.indexOf("?");
+  if (query < 0) return undefined;
+  const base = actions.get(url.slice(0, query));
+  const args = new URLSearchParams(url.slice(query)).get("args");
+  if (!base || args === null) return undefined;
+  let bound: unknown;
+  try {
+    bound = JSON.parse(args);
+  } catch {
+    return undefined;
+  }
+  return Array.isArray(bound) ? base.with(...bound) : undefined;
 }
 
 /**
@@ -171,7 +195,7 @@ export function submitServerForm(
   form: HTMLFormElement,
   data: FormData
 ) {
-  const handler = actions.get(url) || createServerFormAction(url);
+  const handler = findAction(url) || createServerFormAction(url);
   // not an address (`<endpoint>/<id>`) — not the server function convention;
   // nothing can run it, resubmit natively (submit() bypasses the delegated
   // handler)
