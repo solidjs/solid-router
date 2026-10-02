@@ -9,7 +9,8 @@
  * URL, so a morph that strips the attribute or a re-render that replaces the
  * form element gets it back on (re-)claim.
  */
-import { action, createMemo, createSignal, For, Loading, Show } from "solid-js";
+import { action, createMemo, createRoot, createSignal, For, Loading, Show } from "solid-js";
+import { vi } from "vitest";
 import { claimElement, redirect, render } from "@solidjs/web";
 import {
   action as routerAction,
@@ -17,6 +18,7 @@ import {
   memoryHistory,
   query,
   useAction,
+  useNavigate,
   useSubmissions
 } from "../src/index.js";
 import type { Submission } from "../src/index.js";
@@ -126,6 +128,7 @@ function setup(
   };
   fixtures.push(dispose);
   return {
+    add,
     log,
     settled,
     root,
@@ -321,6 +324,93 @@ describe("#649 router actions release at the transition's commit", () => {
     t.dispose();
   });
 
+  test("a hook registered after the body finished doesn't run for that submission", async () => {
+    const t = setup();
+    await until(() => t.rows() === 1);
+    t.holdRefetch();
+    t.form().requestSubmit();
+    await t.mutationStarted();
+    t.mutation().resolve("first");
+    await wait(30);
+    expect(t.log).toEqual([]);
+
+    // body finished, commit held: a hook registered now is too late for it
+    const late: unknown[] = [];
+    const disposeLate = createRoot(dispose => {
+      t.add.onSettled(s => void late.push(s.result));
+      return dispose;
+    });
+    try {
+      t.releaseRefetch();
+      await until(() => t.settled.length === 1);
+      await wait(20);
+      expect(late).toEqual([]);
+
+      // ...but it is live for the next one
+      t.form().requestSubmit();
+      await t.mutationStarted(2);
+      t.mutation(1).resolve("second");
+      await until(() => t.settled.length === 2);
+      expect(late).toEqual(["second"]);
+    } finally {
+      disposeLate();
+    }
+  });
+
+  test("a hook whose owner unmounted before the submit doesn't run", async () => {
+    const t = setup();
+    await until(() => t.rows() === 1);
+    const gone: unknown[] = [];
+    createRoot(dispose => {
+      t.add.onSettled(s => void gone.push(s.result));
+      dispose();
+    });
+    t.form().requestSubmit();
+    await t.mutationStarted();
+    t.mutation().resolve("ok");
+    await until(() => t.settled.length === 1);
+    await wait(20);
+    expect(gone).toEqual([]);
+  });
+
+  test("a throwing settled hook is reported and the hooks after it still run", async () => {
+    const t = setup();
+    await until(() => t.rows() === 1);
+    const after: unknown[] = [];
+    const disposeHooks = createRoot(dispose => {
+      t.add.onSettled(() => {
+        throw new Error("hook threw");
+      });
+      t.add.onSettled(s => void after.push(s.result));
+      return dispose;
+    });
+    // the error is rethrown on its own microtask; catch it there
+    const reported: unknown[] = [];
+    const original = globalThis.queueMicrotask;
+    const spy = vi.spyOn(globalThis, "queueMicrotask").mockImplementation(callback =>
+      original(() => {
+        try {
+          callback();
+        } catch (e) {
+          reported.push(e);
+        }
+      })
+    );
+    try {
+      t.form().requestSubmit();
+      await t.mutationStarted();
+      t.mutation().resolve("ok");
+      await until(() => after.length > 0);
+      await until(() => reported.length > 0);
+      expect(after).toEqual(["ok"]);
+      expect(t.log).toEqual(["settled result=ok rows=2"]);
+      expect((reported[0] as Error).message).toBe("hook threw");
+    } finally {
+      spy.mockRestore();
+      disposeHooks();
+    }
+  });
+
   test("an aria-busy the author rewrites mid-flight is theirs from then on", async () => {
     const t = setup();
     await until(() => t.rows() === 1);
@@ -357,9 +447,9 @@ describe("#649 redirects and composition", () => {
     document.body.appendChild(root);
     let form!: HTMLFormElement;
     const Home = () => {
-      // owner-scoped to the page the redirect unmounts: the commit disposes
-      // it before the settle, so it never sees this submission
-      go.onSettled(() => void log.push("settled on the unmounted page"));
+      // owned by the page the redirect leaves: the commit disposes it before
+      // the settle fires, but it was registered when the body finished
+      go.onSettled(s => void log.push(`page hook result=${s.result} text=${root.textContent}`));
       return (
         <form ref={form} action={go} method="post">
           <button type="submit">home</button>
@@ -401,12 +491,79 @@ describe("#649 redirects and composition", () => {
       expect(log).toEqual([]);
 
       targetGate.resolve();
-      await until(() => log.length > 0);
-      expect(log).toEqual(["settled text=other"]);
+      await until(() => log.length > 1);
+      await wait(20);
+      // each exactly once, both at the commit showing the target
+      expect([...log].sort()).toEqual([
+        "page hook result=undefined text=other",
+        "settled text=other"
+      ]);
       expect(form.getAttribute("aria-busy")).toBeNull();
     } finally {
       dispose();
       root.remove();
+    }
+  });
+
+  test("a failed submission's hook runs at the commit that unmounts its owner", async () => {
+    const targetGate = deferred();
+    const getTarget = query(async () => {
+      await targetGate.promise;
+      return "other";
+    }, "target-649-failed");
+    const fail = routerAction(async () => {
+      await wait(5);
+      throw new Error("nope");
+    }, "fail-649-unmount");
+
+    const log: string[] = [];
+    const root = document.createElement("div");
+    let leave!: () => Promise<unknown>;
+    const Home = () => {
+      fail.onSettled(
+        s => void log.push(`page hook error=${(s.error as Error).message} text=${root.textContent}`)
+      );
+      const call = useAction(fail);
+      const navigate = useNavigate();
+      // the failure is the inner submission's; the outer action moves on and
+      // navigates inside the shared transition, held by the target's data
+      leave = action(function* () {
+        try {
+          yield call();
+        } catch {}
+        navigate("/other");
+      });
+      return <span>home</span>;
+    };
+    const Other = () => {
+      const target = createMemo(() => getTarget());
+      return <span>{target()}</span>;
+    };
+    const Router = createRouter({
+      routes: [
+        { path: "/", component: Home },
+        { path: "/other", component: Other }
+      ] as const,
+      history: memoryHistory("/")
+    });
+    const dispose = render(
+      () => <Router>{props => <Loading fallback="…">{props.children}</Loading>}</Router>,
+      root
+    );
+    try {
+      await until(() => root.textContent === "home");
+      const done = leave();
+      await done;
+      await wait(30);
+      expect(root.textContent).toBe("home");
+      expect(log).toEqual([]);
+
+      targetGate.resolve();
+      await until(() => log.length > 0);
+      await wait(20);
+      expect(log).toEqual(["page hook error=nope text=other"]);
+    } finally {
+      dispose();
     }
   });
 

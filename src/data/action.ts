@@ -352,7 +352,9 @@ function actionImpl<T extends Array<any>, U = void>(
     // (#649). Which comes first varies — an unheld transition commits before
     // the action's promise resolves, a held one after — so the outcome is
     // captured inside the body and settle() runs once both are in.
-    let outcome: { response: ActionOutcome } | undefined;
+    let outcome:
+      | { response: ActionOutcome; hooks: ((submission: Submission<any, any>) => void)[] }
+      | undefined;
     let committed = false;
     let settled = false;
     const settle = () => {
@@ -382,7 +384,7 @@ function actionImpl<T extends Array<any>, U = void>(
       response && router.submissions[1](entries => [...entries, submission]);
       // runs inside the scheduler's effect pass: a throwing hook must not
       // abort the pass (or the hooks after it), so it is reported on its own
-      for (const hook of settledHooks.values()) {
+      for (const hook of outcome.hooks) {
         try {
           hook(submission);
         } catch (e) {
@@ -392,8 +394,11 @@ function actionImpl<T extends Array<any>, U = void>(
         }
       }
     };
+    // The hooks that settle this submission are the ones registered when its
+    // body finished. The commit can dispose their owners (the page a redirect
+    // leaves) before it fires; they still see the submission they observed.
     const finish = (response: ActionOutcome) => {
-      outcome || (outcome = { response });
+      outcome || (outcome = { response, hooks: [...settledHooks.values()] });
       settle();
     };
     const run = createSolidAction(async function* (context: {

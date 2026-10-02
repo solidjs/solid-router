@@ -711,7 +711,7 @@ const addTodo = action(async todo => {
 });
 ```
 
-`onSubmit(...)` registers a listener in the current reactive owner — multiple components can register against the same action, and hooks are removed when their owner is disposed. `onSettled(...)` works the same way for observing completed submissions. A submission settles when its result is on screen: the hooks run, the record enters `useSubmissions`, and `aria-busy` clears once the action's update commits — after any revalidation or redirect it triggered, which may be later than the promise from `useAction` resolves. A hook owned by a component that update unmounts (the page a redirect leaves) is gone by then; observe from a layout that survives.
+`onSubmit(...)` registers a listener in the current reactive owner — multiple components can register against the same action, and hooks are removed when their owner is disposed. `onSettled(...)` works the same way for observing completed submissions. A submission settles when its result is on screen: the hooks run, the record enters `useSubmissions`, and `aria-busy` clears once the action's update commits — after any revalidation or redirect it triggered, which may be later than the promise from `useAction` resolves. The hooks that run are the ones registered when the action finished: a hook whose owner that commit unmounts (the page a redirect leaves) still sees the submission, while a hook registered later, or removed with its owner before then, does not.
 
 The preferred pattern is returning values and letting the client interpret the result; thrown errors are still captured on `Submission.error` as an escape hatch.
 
