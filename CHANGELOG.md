@@ -1,5 +1,29 @@
 # @solidjs/router
 
+## 2.0.0-next.35
+
+### Patch Changes
+
+- 5da9bb5: `aria-current="page"` now requires the query to match as well as the path, ignoring parameter order. On `/?filter=active`, a link to `/?filter=active` is current and a link to `/` is not; previously every link to `/` with any query was current. `data-active` and `data-pending` still compare the path only.
+- 0159537: Respect a path-segment boundary when deciding whether a link is under the router's base path. Under base `/app`, a link to `/apple` or `/application/x` is no longer claimed for link state (`data-active`, `aria-current`, `data-pending`) or intercepted on click; `/app`, `/app/` and `/app/...` still are. Without a base, behavior is unchanged.
+- 6919c28: Fix two link-state matching bugs shared by claimed anchors and `useLinkState`:
+
+  - Non-ASCII links now match. Both sides compare in the percent-encoded form `location.pathname` uses, so `<a href="/café">` is active and current on `/café`, whether the link spells the path raw or encoded. Encoded reserved characters such as `%2F` are never decoded, so they don't match a different path. A stray `%` in the location (`/100%`) no longer throws a `URIError` that halted the app's reactivity.
+  - Under a router `base`, the base root link (`/app`, `/app/`, or `useLinkState("/")`) is exact-only like `/` is without a base. Before, it was active on every page under the base.
+
+- c7a46ce: Claimed anchors and `useLinkState` now share one matching rule: `current` is the same path and query (parameter order and hash aside), `active` is the path only, exact or prefix, with the root link exact-only.
+
+  - `useLinkState().current` compares the query like `aria-current="page"` does, so on `/?filter=active` a link to `/` is no longer current.
+  - `useLinkState("/").active()` is no longer true on every page; the root link only matches exactly, as it already did for anchors.
+  - An `aria-current` the author set (for example `"step"`) is no longer overwritten with `"page"` when the link matches. The router only writes and removes the attribute where it set it, and still re-applies its own value after a server-component morph strips it.
+
+- 5da9bb5: `aria-current` survives a server-component morph. The morph makes a link's attributes match the server's HTML, which never carries link state, and then re-claims the link; `data-active` and `data-pending` came back, but `aria-current` stayed stripped because the router only wrote it when its own record said the value had changed. It is now checked against the element on every re-claim.
+- 1b12229: Settle router actions when their result is on screen (#649). A form's `aria-busy`, the `onSettled` hooks and the submission record now release at the commit of the action's transition, instead of when the action body returns, so a revalidation refetch or redirect that holds the transition no longer clears busy state, runs hooks or renders the submission while the old UI is still showing. A nested `yield call()` settles at the outer action's commit. The promise from `useAction` (and the action call) still resolves when the body finishes, so it can come before the settle. The hooks that run are the ones registered when the body finished, the same set as before: a hook owned by a component the commit unmounts (the page a redirect leaves) still runs for that submission.
+
+  Every exit path settles exactly once: a failure outside the mutation (a throwing `onSubmit` hook, a response that fails to decode) now releases the form and records the error on the submission, where it previously rejected the form submission unrecorded. A throwing `onSettled` hook is reported without stopping the hooks after it.
+
+  Busy state is keyed by the form's `action` URL rather than the element, so a form that a server-component morph strips, or that a re-render replaces mid-flight, gets `aria-busy` back when it is (re-)claimed. Like `aria-current`, the router only manages an `aria-busy` it set: an authored value is never overwritten or removed. A consequence of keying by URL: other forms posting to the same action URL show busy while it is in flight.
+
 ## 2.0.0-next.34
 
 ### Patch Changes
