@@ -1,7 +1,7 @@
 import { registerElementClaim } from "@solidjs/web";
 import { createRenderEffect, getOwner, onCleanup, untrack } from "solid-js";
 import type { RouterContext } from "./types.js";
-import { matchLink } from "./utils.js";
+import { isUnderBase, matchLink } from "./utils.js";
 
 /**
  * The compiler claims every `a[href]` (and `form[action]`, which this handler
@@ -57,11 +57,7 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
     } catch {
       return;
     }
-    if (
-      url.origin !== window.location.origin ||
-      (basePath && url.pathname && !url.pathname.toLowerCase().startsWith(basePath.toLowerCase()))
-    )
-      return;
+    if (url.origin !== window.location.origin || !isUnderBase(url.pathname, basePath)) return;
     return url;
   }
 

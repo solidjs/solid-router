@@ -537,6 +537,102 @@ describe("compiler-claimed anchors", () => {
     }
   });
 
+  test("the base path is a whole segment: base /app does not manage /apple", async () => {
+    const div = mount();
+    let navigate!: Navigator;
+
+    const Router = createRouter({
+      routes: [
+        { path: "/", component: () => <div data-route="root" /> },
+        { path: "/x", component: () => <div data-route="x" /> }
+      ] as const,
+      base: "/app",
+      history: memoryHistory("/apple")
+    });
+    const dispose = render(
+      () => (
+        <Router>
+          {props => {
+            navigate = useNavigate();
+            return (
+              <>
+                <a data-testid="apple" href="/apple">
+                  Apple
+                </a>
+                <a data-testid="application" href="/application/x">
+                  Application
+                </a>
+                <a data-testid="root" href="/app">
+                  Root
+                </a>
+                <a data-testid="x" href="/app/x">
+                  X
+                </a>
+                {props.children}
+              </>
+            );
+          }}
+        </Router>
+      ),
+      div
+    );
+    const el = (id: string) => div.querySelector(`[data-testid="${id}"]`)!;
+    const state = (id: string) => [
+      el(id).hasAttribute("data-active"),
+      el(id).getAttribute("aria-current")
+    ];
+    try {
+      expect(state("apple")).toEqual([false, null]);
+
+      navigate("/application/x", { resolve: false });
+      await settle();
+      expect(state("application")).toEqual([false, null]);
+      expect(state("apple")).toEqual([false, null]);
+
+      navigate("/");
+      await settle();
+      expect(state("root")).toEqual([true, "page"]);
+      expect(state("apple")).toEqual([false, null]);
+
+      navigate("/x");
+      await settle();
+      expect(state("x")).toEqual([true, "page"]);
+      expect(state("root")).toEqual([false, null]);
+    } finally {
+      dispose();
+      div.remove();
+    }
+  });
+
+  test("without a base, /apple is managed like any other path", async () => {
+    const div = mount();
+
+    const Router = createRouter({ routes, history: memoryHistory("/apple") });
+    const dispose = render(
+      () => (
+        <Router>
+          {props => (
+            <>
+              <a data-testid="apple" href="/apple">
+                Apple
+              </a>
+              {props.children}
+            </>
+          )}
+        </Router>
+      ),
+      div
+    );
+    try {
+      const apple = div.querySelector('[data-testid="apple"]')!;
+      expect(apple.hasAttribute("data-active")).toBe(true);
+      expect(apple.getAttribute("aria-current")).toBe("page");
+    } finally {
+      dispose();
+      div.remove();
+    }
+  });
+
   test("setup does not consume a hydration child id", () => {
     // setupLinkClaims runs in the router's client-only branch, so the server
     // never allocates an id for it. If its sweep effect consumed a child id

@@ -1,6 +1,7 @@
 import { delegateEvents } from "@solidjs/web";
 import { onCleanup } from "solid-js";
 import type { RouterContext } from "../types.js";
+import { isUnderBase } from "../utils.js";
 
 /**
  * The submit delegation consults this slot instead of importing the action
@@ -75,11 +76,7 @@ export function setupNativeEvents({
       // Skip non-http(s) schemes (blob:, mailto:, tel:, data:, ...). blob: URLs
       // inherit the page origin, so the origin check below won't reject them. #382
       if (url.protocol !== "https:" && url.protocol !== "http:") return;
-      if (
-        url.origin !== window.location.origin ||
-        (basePath && url.pathname && !url.pathname.toLowerCase().startsWith(basePath.toLowerCase()))
-      )
-        return;
+      if (url.origin !== window.location.origin || !isUnderBase(url.pathname, basePath)) return;
       return [a, url] as const;
     }
 

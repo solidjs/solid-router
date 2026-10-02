@@ -270,6 +270,44 @@ describe("anchor link handling", () => {
     });
   });
 
+  test("only intercepts links under the base path on a segment boundary", () => {
+    return createRoot(() => {
+      const navigateFromRoute = vi.fn();
+      mockRouter.navigatorFactory = () => navigateFromRoute;
+      mockRouter.base = { path: () => "/app" } as any;
+      setupNativeEvents()(mockRouter);
+
+      const click = (href: string) => {
+        const link = createMockElement("a", { href });
+        const event = createMockEvent("click", link, { path: [link] });
+        clickHandler(event);
+        return event.preventDefault.mock.calls.length > 0;
+      };
+
+      expect(click("/apple")).toBe(false);
+      expect(click("/application/x")).toBe(false);
+      expect(click("/app")).toBe(true);
+      expect(click("/app/")).toBe(true);
+      expect(click("/app/x")).toBe(true);
+      expect(click("/APP/x")).toBe(true);
+    });
+  });
+
+  test("intercepts every same-origin path without a base", () => {
+    return createRoot(() => {
+      const navigateFromRoute = vi.fn();
+      mockRouter.navigatorFactory = () => navigateFromRoute;
+      setupNativeEvents()(mockRouter);
+
+      const link = createMockElement("a", { href: "/apple" });
+      const event = createMockEvent("click", link, { path: [link] });
+      clickHandler(event);
+
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(navigateFromRoute).toHaveBeenCalledWith("/apple", expect.anything());
+    });
+  });
+
   test("should ignore clicks with modifier keys", () => {
     return createRoot(() => {
       setupNativeEvents()(mockRouter);
