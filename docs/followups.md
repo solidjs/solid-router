@@ -28,8 +28,8 @@ The frames runtime claims every `a[href]` / `form[action]` it materializes
 from server-component content, and re-claims an element after a morph changes
 its attributes — so link state (`src/claims.ts`) is applied to
 server-component markup, and reapplied when a response's morph strips it.
-`aria-busy` on forms is not yet: it is stripped by a morph mid-flight, and its
-release runs before the action's transition commits (#649).
+`aria-busy` on forms is too: busy state is keyed by the form's action URL and
+re-applied on re-claim, and it releases at the action's commit (#649).
 
 What remains is the first paint: claims are client-only, so the server's HTML
 carries no `aria-current` / `data-active`, and a page without JavaScript never

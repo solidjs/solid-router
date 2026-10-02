@@ -1,4 +1,11 @@
-import { $TRACK, action as createSolidAction, createMemo, onCleanup, getOwner } from "solid-js";
+import {
+  $TRACK,
+  action as createSolidAction,
+  createMemo,
+  onCleanup,
+  onSettled,
+  getOwner
+} from "solid-js";
 import { isResponseEnvelope, isServer, REVALIDATE_HEADER, type JSX } from "@solidjs/web";
 import {
   createServerReference,
@@ -8,6 +15,7 @@ import {
   REDIRECT_HEADER,
   subscribeFlightData
 } from "@solidjs/web/server-functions";
+import { setFormClaimHandler } from "../claims.js";
 import { provideFlashDecoder, provideFlightConsumer, useRouter } from "../routing.js";
 import { setRouterFormHandler } from "./events.js";
 import type { RouterContext, Submission, Navigator, NarrowResponse } from "../types.js";
@@ -69,16 +77,74 @@ const submitHooksSymbol = Symbol("routerActionSubmitHooks");
 const settledHooksSymbol = Symbol("routerActionSettledHooks");
 const invokeSymbol = Symbol("routerActionInvoke");
 
-// Forms submitted through delegation are marked `aria-busy` while their
-// action is in flight — the form half of the attribute vocabulary links get
-// (`data-active`/`data-pending`). Style with `form[aria-busy] button { ... }`.
-// A counter (not a boolean) keeps the attribute through overlapping
-// submissions from the same form.
-const busyForms = /* #__PURE__ */ new WeakMap<HTMLFormElement, number>();
-function setFormBusy(form: HTMLFormElement, delta: number) {
-  const count = (busyForms.get(form) || 0) + delta;
-  busyForms.set(form, count);
-  count > 0 ? form.setAttribute("aria-busy", "true") : form.removeAttribute("aria-busy");
+// Forms submitted through delegation are marked `aria-busy` from submit until
+// the action's transition commits — the form half of the attribute vocabulary
+// links get (`data-active`/`data-pending`). Style with
+// `form[aria-busy] button { ... }`. A counter (not a boolean) keeps the
+// attribute through overlapping submissions.
+//
+// Busy state is keyed by the form's resolved `action` URL rather than the
+// element: a server-component morph strips the attribute, and a re-render can
+// replace the element, and the claim of either (claimBusyForm) re-applies it
+// from here. A form without an `action` (submitted through a button's
+// `formaction`) is never claimed, so it is keyed by the element itself.
+type BusyEntry = { count: number; forms: Set<HTMLFormElement> };
+const busyForms = /* #__PURE__ */ new Map<string | HTMLFormElement, BusyEntry>();
+// forms whose `aria-busy` the router wrote — an authored one is never
+// overwritten or removed (the same ownership rule as claimed `aria-current`)
+const ownedBusy = /* #__PURE__ */ new WeakSet<HTMLFormElement>();
+
+function busyKey(form: HTMLFormElement): string | HTMLFormElement {
+  const action = form.getAttribute("action");
+  if (action) {
+    try {
+      return new URL(action, document.baseURI).href;
+    } catch {}
+  }
+  return form;
+}
+
+function showBusy(form: HTMLFormElement) {
+  const busy = busyForms.has(busyKey(form));
+  // Ownership is read against the element: an owned value a morph stripped
+  // is re-applied, one the author has rewritten since is theirs.
+  const value = form.getAttribute("aria-busy");
+  const owned = ownedBusy.has(form);
+  if (owned && value !== null && value !== "true") ownedBusy.delete(form);
+  else if (busy) {
+    if (value === null) {
+      form.setAttribute("aria-busy", "true");
+      ownedBusy.add(form);
+    }
+  } else if (owned) {
+    if (value !== null) form.removeAttribute("aria-busy");
+    ownedBusy.delete(form);
+  }
+}
+
+/** Marks the form busy; the returned release is one-shot. */
+function markFormBusy(form: HTMLFormElement): () => void {
+  const key = busyKey(form);
+  let entry = busyForms.get(key);
+  if (!entry) busyForms.set(key, (entry = { count: 0, forms: new Set() }));
+  entry.count++;
+  entry.forms.add(form);
+  showBusy(form);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    if (--entry.count > 0) return;
+    busyForms.delete(key);
+    entry.forms.forEach(showBusy);
+  };
+}
+
+/** The claims' form slot: a (re-)claimed form whose action is busy shows it. */
+function claimBusyForm(form: HTMLFormElement) {
+  const entry = busyForms.get(busyKey(form));
+  if (entry) entry.forms.add(form);
+  showBusy(form);
 }
 
 export const actions = /* #__PURE__ */ new Map<string, Action<any, any>>();
@@ -233,6 +299,7 @@ function installRouterIntegrations() {
     );
   } else {
     setRouterFormHandler(handleFormAction);
+    setFormClaimHandler(claimBusyForm);
     provideFlightConsumer(setupFlightDataConsumer);
   }
 }
@@ -278,32 +345,91 @@ function actionImpl<T extends Array<any>, U = void>(
     // flight-data consumer (see setupFlightDataConsumer) makes the transport
     // send the request header itself, so the mutation is just called.
     const runMutation = () => fn(...variables);
+    // The busy release, the submission record and the settled hooks wait for
+    // the action's transition to COMMIT, not just its body: the body's final
+    // slice can start reads (the default revalidation's refetch, a redirect's
+    // route data) that hold the transition with the old UI still on screen
+    // (#649). Which comes first varies — an unheld transition commits before
+    // the action's promise resolves, a held one after — so the outcome is
+    // captured inside the body and settle() runs once both are in.
+    let outcome: { response: ActionOutcome } | undefined;
+    let committed = false;
+    let settled = false;
+    const settle = () => {
+      if (settled || !committed || !outcome) return;
+      settled = true;
+      const response = outcome.response;
+      release && release();
+      let submission!: Submission<T, NarrowResponse<U>>;
+      submission = {
+        input: variables,
+        url,
+        result: response?.data,
+        error: response?.error,
+        clear() {
+          router.submissions[1](entries => entries.filter(entry => entry !== submission));
+        },
+        retry() {
+          submission.clear();
+          return current[invokeSymbol].call({ r: router, f: form }, variables, current);
+        }
+      };
+      // Book-keeping is intentional: only outcomes worth showing or retrying
+      // (a result or an error) enter the submissions list, so the typical void
+      // mutation leaves nothing behind. Settled hooks still see every
+      // completion — void, metadata-only, and redirects included — one
+      // `onSettled` per invocation (#580).
+      response && router.submissions[1](entries => [...entries, submission]);
+      // runs inside the scheduler's effect pass: a throwing hook must not
+      // abort the pass (or the hooks after it), so it is reported on its own
+      for (const hook of settledHooks.values()) {
+        try {
+          hook(submission);
+        } catch (e) {
+          queueMicrotask(() => {
+            throw e;
+          });
+        }
+      }
+    };
+    const finish = (response: ActionOutcome) => {
+      outcome || (outcome = { response });
+      settle();
+    };
     const run = createSolidAction(async function* (context: {
       call: () => Promise<U>;
       optimistic?: () => void;
     }) {
-      context.optimistic?.();
-      let value: unknown;
-      let error = false;
       try {
-        value = await context.call();
+        context.optimistic?.();
+        let value: unknown;
+        let error = false;
+        try {
+          value = await context.call();
+        } catch (e) {
+          value = e;
+          error = true;
+        }
+        const read = await readResponse(value, error);
+        yield;
+        // Apply inside the transition so the default revalidation's refetch and
+        // the release of the caller's optimistic writes commit as one frame (#619).
+        const response = applyResponse(
+          read,
+          router.navigatorFactory(),
+          flightApplications !== flightApplicationsBefore
+        );
+        finish(response);
+        return response;
       } catch (e) {
-        value = e;
-        error = true;
+        // a failure outside the mutation (a submit hook, decoding the
+        // response, applying it) still settles, with the error recorded
+        finish({ error: e });
+        throw e;
       }
-      const read = await readResponse(value, error);
-      yield;
-      // Apply inside the transition so the default revalidation's refetch and
-      // the release of the caller's optimistic writes commit as one frame (#619).
-      return applyResponse(
-        read,
-        router.navigatorFactory(),
-        flightApplications !== flightApplicationsBefore
-      );
     });
 
-    form && setFormBusy(form, 1);
-    let response;
+    const release = form && markFormBusy(form);
     // The transport consumer is awaited before a single-flight mutation
     // resolves, so a counter delta over the call tells whether this action's
     // metadata was already applied. Overlapping mutations can cross-attribute
@@ -311,43 +437,40 @@ function actionImpl<T extends Array<any>, U = void>(
     // a far smaller window than predicting from the function's identity,
     // which misses every response the server returned without flight data.
     const flightApplicationsBefore = flightApplications;
+    let pending: Promise<ActionOutcome>;
     try {
-      response = await settleActionResult(
-        run({
-          call: runMutation,
-          optimistic: submitHooks.size
-            ? () => {
-                for (const hook of submitHooks.values()) hook(...variables);
-              }
-            : undefined
-        })
-      );
-    } finally {
-      form && setFormBusy(form, -1);
+      pending = run({
+        call: runMutation,
+        optimistic: submitHooks.size
+          ? () => {
+              for (const hook of submitHooks.values()) hook(...variables);
+            }
+          : undefined
+      });
+    } catch (e) {
+      // refused before a transition began: nothing will commit
+      release && release();
+      throw e;
     }
+    // Registered unowned, synchronously after the invocation, this lands on
+    // the action's own transition — or the outer one a nested call joined, or
+    // the survivor of a merge — and fires at its commit, failures included.
+    // (Registered from the promise continuation it would fire too early: the
+    // transition has parked by then.)
+    onSettled(() => {
+      committed = true;
+      settle();
+    });
 
-    let submission!: Submission<T, NarrowResponse<U>>;
-    submission = {
-      input: variables,
-      url,
-      result: response?.data,
-      error: response?.error,
-      clear() {
-        router.submissions[1](entries => entries.filter(entry => entry !== submission));
-      },
-      retry() {
-        submission.clear();
-        return current[invokeSymbol].call({ r: router, f: form }, variables, current);
-      }
-    };
-    // Book-keeping is intentional: only outcomes worth showing or retrying
-    // (a result or an error) enter the submissions list, so the typical void
-    // mutation leaves nothing behind. Settled hooks still see every
-    // completion — void, metadata-only, and redirects included — one
-    // `onSettled` per invocation (#580).
-    response && router.submissions[1](entries => [...entries, submission]);
-    for (const hook of settledHooks.values()) hook(submission);
-
+    // The returned promise still means "the body finished": an outer action
+    // composing this one (`yield call()`) is the transition that has to
+    // commit, so it cannot wait for the commit.
+    try {
+      await settleActionResult(pending);
+    } catch (e) {
+      finish({ error: e });
+    }
+    const response = outcome!.response;
     if (response) {
       if (response.error && !form) throw response.error;
       return response.data as NarrowResponse<U>;
@@ -543,6 +666,9 @@ function applyResponseMetadata(
 type ReadResponse =
   | { error: unknown }
   | { data?: any; flightData?: Record<string, any>; metadata?: Response };
+
+/** What a run settles with: a result, an error, or nothing worth recording. */
+type ActionOutcome = { data?: any; error?: unknown } | undefined;
 
 async function readResponse(response: unknown, error: boolean): Promise<ReadResponse> {
   let data: any;

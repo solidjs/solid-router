@@ -677,7 +677,7 @@ const updateUser = action(async (form: FormData) => {
 <button type="submit" formaction={updateUser}>Save</button>
 ```
 
-Actions only work with POST requests, so put `method="post"` on your form. Submitting forms get `aria-busy="true"` automatically while the action (including its revalidation) is in flight — the same CSS story as links:
+Actions only work with POST requests, so put `method="post"` on your form. Submitting forms get `aria-busy="true"` automatically from submit until the action's result is on screen — the mutation, then its revalidation or redirect, until that update commits — the same CSS story as links:
 
 ```css
 form[aria-busy] button {
@@ -685,6 +685,8 @@ form[aria-busy] button {
   opacity: 0.6;
 }
 ```
+
+Busy state belongs to the form's `action` URL, not the element: a form re-rendered or replaced mid-flight (a server-component morph, a keyed re-mount) still shows it. An `aria-busy` you set yourself is left alone.
 
 Forms work without JavaScript: a real POST, a redirect back, and the result seeded into submission state through a one-shot flash cookie. Single-flight mutations are on by default — the mutation response carries the refreshed route data in the same round trip.
 
@@ -709,7 +711,7 @@ const addTodo = action(async todo => {
 });
 ```
 
-`onSubmit(...)` registers a listener in the current reactive owner — multiple components can register against the same action, and hooks are removed when their owner is disposed. `onSettled(...)` works the same way for observing completed submissions.
+`onSubmit(...)` registers a listener in the current reactive owner — multiple components can register against the same action, and hooks are removed when their owner is disposed. `onSettled(...)` works the same way for observing completed submissions. A submission settles when its result is on screen: the hooks run, the record enters `useSubmissions`, and `aria-busy` clears once the action's update commits — after any revalidation or redirect it triggered, which may be later than the promise from `useAction` resolves. A hook owned by a component that update unmounts (the page a redirect leaves) is gone by then; observe from a layout that survives.
 
 The preferred pattern is returning values and letting the client interpret the result; thrown errors are still captured on `Submission.error` as an escape hatch.
 

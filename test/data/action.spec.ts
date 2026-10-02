@@ -637,6 +637,21 @@ describe("form aria-busy", () => {
     expect(form.hasAttribute("aria-busy")).toBe(false);
   });
 
+  test("releases when the invocation is refused before a transition begins", async () => {
+    const refused = action(async () => "ok", "busy-refused-test");
+    const form = document.createElement("form");
+    form.setAttribute("action", String(refused));
+    // dev refuses invoking an action inside an owned scope, synchronously
+    const promise = createRoot(dispose => {
+      const p = submitViaForm(refused, form);
+      dispose();
+      return p;
+    });
+    expect(form.hasAttribute("aria-busy")).toBe(false);
+    await expect(promise).rejects.toThrow(/ACTION_CALLED_IN_OWNED_SCOPE/);
+    expect(mockRouterContext.submissions[0]()).toHaveLength(0);
+  });
+
   test("does not touch forms for programmatic (formless) calls", async () => {
     const plain = action(async () => "ok", "busy-formless-test");
     await useAction(plain)();

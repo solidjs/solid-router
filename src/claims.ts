@@ -4,9 +4,22 @@ import type { RouterContext } from "./types.js";
 import { isUnderBase, matchLink } from "./utils.js";
 
 /**
- * The compiler claims every `a[href]` (and `form[action]`, which this handler
- * ignores) at creation, and the runtime re-claims on `href` writes and after
- * a server-component morph changes the element. This consumer gives each router-managed anchor the link-state
+ * Claimed forms are handed to this slot instead of the claims importing the
+ * action module: the action side installs it on first action creation (see
+ * data/action.ts), where form `aria-busy` state lives, so an app that never
+ * creates an action never pulls the data layer in through its claims.
+ */
+let formClaim: ((form: HTMLFormElement) => void) | undefined;
+
+export function setFormClaimHandler(handler: ((form: HTMLFormElement) => void) | undefined) {
+  formClaim = handler;
+}
+
+/**
+ * The compiler claims every `a[href]` and `form[action]` at creation, and the
+ * runtime re-claims on `href`/`action` writes and after a server-component
+ * morph changes the element. Forms go to the action layer's slot above, which
+ * re-applies `aria-busy` while their action is in flight. This consumer gives each router-managed anchor the link-state
  * vocabulary without a wrapper component:
  *
  * - `aria-current="page"` — the location matches the link exactly, query
@@ -127,7 +140,9 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
 
   onCleanup(
     registerElementClaim(node => {
-      if (node.nodeName.toUpperCase() !== "A") return;
+      const name = node.nodeName.toUpperCase();
+      if (name === "FORM") return formClaim && formClaim(node as HTMLFormElement);
+      if (name !== "A") return;
       const a = node as HTMLAnchorElement | SVGAElement;
       // re-claim (href changed): the claiming write runs inside another
       // effect, so refresh without leaking subscriptions into it
