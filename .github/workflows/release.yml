@@ -7,6 +7,15 @@ on:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
+permissions:
+  contents: write
+  pull-requests: write
+  # npm trusted publishing (OIDC): the release job mints a short-lived npm
+  # credential from the workflow's identity — no NPM_TOKEN secret. The
+  # trusted publisher registered on npmjs.com must name this repo and this
+  # workflow file (release.yml) or the publish fails with E403/E404.
+  id-token: write
+
 jobs:
   release:
     name: Release
@@ -17,10 +26,12 @@ jobs:
 
       - uses: pnpm/action-setup@v6
 
-      - name: Use Node.js from nvmrc
+      # Node 24 (npm >= 11.5.1) for the publish leg: OIDC trusted publishing
+      # needs a newer npm than the .nvmrc toolchain (Node 22 / npm 10) ships.
+      - name: Setup Node.js 24.x
         uses: actions/setup-node@v7
         with:
-          node-version-file: '.nvmrc'
+          node-version: 24.x
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install Dependencies
@@ -33,4 +44,6 @@ jobs:
           publish: pnpm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Provenance attestation for the published tarball; requires the
+          # OIDC id-token permission above.
+          NPM_CONFIG_PROVENANCE: 'true'
