@@ -323,8 +323,8 @@ function createIntegration(
   match: (pathname: string) => RouteMatch[]
 ): RouterIntegration {
   let committing = false;
-  // Written, not yet in history (see `RouterIntegration.inflight`).
-  let inflight: LocationChange | undefined;
+  // Writes whose transition has landed (see `RouterIntegration.settled`).
+  const settled = new WeakSet<LocationChange>();
   const wrap = (value: string | LocationChange) => (typeof value === "string" ? { value } : value);
   const [read, write] = createSignal(wrap(history.get()), {
     equals: (a, b) => a.value === b.value && a.state === b.state && a._navigation === b._navigation,
@@ -343,15 +343,17 @@ function createIntegration(
         // the no-op rule compares against it, so `navigate()` behind another
         // write in one handler sees that write rather than the flushed world.
         write(headed => (written = resolveLocationWrite(headed, next)) || headed);
-        if (written && written._navigation && written._navigation > 0) {
+        if (written && written._navigation) {
           const next = written;
-          inflight = next;
           // Register out of band so a destination error boundary replacing the
-          // Router subtree cannot suppress the winning history commit.
+          // Router subtree cannot suppress the winning history commit. The
+          // settle is tied to the transition carrying the write: it fires when
+          // that lands, a rejection included, and a superseded write's settle
+          // fires with the transition that absorbed it.
           runWithOwner(null, () =>
             onSettled(() => {
-              if (inflight === next) inflight = undefined;
-              if (read() !== next) return;
+              settled.add(next);
+              if (next._navigation! < 0 || read() !== next) return;
               committing = true;
               try {
                 history.set(next);
@@ -392,7 +394,11 @@ function createIntegration(
       })
     );
 
-  return { signal, inflight: () => inflight, utils: history.utils };
+  return {
+    signal,
+    settled: write => settled.has(write),
+    utils: history.utils
+  };
 }
 
 /**

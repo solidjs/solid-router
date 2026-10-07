@@ -836,7 +836,15 @@ export function createRouterContext(
     });
   }
 
-  const location = createLocation(() => source().value, () => source().state, utils.queryWrapper);
+  // The flushed world — what `latest(source)` answers — as the location's own
+  // memo sees it: it recomputes under the transition that carries a write,
+  // never for a write of this same tick (A28).
+  let flushed = initialSource;
+  const location = createLocation(
+    () => (flushed = source()).value,
+    () => source().state,
+    utils.queryWrapper
+  );
   // The flash cookie is consumed eagerly: its one-shot clear (Set-Cookie)
   // must be appended before streaming flushes the response headers, and an
   // unread outcome must not haunt a later request's render. Only detection
@@ -979,9 +987,15 @@ export function createRouterContext(
   );
   const isRouting = () => routingPending() || isPending(source);
 
+  const headedLocation = () => (isServer ? untrack(source) : flushed);
+  // A flushed navigation write whose settle has not run is still in flight.
+  const unsettled = (change: LocationChange) =>
+    change._navigation !== undefined && !!integration.settled && !integration.settled(change);
+
   const transitionIntent = (): Intent | undefined => {
-    if (!isPending(source)) return;
-    const navigation = latest(source)._navigation;
+    const head = headedLocation();
+    if (!unsettled(head)) return;
+    const navigation = head._navigation;
     return navigation === -1 ? "native" : navigation && navigation > 0 ? "navigate" : undefined;
   };
 
@@ -1089,10 +1103,10 @@ export function createRouterContext(
       // the destination the leave guard is told all read it. A write of this
       // same tick is not in it (A28) — see `compose` below.
       //
-      // A redirect hop: the previous navigation is still pending, or has landed
-      // but not yet reached history (a guard redirecting in the landing flush
-      // — its destination was never shown either way).
-      const headed = latest(source);
+      // A redirect hop: the previous navigation's write has not settled — it
+      // is still held, or a guard is redirecting in its landing flush — so its
+      // destination was never shown.
+      const headed = headedLocation();
 
       // A composed target (`setSearchParams`) is a function of where the
       // router is heading, an unflushed write of this tick included. Only
@@ -1127,7 +1141,7 @@ export function createRouterContext(
         !isServer &&
         headed._navigation !== undefined &&
         headed._navigation > 0 &&
-        (isPending(source) || integration.inflight?.() === headed)
+        unsettled(headed)
           ? headed._navigation
           : 0;
 

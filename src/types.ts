@@ -138,13 +138,13 @@ export interface RouterIntegration {
   // `$REFRESH` brand.
   signal: [get: () => LocationChange, set: (next: LocationWrite) => void];
   /**
-   * The navigation written but not yet committed to history — the window
-   * between its location write and the settle that pushes it. A destination
-   * in that window was never shown, so a `navigate()` issued inside it (a
-   * guard redirecting as the held route lands) is a hop of that navigation
-   * rather than a new one, exactly as one issued while it is still pending.
+   * Whether a navigation write's settle has run: Solid's `onSettled`,
+   * registered beside the write, fired for the transition that carried it.
+   * Until then the write is in flight: its destination was never shown, so a
+   * `navigate()` issued meanwhile (a guard redirecting as the held route
+   * lands) is a hop of that navigation rather than a new one.
    */
-  inflight?: () => LocationChange | undefined;
+  settled?: (write: LocationChange) => boolean;
   utils?: Partial<RouterUtils>;
 }
 
