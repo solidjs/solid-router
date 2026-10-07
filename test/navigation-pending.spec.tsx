@@ -1,0 +1,714 @@
+/**
+ * Characterization of the router's navigation-pending state (#655): every
+ * observable that today derives from `isPending`/`latest` of the location —
+ * `useIsRouting`, `pendingTarget`, `useLinkState().pending`, `data-pending`
+ * on claimed anchors, the intent `query` and preloads see, the redirect hop
+ * rules — and scroll restoration's timing, recorded as one ordered timeline
+ * per scenario. These pin current behavior so a different mechanism can be
+ * checked against it moment by moment, not just at rest.
+ *
+ * Log vocabulary:
+ * - `routing:<bool>[@target]` — `useIsRouting()` changed (render effect),
+ *   with `pendingTarget` read beside it
+ * - `link:<href>:<bool>` — `useLinkState(href).pending` changed
+ * - `attr:<href>:+|-` — `data-pending` set/removed on a claimed anchor
+ * - `fetch:<id>:<intent>` — a `query` fetcher ran, with the intent it saw
+ * - `preload:<id>:<intent>` — a route preload ran
+ * - `scrollTo:<y>` — the router scrolled the window
+ * - `| <checkpoint> …` — a step boundary, with the state an event handler
+ *   reads at that moment (outside the graph, untracked)
+ */
+import { render } from "@solidjs/web";
+import {
+  createMemo,
+  createRenderEffect,
+  flush,
+  Loading,
+  untrack,
+  type ParentProps
+} from "solid-js";
+import { vi } from "vitest";
+import {
+  createRouter,
+  query,
+  useBeforeLeave,
+  useIsRouting,
+  useLinkState,
+  useNavigate,
+  useParams,
+  type Navigator
+} from "../src/index.js";
+import { getIntent, useRouter } from "../src/routing.js";
+import type { RouterContext } from "../src/types.js";
+
+const settle = async (ms = 5) => {
+  await new Promise<void>(resolve => queueMicrotask(resolve));
+  await new Promise(resolve => setTimeout(resolve, ms));
+};
+
+type Gate = { promise: Promise<string>; resolve: (v: string) => void };
+let instance = 0;
+
+function harness(initial = "/") {
+  const log: string[] = [];
+  const gates = new Map<string, Gate>();
+  const gate = (id: string) => {
+    let g = gates.get(id);
+    if (!g) {
+      let resolve!: (v: string) => void;
+      const promise = new Promise<string>(r => (resolve = r));
+      gates.set(id, (g = { promise, resolve }));
+    }
+    return g;
+  };
+
+  const proto = Element.prototype;
+  const { setAttribute, removeAttribute } = proto;
+  proto.setAttribute = function (this: Element, name: string, value: string) {
+    if (name === "data-pending" && !this.hasAttribute(name))
+      log.push(`attr:${this.getAttribute("href")}:+`);
+    return setAttribute.call(this, name, value);
+  };
+  proto.removeAttribute = function (this: Element, name: string) {
+    if (name === "data-pending" && this.hasAttribute(name))
+      log.push(`attr:${this.getAttribute("href")}:-`);
+    return removeAttribute.call(this, name);
+  };
+  let y = 0;
+  Object.defineProperty(window, "scrollY", { configurable: true, get: () => y });
+  window.scrollTo = ((_x: number, newY: number) => {
+    y = newY;
+    log.push(`scrollTo:${newY}`);
+    window.dispatchEvent(new Event("scroll"));
+  }) as any;
+
+  const key = `nav-pending-${++instance}`;
+  const getData = query(async (id: string) => {
+    log.push(`fetch:${id}:${getIntent() ?? "-"}`);
+    return gate(id).promise;
+  }, `${key}-data`);
+  const getHop = query(async (n: number) => {
+    log.push(`hop:${n}:${getIntent() ?? "-"}`);
+    if (n > 0) throw new Response(null, { status: 302, headers: { Location: `/hop/${n - 1}` } });
+    return "landed";
+  }, `${key}-hop`);
+
+  let navigate!: Navigator;
+  let router!: RouterContext;
+  let blockLeave = false;
+
+  const Slow = () => {
+    const params = useParams<{ id: string }>();
+    const data = createMemo(() => getData(params.id));
+    return <div data-route="slow">{data()}</div>;
+  };
+  // uncached: every visit (a pop included) waits on its own gate
+  const visits = new Map<string, number>();
+  const Fresh = () => {
+    const params = useParams<{ id: string }>();
+    const data = createMemo(() => {
+      const visit = `${params.id}#${(visits.get(params.id) ?? 0) + 1}`;
+      visits.set(params.id, (visits.get(params.id) ?? 0) + 1);
+      log.push(`fresh:${visit}`);
+      return gate(visit).promise;
+    });
+    return <div data-route="fresh">{data()}</div>;
+  };
+  const Hop = () => {
+    const params = useParams<{ n: string }>();
+    const data = createMemo(() => getHop(Number(params.n)));
+    return <div data-route="hop">{data()}</div>;
+  };
+  const Guarded = () => {
+    useBeforeLeave(e => {
+      if (blockLeave) {
+        log.push(`blocked:${e.to}`);
+        e.preventDefault();
+      }
+    });
+    return <div data-route="guarded" />;
+  };
+  const page = (name: string) => () => <div data-route={name} />;
+
+  const links = ["/", "/a", "/slow/1", "/slow/2"];
+  const Layout = (props: ParentProps) => {
+    navigate = useNavigate();
+    router = useRouter();
+    const isRouting = useIsRouting();
+    let prevRouting: string | undefined;
+    createRenderEffect(
+      () => {
+        const routing = isRouting();
+        const target = router.pendingTarget?.value;
+        return `routing:${routing}${target ? `@${target}` : ""}`;
+      },
+      v => {
+        if (v !== prevRouting) log.push(v);
+        prevRouting = v;
+      }
+    );
+    for (const href of links) {
+      const state = useLinkState(() => href);
+      let prev = false;
+      createRenderEffect(state.pending, p => {
+        if (p !== prev) log.push(`link:${href}:${p}`);
+        prev = p;
+      });
+    }
+    return (
+      <>
+        {links.map(href => (
+          <a href={href}>{href}</a>
+        ))}
+        <Loading fallback={<div data-loading />}>{props.children}</Loading>
+      </>
+    );
+  };
+
+  // a push truncates forward entries an earlier test left, so the depth
+  // stamp of the starting entry is its real index
+  window.history.pushState(null, "", initial);
+  const Router = createRouter({
+    routes: [
+      { path: "/", component: page("home") },
+      { path: "/a", component: page("a") },
+      { path: "/b", component: page("b") },
+      {
+        path: "/slow/:id",
+        preload: ({ params, intent }: any) => void log.push(`preload:${params.id}:${intent}`),
+        component: Slow
+      },
+      { path: "/fresh/:id", component: Fresh },
+      { path: "/hop/:n", component: Hop },
+      { path: "/guarded", component: Guarded }
+    ] as const
+  });
+  const div = document.createElement("div");
+  document.body.appendChild(div);
+  const dispose = render(
+    () => <Router>{(props: ParentProps) => <Layout {...props} />}</Router>,
+    div
+  );
+
+  const mark = (label: string) =>
+    untrack(() => {
+      const target = router.pendingTarget?.value;
+      const intent = router.intent?.();
+      log.push(
+        `| ${label} routing=${router.isRouting()}` +
+          (target ? ` target=${target}` : "") +
+          (intent ? ` intent=${intent}` : "") +
+          ` at=${router.location.pathname}`
+      );
+    });
+
+  return {
+    log,
+    gate,
+    navigate: (to: string, options?: any) => navigate(to, options),
+    route: () => div.querySelector("[data-route]")?.getAttribute("data-route"),
+    block: (on: boolean) => (blockLeave = on),
+    mark,
+    /** Run `fn`, then checkpoint after the call, after `flush()` and after a macrotask. */
+    async step(label: string, fn: () => void) {
+      fn();
+      mark(`${label}: call`);
+      flush();
+      mark(`${label}: flush`);
+      await settle();
+      mark(`${label}: settled`);
+    },
+    async wait(label: string) {
+      await settle();
+      mark(label);
+    },
+    reset() {
+      log.length = 0;
+    },
+    cleanup() {
+      dispose();
+      div.remove();
+      proto.setAttribute = setAttribute;
+      proto.removeAttribute = removeAttribute;
+      // a held navigation may still land after the app is gone
+      window.scrollTo = (() => {}) as any;
+    }
+  };
+}
+
+describe("navigation pending state (characterization, #655)", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  test("sync navigation", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      h.reset();
+      await h.step("navigate /a", () => h.navigate("/a"));
+      expect(h.route()).toBe("a");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| navigate /a: call routing=false at=/",
+          "routing:true@/a",
+          "routing:false",
+          "scrollTo:0",
+          "| navigate /a: flush routing=false at=/a",
+          "| navigate /a: settled routing=false at=/a",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("async navigation", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      h.reset();
+      await h.step("navigate /slow/1", () => h.navigate("/slow/1"));
+      h.gate("1").resolve("one");
+      await h.wait("resolved");
+      expect(h.route()).toBe("slow");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| navigate /slow/1: call routing=false at=/",
+          "preload:1:navigate",
+          "fetch:1:navigate",
+          "attr:/slow/1:+",
+          "routing:true@/slow/1",
+          "link:/slow/1:true",
+          "| navigate /slow/1: flush routing=true target=/slow/1 intent=navigate at=/",
+          "| navigate /slow/1: settled routing=true target=/slow/1 intent=navigate at=/",
+          "attr:/slow/1:-",
+          "routing:false",
+          "link:/slow/1:false",
+          "scrollTo:0",
+          "| resolved routing=false at=/slow/1",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("navigation superseded mid-flight by another async one (A then B)", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      h.reset();
+      await h.step("navigate /slow/1", () => h.navigate("/slow/1"));
+      await h.step("navigate /slow/2", () => h.navigate("/slow/2"));
+      h.gate("1").resolve("one");
+      await h.wait("resolved 1");
+      h.gate("2").resolve("two");
+      await h.wait("resolved 2");
+      expect(window.location.pathname).toBe("/slow/2");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| navigate /slow/1: call routing=false at=/",
+          "preload:1:navigate",
+          "fetch:1:navigate",
+          "attr:/slow/1:+",
+          "routing:true@/slow/1",
+          "link:/slow/1:true",
+          "| navigate /slow/1: flush routing=true target=/slow/1 intent=navigate at=/",
+          "| navigate /slow/1: settled routing=true target=/slow/1 intent=navigate at=/",
+          "| navigate /slow/2: call routing=true target=/slow/1 intent=navigate at=/",
+          "fetch:2:navigate",
+          "| navigate /slow/2: flush routing=true target=/slow/2 intent=navigate at=/",
+          "| navigate /slow/2: settled routing=true target=/slow/2 intent=navigate at=/",
+          "| resolved 1 routing=true target=/slow/2 intent=navigate at=/",
+          "routing:true@/slow/2",
+          "link:/slow/1:false",
+          "link:/slow/2:true",
+          "attr:/slow/1:-",
+          "attr:/slow/2:+",
+          "attr:/slow/2:-",
+          "routing:false",
+          "link:/slow/2:false",
+          "scrollTo:0",
+          "| resolved 2 routing=false at=/slow/2",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("navigation superseded mid-flight by a sync one", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      h.reset();
+      await h.step("navigate /slow/1", () => h.navigate("/slow/1"));
+      await h.step("navigate /a", () => h.navigate("/a"));
+      expect(window.location.pathname).toBe("/a");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| navigate /slow/1: call routing=false at=/",
+          "preload:1:navigate",
+          "fetch:1:navigate",
+          "attr:/slow/1:+",
+          "routing:true@/slow/1",
+          "link:/slow/1:true",
+          "| navigate /slow/1: flush routing=true target=/slow/1 intent=navigate at=/",
+          "| navigate /slow/1: settled routing=true target=/slow/1 intent=navigate at=/",
+          "| navigate /a: call routing=true target=/slow/1 intent=navigate at=/",
+          "routing:true@/a",
+          "link:/a:true",
+          "link:/slow/1:false",
+          "attr:/a:+",
+          "attr:/slow/1:-",
+          "attr:/a:-",
+          "routing:false",
+          "link:/a:false",
+          "scrollTo:0",
+          "| navigate /a: flush routing=false at=/a",
+          "| navigate /a: settled routing=false at=/a",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("navigating back to the current location while pending", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      h.reset();
+      await h.step("navigate /slow/1", () => h.navigate("/slow/1"));
+      await h.step("navigate /", () => h.navigate("/"));
+      h.gate("1").resolve("one");
+      await h.wait("resolved 1");
+      expect(window.location.pathname).toBe("/");
+      expect(h.route()).toBe("home");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| navigate /slow/1: call routing=false at=/",
+          "preload:1:navigate",
+          "fetch:1:navigate",
+          "attr:/slow/1:+",
+          "routing:true@/slow/1",
+          "link:/slow/1:true",
+          "| navigate /slow/1: flush routing=true target=/slow/1 intent=navigate at=/",
+          "| navigate /slow/1: settled routing=true target=/slow/1 intent=navigate at=/",
+          "| navigate /: call routing=true target=/slow/1 intent=navigate at=/",
+          "routing:true@/",
+          "link:/:true",
+          "link:/slow/1:false",
+          "attr:/:+",
+          "attr:/slow/1:-",
+          "attr:/:-",
+          "routing:false",
+          "link:/:false",
+          "scrollTo:0",
+          "| navigate /: flush routing=false at=/",
+          "| navigate /: settled routing=false at=/",
+          "| resolved 1 routing=false at=/",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("re-navigating to the pending target is a no-op", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      h.reset();
+      await h.step("navigate /slow/1", () => h.navigate("/slow/1"));
+      await h.step("navigate /slow/1 again", () => h.navigate("/slow/1"));
+      h.gate("1").resolve("one");
+      await h.wait("resolved");
+      expect(window.history.length).toBeGreaterThan(0);
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| navigate /slow/1: call routing=false at=/",
+          "preload:1:navigate",
+          "fetch:1:navigate",
+          "attr:/slow/1:+",
+          "routing:true@/slow/1",
+          "link:/slow/1:true",
+          "| navigate /slow/1: flush routing=true target=/slow/1 intent=navigate at=/",
+          "| navigate /slow/1: settled routing=true target=/slow/1 intent=navigate at=/",
+          "| navigate /slow/1 again: call routing=true target=/slow/1 intent=navigate at=/",
+          "| navigate /slow/1 again: flush routing=true target=/slow/1 intent=navigate at=/",
+          "| navigate /slow/1 again: settled routing=true target=/slow/1 intent=navigate at=/",
+          "attr:/slow/1:-",
+          "routing:false",
+          "link:/slow/1:false",
+          "scrollTo:0",
+          "| resolved routing=false at=/slow/1",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("a redirect chain from queries lands on the final hop", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      const length = window.history.length;
+      h.reset();
+      await h.step("navigate /hop/3", () => h.navigate("/hop/3"));
+      await h.wait("hops done");
+      await h.wait("hops done 2");
+      expect(window.location.pathname).toBe("/hop/0");
+      // the hops inherit the first write's history policy: one push in all
+      expect(window.history.length).toBe(length + 1);
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| navigate /hop/3: call routing=false at=/",
+          "hop:3:navigate",
+          "routing:true@/hop/3",
+          "| navigate /hop/3: flush routing=true target=/hop/3 intent=navigate at=/",
+          "hop:2:navigate",
+          "hop:1:navigate",
+          "hop:0:navigate",
+          "routing:true@/hop/0",
+          "routing:false",
+          "scrollTo:0",
+          "| navigate /hop/3: settled routing=false at=/hop/0",
+          "| hops done routing=false at=/hop/0",
+          "| hops done 2 routing=false at=/hop/0",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("a redirect loop past MAX_REDIRECTS throws on the hop that exceeds it", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      h.navigate("/slow/held");
+      flush();
+      const hops = () => {
+        for (let i = 1; i <= 100; i++) {
+          h.navigate(`/slow/held-${i}`);
+          flush();
+        }
+      };
+      expect(hops).toThrow("Too many redirects");
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("a same-tick burst is separate navigations, not redirect hops", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      const length = window.history.length;
+      h.reset();
+      await h.step("burst", () => {
+        h.navigate("/a");
+        h.navigate("/b", { replace: true });
+      });
+      expect(window.location.pathname).toBe("/b");
+      // `replace` is the second call's own, not inherited from the first
+      expect(window.history.length).toBe(length);
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| burst: call routing=false at=/",
+          "routing:true@/b",
+          "routing:false",
+          "scrollTo:0",
+          "| burst: flush routing=false at=/b",
+          "| burst: settled routing=false at=/b",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("a navigation issued while another is held is a hop of it", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      const length = window.history.length;
+      h.reset();
+      await h.step("navigate /slow/1", () => h.navigate("/slow/1"));
+      await h.step("navigate /b replace", () => h.navigate("/b", { replace: true }));
+      expect(window.location.pathname).toBe("/b");
+      // the hop inherits the held write's push
+      expect(window.history.length).toBe(length + 1);
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| navigate /slow/1: call routing=false at=/",
+          "preload:1:navigate",
+          "fetch:1:navigate",
+          "attr:/slow/1:+",
+          "routing:true@/slow/1",
+          "link:/slow/1:true",
+          "| navigate /slow/1: flush routing=true target=/slow/1 intent=navigate at=/",
+          "| navigate /slow/1: settled routing=true target=/slow/1 intent=navigate at=/",
+          "| navigate /b replace: call routing=true target=/slow/1 intent=navigate at=/",
+          "routing:true@/b",
+          "link:/slow/1:false",
+          "attr:/slow/1:-",
+          "routing:false",
+          "scrollTo:0",
+          "| navigate /b replace: flush routing=false at=/b",
+          "| navigate /b replace: settled routing=false at=/b",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("back/forward (native pops), sync and async", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      await h.step("navigate /a", () => h.navigate("/a"));
+      h.reset();
+      window.history.back();
+      await h.wait("back to /");
+      window.history.pushState(null, "", "/slow/pop");
+      window.history.back();
+      await h.wait("back");
+      window.history.forward();
+      await h.wait("forward to /slow/pop");
+      h.gate("pop").resolve("popped");
+      await h.wait("resolved");
+      expect(h.route()).toBe("slow");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "routing:true",
+          "routing:false",
+          "| back to / routing=false at=/",
+          "| back routing=false at=/",
+          "preload:pop:native",
+          "fetch:pop:native",
+          "routing:true",
+          "| forward to /slow/pop routing=true intent=native at=/",
+          "routing:false",
+          "| resolved routing=false at=/slow/pop",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("scroll restoration waits for an async pop to land", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      await h.step("navigate /fresh/s", () => h.navigate("/fresh/s"));
+      h.gate("s#1").resolve("s");
+      await h.wait("landed /fresh/s");
+      window.scrollTo(0, 700);
+      await h.step("navigate /a", () => h.navigate("/a"));
+      h.reset();
+      window.history.back();
+      await h.wait("back to /fresh/s");
+      h.gate("s#2").resolve("s");
+      await h.wait("resolved");
+      expect(h.route()).toBe("fresh");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "fresh:s#2",
+          "routing:true",
+          "| back to /fresh/s routing=true intent=native at=/a",
+          "routing:false",
+          "scrollTo:700",
+          "| resolved routing=false at=/fresh/s",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("beforeLeave blocking a programmatic navigation and a native pop", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      await h.step("navigate /guarded", () => h.navigate("/guarded"));
+      h.block(true);
+      h.reset();
+      await h.step("navigate /slow/1 (blocked)", () => h.navigate("/slow/1"));
+      window.history.back();
+      await h.wait("back (blocked)");
+      await h.wait("back (blocked) 2");
+      expect(window.location.pathname).toBe("/guarded");
+      expect(h.route()).toBe("guarded");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "blocked:/slow/1",
+          "| navigate /slow/1 (blocked): call routing=false at=/guarded",
+          "| navigate /slow/1 (blocked): flush routing=false at=/guarded",
+          "| navigate /slow/1 (blocked): settled routing=false at=/guarded",
+          "blocked:-1",
+          "| back (blocked) routing=false at=/guarded",
+          "| back (blocked) 2 routing=false at=/guarded",
+        ]
+      `);
+    } finally {
+      h.block(false);
+      h.cleanup();
+    }
+  });
+
+  test("a route whose data never resolves stays pending", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      h.reset();
+      await h.step("navigate /slow/never", () => h.navigate("/slow/never"));
+      await h.wait("later");
+      await h.wait("much later");
+      expect(window.location.pathname).toBe("/");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| navigate /slow/never: call routing=false at=/",
+          "preload:never:navigate",
+          "fetch:never:navigate",
+          "routing:true@/slow/never",
+          "| navigate /slow/never: flush routing=true target=/slow/never intent=navigate at=/",
+          "| navigate /slow/never: settled routing=true target=/slow/never intent=navigate at=/",
+          "| later routing=true target=/slow/never intent=navigate at=/",
+          "| much later routing=true target=/slow/never intent=navigate at=/",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("initial load of an async route", async () => {
+    const h = harness("/slow/init");
+    try {
+      h.mark("rendered");
+      flush();
+      h.mark("flushed");
+      h.gate("init").resolve("init");
+      await h.wait("resolved");
+      expect(h.route()).toBe("slow");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "routing:false",
+          "preload:init:initial",
+          "fetch:init:-",
+          "| rendered routing=false at=/slow/init",
+          "| flushed routing=false at=/slow/init",
+          "| resolved routing=false at=/slow/init",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+});

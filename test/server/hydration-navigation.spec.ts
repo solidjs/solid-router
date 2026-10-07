@@ -238,6 +238,46 @@ describe("navigation during hydration", () => {
     }
   });
 
+  // #655 characterization: what the navigation-pending observables read
+  // while the page hydrates, after it, and around a click mid-stream.
+  test("navigation-pending state across hydration", async () => {
+    const { dom, window, app, errors, finish } = await setup();
+    try {
+      const seen: string[] = [];
+      const read = (label: string) => {
+        const a = window.document.querySelector("a")!;
+        seen.push(
+          `${label}: routing=${app.isRouting()} data-pending=${a.hasAttribute("data-pending")} at=${window.location.pathname}`
+        );
+      };
+      read("hydrating");
+      const click = new window.MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+      window.document.querySelector("a").dispatchEvent(click);
+      read("clicked");
+      await new Promise<void>(resolve => setImmediate(resolve));
+      read("click flushed");
+      await finish();
+      read("hydrated");
+      await vi.waitFor(() => expect(window.location.pathname).toBe("/destination"));
+      await vi.waitFor(() => expect(app.isRouting()).toBe(false));
+      read("landed");
+      expect(seen).toMatchInlineSnapshot(`
+        [
+          "hydrating: routing=false data-pending=false at=/",
+          "clicked: routing=false data-pending=false at=/",
+          "click flushed: routing=false data-pending=false at=/destination",
+          "hydrated: routing=false data-pending=false at=/destination",
+          "landed: routing=false data-pending=false at=/destination",
+        ]
+      `);
+      expect(errors).toEqual([]);
+    } finally {
+      await finish();
+      app.dispose();
+      dom.window.close();
+    }
+  });
+
   // #625: the server showed the page, but the root boundary is still waiting
   // for its route module when the click lands.
   test("a link click before the root boundary's route module loads claims the server DOM", async () => {
