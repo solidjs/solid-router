@@ -98,11 +98,11 @@ function harness(initial = "/", options: Options = {}) {
 
   const key = `nav-pending-${++instance}`;
   const getData = query(async (id: string) => {
-    log.push(`fetch:${id}:${getIntent() ?? "-"}`);
+    log.push(`fetch:${id}:${untrack(getIntent) ?? "-"}`);
     return gate(id).promise;
   }, `${key}-data`);
   const getHop = query(async (n: number) => {
-    log.push(`hop:${n}:${getIntent() ?? "-"}`);
+    log.push(`hop:${n}:${untrack(getIntent) ?? "-"}`);
     if (n > 0) throw new Response(null, { status: 302, headers: { Location: `/hop/${n - 1}` } });
     return "landed";
   }, `${key}-hop`);
@@ -365,12 +365,12 @@ describe("navigation pending state (characterization, #655)", () => {
           "| navigate /slow/1: settled routing=true target=/slow/1 intent=navigate at=/",
           "| navigate /slow/2: call routing=true target=/slow/1 intent=navigate at=/",
           "fetch:2:navigate",
-          "| navigate /slow/2: flush routing=true target=/slow/2 intent=navigate at=/",
-          "| navigate /slow/2: settled routing=true target=/slow/2 intent=navigate at=/",
-          "| resolved 1 routing=true target=/slow/2 intent=navigate at=/",
           "routing:true@/slow/2",
           "link:/slow/1:false",
           "link:/slow/2:true",
+          "| navigate /slow/2: flush routing=true target=/slow/2 intent=navigate at=/",
+          "| navigate /slow/2: settled routing=true target=/slow/2 intent=navigate at=/",
+          "| resolved 1 routing=true target=/slow/2 intent=navigate at=/",
           "attr:/slow/1:-",
           "attr:/slow/2:+",
           "attr:/slow/2:-",
@@ -517,7 +517,9 @@ describe("navigation pending state (characterization, #655)", () => {
           "routing:true@/hop/3",
           "| navigate /hop/3: flush routing=true target=/hop/3 intent=navigate at=/",
           "hop:2:navigate",
+          "routing:true@/hop/2",
           "hop:1:navigate",
+          "routing:true@/hop/1",
           "hop:0:navigate",
           "routing:true@/hop/0",
           "routing:false",
@@ -880,9 +882,9 @@ describe("navigation pending state (characterization, #655)", () => {
           "| navigate /slow/w: settled routing=true target=/slow/w intent=navigate at=/watched",
           "leave:/slow/w?q=1",
           "| setSearchParams: call routing=true target=/slow/w intent=navigate at=/watched",
+          "routing:true@/slow/w?q=1",
           "| setSearchParams: flush routing=true target=/slow/w?q=1 intent=navigate at=/watched",
           "| setSearchParams: settled routing=true target=/slow/w?q=1 intent=navigate at=/watched",
-          "routing:true@/slow/w?q=1",
           "routing:false",
           "scrollTo:0",
           "| resolved routing=false at=/slow/w",
