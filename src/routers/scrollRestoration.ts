@@ -1,5 +1,4 @@
-import { createEffect, onCleanup } from "solid-js";
-import type { RouterContext } from "../types.js";
+import { onCleanup, onSettled, runWithOwner } from "solid-js";
 import { bindEvent, saveCurrentDepth } from "./history.js";
 import type { RouterHistory } from "./history.js";
 
@@ -18,7 +17,7 @@ const STORAGE_KEY = "solid-router:scroll";
  * so restoration survives reloads, which `scrollRestoration = "manual"`
  * otherwise disables.
  *
- * Restoration is a single scroll once routing settles — the same strategy
+ * Restoration is a single scroll once the traversal settles — the same strategy
  * SvelteKit, TanStack Router and React Router use. Settling after the
  * transition commits is what makes the offset reachable; chasing a still-
  * growing document afterwards (a ResizeObserver re-asserting the offset as
@@ -71,46 +70,34 @@ export function createScrollRestoration() {
   };
 
   return {
-    /** When the adapter notifies a traversal: mark the target for restoration. */
+    /**
+     * When the adapter notifies a traversal: mark the target and restore once
+     * the transition carrying it settles. The adapter notifies right before
+     * the location write, in the same tick, so the settle is that write's —
+     * a same-URL traversal included, which no location key would see.
+     */
     onPop() {
       pending = depth();
+      runWithOwner(null, () => onSettled(restore));
     },
     /** After a push: forward entries died, and this depth may be reused. */
     onPush() {
       const d = depth();
       if (d != null) for (const k in positions) +k >= d && delete positions[k];
     },
-    create(router: RouterContext) {
-      // Restore once the traversal has settled: key on the location (a fully
-      // synchronous pop commits without isRouting ever flipping) and on
-      // isRouting, which reports in-flight transitions — native pops
-      // included — and holds the restore until they commit. restore() no-ops
-      // unless a traversal marked a target, so push navigations are inert.
-      // `transparent` keeps the effect invisible to the hydration id scheme —
-      // same reasoning as the link-claims effect (claims.ts): this setup is
-      // client-only, so an id-consuming node here has no server counterpart
-      // and every hydration id allocated after it shifts by one child slot.
-      // The visible failure is any <Loading> content that settled before the
-      // shell flush (a cache hit, a preloaded query): its serialized value and
-      // inlined markup are keyed under the server's ids, the shifted client
-      // misses both, recomputes, and re-renders the route fresh — duplicating
-      // the server DOM and leaving it inert.
-      createEffect(
-        () => ({
-          url: router.location.pathname + router.location.search + router.location.hash,
-          routing: router.isRouting()
-        }),
-        current => {
-          if (!current.routing) restore();
-        },
-        { transparent: true } as {}
-      );
+    create() {
       onCleanup(() => unbind.forEach(u => u()));
       // reload/back_forward document loads land on an existing entry (a fresh
-      // navigation starts a new one and belongs at the top); the effect's
-      // initial run performs the restore after first render
+      // navigation starts a new one and belongs at the top): restore at the
+      // end of the first flush. Unowned on purpose — an owned onSettled is a
+      // node, and this setup is client-only, so it would take a hydration id
+      // the server never allocated and shift every id after it (the server
+      // DOM is then re-rendered rather than hydrated).
       const [nav] = performance.getEntriesByType?.("navigation") as PerformanceNavigationTiming[];
-      if (nav && nav.type !== "navigate") pending = depth();
+      if (nav && nav.type !== "navigate") {
+        pending = depth();
+        runWithOwner(null, () => onSettled(restore));
+      }
     }
   };
 }

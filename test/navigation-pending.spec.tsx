@@ -900,8 +900,8 @@ describe("navigation pending state (characterization, #655)", () => {
       expect(h.log).toMatchInlineSnapshot(`
         [
           "routing:true",
-          "scrollTo:300",
           "routing:false",
+          "scrollTo:300",
           "| back to /a #1 routing=false at=/a",
         ]
       `);

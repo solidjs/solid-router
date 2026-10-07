@@ -502,7 +502,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
       })(routerState);
       setupLinkClaims(routerState, config.explicitLinks);
       if (routerState.singleFlight) onCleanup(registerFlightRouter(routerState));
-      restoration && restoration.create(routerState);
+      restoration && restoration.create();
     }
     return (
       <RouterContextObj value={routerState}>
