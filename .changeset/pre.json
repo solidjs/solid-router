@@ -57,6 +57,7 @@
     "omit-empty-server-route-search",
     "optional-file-route-config",
     "own-single-flight-and-nojs",
+    "paths-sibling-param-calls",
     "popular-pears-boil",
     "preserve-layouts-between-child-routes",
     "public-hydration-api",
@@ -109,6 +110,7 @@
     "update-solid-rc-0",
     "update-solid-rc-1",
     "update-solid-rc-3",
+    "use-submissions-stable-identity",
     "warn-nested-router-mounts"
   ]
 }
