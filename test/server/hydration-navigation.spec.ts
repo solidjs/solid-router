@@ -117,7 +117,7 @@ describe("navigation during hydration", () => {
 
   async function setup(
     fixture: Fixture = "hydration-navigation",
-    options: { navigationType?: string } & Record<string, unknown> = {}
+    options: { navigationType?: string; scrollLog?: string[] } & Record<string, unknown> = {}
   ) {
     const stream = apps[fixture].start();
     await stream.shell;
@@ -141,6 +141,19 @@ describe("navigation during hydration", () => {
           event => streaming && event.stopImmediatePropagation(),
           true
         );
+        if (options.scrollLog) {
+          const log = options.scrollLog;
+          const positions: Record<number, number> = {};
+          for (let d = 0; d < 100; d++) positions[d] = 400;
+          window.sessionStorage.setItem("solid-router:scroll", JSON.stringify(positions));
+          Object.defineProperty(window, "scrollTo", {
+            configurable: true,
+            value: (_x: number, y: number) =>
+              void log.push(
+                `scrollTo:${y} shows=${window.document.querySelector("main")?.textContent}`
+              )
+          });
+        }
         if (options.navigationType) {
           const entries = [{ type: options.navigationType }];
           window.performance.getEntriesByType = ((type: string) =>
@@ -148,7 +161,7 @@ describe("navigation during hydration", () => {
         }
         Object.assign(window, {
           hydrationOptions: options,
-          scrollTo: () => {},
+          ...(options.scrollLog ? {} : { scrollTo: () => {} }),
           // Counts the requests the page makes itself: inside a hydration
           // tracking run core swaps `fetch` for a stub that never settles.
           fetch: (url: string) => (
@@ -301,6 +314,78 @@ describe("navigation during hydration", () => {
       expect(fetches).toEqual([]);
       window.document.querySelector("a").click();
       await roundTrip(window, app);
+      expect(errors).toEqual([]);
+    } finally {
+      await finish();
+      app.dispose();
+      dom.window.close();
+    }
+  });
+
+  // When the reload's restore runs against content that is still arriving:
+  // a boundary the server streams late, a route module the client loads.
+  test("reload scroll restoration while the server streams a pending boundary", async () => {
+    const log: string[] = [];
+    const { dom, window, app, errors, finish } = await setup("hydration-navigation", {
+      scrollRestoration: true,
+      navigationType: "reload",
+      scrollLog: log
+    });
+    const mark = (label: string) =>
+      log.push(
+        `| ${label} shows=${window.document.querySelector("main")?.textContent} hydrating=${app.isHydrationInProgress()}`
+      );
+    try {
+      mark("shell");
+      await new Promise<void>(resolve => setImmediate(resolve));
+      mark("shell flushed");
+      await finish();
+      mark("streamed");
+      expect(log).toMatchInlineSnapshot(`
+        [
+          "scrollTo:400 shows=Loading...Destination",
+          "| shell shows=Loading...Destination hydrating=true",
+          "| shell flushed shows=Loading...Destination hydrating=true",
+          "| streamed shows=Home readyDestination hydrating=false",
+        ]
+      `);
+      expect(errors).toEqual([]);
+    } finally {
+      await finish();
+      app.dispose();
+      dom.window.close();
+    }
+  });
+
+  test("reload scroll restoration while the route module is still loading", async () => {
+    const log: string[] = [];
+    const { dom, window, app, errors, finish } = await setup("hydration-lazy-route", {
+      scrollRestoration: true,
+      navigationType: "reload",
+      scrollLog: log
+    });
+    const mark = (label: string) =>
+      log.push(
+        `| ${label} shows=${window.document.querySelector("main")?.textContent} hydrating=${app.isHydrationInProgress()}`
+      );
+    try {
+      mark("shell");
+      await new Promise(resolve => setTimeout(resolve, 10));
+      mark("modules pending");
+      app.releaseModules();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      mark("modules loaded");
+      await finish();
+      mark("streamed");
+      expect(log).toMatchInlineSnapshot(`
+        [
+          "scrollTo:400 shows=Home readyDestination",
+          "| shell shows=Home readyDestination hydrating=true",
+          "| modules pending shows=Home readyDestination hydrating=true",
+          "| modules loaded shows=Home readyDestination hydrating=false",
+          "| streamed shows=Home readyDestination hydrating=false",
+        ]
+      `);
       expect(errors).toEqual([]);
     } finally {
       await finish();

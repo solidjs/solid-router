@@ -26,7 +26,9 @@ import {
   createRenderEffect,
   Errored,
   flush,
+  lazy,
   Loading,
+  NotReadyError,
   untrack,
   type ParentProps
 } from "solid-js";
@@ -64,6 +66,10 @@ type Options = {
   errored?: boolean;
   /** log the intent render and user effects over the location see when they run */
   landingProbe?: boolean;
+  /** log what the page shows (a route, the loading fallback) at each `scrollTo` */
+  scrollProbe?: boolean;
+  /** wrap the router in `<Loading>`, as an app resolving a lazy subtree on arrival does */
+  outerLoading?: boolean;
 };
 
 function harness(initial = "/", options: Options = {}) {
@@ -95,7 +101,7 @@ function harness(initial = "/", options: Options = {}) {
   Object.defineProperty(window, "scrollY", { configurable: true, get: () => y });
   window.scrollTo = ((_x: number, newY: number) => {
     y = newY;
-    log.push(`scrollTo:${newY}`);
+    log.push(`scrollTo:${newY}` + (options.scrollProbe ? ` shows=${shows()}` : ""));
     window.dispatchEvent(new Event("scroll"));
   }) as any;
 
@@ -229,24 +235,47 @@ function harness(initial = "/", options: Options = {}) {
       { path: "/fresh/:id", component: Fresh },
       { path: "/hop/:n", component: Hop },
       { path: "/guarded", component: Guarded },
-      { path: "/watched", component: Watched }
+      { path: "/watched", component: Watched },
+      {
+        path: "/lazy",
+        component: lazy(() => gate("lazy").promise.then(() => ({ default: page("lazy") })))
+      },
+      {
+        path: "/tree",
+        children: (() =>
+          gate("tree").promise.then(() => ({
+            default: [{ path: "/", component: page("tree") }]
+          }))) as any
+      }
     ] as const,
     links: pendingLinks
   });
   const div = document.createElement("div");
+  const shows = () =>
+    div.querySelector("[data-route]")?.getAttribute("data-route") ??
+    (div.querySelector("[data-loading]") ? "loading" : "-");
   document.body.appendChild(div);
+  const app = () => <Router>{(props: ParentProps) => <Layout {...props} />}</Router>;
   const dispose = render(
-    () => <Router>{(props: ParentProps) => <Layout {...props} />}</Router>,
+    options.outerLoading ? () => <Loading fallback={<div data-loading />}>{app()}</Loading> : app,
     div
   );
 
   const mark = (label: string) =>
     untrack(() => {
-      const target = pendingTarget(router)?.value;
+      // pending state over a still-resolving lazy route subtree is not
+      // readable from outside the graph yet
+      let state: string;
+      try {
+        const target = pendingTarget(router)?.value;
+        state = `routing=${routingState(router)()}` + (target ? ` target=${target}` : "");
+      } catch (e) {
+        if (!(e instanceof NotReadyError)) throw e;
+        state = "routing=<not ready>";
+      }
       const intent = router.intent?.();
       log.push(
-        `| ${label} routing=${routingState(router)()}` +
-          (target ? ` target=${target}` : "") +
+        `| ${label} ${state}` +
           (intent ? ` intent=${intent}` : "") +
           ` at=${router.location.pathname}`
       );
@@ -701,6 +730,36 @@ describe("navigation pending state (characterization, #655)", () => {
     }
   });
 
+  test("a back navigation's restore joins the traversal's transition and waits for its data", async () => {
+    const h = harness("/", { scrollProbe: true });
+    try {
+      await h.wait("mounted");
+      await h.step("navigate /fresh/p", () => h.navigate("/fresh/p"));
+      h.gate("p#1").resolve("p");
+      await h.wait("landed /fresh/p");
+      window.scrollTo(0, 900);
+      await h.step("navigate /a", () => h.navigate("/a"));
+      h.reset();
+      await h.traverse("back to /fresh/p", () => window.history.back());
+      await h.wait("still pending");
+      h.gate("p#2").resolve("p");
+      await h.wait("resolved");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "fresh:p#2",
+          "routing:true",
+          "| back to /fresh/p routing=true intent=native at=/a",
+          "| still pending routing=true intent=native at=/a",
+          "routing:false",
+          "scrollTo:900 shows=fresh",
+          "| resolved routing=false at=/fresh/p",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
   test("beforeLeave blocking a programmatic navigation and a native pop", async () => {
     const h = harness();
     try {
@@ -812,6 +871,73 @@ describe("navigation pending state (characterization, #655)", () => {
       performance.getEntriesByType = entries;
       h?.cleanup();
     }
+  });
+
+  // A reload lands on an existing entry: the restore targets a page whose
+  // initial content is still arriving — route data, a lazy route component,
+  // a lazy route subtree.
+  async function reloadInto(initial: string, id: string) {
+    const positions: Record<number, number> = {};
+    for (let d = 0; d < 100; d++) positions[d] = 400;
+    sessionStorage.setItem("solid-router:scroll", JSON.stringify(positions));
+    const entries = performance.getEntriesByType;
+    performance.getEntriesByType = ((type: string) =>
+      type === "navigation" ? [{ type: "reload" }] : []) as any;
+    let h!: ReturnType<typeof harness>;
+    try {
+      h = harness(initial, { scrollProbe: true, outerLoading: initial === "/tree" });
+      h.mark("rendered");
+      flush();
+      h.mark("flushed");
+      await h.wait("settled");
+      h.gate(id).resolve(id);
+      await h.wait("resolved");
+      return h.log;
+    } finally {
+      performance.getEntriesByType = entries;
+      h?.cleanup();
+    }
+  }
+
+  test("scroll restoration on a reload while the route's data is pending", async () => {
+    expect(await reloadInto("/slow/initial", "initial")).toMatchInlineSnapshot(`
+      [
+        "routing:false",
+        "preload:initial:initial",
+        "fetch:initial:-",
+        "scrollTo:400 shows=loading",
+        "| rendered routing=false at=/slow/initial",
+        "| flushed routing=false at=/slow/initial",
+        "| settled routing=false at=/slow/initial",
+        "| resolved routing=false at=/slow/initial",
+      ]
+    `);
+  });
+
+  test("scroll restoration on a reload while a lazy route component loads", async () => {
+    expect(await reloadInto("/lazy", "lazy")).toMatchInlineSnapshot(`
+      [
+        "routing:false",
+        "scrollTo:400 shows=loading",
+        "| rendered routing=false at=/lazy",
+        "| flushed routing=false at=/lazy",
+        "| settled routing=false at=/lazy",
+        "| resolved routing=false at=/lazy",
+      ]
+    `);
+  });
+
+  test("scroll restoration on a reload into an unresolved lazy route subtree", async () => {
+    expect(await reloadInto("/tree", "tree")).toMatchInlineSnapshot(`
+      [
+        "| rendered routing=<not ready> at=/tree",
+        "| flushed routing=<not ready> at=/tree",
+        "| settled routing=<not ready> at=/tree",
+        "routing:false",
+        "scrollTo:400 shows=tree",
+        "| resolved routing=false at=/tree",
+      ]
+    `);
   });
 
   test("a navigation whose data rejects lands on the error boundary", async () => {
