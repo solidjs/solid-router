@@ -510,6 +510,9 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
       if (routerState.singleFlight) onCleanup(registerFlightRouter(routerState));
       restoration && restoration.create();
     }
+    // Registered on both sides, outside the client-only branch: an owned
+    // onSettled takes a hydration id on the server too, so the ids line up.
+    onSettled(() => restoration && restoration.settled());
     return (
       <RouterContextObj value={routerState}>
         <Root routerState={routerState} root={root} preload={config.preload}>

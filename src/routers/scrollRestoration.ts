@@ -80,6 +80,8 @@ export function createScrollRestoration() {
       pending = depth();
       runWithOwner(null, () => onSettled(restore));
     },
+    /** The initial page settled: restore a reload/back_forward arrival. */
+    settled: () => restore(),
     /** After a push: forward entries died, and this depth may be reused. */
     onPush() {
       const d = depth();
@@ -88,16 +90,10 @@ export function createScrollRestoration() {
     create() {
       onCleanup(() => unbind.forEach(u => u()));
       // reload/back_forward document loads land on an existing entry (a fresh
-      // navigation starts a new one and belongs at the top): restore at the
-      // end of the first flush. Unowned on purpose — an owned onSettled is a
-      // node, and this setup is client-only, so it would take a hydration id
-      // the server never allocated and shift every id after it (the server
-      // DOM is then re-rendered rather than hydrated).
+      // navigation starts a new one and belongs at the top); the router calls
+      // `settled` once the initial page has
       const [nav] = performance.getEntriesByType?.("navigation") as PerformanceNavigationTiming[];
-      if (nav && nav.type !== "navigate") {
-        pending = depth();
-        runWithOwner(null, () => onSettled(restore));
-      }
+      if (nav && nav.type !== "navigate") pending = depth();
     }
   };
 }
