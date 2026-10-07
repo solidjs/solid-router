@@ -309,8 +309,15 @@ export function useSubmissions<T extends Array<any>, U, V>(
   filter?: (input: V) => boolean
 ): Submission<V, NarrowResponse<U>>[] {
   const router = useRouter();
-  const subs = createMemo(() =>
-    router.submissions[0]().filter(s => s.url === (fn as any).base && (!filter || filter(s.input)))
+  // Submissions are immutable records, so the same records in the same order
+  // are the same list: another action's submissions changing re-runs the
+  // filter but must not re-run this list's readers.
+  const subs = createMemo(
+    () =>
+      router.submissions[0]().filter(
+        s => s.url === (fn as any).base && (!filter || filter(s.input))
+      ),
+    { equals: (a, b) => a.length === b.length && a.every((s, i) => s === b[i]) }
   );
   return new Proxy<Submission<any, any>[]>([] as any, {
     get(_, property) {

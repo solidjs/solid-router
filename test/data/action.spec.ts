@@ -1,4 +1,4 @@
-import { createRoot } from "solid-js";
+import { createEffect, createRoot, flush } from "solid-js";
 import { vi } from "vitest";
 import {
   action,
@@ -538,6 +538,42 @@ describe("useSubmissions", () => {
       expect(submission?.input).toEqual(["keep"]);
       expect(submission?.result).toBe("result2");
     });
+  });
+
+  test("should not notify readers when another action's submissions change", () => {
+    const record = (url: string) => ({
+      input: [],
+      url,
+      result: "result",
+      error: undefined,
+      clear: vi.fn(),
+      retry: vi.fn()
+    });
+    const a = action(async () => "a", "identity-a");
+    const b = action(async () => "b", "identity-b");
+    let runs = 0;
+    const dispose = createRoot(dispose => {
+      const submissions = useSubmissions(a);
+      createEffect(
+        () => {
+          runs++;
+          return submissions.length;
+        },
+        () => {}
+      );
+      return dispose;
+    });
+    flush();
+    expect(runs).toBe(1);
+
+    mockRouterContext.submissions[1](entries => [...entries, record(b.url)]);
+    flush();
+    expect(runs).toBe(1);
+
+    mockRouterContext.submissions[1](entries => [...entries, record(a.url)]);
+    flush();
+    expect(runs).toBe(2);
+    dispose();
   });
 });
 
