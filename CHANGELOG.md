@@ -1,5 +1,12 @@
 # @solidjs/router
 
+## 2.0.0-next.36
+
+### Patch Changes
+
+- c0e1c6b: Typed `paths`: sibling routes that share a param prefix now merge at the param call, so `/posts/:id` (or the file-system `/posts/:id/`) next to `/posts/:id/edit` types `paths.posts(1).edit()` and `paths.posts(1)()` alike, in either declaration order. Each sibling used to contribute its own call signature, and a call resolves to the first one only (#652).
+- b81707c: `useSubmissions` keeps the same list while its submissions are unchanged. The filter used to return a new array on every run, so another action's submission settling re-ran every reader of this action's list (and tripped the dev `UNSTABLE_MEMO_OUTPUT` warning).
+
 ## 2.0.0-next.35
 
 ### Patch Changes
