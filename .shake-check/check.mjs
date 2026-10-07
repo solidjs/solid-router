@@ -6,13 +6,13 @@
 // Three passes:
 //   1. "external" — the flat dist/index.js with solid-js/@solidjs/web
 //      external and `isServer` unfoldable (worst case, mirrors esbuild-class
-//      bundlers). The flat bundle is the no-build fallback and is built with
-//      inlineDynamicImports, so events.ts's lazy serverForms fallback — and
-//      with it action.ts/query.ts — is inlined BY DESIGN (see
-//      rollup.config.js); only the flash codec markers apply.
+//      bundlers). The flat bundle is what every bundler without the `solid`
+//      condition resolves; action.ts is its own chunk there (see
+//      rollup.config.js, #655), so the eager graph must exclude it as in the
+//      split pass (query.ts too, once `isServer` folds — pass 2).
 //   2. "browser" — the flat bundle with @solidjs/web resolved to its browser
-//      production build (`isServer` folds to false). Same inlining caveat;
-//      everything flash-related must be gone.
+//      production build (`isServer` folds to false); everything
+//      flash-related must be gone too.
 //   3. "split" — the per-module `solid`-condition output (dist/index.jsx)
 //      that every @solidjs/vite-plugin app consumes, compiled with
 //      babel-preset-solid and code splitting allowed. This is where the
@@ -77,11 +77,20 @@ async function flatPass(mode) {
     }
   });
   const { output } = await bundle.generate({ format: "esm" });
-  const code = output[0].code;
+  const code = output
+    .filter(c => c.type === "chunk" && !c.isDynamicEntry)
+    .map(c => c.code)
+    .join("\n");
   writeFileSync(join(here, `out-${mode}.js`), code);
 
-  console.log(`\n== ${mode} pass (flat no-build bundle; data layer inlined by design) ==`);
-  const failed = scan(code, browser ? { ...flashCodecMarkers, ...flashClearMarkers } : flashCodecMarkers);
+  console.log(`\n== ${mode} pass (flat bundle, as bundlers without the solid condition see it) ==`);
+  const failed = scan(
+    code,
+    browser
+      ? { ...dataLayerMarkers, ...flashCodecMarkers, ...flashClearMarkers }
+      : // unfoldable `isServer` keeps query.ts's top-level cache sweep
+        { "action.ts": dataLayerMarkers["action.ts"], ...flashCodecMarkers }
+  );
   console.log(`bundle size (unminified): ${(code.length / 1024).toFixed(1)} KB`);
   return failed;
 }
