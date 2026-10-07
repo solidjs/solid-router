@@ -20,8 +20,10 @@
  */
 import { render } from "@solidjs/web";
 import {
+  createEffect,
   createMemo,
   createRenderEffect,
+  Errored,
   flush,
   Loading,
   untrack,
@@ -36,6 +38,7 @@ import {
   useLinkState,
   useNavigate,
   useParams,
+  useSearchParams,
   type Navigator
 } from "../src/index.js";
 import { getIntent, useRouter } from "../src/routing.js";
@@ -46,18 +49,29 @@ const settle = async (ms = 5) => {
   await new Promise(resolve => setTimeout(resolve, ms));
 };
 
-type Gate = { promise: Promise<string>; resolve: (v: string) => void };
+type Gate = {
+  promise: Promise<string>;
+  resolve: (v: string) => void;
+  reject: (e: unknown) => void;
+};
 let instance = 0;
 
-function harness(initial = "/") {
+type Options = {
+  /** wrap the route outlet in `<Errored>`, logging `caught:<message>` */
+  errored?: boolean;
+  /** log the intent render and user effects over the location see when they run */
+  landingProbe?: boolean;
+};
+
+function harness(initial = "/", options: Options = {}) {
   const log: string[] = [];
   const gates = new Map<string, Gate>();
   const gate = (id: string) => {
     let g = gates.get(id);
     if (!g) {
-      let resolve!: (v: string) => void;
-      const promise = new Promise<string>(r => (resolve = r));
-      gates.set(id, (g = { promise, resolve }));
+      let resolve!: (v: string) => void, reject!: (e: unknown) => void;
+      const promise = new Promise<string>((res, rej) => ((resolve = res), (reject = rej)));
+      gates.set(id, (g = { promise, resolve, reject }));
     }
     return g;
   };
@@ -128,6 +142,14 @@ function harness(initial = "/") {
     });
     return <div data-route="guarded" />;
   };
+  // a guard that never blocks: logs the destination it is asked about
+  let setSearch!: (params: Record<string, string>) => void;
+  const Watched = () => {
+    const [, set] = useSearchParams();
+    setSearch = set as any;
+    useBeforeLeave(e => void log.push(`leave:${e.to}`));
+    return <div data-route="watched" />;
+  };
   const page = (name: string) => () => <div data-route={name} />;
 
   const links = ["/", "/a", "/slow/1", "/slow/2"];
@@ -147,6 +169,16 @@ function harness(initial = "/") {
         prevRouting = v;
       }
     );
+    if (options.landingProbe) {
+      createRenderEffect(
+        () => `${router.location.pathname}:${untrack(getIntent) ?? "-"}`,
+        v => void log.push(`render-intent:${v}`)
+      );
+      createEffect(
+        () => `${router.location.pathname}:${untrack(getIntent) ?? "-"}`,
+        v => void log.push(`user-intent:${v}`)
+      );
+    }
     for (const href of links) {
       const state = useLinkState(() => href);
       let prev = false;
@@ -160,7 +192,20 @@ function harness(initial = "/") {
         {links.map(href => (
           <a href={href}>{href}</a>
         ))}
-        <Loading fallback={<div data-loading />}>{props.children}</Loading>
+        <Loading fallback={<div data-loading />}>
+          {options.errored ? (
+            <Errored
+              fallback={(e: any) => {
+                log.push(`caught:${e()?.message ?? e()}`);
+                return <div data-route="error" />;
+              }}
+            >
+              {props.children}
+            </Errored>
+          ) : (
+            props.children
+          )}
+        </Loading>
       </>
     );
   };
@@ -180,7 +225,8 @@ function harness(initial = "/") {
       },
       { path: "/fresh/:id", component: Fresh },
       { path: "/hop/:n", component: Hop },
-      { path: "/guarded", component: Guarded }
+      { path: "/guarded", component: Guarded },
+      { path: "/watched", component: Watched }
     ] as const
   });
   const div = document.createElement("div");
@@ -206,6 +252,7 @@ function harness(initial = "/") {
     log,
     gate,
     navigate: (to: string, options?: any) => navigate(to, options),
+    setSearch: (params: Record<string, string>) => setSearch(params),
     route: () => div.querySelector("[data-route]")?.getAttribute("data-route"),
     block: (on: boolean) => (blockLeave = on),
     mark,
@@ -705,6 +752,140 @@ describe("navigation pending state (characterization, #655)", () => {
           "| rendered routing=false at=/slow/init",
           "| flushed routing=false at=/slow/init",
           "| resolved routing=false at=/slow/init",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+  test("a navigation whose data rejects lands on the error boundary", async () => {
+    const h = harness("/", { errored: true });
+    try {
+      await h.wait("mounted");
+      h.reset();
+      await h.step("navigate /slow/bad", () => h.navigate("/slow/bad"));
+      h.gate("bad").reject(new Error("boom"));
+      await h.wait("rejected");
+      await h.step("navigate /a", () => h.navigate("/a"));
+      expect(h.route()).toBe("a");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| navigate /slow/bad: call routing=false at=/",
+          "preload:bad:navigate",
+          "fetch:bad:navigate",
+          "routing:true@/slow/bad",
+          "| navigate /slow/bad: flush routing=true target=/slow/bad intent=navigate at=/",
+          "| navigate /slow/bad: settled routing=true target=/slow/bad intent=navigate at=/",
+          "caught:boom",
+          "routing:false",
+          "scrollTo:0",
+          "| rejected routing=false at=/slow/bad",
+          "| navigate /a: call routing=false at=/slow/bad",
+          "routing:true@/a",
+          "routing:false",
+          "scrollTo:0",
+          "| navigate /a: flush routing=false at=/a",
+          "| navigate /a: settled routing=false at=/a",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("intent seen by effects re-run in the landing flush, after commit and before settle", async () => {
+    const h = harness("/", { landingProbe: true });
+    try {
+      await h.wait("mounted");
+      h.reset();
+      await h.step("navigate /slow/1", () => h.navigate("/slow/1"));
+      h.gate("1").resolve("one");
+      await h.wait("resolved");
+      await h.step("navigate /a", () => h.navigate("/a"));
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| navigate /slow/1: call routing=false at=/",
+          "preload:1:navigate",
+          "fetch:1:navigate",
+          "attr:/slow/1:+",
+          "routing:true@/slow/1",
+          "link:/slow/1:true",
+          "| navigate /slow/1: flush routing=true target=/slow/1 intent=navigate at=/",
+          "| navigate /slow/1: settled routing=true target=/slow/1 intent=navigate at=/",
+          "render-intent:/slow/1:navigate",
+          "user-intent:/slow/1:navigate",
+          "attr:/slow/1:-",
+          "routing:false",
+          "link:/slow/1:false",
+          "scrollTo:0",
+          "| resolved routing=false at=/slow/1",
+          "| navigate /a: call routing=false at=/slow/1",
+          "routing:true@/a",
+          "render-intent:/a:navigate",
+          "user-intent:/a:navigate",
+          "routing:false",
+          "scrollTo:0",
+          "| navigate /a: flush routing=false at=/a",
+          "| navigate /a: settled routing=false at=/a",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("scroll restoration on a pop between entries with an identical URL", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      await h.step("navigate /a #1", () => h.navigate("/a", { state: { n: 1 } }));
+      window.scrollTo(0, 300);
+      await h.step("navigate /a #2", () => h.navigate("/a", { state: { n: 2 } }));
+      window.scrollTo(0, 50);
+      h.reset();
+      window.history.back();
+      await h.wait("back to /a #1");
+      expect(window.history.state?.n).toBe(1);
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "routing:true",
+          "scrollTo:300",
+          "routing:false",
+          "| back to /a #1 routing=false at=/a",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("the leave guard is asked about a composed destination against the held navigation", async () => {
+    const h = harness("/watched");
+    try {
+      await h.wait("mounted");
+      h.reset();
+      await h.step("navigate /slow/w", () => h.navigate("/slow/w"));
+      await h.step("setSearchParams", () => h.setSearch({ q: "1" }));
+      h.gate("w").resolve("w");
+      await h.wait("resolved");
+      expect(window.location.pathname + window.location.search).toBe("/slow/w?q=1");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "leave:/slow/w",
+          "| navigate /slow/w: call routing=false at=/watched",
+          "preload:w:navigate",
+          "fetch:w:navigate",
+          "routing:true@/slow/w",
+          "| navigate /slow/w: flush routing=true target=/slow/w intent=navigate at=/watched",
+          "| navigate /slow/w: settled routing=true target=/slow/w intent=navigate at=/watched",
+          "leave:/slow/w?q=1",
+          "| setSearchParams: call routing=true target=/slow/w intent=navigate at=/watched",
+          "| setSearchParams: flush routing=true target=/slow/w?q=1 intent=navigate at=/watched",
+          "| setSearchParams: settled routing=true target=/slow/w?q=1 intent=navigate at=/watched",
+          "routing:true@/slow/w?q=1",
+          "routing:false",
+          "scrollTo:0",
+          "| resolved routing=false at=/slow/w",
         ]
       `);
     } finally {
