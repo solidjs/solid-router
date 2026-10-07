@@ -269,6 +269,26 @@ function harness(initial = "/", options: Options = {}) {
       await settle();
       mark(label);
     },
+    /**
+     * Traverse history, then checkpoint like `wait` once `pops` popstate
+     * events arrived — jsdom delivers them in a later task, which a loaded
+     * run can push past a fixed wait. A blocked pop is two: the traversal
+     * and the router's revert.
+     */
+    async traverse(label: string, go: () => void, pops = 1) {
+      await new Promise<void>(resolve => {
+        let seen = 0;
+        const onPop = () => {
+          if (++seen < pops) return;
+          window.removeEventListener("popstate", onPop);
+          resolve();
+        };
+        window.addEventListener("popstate", onPop);
+        go();
+      });
+      await settle();
+      mark(label);
+    },
     reset() {
       log.length = 0;
     },
@@ -622,13 +642,10 @@ describe("navigation pending state (characterization, #655)", () => {
       await h.wait("mounted");
       await h.step("navigate /a", () => h.navigate("/a"));
       h.reset();
-      window.history.back();
-      await h.wait("back to /");
+      await h.traverse("back to /", () => window.history.back());
       window.history.pushState(null, "", "/slow/pop");
-      window.history.back();
-      await h.wait("back");
-      window.history.forward();
-      await h.wait("forward to /slow/pop");
+      await h.traverse("back", () => window.history.back());
+      await h.traverse("forward to /slow/pop", () => window.history.forward());
       h.gate("pop").resolve("popped");
       await h.wait("resolved");
       expect(h.route()).toBe("slow");
@@ -661,8 +678,7 @@ describe("navigation pending state (characterization, #655)", () => {
       window.scrollTo(0, 700);
       await h.step("navigate /a", () => h.navigate("/a"));
       h.reset();
-      window.history.back();
-      await h.wait("back to /fresh/s");
+      await h.traverse("back to /fresh/s", () => window.history.back());
       h.gate("s#2").resolve("s");
       await h.wait("resolved");
       expect(h.route()).toBe("fresh");
@@ -689,8 +705,7 @@ describe("navigation pending state (characterization, #655)", () => {
       h.block(true);
       h.reset();
       await h.step("navigate /slow/1 (blocked)", () => h.navigate("/slow/1"));
-      window.history.back();
-      await h.wait("back (blocked)");
+      await h.traverse("back (blocked)", () => window.history.back(), 2);
       await h.wait("back (blocked) 2");
       expect(window.location.pathname).toBe("/guarded");
       expect(h.route()).toBe("guarded");
@@ -845,8 +860,7 @@ describe("navigation pending state (characterization, #655)", () => {
       await h.step("navigate /a #2", () => h.navigate("/a", { state: { n: 2 } }));
       window.scrollTo(0, 50);
       h.reset();
-      window.history.back();
-      await h.wait("back to /a #1");
+      await h.traverse("back to /a #1", () => window.history.back());
       expect(window.history.state?.n).toBe(1);
       expect(h.log).toMatchInlineSnapshot(`
         [
