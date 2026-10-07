@@ -182,4 +182,77 @@ describe("Type checking the typed path proxy", () => {
     const hereMatch = useMatch(() => Defined.paths.users(2));
     const _herePath: string | undefined = hereMatch()?.path;
   };
+
+  // #652: sibling routes sharing a param prefix merge at the param call
+  () => {
+    const TrailingSlash = createRouter({
+      routes: defineRoutes([{ path: "/posts/:id/" }, { path: "/posts/:id/edit" }])
+    });
+    const _trailingEdit: string = TrailingSlash.paths.posts(1).edit();
+    const _trailingDetail: string = TrailingSlash.paths.posts(1)();
+    TrailingSlash.paths.posts(1, { tab: "x" }, "hash");
+    // @ts-expect-error no such route segment under a post
+    TrailingSlash.paths.posts(1).missing;
+
+    const NoSlash = createRouter({
+      routes: defineRoutes([{ path: "/posts/:id" }, { path: "/posts/:id/edit" }])
+    });
+    const _noSlashEdit: string = NoSlash.paths.posts(1).edit();
+    const _noSlashDetail: string = NoSlash.paths.posts(1)();
+
+    // declaration order does not matter
+    const Reversed = createRouter({
+      routes: defineRoutes([{ path: "/posts/:id/edit" }, { path: "/posts/:id/" }])
+    });
+    const _reversedEdit: string = Reversed.paths.posts(1).edit();
+    const _reversedDetail: string = Reversed.paths.posts(1)();
+
+    // empty segments are ignored, as the matcher ignores them
+    const Empty = createRouter({
+      routes: defineRoutes([{ path: "/" }, { path: "//posts//:id//" }])
+    });
+    const _emptyRoot: string = Empty.paths();
+    const _emptyPost: string = Empty.paths.posts(1)();
+
+    const Nested = createRouter({
+      routes: defineRoutes([
+        { path: "/" },
+        { path: "/posts/:id/", matchFilters: { id: int } },
+        { path: "/posts/:id/comments/:commentId" },
+        { path: "/posts/:id/edit/" },
+        { path: "/posts/:id/:slug" },
+        { path: "/docs/:section?" },
+        { path: "/docs/:section?/print" }
+      ])
+    });
+    const _nestedRoot: string = Nested.paths();
+    const _comment: string = Nested.paths.posts(1).comments("c1")();
+    const _nestedEdit: string = Nested.paths.posts(1).edit();
+    const _slug: string = Nested.paths.posts(1, "hello")();
+    const _docs: string = Nested.paths.docs("guide")();
+    const _docsPrint: string = Nested.paths.docs("guide").print();
+    const _docsSkipped: string = Nested.paths.docs.print();
+    // @ts-expect-error a slug binds a leaf, not the edit subtree
+    Nested.paths.posts(1, "hello").edit;
+    // @ts-expect-error commentId param is required
+    Nested.paths.posts(1).comments();
+
+    const commentParams = useParams(Nested.paths.posts(1).comments("c1"));
+    const _commentPostId: string = commentParams.id;
+    const _commentId: string = commentParams.commentId;
+
+    // the nested, relative shape a file-system manifest emits
+    const Fs = createRouter({
+      routes: defineRoutes([
+        { path: "/" },
+        {
+          path: "/posts",
+          children: [{ path: "/" }, { path: "/:id/" }, { path: "/:id/edit" }]
+        }
+      ])
+    });
+    const _fsList: string = Fs.paths.posts();
+    const _fsDetail: string = Fs.paths.posts(1)();
+    const _fsEdit: string = Fs.paths.posts(1).edit();
+  };
 });

@@ -141,6 +141,23 @@ type TuplePaths<R extends readonly unknown[], PAcc extends Params> = R extends r
 type PathLeaf<Sch extends SearchTypes, C, PAcc extends Params> = PathEnd<Sch, Flat<PAcc>> &
   ChildPaths<C, PAcc>;
 
+declare const PARAM_NEXT: unique symbol;
+
+/**
+ * Sibling routes that share a param prefix (`/posts/:id`, `/posts/:id/edit`)
+ * each contribute a call at that node, and a call on an intersection of
+ * function types resolves to its first overload only. So the call reads its
+ * result back through `this` — the whole intersection — where the
+ * continuations of every sibling with the same arity have merged.
+ */
+interface ParamCall<A extends readonly unknown[]> {
+  (...args: A): this extends { readonly [PARAM_NEXT]: { [K in A["length"]]: infer N } } ? N : never;
+}
+
+type ParamCallTo<A extends readonly unknown[], N> = ParamCall<A> & {
+  readonly [PARAM_NEXT]: { [K in A["length"]]: N };
+};
+
 type PathNode<
   Segs extends readonly string[],
   F,
@@ -149,7 +166,7 @@ type PathNode<
   PAcc extends Params
 > = Segs extends readonly [infer H extends string, ...infer R extends readonly string[]]
   ? H extends `:${infer N}?`
-    ? ((arg: ParamArg<N, F>) => PathNode<R, F, Sch, C, PAcc & { [K in N]?: string }>) &
+    ? ParamCallTo<[ParamArg<N, F>], PathNode<R, F, Sch, C, PAcc & { [K in N]?: string }>> &
         PathNode<R, F, Sch, C, PAcc & { [K in N]?: string }>
     : H extends `:${string}` | `*${string}`
     ? ParamCallNode<Segs, F, Sch, C, PAcc>
@@ -167,7 +184,7 @@ type ParamCallNode<
   params: infer P2 extends Params;
   rest: infer R2 extends readonly string[];
 }
-  ? ((...args: A) => PathNode<R2, F, Sch, C, PAcc & P2>) &
+  ? ParamCallTo<A, PathNode<R2, F, Sch, C, PAcc & P2>> &
       (R2 extends readonly [] ? { (...args: [...A, Sch["input"], string?]): string } : {}) &
       TypedPath<Flat<PAcc & P2>>
   : never;
