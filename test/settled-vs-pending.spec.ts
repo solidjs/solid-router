@@ -12,6 +12,7 @@
  */
 import {
   createMemo,
+  createEffect,
   createRenderEffect,
   createRoot,
   createSignal,
@@ -341,6 +342,42 @@ describe("a router-owned pending marker (solid 2.0 rc.13)", () => {
       "frame:x",
       "pending:false",
       "sweep:/slow|/slow",
+      "settled:/slow",
+      "| landed"
+    ]);
+    t.dispose();
+  });
+
+  test("written in a later tick but read by a user effect beside the held location: held to the landing", async () => {
+    let setMarker!: (v: string | undefined) => void;
+    const t = setup((loc, log) => {
+      const [marker, set] = createSignal<string | undefined>(undefined, { ownedWrite: true });
+      setMarker = set;
+      // scroll restoration's shape: a user effect over the location and the marker
+      createEffect(
+        () => `${loc()}|${marker()}`,
+        v => void log.push(`user:${v}`)
+      );
+      createRenderEffect(marker, v => void log.push(`marker:${v}`));
+    });
+    t.log.length = 0;
+    t.write("/slow");
+    flush();
+    t.mark("parked");
+    setMarker("/slow");
+    flush();
+    t.mark("marker written");
+    t.gate("/slow").resolve("x");
+    await tick();
+    t.mark("landed");
+    expect(t.log).toEqual([
+      "pending:true",
+      "| parked",
+      "| marker written",
+      "frame:x",
+      "marker:/slow",
+      "user:/slow|/slow",
+      "pending:false",
       "settled:/slow",
       "| landed"
     ]);
