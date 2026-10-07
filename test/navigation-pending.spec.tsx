@@ -775,6 +775,41 @@ describe("navigation pending state (characterization, #655)", () => {
       h.cleanup();
     }
   });
+  test("scroll restoration on a reload into an async route", async () => {
+    const positions: Record<number, number> = {};
+    for (let d = 0; d < 100; d++) positions[d] = 400;
+    sessionStorage.setItem("solid-router:scroll", JSON.stringify(positions));
+    const entries = performance.getEntriesByType;
+    performance.getEntriesByType = ((type: string) =>
+      type === "navigation" ? [{ type: "reload" }] : []) as any;
+    let h!: ReturnType<typeof harness>;
+    try {
+      h = harness("/slow/reload");
+      h.mark("rendered");
+      flush();
+      h.mark("flushed");
+      await h.wait("settled");
+      h.gate("reload").resolve("reload");
+      await h.wait("resolved");
+      expect(h.route()).toBe("slow");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "routing:false",
+          "preload:reload:initial",
+          "fetch:reload:-",
+          "scrollTo:400",
+          "| rendered routing=false at=/slow/reload",
+          "| flushed routing=false at=/slow/reload",
+          "| settled routing=false at=/slow/reload",
+          "| resolved routing=false at=/slow/reload",
+        ]
+      `);
+    } finally {
+      performance.getEntriesByType = entries;
+      h?.cleanup();
+    }
+  });
+
   test("a navigation whose data rejects lands on the error boundary", async () => {
     const h = harness("/", { errored: true });
     try {

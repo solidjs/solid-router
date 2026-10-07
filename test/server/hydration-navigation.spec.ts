@@ -115,7 +115,10 @@ describe("navigation during hydration", () => {
     await server?.close();
   });
 
-  async function setup(fixture: Fixture = "hydration-navigation", options = {}) {
+  async function setup(
+    fixture: Fixture = "hydration-navigation",
+    options: { navigationType?: string } & Record<string, unknown> = {}
+  ) {
     const stream = apps[fixture].start();
     await stream.shell;
     const consumed = stream.chunks.length;
@@ -138,6 +141,11 @@ describe("navigation during hydration", () => {
           event => streaming && event.stopImmediatePropagation(),
           true
         );
+        if (options.navigationType) {
+          const entries = [{ type: options.navigationType }];
+          window.performance.getEntriesByType = ((type: string) =>
+            type === "navigation" ? entries : []) as any;
+        }
         Object.assign(window, {
           hydrationOptions: options,
           scrollTo: () => {},
@@ -270,6 +278,29 @@ describe("navigation during hydration", () => {
           "landed: routing=false data-pending=false at=/destination",
         ]
       `);
+      expect(errors).toEqual([]);
+    } finally {
+      await finish();
+      app.dispose();
+      dom.window.close();
+    }
+  });
+
+  // Reloading lands on an existing entry, so scroll restoration schedules its
+  // first restore while the page hydrates. That client-only setup must not
+  // shift the hydration ids of what renders after it.
+  test("a reload with scroll restoration hydrates the server DOM in place", async () => {
+    const { dom, window, app, errors, fetches, finish } = await setup("hydration-navigation", {
+      scrollRestoration: true,
+      navigationType: "reload"
+    });
+    try {
+      await finish();
+      expect(window.document.querySelectorAll("main")).toHaveLength(1);
+      expect(window.document.querySelector("h1").textContent).toBe("Home ready");
+      expect(fetches).toEqual([]);
+      window.document.querySelector("a").click();
+      await roundTrip(window, app);
       expect(errors).toEqual([]);
     } finally {
       await finish();
