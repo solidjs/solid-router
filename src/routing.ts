@@ -9,8 +9,6 @@ import {
   createMemo,
   createSignal,
   getOwner,
-  isPending,
-  latest,
   NotReadyError,
   onCleanup,
   untrack,
@@ -68,6 +66,7 @@ import {
 // values (behind isServer, tree-shaken from client bundles).
 import type { FlashSubmission } from "@solidjs/web/server-functions/server";
 import { HREF } from "./paths.js";
+import { linkPending, routingState } from "./pending.js";
 import {
   serverRouteOf,
   serverRouteArgs,
@@ -186,7 +185,7 @@ export const useLocation = <S = unknown>() => useRouter().location as Location<S
  * );
  * ```
  */
-export const useIsRouting = () => useRouter().isRouting;
+export const useIsRouting = () => routingState(useRouter());
 
 /**
  * `useMatch` takes an accessor that returns the path and creates a `Memo` that returns match information if the current path matches the provided path.
@@ -413,12 +412,7 @@ export const useLinkState = (
     // observe the committed location during a transition
     pending: createMemo(() => {
       state(); // location dependency: mid-flight target swaps recompute
-      return (
-        router.isRouting() &&
-        !!router.pendingTarget &&
-        matchLink({ pathname: router.pendingTarget.value, search: "" }, to(), base, options.end)
-          .active
-      );
+      return linkPending(router, to(), base, options.end);
     })
   };
 };
@@ -972,21 +966,6 @@ export function createRouterContext(
     DEV && { name: "matches" }
   );
 
-  const routingPending = createMemo(
-    () =>
-      isPending(() => {
-        try {
-          matches();
-        } catch (e) {
-          if (e instanceof NotReadyError) throw e;
-        }
-        location.search;
-        location.hash;
-      }),
-    DEV && { name: "routingPending" }
-  );
-  const isRouting = () => routingPending() || isPending(source);
-
   const headedLocation = () => (isServer ? untrack(source) : flushed);
   // A flushed navigation write whose settle has not run is still in flight.
   const unsettled = (change: LocationChange) =>
@@ -997,12 +976,6 @@ export function createRouterContext(
     if (!unsettled(head)) return;
     const navigation = head._navigation;
     return navigation === -1 ? "native" : navigation && navigation > 0 ? "navigate" : undefined;
-  };
-
-  const pendingNavigation = () => {
-    if (!isRouting()) return;
-    const target = latest(source);
-    return target._navigation && target._navigation > 0 ? target : undefined;
   };
 
   const buildParams = () => mergeParams(matches());
@@ -1028,11 +1001,9 @@ export function createRouterContext(
     location,
     params,
     wrapParams,
-    isRouting,
     intent: transitionIntent,
-    get pendingTarget() {
-      return pendingNavigation();
-    },
+    _source: source,
+    _owner: routerOwner,
     renderPath,
     parsePath,
     navigatorFactory,

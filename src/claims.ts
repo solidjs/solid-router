@@ -1,6 +1,6 @@
 import { registerElementClaim } from "@solidjs/web";
 import { createRenderEffect, getOwner, onCleanup, untrack } from "solid-js";
-import type { RouterContext } from "./types.js";
+import type { LinksPlugin, RouterContext } from "./types.js";
 import { isUnderBase, matchLink } from "./utils.js";
 
 /**
@@ -26,7 +26,9 @@ export function setFormClaimHandler(handler: ((form: HTMLFormElement) => void) |
  *   included (parameter order aside)
  * - `data-active` — pathname exact or prefix match (the router's root, its
  *   base path, exact only)
- * - `data-pending` — the link is the target of an in-flight navigation
+ * - `data-pending` — the link is the target of an in-flight navigation;
+ *   opt-in through `createRouter({ links: pendingLinks })`. Without the
+ *   plugin, claims never read pending state and the sweep does not track it.
  *
  * The matching rule is `matchLink`, shared with `useLinkState`. The router
  * only touches an `aria-current` it wrote itself: one the author set (a
@@ -41,8 +43,13 @@ export function setFormClaimHandler(handler: ((form: HTMLFormElement) => void) |
  * are the same one-shot untracked refresh, reading the element's current
  * `href` from the DOM.
  */
-export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) {
+export function setupLinkClaims(
+  router: RouterContext,
+  explicitLinks?: boolean,
+  links?: LinksPlugin
+) {
   const basePath = router.base.path();
+  const plugin = links && links(router, basePath);
   // per-element record; `owned` is whether the `aria-current` on the element
   // is the router's, so it never writes over or removes an authored one
   const claimed = new WeakMap<Node, { owned: boolean }>();
@@ -78,18 +85,12 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
     // read reactive sources unconditionally so the owning effect stays
     // subscribed even while the anchor is not router-managed
     const location = router.location;
-    const routing = router.isRouting();
+    const routing = plugin && plugin.track();
     const url = managedUrl(a);
     const target = url && url.pathname + url.search;
     // no per-anchor `end` opt-out like useLinkState has
     const { active, current } = matchLink(location, target, basePath);
-    // effects observe the committed location during a transition, so the
-    // in-flight target comes from pendingTarget — readable here because the
-    // isRouting write flushes after the target is assigned
-    const pending =
-      routing &&
-      !!router.pendingTarget &&
-      matchLink({ pathname: router.pendingTarget.value, search: "" }, target, basePath).active;
+    const pending = !!routing && plugin!.pending(target);
     return { active, pending, current };
   }
 
@@ -99,7 +100,7 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
     { active, pending, current }: ReturnType<typeof linkState>
   ) {
     active ? a.setAttribute("data-active", "") : a.removeAttribute("data-active");
-    pending ? a.setAttribute("data-pending", "") : a.removeAttribute("data-pending");
+    if (plugin) pending ? a.setAttribute("data-pending", "") : a.removeAttribute("data-pending");
     // Ownership is read against the element, not just the record. A
     // server-component morph resets attributes to the server HTML, which
     // never carries router link state, then re-claims: an owned value that
@@ -122,9 +123,10 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
     untrack(() => apply(a, rec, linkState(a)));
 
   // The one subscription for every anchor: compute tracks the sources
-  // linkState derives from (the in-flight pendingTarget is readable in the
-  // effect phase because the isRouting write flushes after the target is
-  // assigned), the effect phase sweeps the registry untracked.
+  // linkState derives from (with the plugin, its pending read — the
+  // in-flight target is readable in the effect phase because the isRouting
+  // write flushes after the target is assigned), the effect phase sweeps the
+  // registry untracked.
   //
   // `transparent` keeps the effect invisible to the hydration id scheme.
   // This setup is client-only, so an id-consuming node here has no server
@@ -133,7 +135,7 @@ export function setupLinkClaims(router: RouterContext, explicitLinks?: boolean) 
   // unclaimed. (The option is honored by the runtime but missing from the
   // published EffectOptions type, hence the cast.)
   createRenderEffect(
-    () => (router.location.pathname, router.location.search, router.isRouting()),
+    () => (router.location.pathname, router.location.search, plugin && plugin.track()),
     () => registry.forEach(a => refresh(a, claimed.get(a)!)),
     { transparent: true } as {}
   );

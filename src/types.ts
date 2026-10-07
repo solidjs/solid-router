@@ -1,4 +1,4 @@
-import type { Component, Signal } from "solid-js";
+import type { Component, Owner, Signal } from "solid-js";
 import type { JSX, ResponseEnvelope } from "@solidjs/web";
 
 declare module "@solidjs/web" {
@@ -452,11 +452,12 @@ export interface RouterContext {
   params: Params;
   wrapParams: (getParams: () => Params) => Params;
   navigatorFactory: NavigatorFactory;
-  isRouting: () => boolean;
   /** @internal Intent of the in-flight canonical location transition. */
   intent?: () => Intent | undefined;
-  /** The target of the in-flight navigation transition, if any. Not reactive. */
-  readonly pendingTarget?: LocationChange;
+  /** @internal The integration's location signal: the last flushed write. */
+  _source: () => LocationChange;
+  /** @internal The owner the router's own computations live under. */
+  _owner: Owner | null;
   matches: () => RouteMatch[];
   renderPath(path: string): string;
   parsePath(str: string): string;
@@ -465,6 +466,20 @@ export interface RouterContext {
   singleFlight: boolean;
   submissions: Signal<Submission<any, any>[]>;
 }
+
+/**
+ * Extends the link claims (see `pendingLinks`): built once per router with
+ * its base path.
+ */
+export type LinksPlugin = (
+  router: RouterContext,
+  base: string
+) => {
+  /** The reactive read the claims sweep re-runs on. */
+  track(): unknown;
+  /** Whether an anchor resolving to `target` is the in-flight destination; read when `track()` is truthy. */
+  pending(target: string | undefined): boolean;
+};
 
 export interface BeforeLeaveEventArgs {
   from: Location;

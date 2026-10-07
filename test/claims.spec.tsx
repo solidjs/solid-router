@@ -16,7 +16,7 @@ import {
 } from "solid-js";
 import { vi } from "vitest";
 import { setupLinkClaims } from "../src/claims.js";
-import { createRouter, memoryHistory } from "../src/index.js";
+import { createRouter, memoryHistory, pendingLinks } from "../src/index.js";
 import type { LinkState, Navigator } from "../src/index.js";
 import { useLinkState, useNavigate } from "../src/index.js";
 import type { RouterContext } from "../src/types.js";
@@ -276,7 +276,8 @@ describe("compiler-claimed anchors", () => {
         { path: "/", component: () => <div data-route="home" /> },
         { path: "/about", component: SlowAbout }
       ] as const,
-      history: memoryHistory()
+      history: memoryHistory(),
+      links: pendingLinks
     });
     const dispose = render(
       () => (
@@ -643,13 +644,32 @@ describe("compiler-claimed anchors", () => {
         const owner = getOwner()!;
         const router = {
           base: { path: () => "" },
-          location: { pathname: "/" },
-          isRouting: () => false,
-          pendingTarget: undefined
+          location: { pathname: "/" }
         } as unknown as RouterContext;
         setupLinkClaims(router);
         // the first id allocated after setup must match what the server
         // (which never runs setupLinkClaims) hands the owner's first child
+        expect(getNextChildId(owner)).toBe("r0");
+        dispose();
+      },
+      { id: "r" }
+    );
+  });
+
+  test("setup with pendingLinks does not consume a hydration child id", () => {
+    // the plugin builds the router's pending state during the same
+    // client-only setup, so that memo must be id-neutral too
+    createRoot(
+      dispose => {
+        const owner = getOwner()!;
+        const router = {
+          base: { path: () => "" },
+          location: { pathname: "/", search: "", hash: "" },
+          matches: () => [],
+          _source: () => ({ value: "/" }),
+          _owner: owner
+        } as unknown as RouterContext;
+        setupLinkClaims(router, false, pendingLinks);
         expect(getNextChildId(owner)).toBe("r0");
         dispose();
       },

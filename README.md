@@ -17,7 +17,7 @@ Explore the official [documentation](https://docs.solidjs.com/solid-router) for 
 ## Core Features
 
 - **Typed Routing**: URLs built through a typed path proxy inferred from your route config — `paths.users(2).settings` typechecks against the tree
-- **Plain Anchors**: no link component — `<a>` elements get `aria-current`, `data-active`, and `data-pending` automatically via compiler-claimed anchors
+- **Plain Anchors**: no link component — `<a>` elements get `aria-current` and `data-active` automatically via compiler-claimed anchors, and `data-pending` with the opt-in `pendingLinks` plugin
 - **Universal Rendering**: one factory for browser, hash, memory, and server rendering; history adapters are imports, so unused ones never enter your bundle
 - **Preload Functions**: parallel data fetching following the render-as-you-fetch pattern, triggered eagerly on link hover/focus
 - **Data APIs with Caching**: `query` and `action` with deduplication, revalidation, single-flight mutations, and progressive enhancement — plus experimental `liveQuery` for keyed queries over live streams
@@ -528,8 +528,18 @@ nav a[data-active] {
 } /* exact or prefix match on the path */
 a[data-pending] {
   opacity: 0.6;
-} /* target of in-flight navigation */
+} /* target of in-flight navigation — needs `links: pendingLinks` */
 ```
+
+`data-pending` is opt-in, so an app that never shows pending link state doesn't ship the code that computes it. Pass the `pendingLinks` plugin to the router:
+
+```tsx
+import { createRouter, pendingLinks } from "@solidjs/router";
+
+const Router = createRouter({ routes, links: pendingLinks });
+```
+
+With it, `data-pending` agrees with `useLinkState().pending` at every moment. Back/forward traversals don't mark links pending.
 
 One rule decides both, for anchors and `useLinkState` alike:
 
@@ -793,6 +803,7 @@ createRouter(config);
 | `actionBase`    | `string`                  | Root url for server actions, default `/_server`                                                       |
 | `preloadLinks`  | `boolean`                 | Preload route code/data on link hover and focus, default `true`                                       |
 | `explicitLinks` | `boolean`                 | Require the `link` attribute for router handling instead of intercepting all anchors, default `false` |
+| `links`         | `LinksPlugin`             | Link claims plugin — `pendingLinks` adds `data-pending` to the in-flight navigation's target          |
 | `transformUrl`  | `(url: string) => string` | Rewrite URLs before matching                                                                          |
 
 The returned instance is the provider component and carries the static surface:
@@ -857,6 +868,16 @@ const isRouting = useIsRouting();
 return <div classList={{ "grey-out": isRouting() }}>...</div>;
 ```
 
+The router doesn't expose where a navigation is heading; read it off the location with Solid's `isPending` and `latest`. It covers back/forward traversals too:
+
+```tsx
+import { isPending, latest } from "solid-js";
+
+const location = useLocation();
+const target = () =>
+  isPending(() => location.pathname) ? latest(() => location.pathname) : undefined;
+```
+
 In Solid's dev and observe builds the router also declares every navigation to the attribution engine (`solid-js/attribution`): holds and re-runs caused by a navigation are named after the route pattern (`navigation to /users/:id`), timed from the user event that started it, and redirect hops fold onto the navigation they belong to. `attribution.history("navigation")` and `feedback().navigations` list them; nothing of this exists in production builds.
 
 ### useMatch
@@ -905,7 +926,7 @@ Reactive `active`/`current`/`pending` state for [custom link components](#links)
 
 - `current()` — same path and same query as the location, ignoring parameter order and the hash (what `aria-current="page"` reflects)
 - `active()` — the location's path is the link's path or lives under it, query ignored (`data-active`); a root link (`/`, which resolves to the router's `base`) is exact-only
-- `pending()` — the link's path is the target of an in-flight navigation (`data-pending`)
+- `pending()` — the link's path is the target of an in-flight navigation, back/forward excluded (`data-pending`, with [`pendingLinks`](#links))
 
 Pass `{ end: true }` to make `active` (and `pending`) exact-path for any link.
 

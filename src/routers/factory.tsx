@@ -29,6 +29,7 @@ import type {
   Branch,
   DefinedRouteFilters,
   LazyRouteChildren,
+  LinksPlugin,
   LocationChange,
   LocationWrite,
   OutputMatch,
@@ -168,6 +169,11 @@ export interface RouterConfig<R extends readonly RouteDefinition[] = RouteDefini
   singleFlight?: boolean;
   actionBase?: string;
   explicitLinks?: boolean;
+  /**
+   * Link claims plugin. Pass `pendingLinks` to mark claimed anchors that are
+   * the target of the in-flight navigation with `data-pending`. Client-only.
+   */
+  links?: LinksPlugin;
   /** Preload route code/data on link hover and focus. Defaults to `true`. */
   preloadLinks?: boolean;
   /**
@@ -500,7 +506,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
         actionBase: config.actionBase,
         transformUrl: config.transformUrl
       })(routerState);
-      setupLinkClaims(routerState, config.explicitLinks);
+      setupLinkClaims(routerState, config.explicitLinks, config.links);
       if (routerState.singleFlight) onCleanup(registerFlightRouter(routerState));
       restoration && restoration.create();
     }

@@ -1,15 +1,16 @@
 /**
  * Characterization of the router's navigation-pending state (#655): every
  * observable that today derives from `isPending`/`latest` of the location —
- * `useIsRouting`, `pendingTarget`, `useLinkState().pending`, `data-pending`
- * on claimed anchors, the intent `query` and preloads see, the redirect hop
+ * `useIsRouting`, the in-flight target, `useLinkState().pending`,
+ * `data-pending` on claimed anchors (through `pendingLinks`), the intent `query` and preloads see, the redirect hop
  * rules — and scroll restoration's timing, recorded as one ordered timeline
  * per scenario. These pin current behavior so a different mechanism can be
  * checked against it moment by moment, not just at rest.
  *
  * Log vocabulary:
  * - `routing:<bool>[@target]` — `useIsRouting()` changed (render effect),
- *   with `pendingTarget` read beside it
+ *   with the in-flight link target read beside it (`pendingTarget`, the
+ *   helper `useLinkState` and `pendingLinks` share)
  * - `link:<href>:<bool>` — `useLinkState(href).pending` changed
  * - `attr:<href>:+|-` — `data-pending` set/removed on a claimed anchor
  * - `fetch:<id>:<intent>` — a `query` fetcher ran, with the intent it saw
@@ -32,6 +33,7 @@ import {
 import { vi } from "vitest";
 import {
   createRouter,
+  pendingLinks,
   query,
   useBeforeLeave,
   useIsRouting,
@@ -41,6 +43,7 @@ import {
   useSearchParams,
   type Navigator
 } from "../src/index.js";
+import { pendingTarget, routingState } from "../src/pending.js";
 import { getIntent, useRouter } from "../src/routing.js";
 import type { RouterContext } from "../src/types.js";
 
@@ -161,7 +164,7 @@ function harness(initial = "/", options: Options = {}) {
     createRenderEffect(
       () => {
         const routing = isRouting();
-        const target = router.pendingTarget?.value;
+        const target = pendingTarget(router)?.value;
         return `routing:${routing}${target ? `@${target}` : ""}`;
       },
       v => {
@@ -227,7 +230,8 @@ function harness(initial = "/", options: Options = {}) {
       { path: "/hop/:n", component: Hop },
       { path: "/guarded", component: Guarded },
       { path: "/watched", component: Watched }
-    ] as const
+    ] as const,
+    links: pendingLinks
   });
   const div = document.createElement("div");
   document.body.appendChild(div);
@@ -238,10 +242,10 @@ function harness(initial = "/", options: Options = {}) {
 
   const mark = (label: string) =>
     untrack(() => {
-      const target = router.pendingTarget?.value;
+      const target = pendingTarget(router)?.value;
       const intent = router.intent?.();
       log.push(
-        `| ${label} routing=${router.isRouting()}` +
+        `| ${label} routing=${routingState(router)()}` +
           (target ? ` target=${target}` : "") +
           (intent ? ` intent=${intent}` : "") +
           ` at=${router.location.pathname}`
