@@ -118,7 +118,11 @@ describe("navigation during hydration", () => {
 
   async function setup(
     fixture: Fixture = "hydration-navigation",
-    options: { navigationType?: string; scrollLog?: string[] } & Record<string, unknown> = {}
+    options: {
+      navigationType?: string;
+      scrollLog?: string[];
+      scrollMode?: ScrollRestoration;
+    } & Record<string, unknown> = {}
   ) {
     const stream = apps[fixture].start();
     await stream.shell;
@@ -142,6 +146,21 @@ describe("navigation during hydration", () => {
           event => streaming && event.stopImmediatePropagation(),
           true
         );
+        // ...and so does its load, which `finish` dispatches.
+        window.addEventListener(
+          "load",
+          event => event.isTrusted && event.stopImmediatePropagation()
+        );
+        const readyState = Object.getOwnPropertyDescriptor(
+          (window as any).Document.prototype,
+          "readyState"
+        )!.get!;
+        Object.defineProperty(window.document, "readyState", {
+          configurable: true,
+          get() {
+            return streaming ? "loading" : readyState.call(this);
+          }
+        });
         if (options.scrollLog) {
           const log = options.scrollLog;
           const positions: Record<number, number> = {};
@@ -154,6 +173,17 @@ describe("navigation during hydration", () => {
                 `scrollTo:${y} shows=${window.document.querySelector("main")?.textContent}`
               )
           });
+          // jsdom has no scroll restoration mode; the entry's starts as given
+          let mode: ScrollRestoration = options.scrollMode ?? "auto";
+          Object.defineProperty(window.history, "scrollRestoration", {
+            configurable: true,
+            get: () => mode,
+            set: (value: ScrollRestoration) => {
+              if (value !== mode) log.push(`mode:${value}`);
+              mode = value;
+            }
+          });
+          window.addEventListener("load", () => log.push("load"));
         }
         if (options.navigationType) {
           const entries = [{ type: options.navigationType }];
@@ -197,6 +227,8 @@ describe("navigation during hydration", () => {
       for (const script of scripts) window.eval(script.textContent);
       streaming = false;
       window.document.dispatchEvent(new window.Event("DOMContentLoaded"));
+      window.dispatchEvent(new window.Event("load"));
+      await new Promise(resolve => setTimeout(resolve));
       await vi.waitFor(() => expect(app.isHydrationInProgress()).toBe(false));
       await new Promise<void>(resolve => setImmediate(resolve));
     }
@@ -300,9 +332,9 @@ describe("navigation during hydration", () => {
     }
   });
 
-  // Reloading lands on an existing entry, so scroll restoration schedules its
-  // first restore while the page hydrates. That client-only setup must not
-  // shift the hydration ids of what renders after it.
+  // Reloading lands on an existing entry, so scroll restoration sets up while
+  // the page hydrates. That client-only setup must not shift the hydration
+  // ids of what renders after it.
   test("a reload with scroll restoration hydrates the server DOM in place", async () => {
     const { dom, window, app, errors, fetches, finish } = await setup("hydration-navigation", {
       scrollRestoration: true,
@@ -324,7 +356,9 @@ describe("navigation during hydration", () => {
   });
 
   // When the reload's restore runs against content that is still arriving:
-  // a boundary the server streams late, a route module the client loads.
+  // a boundary the server streams late, a route module the client loads. An
+  // `auto` entry is the browser's to restore once the document loads; the
+  // router neither scrolls nor takes the mode until then.
   test("reload scroll restoration while the server streams a pending boundary", async () => {
     const log: string[] = [];
     const { dom, window, app, errors, finish } = await setup("hydration-navigation", {
@@ -344,9 +378,10 @@ describe("navigation during hydration", () => {
       mark("streamed");
       expect(log).toMatchInlineSnapshot(`
         [
-          "scrollTo:400 shows=Loading...Destination",
           "| shell shows=Loading...Destination hydrating=true",
           "| shell flushed shows=Loading...Destination hydrating=true",
+          "load",
+          "mode:manual",
           "| streamed shows=Home readyDestination hydrating=false",
         ]
       `);
@@ -380,10 +415,11 @@ describe("navigation during hydration", () => {
       mark("streamed");
       expect(log).toMatchInlineSnapshot(`
         [
-          "scrollTo:400 shows=Home readyDestination",
           "| shell shows=Home readyDestination hydrating=true",
           "| modules pending shows=Home readyDestination hydrating=true",
           "| modules loaded shows=Home readyDestination hydrating=false",
+          "load",
+          "mode:manual",
           "| streamed shows=Home readyDestination hydrating=false",
         ]
       `);
@@ -450,6 +486,41 @@ describe("navigation during hydration", () => {
     }
   });
 
+  // An entry the router pushed before the reload is still `manual` (only the
+  // active entry is switched back on pagehide): no native restore comes, so
+  // the router restores it at the first flush, as before.
+  test("reload scroll restoration of a manual entry while the server streams a pending boundary", async () => {
+    const log: string[] = [];
+    const { dom, window, app, errors, finish } = await setup("hydration-navigation", {
+      scrollRestoration: true,
+      navigationType: "back_forward",
+      scrollLog: log,
+      scrollMode: "manual"
+    });
+    const mark = (label: string) =>
+      log.push(
+        `| ${label} shows=${window.document.querySelector("main")?.textContent} hydrating=${app.isHydrationInProgress()}`
+      );
+    try {
+      mark("shell");
+      await finish();
+      mark("streamed");
+      expect(log).toMatchInlineSnapshot(`
+        [
+          "scrollTo:400 shows=Loading...Destination",
+          "| shell shows=Loading...Destination hydrating=true",
+          "load",
+          "| streamed shows=Home readyDestination hydrating=false",
+        ]
+      `);
+      expect(errors).toEqual([]);
+    } finally {
+      await finish();
+      app.dispose();
+      dom.window.close();
+    }
+  });
+
   // The initial route is a lazy subtree. The server's render parks on the
   // route table; the client's, with the table already loaded, does not, and
   // client-only readers must not take ids either. The ids must line up.
@@ -483,6 +554,82 @@ describe("navigation during hydration", () => {
           "table loaded: routing=false hydrating=true shows=Loading... at=/",
           "streamed: routing=false hydrating=false shows=HomeDestination at=/",
           "landed: routing=false hydrating=false shows=Destination at=/destination",
+        ]
+      `);
+      expect(errors).toEqual([]);
+    } finally {
+      await finish();
+      app.dispose();
+      dom.window.close();
+    }
+  });
+
+  // The pushed entry copies the active entry's mode, so the first client
+  // navigation takes `manual` before writing history, even before load.
+  test("a link click before the document loads takes manual mode before pushing", async () => {
+    const log: string[] = [];
+    const { dom, window, app, errors, finish } = await setup("hydration-navigation", {
+      scrollRestoration: true,
+      navigationType: "reload",
+      scrollLog: log
+    });
+    const pushState = window.history.pushState;
+    window.history.pushState = function (...args: any[]) {
+      log.push(`pushState mode=${window.history.scrollRestoration}`);
+      return pushState.apply(this, args);
+    };
+    try {
+      const click = new window.MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+      window.document.querySelector("a").dispatchEvent(click);
+      await vi.waitFor(() => expect(window.location.pathname).toBe("/destination"));
+      log.push(`| clicked readyState=${window.document.readyState}`);
+      await finish();
+      log.push("| streamed");
+      expect(log).toMatchInlineSnapshot(`
+        [
+          "mode:manual",
+          "pushState mode=manual",
+          "scrollTo:0 shows=Loading...Destination",
+          "| clicked readyState=loading",
+          "load",
+          "| streamed",
+        ]
+      `);
+      expect(errors).toEqual([]);
+    } finally {
+      await finish();
+      app.dispose();
+      dom.window.close();
+    }
+  });
+
+  test("pagehide hands the entry back to the browser; a bfcache restore takes it again", async () => {
+    const log: string[] = [];
+    const { dom, window, app, errors, finish } = await setup("hydration-navigation", {
+      scrollRestoration: true,
+      navigationType: "reload",
+      scrollLog: log
+    });
+    try {
+      await finish();
+      log.push("| loaded");
+      window.sessionStorage.clear();
+      window.dispatchEvent(new window.PageTransitionEvent("pagehide", { persisted: true }));
+      log.push(`| pagehide saved=${window.sessionStorage.getItem("solid-router:scroll") !== null}`);
+      window.dispatchEvent(new window.PageTransitionEvent("pageshow", { persisted: false }));
+      log.push("| pageshow (fresh)");
+      window.dispatchEvent(new window.PageTransitionEvent("pageshow", { persisted: true }));
+      log.push("| pageshow (persisted)");
+      expect(log).toMatchInlineSnapshot(`
+        [
+          "load",
+          "mode:manual",
+          "| loaded",
+          "mode:auto",
+          "| pagehide saved=true",
+          "| pageshow (fresh)",
+          "mode:manual",
+          "| pageshow (persisted)",
         ]
       `);
       expect(errors).toEqual([]);
