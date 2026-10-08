@@ -1,7 +1,15 @@
 /*@refresh skip*/
 
 import type { Owner } from "solid-js";
-import { createSignal, getOwner, onCleanup, onSettled, runWithOwner, untrack } from "solid-js";
+import {
+  createSignal,
+  getOwner,
+  isHydrating,
+  onCleanup,
+  onSettled,
+  runWithOwner,
+  untrack
+} from "solid-js";
 // standalone imports: `DEV` is undefined in solid's production build and
 // `OBSERVE` outside its observe/dev builds, so app bundlers fold the
 // `DEV &&` diagnostics and the `OBSERVE &&` attribution out of shipped bundles
@@ -188,7 +196,9 @@ export interface RouterConfig<R extends readonly RouteDefinition[] = RouteDefini
    * Explicit scroll restoration for back/forward navigation: positions are
    * saved per history entry and restored once the navigation settles,
    * replacing the browser heuristic that loses offsets when the destination
-   * route forces a layout while rendering. Defaults to `true` with the
+   * route forces a layout while rendering. Reloads of a server-rendered page
+   * are left to the browser's native restoration, which waits for the
+   * streamed document to finish loading. Defaults to `true` with the
    * default browser history; a custom `history` adapter owns its session and
    * must opt in explicitly.
    */
@@ -486,7 +496,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
     let restoration: ScrollRestoration | undefined;
     let history = config.history;
     if (!isServer && (config.scrollRestoration ?? !history)) {
-      restoration = createScrollRestoration();
+      restoration = createScrollRestoration(isHydrating());
       history = withScrollRestoration(history || browserHistory(), restoration);
     }
     const integration = isServer
@@ -520,6 +530,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
     }
     // Registered on both sides, outside the client-only branch: an owned
     // onSettled takes a hydration id on the server too, so the ids line up.
+    // A no-op when the arrival is left to the browser's native restore.
     onSettled(() => restoration && restoration.settled());
     return (
       <RouterContextObj value={routerState}>
