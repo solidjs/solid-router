@@ -1,6 +1,6 @@
 import { createMemo, DEV, isPending, latest, NotReadyError, runWithOwner } from "solid-js";
 import type { LinksPlugin, LocationChange, RouterContext } from "./types.js";
-import { matchLink } from "./utils.js";
+import { linkMatcher } from "./utils.js";
 
 /**
  * Pending navigation state, for the opt-in readers only: `useIsRouting`,
@@ -59,7 +59,7 @@ export function linkPending(
   end?: boolean
 ): boolean {
   const target = pendingTarget(router);
-  return !!target && matchLink({ pathname: target.value, search: "" }, to, base, end).active;
+  return !!target && linkMatcher({ pathname: target.value, search: "" }, base, end)(to).active;
 }
 
 /**

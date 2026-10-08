@@ -48,7 +48,7 @@ import {
   createMemoObject,
   extractSearchParams,
   invariant,
-  matchLink,
+  linkMatcher,
   normalizePath,
   resolvePath,
   createMatcher,
@@ -409,7 +409,7 @@ export const useLinkState = (
   const location = router.location;
   const to = useResolvedPath(() => String(href()));
   const base = router.base.path();
-  const state = createMemo(() => matchLink(location, to(), base, options.end));
+  const state = createMemo(() => linkMatcher(location, base, options.end)(to()));
   return {
     active: createMemo(() => state().active),
     current: createMemo(() => state().current),

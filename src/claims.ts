@@ -1,7 +1,7 @@
 import { registerElementClaim } from "@solidjs/web";
 import { createRenderEffect, getOwner, onCleanup, untrack } from "solid-js";
 import type { LinksPlugin, RouterContext } from "./types.js";
-import { isUnderBase, matchLink } from "./utils.js";
+import { isUnderBase, linkMatcher } from "./utils.js";
 
 /**
  * Claimed forms are handed to this slot instead of the claims importing the
@@ -30,7 +30,7 @@ export function setFormClaimHandler(handler: ((form: HTMLFormElement) => void) |
  *   opt-in through `createRouter({ links: pendingLinks })`. Without the
  *   plugin, claims never read pending state and the sweep does not track it.
  *
- * The matching rule is `matchLink`, shared with `useLinkState`. The router
+ * The matching rule is `linkMatcher`, shared with `useLinkState`. The router
  * only touches an `aria-current` it wrote itself: one the author set (a
  * stepper's `"step"`, a static `"page"`) is left in place, current or not.
  *
@@ -81,6 +81,11 @@ export function setupLinkClaims(
     return url;
   }
 
+  // every anchor matches against the same location, so its parse is shared
+  // until the location changes
+  let matched: string | undefined;
+  let match: ReturnType<typeof linkMatcher>;
+
   function linkState(a: HTMLAnchorElement | SVGAElement) {
     // read reactive sources unconditionally so the owning effect stays
     // subscribed even while the anchor is not router-managed
@@ -88,8 +93,13 @@ export function setupLinkClaims(
     const routing = plugin && plugin.track();
     const url = managedUrl(a);
     const target = url && url.pathname + url.search;
+    const key = location.pathname + location.search;
     // no per-anchor `end` opt-out like useLinkState has
-    const { active, current } = matchLink(location, target, basePath);
+    if (key !== matched) {
+      matched = key;
+      match = linkMatcher(location, basePath);
+    }
+    const { active, current } = match(target);
     const pending = !!routing && plugin!.pending(target);
     return { active, pending, current };
   }

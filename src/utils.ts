@@ -48,32 +48,33 @@ const comparableQuery = (search: string) => {
 };
 
 /**
- * The link-state rule shared by claimed anchors and `useLinkState`, given
- * the location and a link's already-resolved target (path, optional query
- * and hash):
+ * The link-state rule shared by claimed anchors and `useLinkState`, bound to
+ * a location so links matched against the same one share its parse. The
+ * returned matcher takes a link's already-resolved target (path, optional
+ * query and hash):
  *
  * - `current` — same pathname and same query (parameter order and hash aside)
  * - `active` — same pathname or one under it; the router's root (`base`, or
  *   `/` without one) only matches exactly, since it is a prefix of every
  *   page. `end` makes every link exact-only.
  */
-export function matchLink(
-  location: { pathname: string; search: string },
-  target: string | undefined,
+export function linkMatcher(
+  { pathname, search }: { pathname: string; search: string },
   base: string,
   end?: boolean
-): { active: boolean; current: boolean } {
-  if (target === undefined) return { active: false, current: false };
-  const loc = comparablePath(location.pathname);
-  const path = comparablePath(target);
-  const exact = loc === path;
-  const hashless = target.split("#", 1)[0];
-  const q = hashless.indexOf("?");
-  return {
-    active:
-      exact || (!end && path !== "" && path !== comparablePath(base) && loc.startsWith(path + "/")),
-    current:
-      exact && comparableQuery(location.search) === comparableQuery(q < 0 ? "" : hashless.slice(q))
+) {
+  const loc = comparablePath(pathname);
+  const root = comparablePath(base);
+  return (target: string | undefined): { active: boolean; current: boolean } => {
+    if (target === undefined) return { active: false, current: false };
+    const path = comparablePath(target);
+    const exact = loc === path;
+    const hashless = target.split("#", 1)[0];
+    const q = hashless.indexOf("?");
+    return {
+      active: exact || (!end && path !== "" && path !== root && loc.startsWith(path + "/")),
+      current: exact && comparableQuery(search) === comparableQuery(q < 0 ? "" : hashless.slice(q))
+    };
   };
 }
 
