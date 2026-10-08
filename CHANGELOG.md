@@ -1,5 +1,32 @@
 # @solidjs/router
 
+## 2.0.0-next.37
+
+### Patch Changes
+
+- a5aba8e: Navigation coordination — query/preload intent, redirect hops, inherited replace/scroll and the leave-guard destination — reads the router's own location writes and `onSettled` instead of `isPending`/`latest`. No behavior change. `RouterIntegration.inflight` is replaced by `settled`.
+- 51433a3: Fix hydration when the initial route is a lazy route subtree. The client's reader for an unresolved route table took a hydration id the server never allocates, and the route contexts drew their ids at a point that depended on whether rendering first parked on the table, which the server's render does and the client's may not. Both misaligned the ids of everything after them ("Hydration key miss"). The reader no longer takes an id, and route contexts are created under their own owner. Hydration ids under the router's routes shift by one, the same on server and client.
+- cc5122d: Link clicks and native form submits are attributed to the user's interaction in Solid's dev and observe builds (#643). The router's `document` click and submit listeners now run through `dispatchAsInteraction` from `@solidjs/web` (2.0.0-rc.14), joining the interaction frame the runtime opens for that event. An anchor click's `NavigationEvent.interaction` is the click, and the click is one interaction record carrying both component `onClick` work and the navigation. An action submitted through a `<form>` runs under the `submit` interaction, so its writes and holds are attributed to it. Only clicks the router acts on join a frame, and preload listeners stay outside one. Production builds are unchanged: `dispatchAsInteraction` is the plain call there.
+- 603c4f6: Server-rendered reloads keep their scroll position: the browser's native restoration handles them again instead of the router's. The router used to set `history.scrollRestoration = "manual"` for good and restore a reload itself at the first client flush, which on a streamed page lands while a `<Loading>` fallback is still showing — the offset clamps to the short document and is lost. The mode is per history entry and persists across reloads, so no browser restored such a page natively either.
+
+  Scroll restoration now hands the current entry back to the browser (`auto`) on `pagehide` and takes it again (`manual`) on a bfcache `pageshow`. A router created while hydrating, on an entry it handed back, neither scrolls nor switches to `manual` during the load: the browser restores once the streamed document has loaded, and the router takes `manual` a task after `load` (a programmatic scroll during the load cancels the native restore in Firefox and WebKit, and WebKit restores just after the load event, so an earlier `manual` write suppresses it) or before its first client navigation's history write, whichever comes first. Handed-back depths are kept next to the saved positions in sessionStorage, because after a reload Firefox reports the mode from before `pagehide`.
+
+  Client-rendered apps, entries the router pushed and never handed back, and back/forward traversals within the document restore from the router as before. The owned initial-restore `onSettled` is still registered on both server and client (a no-op on a deferred arrival), so hydration ids are unchanged.
+
+- 4426516: Pending navigation state is now pay-for-use, so an app that renders no pending UI no longer bundles Solid's `isPending`/`latest` machinery.
+
+  - **`data-pending` needs `links: pendingLinks`.** Claimed anchors only get `data-pending` when the router is created with `createRouter({ routes, links: pendingLinks })`. `aria-current` and `data-active` are unchanged.
+  - **`RouterContext` no longer exposes `isRouting` or `pendingTarget`.** Use `useIsRouting()`, and read the in-flight destination with `isPending(() => location.pathname) ? latest(() => location.pathname) : undefined` on `useLocation()`.
+  - `useIsRouting()` and `useLinkState().pending` behave as before.
+
+- e3cab76: Require solid-js / @solidjs/web 2.0.0-rc.14. Two observable changes come from rc.14's hold model, where `isPending`/`latest` read the committed screen:
+
+  - A synchronous navigation (nothing to wait for) no longer reads as routing at all: `useIsRouting()`, `useLinkState().pending` and the `isPending`/`latest` recipe stay `false` through it, where rc.13 flipped them `true` and back within the navigation's own flush.
+  - When a navigation supersedes one still in flight, `data-pending` from `pendingLinks` moves to the new destination at once, agreeing with `useLinkState().pending`, instead of staying on the superseded link until its data resolved.
+
+- b86ae68: Scroll restoration restores when the back/forward traversal's transition settles (`onSettled`) instead of watching `isRouting`. It behaves the same for users; the one timing change is that on a traversal between entries with the same URL the restore now runs just after `useIsRouting` render effects instead of just before (same task, before paint). The initial restore on a reload or back/forward document load runs from an owned `onSettled` the router registers on both server and client, so hydration ids stay aligned.
+- d7fed32: `serverRouteComponent()` mounts the server component through `@solidjs/web`'s `dynamicComponent` (new in 2.0.0-rc.14) instead of `dynamic`. Same contract and hydration shape, but it never references the element runtime that `dynamic` keeps for rendering tags, so a page with a server component route sheds it (about 17 KB minified in the `pnpm build` file-routes check). The README's advice for a server component route with a client half now names `dynamicComponent()` too.
+
 ## 2.0.0-next.36
 
 ### Patch Changes
