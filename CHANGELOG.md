@@ -1,5 +1,39 @@
 # @solidjs/router
 
+## 2.0.0-next.38
+
+### Patch Changes
+
+- 457ac72: Claimed anchors share one parse of the location and base path instead of
+  re-parsing both per anchor, roughly halving the `URL` constructions link
+  state does at load and on every navigation sweep.
+- fb43a9c: Link preloading on `focusin` and `touchstart` now works. Both went through the click handler's primary-button gate, which `FocusEvent` and `TouchEvent` never pass, so only a resting mouse pointer preloaded. Preload triggers now find the anchor without the button and modifier-key checks; click handling is unchanged.
+- 9618caa: Link preloading is now pluggable and opt-in. **Breaking:** the router no longer preloads on hover, focus, or touch by default; pass a strategy to restore it:
+
+  ```ts
+  import { createRouter, intentPreload } from "@solidjs/router";
+
+  const Router = createRouter({ routes, preloadLinks: intentPreload() });
+  ```
+
+  - `preloadLinks` takes a strategy or an array of strategies instead of a boolean. A boolean is a type error, warns in development, and preloads nothing.
+  - `intentPreload({ delay = 20, data = true })` is the previous behavior: preload when the pointer rests on a link for `delay` ms, on focus, and on touchstart. `data: false` warms route code only.
+  - `preload="false"` on a link now opts it out of preloading entirely. Previously it still preloaded the route's code and skipped only its data.
+  - `transformUrl` now applies inside route preloading itself, so preloads match the same pathname navigation does, including `usePreloadRoute` calls, which previously matched the untransformed URL.
+
+  Apps that don't preload links no longer ship the hover/focus/touch listeners.
+
+- b9594e9: Route preloading (matching a link's URL, loading lazy components and subtrees, running `preload` functions with `intent: "preload"`) moved out of the router core into its own module. Only link preload strategies and `usePreloadRoute` import it, so apps that use neither no longer ship it. No behavior change.
+- e493aae: Smaller link-preload strategies, with the same behavior. `intentPreload` and `tapPreload` register their listeners directly instead of through shared wrappers, and `usePreloadRoute` no longer allocates an options object when called with a URL alone.
+- dce7819: Include the server-component form fallback only when `__SOLID_SERVER_COMPONENTS__` is true, so apps without server components drop that code.
+- 54f4f5a: New link preload strategies for `createRouter({ preloadLinks })`, combinable with `intentPreload()` in an array:
+
+  - `tapPreload({ data = true })` preloads a link on `pointerdown`, ahead of its click.
+  - `viewportPreload({ all, data = false, delay = 100, rootMargin })` preloads a link once it has stayed in the viewport for `delay` ms, when the browser is next idle. Each link preloads once, and again after its `href` changes; links that leave before then are dropped. One `IntersectionObserver` is shared by every link.
+  - `eagerPreload({ all, data = false })` preloads links once the page has loaded and the browser is idle, including links mounted later.
+
+  The viewport and eager strategies apply to links marked `preload="viewport"` or `preload="eager"`, or with `{ all: true }` to every router link except `preload="false"` ones. They preload route code only unless created with `data: true`, and skip preloading when the browser reports Save-Data or a 2g connection.
+
 ## 2.0.0-next.37
 
 ### Patch Changes
