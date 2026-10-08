@@ -8,6 +8,7 @@ import { render } from "@solidjs/web";
 import {
   createMemo,
   createRenderEffect,
+  createSignal,
   flush,
   getOwner,
   isPending,
@@ -40,7 +41,9 @@ const traverse = (go: () => void) =>
     go();
   }).then(() => settle());
 
-function setup(options: { links?: LinksPlugin; layout?: (owner: Owner) => void } = {}) {
+function setup(
+  options: { links?: LinksPlugin; layout?: (owner: Owner) => void; content?: () => unknown } = {}
+) {
   const gates = new Map<string, () => void>();
   const Slow = () => {
     const data = createMemo(() => {
@@ -74,6 +77,7 @@ function setup(options: { links?: LinksPlugin; layout?: (owner: Owner) => void }
             <>
               <a href="/a">a</a>
               <a href="/slow">slow</a>
+              {options.content?.() as any}
               <Loading fallback={<div data-loading />}>{props.children}</Loading>
             </>
           );
@@ -277,6 +281,55 @@ describe("pay-for-use pending state (#655)", () => {
       // a synchronous navigation never reads as pending: verdict readers see
       // the screen, and its flush commits it (solid 2.0.0-rc.14's hold model)
       expect(effect).toEqual([undefined, "/slow", undefined, undefined, "/slow", undefined]);
+    } finally {
+      app.cleanup();
+    }
+  });
+});
+
+describe("claims read pending state in isolation", () => {
+  // A claim fires synchronously wherever the anchor is created: inside a
+  // component body, a memo's pass, or a server-component boundary being
+  // adopted. With pendingLinks its refresh reads `isPending`/`latest`, and a
+  // verdict read marks the computation running it as a verdict reader: one
+  // that re-derives whenever a dependency goes pending, equal value or not.
+  // The claim must not leave that mark on its host. Here the host memo depends
+  // on async data that refetches to the same value (a query revalidating after
+  // an action); marked, it re-ran on every refetch — a dynamicComponent's
+  // render memo re-mounting its server component each time.
+  test("an anchor created in a memo's pass does not make the memo re-run when its async dependency refetches", async () => {
+    let runs = 0;
+    let refetch!: () => void;
+    const app = setup({
+      links: pendingLinks,
+      content: () => {
+        const [version, setVersion] = createSignal(0);
+        refetch = () => setVersion(v => v + 1);
+        const data = createMemo(() => {
+          version();
+          return new Promise<string>(resolve => setTimeout(() => resolve("same"), 5));
+        });
+        const view = createMemo(() => {
+          runs++;
+          data();
+          // a static href is claimed at creation, inside this pass (as frames
+          // claims a server component's anchors while adopting it)
+          return <a href="/a?in-memo">in memo</a>;
+        });
+        return <Loading>{view()}</Loading>;
+      }
+    });
+    try {
+      await settle(20);
+      // the first pass waited on the data; count from the settled view
+      const settled = runs;
+      refetch();
+      flush();
+      // pending: the memo keeps what it rendered
+      expect(runs).toBe(settled);
+      await settle(20);
+      // settled to an equal value: nothing for the memo to redo
+      expect(runs).toBe(settled);
     } finally {
       app.cleanup();
     }

@@ -1,5 +1,12 @@
 import { registerElementClaim } from "@solidjs/web";
-import { createRenderEffect, getOwner, onCleanup, untrack } from "solid-js";
+import {
+  createRenderEffect,
+  getOwner,
+  NotReadyError,
+  onCleanup,
+  runWithOwner,
+  untrack
+} from "solid-js";
 import type { LinksPlugin, RouterContext } from "./types.js";
 import { isUnderBase, linkMatcher } from "./utils.js";
 
@@ -86,11 +93,26 @@ export function setupLinkClaims(
   let matched: string | undefined;
   let match: ReturnType<typeof linkMatcher>;
 
+  // Pending state can be not ready yet (an initial load into an unresolved
+  // lazy route). `refresh` reads it with no computation, so a not-ready read
+  // could never wake the anchor's host — nor should it hold the host: a link's
+  // pending state doesn't gate rendering. It reads as not pending; the sweep
+  // effect tracks `plugin.track()` and refreshes every claimed anchor once it
+  // settles.
+  function readPending(read: () => boolean): boolean {
+    try {
+      return read();
+    } catch (e) {
+      if (e instanceof NotReadyError) return false;
+      throw e;
+    }
+  }
+
   function linkState(a: HTMLAnchorElement | SVGAElement) {
     // read reactive sources unconditionally so the owning effect stays
     // subscribed even while the anchor is not router-managed
     const location = router.location;
-    const routing = plugin && plugin.track();
+    const routing = !!plugin && readPending(() => !!plugin.track());
     const url = managedUrl(a);
     const target = url && url.pathname + url.search;
     const key = location.pathname + location.search;
@@ -100,7 +122,7 @@ export function setupLinkClaims(
       match = linkMatcher(location, basePath);
     }
     const { active, current } = match(target);
-    const pending = !!routing && plugin!.pending(target);
+    const pending = routing && readPending(() => plugin!.pending(target));
     return { active, pending, current };
   }
 
@@ -129,8 +151,21 @@ export function setupLinkClaims(
     }
   }
 
+  // Claims fire synchronously wherever the anchor is created — a component
+  // body, a memo's pass, a server-component boundary being adopted — so the
+  // reads run with no computation at all, not just untracked: with the
+  // pendingLinks plugin they include `isPending`/`latest`, and a verdict read
+  // marks the running computation a verdict reader, re-deriving it whenever a
+  // dependency goes pending. A host marked that way re-ran (and a
+  // dynamicComponent re-mounted its server component) on every revalidation.
   const refresh = (a: HTMLAnchorElement | SVGAElement, rec: { owned: boolean }) =>
-    untrack(() => apply(a, rec, linkState(a)));
+    untrack(() =>
+      apply(
+        a,
+        rec,
+        runWithOwner(null, () => linkState(a))
+      )
+    );
 
   // The one subscription for every anchor: compute tracks the sources
   // linkState derives from (with the plugin, its pending read — the
