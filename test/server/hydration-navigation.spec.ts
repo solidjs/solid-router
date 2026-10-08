@@ -115,7 +115,10 @@ describe("navigation during hydration", () => {
     await server?.close();
   });
 
-  async function setup(fixture: Fixture = "hydration-navigation", options = {}) {
+  async function setup(
+    fixture: Fixture = "hydration-navigation",
+    options: { navigationType?: string; scrollLog?: string[] } & Record<string, unknown> = {}
+  ) {
     const stream = apps[fixture].start();
     await stream.shell;
     const consumed = stream.chunks.length;
@@ -138,9 +141,27 @@ describe("navigation during hydration", () => {
           event => streaming && event.stopImmediatePropagation(),
           true
         );
+        if (options.scrollLog) {
+          const log = options.scrollLog;
+          const positions: Record<number, number> = {};
+          for (let d = 0; d < 100; d++) positions[d] = 400;
+          window.sessionStorage.setItem("solid-router:scroll", JSON.stringify(positions));
+          Object.defineProperty(window, "scrollTo", {
+            configurable: true,
+            value: (_x: number, y: number) =>
+              void log.push(
+                `scrollTo:${y} shows=${window.document.querySelector("main")?.textContent}`
+              )
+          });
+        }
+        if (options.navigationType) {
+          const entries = [{ type: options.navigationType }];
+          window.performance.getEntriesByType = ((type: string) =>
+            type === "navigation" ? entries : []) as any;
+        }
         Object.assign(window, {
           hydrationOptions: options,
-          scrollTo: () => {},
+          ...(options.scrollLog ? {} : { scrollTo: () => {} }),
           // Counts the requests the page makes itself: inside a hydration
           // tracking run core swaps `fetch` for a stub that never settles.
           fetch: (url: string) => (
@@ -230,6 +251,141 @@ describe("navigation during hydration", () => {
       await finish();
       expect(window.document.querySelector('template[id^="pl-"]')).toBeNull();
       await roundTrip(window, app);
+      expect(errors).toEqual([]);
+    } finally {
+      await finish();
+      app.dispose();
+      dom.window.close();
+    }
+  });
+
+  // #655 characterization: what the navigation-pending observables read
+  // while the page hydrates, after it, and around a click mid-stream.
+  test("navigation-pending state across hydration", async () => {
+    const { dom, window, app, errors, finish } = await setup();
+    try {
+      const seen: string[] = [];
+      const read = (label: string) => {
+        const a = window.document.querySelector("a")!;
+        seen.push(
+          `${label}: routing=${app.isRouting()} data-pending=${a.hasAttribute("data-pending")} at=${window.location.pathname}`
+        );
+      };
+      read("hydrating");
+      const click = new window.MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+      window.document.querySelector("a").dispatchEvent(click);
+      read("clicked");
+      await new Promise<void>(resolve => setImmediate(resolve));
+      read("click flushed");
+      await finish();
+      read("hydrated");
+      await vi.waitFor(() => expect(window.location.pathname).toBe("/destination"));
+      await vi.waitFor(() => expect(app.isRouting()).toBe(false));
+      read("landed");
+      expect(seen).toMatchInlineSnapshot(`
+        [
+          "hydrating: routing=false data-pending=false at=/",
+          "clicked: routing=false data-pending=false at=/",
+          "click flushed: routing=false data-pending=false at=/destination",
+          "hydrated: routing=false data-pending=false at=/destination",
+          "landed: routing=false data-pending=false at=/destination",
+        ]
+      `);
+      expect(errors).toEqual([]);
+    } finally {
+      await finish();
+      app.dispose();
+      dom.window.close();
+    }
+  });
+
+  // Reloading lands on an existing entry, so scroll restoration schedules its
+  // first restore while the page hydrates. That client-only setup must not
+  // shift the hydration ids of what renders after it.
+  test("a reload with scroll restoration hydrates the server DOM in place", async () => {
+    const { dom, window, app, errors, fetches, finish } = await setup("hydration-navigation", {
+      scrollRestoration: true,
+      navigationType: "reload"
+    });
+    try {
+      await finish();
+      expect(window.document.querySelectorAll("main")).toHaveLength(1);
+      expect(window.document.querySelector("h1").textContent).toBe("Home ready");
+      expect(fetches).toEqual([]);
+      window.document.querySelector("a").click();
+      await roundTrip(window, app);
+      expect(errors).toEqual([]);
+    } finally {
+      await finish();
+      app.dispose();
+      dom.window.close();
+    }
+  });
+
+  // When the reload's restore runs against content that is still arriving:
+  // a boundary the server streams late, a route module the client loads.
+  test("reload scroll restoration while the server streams a pending boundary", async () => {
+    const log: string[] = [];
+    const { dom, window, app, errors, finish } = await setup("hydration-navigation", {
+      scrollRestoration: true,
+      navigationType: "reload",
+      scrollLog: log
+    });
+    const mark = (label: string) =>
+      log.push(
+        `| ${label} shows=${window.document.querySelector("main")?.textContent} hydrating=${app.isHydrationInProgress()}`
+      );
+    try {
+      mark("shell");
+      await new Promise<void>(resolve => setImmediate(resolve));
+      mark("shell flushed");
+      await finish();
+      mark("streamed");
+      expect(log).toMatchInlineSnapshot(`
+        [
+          "scrollTo:400 shows=Loading...Destination",
+          "| shell shows=Loading...Destination hydrating=true",
+          "| shell flushed shows=Loading...Destination hydrating=true",
+          "| streamed shows=Home readyDestination hydrating=false",
+        ]
+      `);
+      expect(errors).toEqual([]);
+    } finally {
+      await finish();
+      app.dispose();
+      dom.window.close();
+    }
+  });
+
+  test("reload scroll restoration while the route module is still loading", async () => {
+    const log: string[] = [];
+    const { dom, window, app, errors, finish } = await setup("hydration-lazy-route", {
+      scrollRestoration: true,
+      navigationType: "reload",
+      scrollLog: log
+    });
+    const mark = (label: string) =>
+      log.push(
+        `| ${label} shows=${window.document.querySelector("main")?.textContent} hydrating=${app.isHydrationInProgress()}`
+      );
+    try {
+      mark("shell");
+      await new Promise(resolve => setTimeout(resolve, 10));
+      mark("modules pending");
+      app.releaseModules();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      mark("modules loaded");
+      await finish();
+      mark("streamed");
+      expect(log).toMatchInlineSnapshot(`
+        [
+          "scrollTo:400 shows=Home readyDestination",
+          "| shell shows=Home readyDestination hydrating=true",
+          "| modules pending shows=Home readyDestination hydrating=true",
+          "| modules loaded shows=Home readyDestination hydrating=false",
+          "| streamed shows=Home readyDestination hydrating=false",
+        ]
+      `);
       expect(errors).toEqual([]);
     } finally {
       await finish();

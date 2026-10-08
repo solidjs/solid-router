@@ -12,7 +12,7 @@ const manifest = {
   "src/routes/destination.tsx": { file: "routes/destination.js" }
 };
 
-export function createApp() {
+export function createApp(options: { scrollRestoration?: boolean } = {}) {
   let releaseModules!: () => void;
   const modulesLoaded = isServer
     ? Promise.resolve()
@@ -64,7 +64,7 @@ export function createApp() {
         component: route("src/routes/destination.tsx", "/routes/destination.js")
       }
     ],
-    scrollRestoration: false
+    scrollRestoration: options.scrollRestoration ?? false
   });
 
   function App() {

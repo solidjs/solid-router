@@ -1,4 +1,4 @@
-import type { Component, Signal } from "solid-js";
+import type { Component, Owner, Signal } from "solid-js";
 import type { JSX, ResponseEnvelope } from "@solidjs/web";
 
 declare module "@solidjs/web" {
@@ -138,13 +138,13 @@ export interface RouterIntegration {
   // `$REFRESH` brand.
   signal: [get: () => LocationChange, set: (next: LocationWrite) => void];
   /**
-   * The navigation written but not yet committed to history — the window
-   * between its location write and the settle that pushes it. A destination
-   * in that window was never shown, so a `navigate()` issued inside it (a
-   * guard redirecting as the held route lands) is a hop of that navigation
-   * rather than a new one, exactly as one issued while it is still pending.
+   * Whether a navigation write's settle has run: Solid's `onSettled`,
+   * registered beside the write, fired for the transition that carried it.
+   * Until then the write is in flight: its destination was never shown, so a
+   * `navigate()` issued meanwhile (a guard redirecting as the held route
+   * lands) is a hop of that navigation rather than a new one.
    */
-  inflight?: () => LocationChange | undefined;
+  settled?: (write: LocationChange) => boolean;
   utils?: Partial<RouterUtils>;
 }
 
@@ -452,11 +452,12 @@ export interface RouterContext {
   params: Params;
   wrapParams: (getParams: () => Params) => Params;
   navigatorFactory: NavigatorFactory;
-  isRouting: () => boolean;
   /** @internal Intent of the in-flight canonical location transition. */
   intent?: () => Intent | undefined;
-  /** The target of the in-flight navigation transition, if any. Not reactive. */
-  readonly pendingTarget?: LocationChange;
+  /** @internal The integration's location signal: the last flushed write. */
+  _source: () => LocationChange;
+  /** @internal The owner the router's own computations live under. */
+  _owner: Owner | null;
   matches: () => RouteMatch[];
   renderPath(path: string): string;
   parsePath(str: string): string;
@@ -465,6 +466,26 @@ export interface RouterContext {
   singleFlight: boolean;
   submissions: Signal<Submission<any, any>[]>;
 }
+
+/**
+ * A plugin for the router's `links` option that extends the state it writes
+ * onto claimed anchors. Built once per router with its base path. The router
+ * ships `pendingLinks`, which adds `data-pending`.
+ *
+ * @example
+ * ```ts
+ * const Router = createRouter({ routes, links: pendingLinks });
+ * ```
+ */
+export type LinksPlugin = (
+  router: RouterContext,
+  base: string
+) => {
+  /** The reactive read the claims sweep re-runs on. */
+  track(): unknown;
+  /** Whether an anchor resolving to `target` is the in-flight destination; read when `track()` is truthy. */
+  pending(target: string | undefined): boolean;
+};
 
 export interface BeforeLeaveEventArgs {
   from: Location;

@@ -9,8 +9,6 @@ import {
   createMemo,
   createSignal,
   getOwner,
-  isPending,
-  latest,
   NotReadyError,
   onCleanup,
   untrack,
@@ -68,6 +66,7 @@ import {
 // values (behind isServer, tree-shaken from client bundles).
 import type { FlashSubmission } from "@solidjs/web/server-functions/server";
 import { HREF } from "./paths.js";
+import { linkPending, routingState } from "./pending.js";
 import {
   serverRouteOf,
   serverRouteArgs,
@@ -174,6 +173,8 @@ export const useLocation = <S = unknown>() => useRouter().location as Location<S
 /**
  * Retrieves a signal that indicates whether the router is currently processing a navigation.
  * Useful for showing pending navigation state while the next route and its data settle.
+ * This is the way to read routing state: `RouterContext` doesn't carry `isRouting`.
+ * For the in-flight destination, read the location with Solid's `isPending`/`latest`.
  * 
  * @example
  * ```js
@@ -186,7 +187,7 @@ export const useLocation = <S = unknown>() => useRouter().location as Location<S
  * );
  * ```
  */
-export const useIsRouting = () => useRouter().isRouting;
+export const useIsRouting = () => routingState(useRouter());
 
 /**
  * `useMatch` takes an accessor that returns the path and creates a `Memo` that returns match information if the current path matches the provided path.
@@ -374,7 +375,11 @@ export interface LinkState {
    * parameter order and hash aside — what `aria-current="page"` reflects.
    */
   current: () => boolean;
-  /** This link is the target of an in-flight navigation. Styling: `data-pending`. */
+  /**
+   * This link is the target of an in-flight navigation (back/forward
+   * excluded). Works without the `pendingLinks` plugin, which only adds
+   * `data-pending` to plain anchors.
+   */
   pending: () => boolean;
 }
 
@@ -413,12 +418,7 @@ export const useLinkState = (
     // observe the committed location during a transition
     pending: createMemo(() => {
       state(); // location dependency: mid-flight target swaps recompute
-      return (
-        router.isRouting() &&
-        !!router.pendingTarget &&
-        matchLink({ pathname: router.pendingTarget.value, search: "" }, to(), base, options.end)
-          .active
-      );
+      return linkPending(router, to(), base, options.end);
     })
   };
 };
@@ -836,7 +836,15 @@ export function createRouterContext(
     });
   }
 
-  const location = createLocation(() => source().value, () => source().state, utils.queryWrapper);
+  // The flushed world — what `latest(source)` answers — as the location's own
+  // memo sees it: it recomputes under the transition that carries a write,
+  // never for a write of this same tick (A28).
+  let flushed = initialSource;
+  const location = createLocation(
+    () => (flushed = source()).value,
+    () => source().state,
+    utils.queryWrapper
+  );
   // The flash cookie is consumed eagerly: its one-shot clear (Set-Cookie)
   // must be appended before streaming flushes the response headers, and an
   // unread outcome must not haunt a later request's render. Only detection
@@ -964,31 +972,16 @@ export function createRouterContext(
     DEV && { name: "matches" }
   );
 
-  const routingPending = createMemo(
-    () =>
-      isPending(() => {
-        try {
-          matches();
-        } catch (e) {
-          if (e instanceof NotReadyError) throw e;
-        }
-        location.search;
-        location.hash;
-      }),
-    DEV && { name: "routingPending" }
-  );
-  const isRouting = () => routingPending() || isPending(source);
+  const headedLocation = () => (isServer ? untrack(source) : flushed);
+  // A flushed navigation write whose settle has not run is still in flight.
+  const unsettled = (change: LocationChange) =>
+    change._navigation !== undefined && !!integration.settled && !integration.settled(change);
 
   const transitionIntent = (): Intent | undefined => {
-    if (!isPending(source)) return;
-    const navigation = latest(source)._navigation;
+    const head = headedLocation();
+    if (!unsettled(head)) return;
+    const navigation = head._navigation;
     return navigation === -1 ? "native" : navigation && navigation > 0 ? "navigate" : undefined;
-  };
-
-  const pendingNavigation = () => {
-    if (!isRouting()) return;
-    const target = latest(source);
-    return target._navigation && target._navigation > 0 ? target : undefined;
   };
 
   const buildParams = () => mergeParams(matches());
@@ -1014,11 +1007,9 @@ export function createRouterContext(
     location,
     params,
     wrapParams,
-    isRouting,
     intent: transitionIntent,
-    get pendingTarget() {
-      return pendingNavigation();
-    },
+    _source: source,
+    _owner: routerOwner,
     renderPath,
     parsePath,
     navigatorFactory,
@@ -1089,10 +1080,10 @@ export function createRouterContext(
       // the destination the leave guard is told all read it. A write of this
       // same tick is not in it (A28) — see `compose` below.
       //
-      // A redirect hop: the previous navigation is still pending, or has landed
-      // but not yet reached history (a guard redirecting in the landing flush
-      // — its destination was never shown either way).
-      const headed = latest(source);
+      // A redirect hop: the previous navigation's write has not settled — it
+      // is still held, or a guard is redirecting in its landing flush — so its
+      // destination was never shown.
+      const headed = headedLocation();
 
       // A composed target (`setSearchParams`) is a function of where the
       // router is heading, an unflushed write of this tick included. Only
@@ -1127,7 +1118,7 @@ export function createRouterContext(
         !isServer &&
         headed._navigation !== undefined &&
         headed._navigation > 0 &&
-        (isPending(source) || integration.inflight?.() === headed)
+        unsettled(headed)
           ? headed._navigation
           : 0;
 

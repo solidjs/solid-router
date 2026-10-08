@@ -3,7 +3,7 @@ import { sharedConfig } from "solid-js/internal";
 import { isServer } from "@solidjs/web";
 import { createRouter, query, useIsRouting } from "../../src/index.js";
 
-export function createApp() {
+export function createApp(options: { scrollRestoration?: boolean } = {}) {
   let release!: (value: string) => void;
   const pending = new Promise<string>(resolve => (release = resolve));
   const home = query(() => (isServer ? pending : Promise.resolve("Home ready")), "hydration-home");
@@ -35,7 +35,7 @@ export function createApp() {
       { path: "/", component: Home },
       { path: "/destination", component: Destination }
     ],
-    scrollRestoration: false
+    scrollRestoration: options.scrollRestoration ?? false
   });
 
   function App() {

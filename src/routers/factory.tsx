@@ -29,6 +29,7 @@ import type {
   Branch,
   DefinedRouteFilters,
   LazyRouteChildren,
+  LinksPlugin,
   LocationChange,
   LocationWrite,
   OutputMatch,
@@ -168,6 +169,19 @@ export interface RouterConfig<R extends readonly RouteDefinition[] = RouteDefini
   singleFlight?: boolean;
   actionBase?: string;
   explicitLinks?: boolean;
+  /**
+   * Link claims plugin. `aria-current` and `data-active` are automatic; pass
+   * `pendingLinks` to also mark links covering the in-flight destination of a
+   * link click or `navigate()` with `data-pending`. Client-only.
+   *
+   * @example
+   * ```ts
+   * import { createRouter, pendingLinks } from "@solidjs/router";
+   *
+   * const Router = createRouter({ routes, links: pendingLinks });
+   * ```
+   */
+  links?: LinksPlugin;
   /** Preload route code/data on link hover and focus. Defaults to `true`. */
   preloadLinks?: boolean;
   /**
@@ -323,8 +337,8 @@ function createIntegration(
   match: (pathname: string) => RouteMatch[]
 ): RouterIntegration {
   let committing = false;
-  // Written, not yet in history (see `RouterIntegration.inflight`).
-  let inflight: LocationChange | undefined;
+  // Writes whose transition has landed (see `RouterIntegration.settled`).
+  const settled = new WeakSet<LocationChange>();
   const wrap = (value: string | LocationChange) => (typeof value === "string" ? { value } : value);
   const [read, write] = createSignal(wrap(history.get()), {
     equals: (a, b) => a.value === b.value && a.state === b.state && a._navigation === b._navigation,
@@ -343,15 +357,17 @@ function createIntegration(
         // the no-op rule compares against it, so `navigate()` behind another
         // write in one handler sees that write rather than the flushed world.
         write(headed => (written = resolveLocationWrite(headed, next)) || headed);
-        if (written && written._navigation && written._navigation > 0) {
+        if (written && written._navigation) {
           const next = written;
-          inflight = next;
           // Register out of band so a destination error boundary replacing the
-          // Router subtree cannot suppress the winning history commit.
+          // Router subtree cannot suppress the winning history commit. The
+          // settle is tied to the transition carrying the write: it fires when
+          // that lands, a rejection included, and a superseded write's settle
+          // fires with the transition that absorbed it.
           runWithOwner(null, () =>
             onSettled(() => {
-              if (inflight === next) inflight = undefined;
-              if (read() !== next) return;
+              settled.add(next);
+              if (next._navigation! < 0 || read() !== next) return;
               committing = true;
               try {
                 history.set(next);
@@ -392,7 +408,11 @@ function createIntegration(
       })
     );
 
-  return { signal, inflight: () => inflight, utils: history.utils };
+  return {
+    signal,
+    settled: write => settled.has(write),
+    utils: history.utils
+  };
 }
 
 /**
@@ -494,10 +514,13 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
         actionBase: config.actionBase,
         transformUrl: config.transformUrl
       })(routerState);
-      setupLinkClaims(routerState, config.explicitLinks);
+      setupLinkClaims(routerState, config.explicitLinks, config.links);
       if (routerState.singleFlight) onCleanup(registerFlightRouter(routerState));
-      restoration && restoration.create(routerState);
+      restoration && restoration.create();
     }
+    // Registered on both sides, outside the client-only branch: an owned
+    // onSettled takes a hydration id on the server too, so the ids line up.
+    onSettled(() => restoration && restoration.settled());
     return (
       <RouterContextObj value={routerState}>
         <Root routerState={routerState} root={root} preload={config.preload}>

@@ -7,6 +7,7 @@ import {
 } from "solid-js";
 import { render } from "@solidjs/web";
 import { createRouter, memoryHistory, useIsRouting, useNavigate } from "../src/index.js";
+import { routingState } from "../src/pending.js";
 import { createRouterContext } from "../src/routing.js";
 import type { LocationChange, Navigator, RouteDefinition } from "../src/types.js";
 import { createTestRoot, createCounter, waitFor } from "./helpers.js";
@@ -513,7 +514,9 @@ describe("Router should", () => {
         const signal = createSignal<LocationChange>({
           value: "/"
         });
-        const { navigatorFactory, isRouting } = createRouterContext({ signal }, fakeBranches);
+        const router = createRouterContext({ signal }, fakeBranches);
+        const { navigatorFactory } = router;
+        const isRouting = routingState(router);
         const navigate = navigatorFactory();
 
         navigate("/target");
