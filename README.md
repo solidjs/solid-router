@@ -517,7 +517,7 @@ Behavior modifiers are attributes, so they work identically in client, server-re
 <a href="https://example.com">External — untouched</a>
 ```
 
-Active and pending state is styled with CSS — one vocabulary for every kind of link:
+Active and pending state is styled with CSS — one vocabulary for every kind of link. `aria-current` and `data-active` are automatic; `data-pending` is opt-in:
 
 ```css
 nav a[aria-current="page"] {
@@ -539,7 +539,7 @@ import { createRouter, pendingLinks } from "@solidjs/router";
 const Router = createRouter({ routes, links: pendingLinks });
 ```
 
-With it, `data-pending` agrees with `useLinkState().pending` at every moment. Back/forward traversals don't mark links pending.
+It marks the links whose path covers the in-flight destination of a link click or `navigate()` call — by the same path rule as `data-active` — until that navigation lands. Back/forward traversals don't mark links pending. `data-pending` agrees with `useLinkState().pending` at every moment; the hook works with or without the plugin.
 
 One rule decides both, for anchors and `useLinkState` alike:
 
@@ -861,7 +861,7 @@ See [Typed Search Params](#typed-search-params). Reads are proxied — access pr
 
 ### useIsRouting
 
-A signal indicating whether the router is processing a navigation — useful for pending UI while the next route and its data settle:
+A signal indicating whether the router is processing a navigation — useful for pending UI while the next route and its data settle. It's the way to read routing state: `RouterContext` doesn't carry `isRouting` or `pendingTarget`.
 
 ```tsx
 const isRouting = useIsRouting();
@@ -926,7 +926,7 @@ Reactive `active`/`current`/`pending` state for [custom link components](#links)
 
 - `current()` — same path and same query as the location, ignoring parameter order and the hash (what `aria-current="page"` reflects)
 - `active()` — the location's path is the link's path or lives under it, query ignored (`data-active`); a root link (`/`, which resolves to the router's `base`) is exact-only
-- `pending()` — the link's path is the target of an in-flight navigation, back/forward excluded (`data-pending`, with [`pendingLinks`](#links))
+- `pending()` — the link's path is the target of an in-flight navigation, back/forward excluded (`data-pending`). Works without the [`pendingLinks`](#links) plugin, which only adds the attribute to plain anchors
 
 Pass `{ end: true }` to make `active` (and `pending`) exact-path for any link.
 
@@ -1053,6 +1053,7 @@ Route props map 1:1 onto definition keys (`path`, `component`, `preload`, `match
 - `<A href replace noScroll state>` → `<a href replace noscroll state>` (attributes, all lowercase)
 - `activeClass` / `inactiveClass` → CSS attribute selectors on `[data-active]` / `[aria-current="page"]`
 - `end` → style exact matches with `[aria-current="page"]` (which also compares the query) instead of `[data-active]`; the root path already only matches exactly
+- Pending link styling → `[data-pending]`, opt-in with `createRouter({ routes, links: pendingLinks })`
 - Route-relative hrefs → typed `paths`; `useResolvedPath` / `useHref` remain for manual resolution
 - Custom link components → `useLinkState`
 
@@ -1063,6 +1064,7 @@ Route props map 1:1 onto definition keys (`path`, `component`, `preload`, `match
 - `redirect` / `reload` → import from `@solidjs/web`; they're protocol-level and work without the router
 - `json(data, init)` → `respond(data, init)` from `@solidjs/web`
 - `cache` (deprecated alias) → `query`
+- `RouterContext`'s `isRouting` / `pendingTarget` → `useIsRouting()`; for the in-flight destination, the [`isPending`/`latest` recipe](#useisrouting)
 
 ### Data APIs (Solid 2)
 

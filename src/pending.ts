@@ -63,12 +63,17 @@ export function linkPending(
 }
 
 /**
- * Claims plugin: marks claimed anchors that are the target of the in-flight
- * navigation with `data-pending`, agreeing with `useLinkState().pending`.
+ * Opt-in `data-pending` for plain anchors. Marks claimed links whose path
+ * covers the in-flight destination of a link click or `navigate()` (not
+ * back/forward), until it lands. Agrees with `useLinkState().pending`, which
+ * works without it. `aria-current` and `data-active` need no plugin.
  *
  * @example
  * ```ts
+ * import { createRouter, pendingLinks } from "@solidjs/router";
+ *
  * const Router = createRouter({ routes, links: pendingLinks });
+ * // CSS: a[data-pending] { opacity: .6 }
  * ```
  */
 export const pendingLinks: LinksPlugin = (router, base) => ({

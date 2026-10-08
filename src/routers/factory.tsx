@@ -170,8 +170,16 @@ export interface RouterConfig<R extends readonly RouteDefinition[] = RouteDefini
   actionBase?: string;
   explicitLinks?: boolean;
   /**
-   * Link claims plugin. Pass `pendingLinks` to mark claimed anchors that are
-   * the target of the in-flight navigation with `data-pending`. Client-only.
+   * Link claims plugin. `aria-current` and `data-active` are automatic; pass
+   * `pendingLinks` to also mark links covering the in-flight destination of a
+   * link click or `navigate()` with `data-pending`. Client-only.
+   *
+   * @example
+   * ```ts
+   * import { createRouter, pendingLinks } from "@solidjs/router";
+   *
+   * const Router = createRouter({ routes, links: pendingLinks });
+   * ```
    */
   links?: LinksPlugin;
   /** Preload route code/data on link hover and focus. Defaults to `true`. */

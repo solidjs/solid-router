@@ -173,6 +173,8 @@ export const useLocation = <S = unknown>() => useRouter().location as Location<S
 /**
  * Retrieves a signal that indicates whether the router is currently processing a navigation.
  * Useful for showing pending navigation state while the next route and its data settle.
+ * This is the way to read routing state: `RouterContext` doesn't carry `isRouting`.
+ * For the in-flight destination, read the location with Solid's `isPending`/`latest`.
  * 
  * @example
  * ```js
@@ -373,7 +375,11 @@ export interface LinkState {
    * parameter order and hash aside — what `aria-current="page"` reflects.
    */
   current: () => boolean;
-  /** This link is the target of an in-flight navigation. Styling: `data-pending`. */
+  /**
+   * This link is the target of an in-flight navigation (back/forward
+   * excluded). Works without the `pendingLinks` plugin, which only adds
+   * `data-pending` to plain anchors.
+   */
   pending: () => boolean;
 }
 

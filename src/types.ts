@@ -468,8 +468,14 @@ export interface RouterContext {
 }
 
 /**
- * Extends the link claims (see `pendingLinks`): built once per router with
- * its base path.
+ * A plugin for the router's `links` option that extends the state it writes
+ * onto claimed anchors. Built once per router with its base path. The router
+ * ships `pendingLinks`, which adds `data-pending`.
+ *
+ * @example
+ * ```ts
+ * const Router = createRouter({ routes, links: pendingLinks });
+ * ```
  */
 export type LinksPlugin = (
   router: RouterContext,
