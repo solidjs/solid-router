@@ -503,14 +503,14 @@ There is no link component. Use `<a>`; the router intercepts same-origin clicks 
 
 Behavior modifiers are attributes, so they work identically in client, server-rendered, and third-party markup:
 
-| attribute  | description                                                                                                     |
-| ---------- | --------------------------------------------------------------------------------------------------------------- |
-| `replace`  | Replace the history entry instead of pushing                                                                    |
-| `noscroll` | Turn off scrolling to the top after navigation                                                                  |
-| `state`    | JSON string [pushed](https://developer.mozilla.org/en-US/docs/Web/API/History/pushState) onto the history stack |
-| `preload`  | `"false"` opts this link out of all [preloading](#preloading)                                                   |
-| `link`     | Marks a router link when `explicitLinks` is enabled                                                             |
-| `target`   | Any value (e.g. `_self`) opts the anchor out of router handling                                                 |
+| attribute  | description                                                                                                         |
+| ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| `replace`  | Replace the history entry instead of pushing                                                                        |
+| `noscroll` | Turn off scrolling to the top after navigation                                                                      |
+| `state`    | JSON string [pushed](https://developer.mozilla.org/en-US/docs/Web/API/History/pushState) onto the history stack     |
+| `preload`  | `"false"` opts this link out of all [preloading](#preloading); `"viewport"` or `"eager"` opts it into that strategy |
+| `link`     | Marks a router link when `explicitLinks` is enabled                                                                 |
+| `target`   | Any value (e.g. `_self`) opts the anchor out of router handling                                                     |
 
 ```tsx
 <a href={paths.login} replace>Log in</a>
@@ -574,15 +574,27 @@ import { createRouter, intentPreload } from "@solidjs/router";
 const Router = createRouter({ routes, preloadLinks: intentPreload() });
 ```
 
-| strategy                              | preloads a link when                                                            | default       |
-| ------------------------------------- | ------------------------------------------------------------------------------- | ------------- |
-| `intentPreload({ delay = 20, data })` | the pointer rests on it for `delay` ms, it takes focus, or a touch starts on it | code and data |
+| strategy                                                  | preloads a link when                                                                        | default       |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------- |
+| `intentPreload({ delay = 20, data })`                     | the pointer rests on it for `delay` ms, it takes focus, or a touch starts on it             | code and data |
+| `tapPreload({ data })`                                    | a pointer goes down on it (mouse, touch, or pen), ahead of the click                        | code and data |
+| `viewportPreload({ all, data, delay = 100, rootMargin })` | it has stayed in the viewport for `delay` ms, once the browser is idle; once per `href`     | code          |
+| `eagerPreload({ all, data })`                             | the page has loaded and the browser is idle, including links mounted later; once per `href` | code          |
 
-Pass an array to combine strategies. They are client-only and add only their own code to your bundle.
+Pass an array to combine strategies — say, viewport for code and intent for data:
+
+```tsx
+const Router = createRouter({
+  routes,
+  preloadLinks: [viewportPreload({ all: true }), intentPreload()]
+});
+```
+
+Strategies are client-only and add only their own code to your bundle. Interaction strategies (`intentPreload`, `tapPreload`) apply to every router link. Ambient strategies (`viewportPreload`, `eagerPreload`) apply only to links that name them, `<a href="/pricing" preload="viewport">`, unless created with `{ all: true }`; they also skip preloading when the browser reports Save-Data or a 2g connection.
 
 Preloading is purely an optimization: without it every navigation still loads the same code and data, just after the click instead of before it. A link with `preload="false"` is never preloaded by any strategy.
 
-Whether a strategy also preloads data is its own `data` option, not a per-link choice. Interaction strategies like `intentPreload` default to data because the user is about to click; a data preload runs only for route levels the navigation would change, and `query` keeps the result for the few seconds until the click arrives. Strategies that preload links merely on screen are better kept to code unless your data layer keeps results for longer — `{ data: true }` there fits long-lived caches such as TanStack Query or HTTP-cached `GET` server functions.
+Whether a strategy also preloads data is its own `data` option, not a per-link choice. Interaction strategies like `intentPreload` default to data because the user is about to click; a data preload runs only for route levels the navigation would change, and `query` keeps the result for the few seconds until the click arrives. Ambient strategies preload links merely on screen, so they default to code only; keep it that way unless your data layer keeps results for longer — `{ data: true }` there fits long-lived caches such as TanStack Query or HTTP-cached `GET` server functions.
 
 `usePreloadRoute` triggers the same work by hand.
 

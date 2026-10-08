@@ -35,7 +35,7 @@ export {
 } from "./routing.js";
 export type { LinkState } from "./routing.js";
 export { pendingLinks } from "./pending.js";
-export { intentPreload } from "./preload.js";
+export { eagerPreload, intentPreload, tapPreload, viewportPreload } from "./preload.js";
 export { usePreloadRoute } from "./preloadRoute.js";
 export { mergeSearchString as _mergeSearchString } from "./utils.js";
 export { int } from "./paths.js";

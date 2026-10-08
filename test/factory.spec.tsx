@@ -3,6 +3,7 @@ import { vi } from "vitest";
 import {
   createRouter,
   defineRoute,
+  eagerPreload,
   intentPreload,
   memoryHistory,
   useBeforeLeave,
@@ -452,6 +453,33 @@ describe("createRouter factory", () => {
       } finally {
         dispose();
         div.remove();
+      }
+    });
+
+    test("ambient strategies preload route code, and data only when asked", async () => {
+      for (const data of [false, true]) {
+        const div = document.createElement("div");
+        document.body.appendChild(div);
+
+        const Page = Object.assign(() => <div data-route="user" />, { preload: vi.fn() });
+        const preloaded = vi.fn();
+        const Router = createRouter({
+          routes: [
+            { path: "/", component: () => <a href="/users/4">user</a> },
+            { path: "/users/:id", preload: () => preloaded(), component: Page }
+          ],
+          history: memoryHistory(),
+          preloadLinks: eagerPreload({ all: true, data })
+        });
+
+        const dispose = render(() => <Router />, div);
+        try {
+          await vi.waitFor(() => expect(Page.preload).toHaveBeenCalled());
+          expect(preloaded).toHaveBeenCalledTimes(data ? 1 : 0);
+        } finally {
+          dispose();
+          div.remove();
+        }
       }
     });
 

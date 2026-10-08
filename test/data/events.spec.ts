@@ -1,7 +1,8 @@
+import { claimElement } from "@solidjs/web";
 import { createRoot, createSignal } from "solid-js";
 import { vi } from "vitest";
 import { setRouterFormHandler, setupNativeEvents } from "../../src/data/events.js";
-import { intentPreload } from "../../src/preload.js";
+import { eagerPreload, intentPreload, tapPreload, viewportPreload } from "../../src/preload.js";
 import { preloadRoute } from "../../src/preloadRoute.js";
 import type { LinkPreload, RouterContext } from "../../src/types.js";
 import { createMockRouter } from "../helpers.js";
@@ -791,5 +792,255 @@ describe("intentPreload", () => {
     link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
     await new Promise(r => setTimeout(r, 30));
     expect(preloadRoute).not.toHaveBeenCalled();
+  });
+});
+
+describe("tap and ambient preload strategies", () => {
+  class MockObserver {
+    static instances: MockObserver[] = [];
+    observed = new Set<Element>();
+    constructor(
+      public callback: IntersectionObserverCallback,
+      public options?: IntersectionObserverInit
+    ) {
+      MockObserver.instances.push(this);
+    }
+    observe = vi.fn((el: Element) => void this.observed.add(el));
+    unobserve = vi.fn((el: Element) => void this.observed.delete(el));
+    disconnect = vi.fn(() => this.observed.clear());
+    intersect(el: Element, isIntersecting = true) {
+      if (this.observed.has(el))
+        this.callback([{ target: el, isIntersecting } as any], this as any);
+    }
+  }
+
+  let mockRouter: RouterContext;
+  let dispose: (() => void) | undefined;
+  const links: HTMLAnchorElement[] = [];
+
+  const mount = (preload: LinkPreload | LinkPreload[]) =>
+    (dispose = createRoot(d => (setupNativeEvents({ preload })(mockRouter), d)));
+
+  // created and claimed as compiled JSX does, under an owner of its own
+  const link = (attributes: Record<string, string>) => {
+    const a = document.createElement("a");
+    for (const name in attributes) a.setAttribute(name, attributes[name]);
+    document.body.append(a);
+    links.push(a);
+    const disposeLink = createRoot(d => (claimElement(a), d));
+    return Object.assign(a, { disposeLink });
+  };
+
+  const preloaded = () =>
+    vi.mocked(preloadRoute).mock.calls.map(([, url, data]) => `${url.pathname}:${data}`);
+
+  const observer = () => MockObserver.instances[0];
+
+  beforeEach(() => {
+    global.Node = RealNode;
+    global.URL = RealURL;
+    mockRouter = createMockRouter();
+    vi.mocked(preloadRoute).mockClear();
+    MockObserver.instances = [];
+    vi.stubGlobal("IntersectionObserver", MockObserver);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    dispose?.();
+    dispose = undefined;
+    links.splice(0).forEach(a => a.remove());
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    global.Node = MockNode as any;
+  });
+
+  describe("tapPreload", () => {
+    test("pointerdown preloads code and data", () => {
+      mount(tapPreload());
+      const a = link({ href: "/a" });
+      a.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      expect(preloaded()).toEqual(["/a:true"]);
+    });
+
+    test('data: false preloads code only; preload="false" opts out', () => {
+      mount(tapPreload({ data: false }));
+      link({ href: "/a" }).dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      link({ href: "/b", preload: "false" }).dispatchEvent(
+        new Event("pointerdown", { bubbles: true })
+      );
+      expect(preloaded()).toEqual(["/a:false"]);
+    });
+
+    test("disposal removes the listener", () => {
+      mount([tapPreload()]);
+      dispose!();
+      dispose = undefined;
+      link({ href: "/a" }).dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      expect(preloaded()).toEqual([]);
+    });
+  });
+
+  describe("viewportPreload", () => {
+    test("one shared observer, created on the first claim", () => {
+      mount(viewportPreload({ rootMargin: "200px" }));
+      expect(MockObserver.instances).toHaveLength(0);
+      const a = link({ href: "/a" });
+      const b = link({ href: "/b" });
+      expect(MockObserver.instances).toHaveLength(1);
+      expect(observer().options).toEqual({ rootMargin: "200px" });
+      expect(observer().observe.mock.calls.map(c => c[0])).toEqual([a, b]);
+    });
+
+    test("intersect, stay for the delay, then preload code once at idle", () => {
+      mount(viewportPreload());
+      const a = link({ href: "/a", preload: "viewport" });
+      observer().intersect(a);
+      vi.advanceTimersByTime(99);
+      expect(preloaded()).toEqual([]);
+      vi.advanceTimersByTime(1);
+      expect(preloaded()).toEqual([]);
+      vi.runOnlyPendingTimers();
+      expect(preloaded()).toEqual(["/a:false"]);
+      expect(observer().unobserve).toHaveBeenCalledWith(a);
+      observer().intersect(a);
+      vi.runAllTimers();
+      expect(preloaded()).toEqual(["/a:false"]);
+    });
+
+    test("prefers requestIdleCallback when available", () => {
+      const idle = vi.fn((fn: () => void) => setTimeout(fn, 50));
+      vi.stubGlobal("requestIdleCallback", idle);
+      mount(viewportPreload({ delay: 0 }));
+      const a = link({ href: "/a", preload: "viewport" });
+      observer().intersect(a);
+      vi.advanceTimersByTime(0);
+      expect(idle).toHaveBeenCalledTimes(1);
+      expect(preloaded()).toEqual([]);
+      vi.advanceTimersByTime(50);
+      expect(preloaded()).toEqual(["/a:false"]);
+    });
+
+    test("leaving before the delay or before the idle flush cancels", () => {
+      mount(viewportPreload());
+      const a = link({ href: "/a", preload: "viewport" });
+      observer().intersect(a);
+      vi.advanceTimersByTime(50);
+      observer().intersect(a, false);
+      vi.runAllTimers();
+      expect(preloaded()).toEqual([]);
+      observer().intersect(a);
+      vi.advanceTimersByTime(100);
+      observer().intersect(a, false);
+      vi.runAllTimers();
+      expect(preloaded()).toEqual([]);
+      observer().intersect(a);
+      vi.runAllTimers();
+      expect(preloaded()).toEqual(["/a:false"]);
+    });
+
+    test("an href re-claim re-arms the link, resolving its new URL", () => {
+      mount(viewportPreload());
+      const a = link({ href: "/a", preload: "viewport" });
+      observer().intersect(a);
+      vi.runAllTimers();
+      a.setAttribute("href", "/b");
+      // the re-claim runs under the effect writing `href`, which outlives
+      // neither the anchor nor its arming
+      createRoot(d => (claimElement(a), d))();
+      observer().intersect(a);
+      vi.runAllTimers();
+      expect(preloaded()).toEqual(["/a:false", "/b:false"]);
+    });
+
+    test('preload="viewport" opts in; `all` takes every link but preload="false"', () => {
+      mount([viewportPreload(), viewportPreload({ all: true, data: true })]);
+      const named = link({ href: "/named", preload: "viewport" });
+      const plain = link({ href: "/plain" });
+      const off = link({ href: "/off", preload: "false" });
+      const [scoped, all] = MockObserver.instances;
+      for (const io of [scoped, all]) [named, plain, off].forEach(a => io.intersect(a));
+      vi.runAllTimers();
+      expect(preloaded().sort()).toEqual(["/named:false", "/named:true", "/plain:true"]);
+    });
+
+    test("reads opt-in when preloading: attributes may land after the claim", () => {
+      mount(viewportPreload());
+      const a = link({ href: "/a" });
+      a.setAttribute("preload", "viewport");
+      observer().intersect(a);
+      vi.runAllTimers();
+      expect(preloaded()).toEqual(["/a:false"]);
+    });
+
+    test("skips preloading under Save-Data or a 2g connection", () => {
+      for (const connection of [{ saveData: true }, { effectiveType: "slow-2g" }]) {
+        vi.stubGlobal("navigator", { ...navigator, connection });
+        mount(viewportPreload({ all: true }));
+        const a = link({ href: "/a" });
+        MockObserver.instances.at(-1)!.intersect(a);
+        vi.runAllTimers();
+        dispose!();
+      }
+      dispose = undefined;
+      expect(preloaded()).toEqual([]);
+    });
+
+    test("a disposed link is unobserved; disposing the router disconnects", () => {
+      mount(viewportPreload({ all: true }));
+      const a = link({ href: "/a" });
+      const b = link({ href: "/b" });
+      observer().intersect(a);
+      a.disposeLink();
+      expect(observer().unobserve).toHaveBeenCalledWith(a);
+      observer().intersect(b);
+      dispose!();
+      dispose = undefined;
+      expect(observer().disconnect).toHaveBeenCalled();
+      vi.runAllTimers();
+      expect(preloaded()).toEqual([]);
+    });
+
+    test("does nothing without IntersectionObserver", () => {
+      vi.stubGlobal("IntersectionObserver", undefined);
+      mount(viewportPreload({ all: true }));
+      expect(() => link({ href: "/a" })).not.toThrow();
+    });
+  });
+
+  describe("eagerPreload", () => {
+    test("queues claims until load, then preloads code at idle", () => {
+      const readyState = vi.spyOn(document, "readyState", "get").mockReturnValue("loading");
+      mount(eagerPreload());
+      link({ href: "/a", preload: "eager" });
+      link({ href: "/b", preload: "eager" });
+      link({ href: "/c" });
+      vi.runAllTimers();
+      expect(preloaded()).toEqual([]);
+      readyState.mockReturnValue("complete");
+      window.dispatchEvent(new Event("load"));
+      expect(preloaded()).toEqual([]);
+      vi.runAllTimers();
+      expect(preloaded()).toEqual(["/a:false", "/b:false"]);
+      readyState.mockRestore();
+    });
+
+    test("after load, later mounts preload at the next idle", () => {
+      mount(eagerPreload({ all: true, data: true }));
+      link({ href: "/a" });
+      link({ href: "/b", preload: "false" });
+      vi.runAllTimers();
+      link({ href: "/c" });
+      vi.runAllTimers();
+      expect(preloaded()).toEqual(["/a:true", "/c:true"]);
+    });
+
+    test("a link disposed before the flush is dropped", () => {
+      mount(eagerPreload({ all: true }));
+      link({ href: "/a" }).disposeLink();
+      link({ href: "/b" });
+      vi.runAllTimers();
+      expect(preloaded()).toEqual(["/b:false"]);
+    });
   });
 });

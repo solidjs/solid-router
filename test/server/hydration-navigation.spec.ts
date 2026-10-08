@@ -11,7 +11,8 @@ const fixtures = [
   "hydration-navigation",
   "hydration-late-boundary",
   "hydration-lazy-route",
-  "hydration-lazy-subtree"
+  "hydration-lazy-subtree",
+  "hydration-ambient-preload"
 ] as const;
 type Fixture = (typeof fixtures)[number];
 const serverEntry = (fixture: Fixture) => `${root}test/fixtures/${fixture}-server.tsx`;
@@ -556,6 +557,38 @@ describe("navigation during hydration", () => {
           "landed: routing=false hydrating=false shows=Destination at=/destination",
         ]
       `);
+      expect(errors).toEqual([]);
+    } finally {
+      await finish();
+      app.dispose();
+      dom.window.close();
+    }
+  });
+
+  // A client-only preload strategy must not take hydration ids, and the
+  // subtree table it loads after hydration must leave the page in place.
+  test("an ambient preload loading a lazy subtree after hydration keeps the page", async () => {
+    const { dom, window, app, errors, finish } = await setup("hydration-ambient-preload", {
+      preload: true
+    });
+    try {
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(app.tableLoads()).toBe(0);
+      await finish();
+      const heading = window.document.querySelector("h1");
+      expect(heading.textContent).toBe("Home ready");
+      await vi.waitFor(() => expect(app.destinationPreloads()).toBe(1));
+      expect(app.tableLoads()).toBe(1);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(window.document.querySelector("h1")).toBe(heading);
+      expect(window.document.querySelectorAll("main")).toHaveLength(1);
+      expect(errors).toEqual([]);
+      window.document.querySelector("a").click();
+      await vi.waitFor(() =>
+        expect(window.document.querySelector("h1").textContent).toBe("Destination")
+      );
+      expect(window.document.querySelectorAll("main")).toHaveLength(1);
+      expect(app.tableLoads()).toBe(1);
       expect(errors).toEqual([]);
     } finally {
       await finish();

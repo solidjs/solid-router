@@ -494,6 +494,8 @@ export type LinksPlugin = (
 export interface LinkPreloadContext {
   /** The router-managed anchor on an event's composed path, with its URL. */
   anchor(evt: Event): readonly [HTMLAnchorElement | SVGAElement, URL] | undefined;
+  /** An anchor's URL, resolved now, when the router manages it. */
+  url(a: HTMLAnchorElement | SVGAElement): URL | undefined;
   /** Warm `url`: route code always, `preload` functions too when `data` is true. */
   preload(url: URL, data: boolean): void;
 }

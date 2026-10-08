@@ -73,8 +73,13 @@ export function setupNativeEvents({
         | HTMLAnchorElement
         | SVGAElement
         | undefined;
+      const url = a && anchorUrl(a);
+      return url && ([a, url] as const);
+    }
 
-      if (!a || (explicitLinks && !a.hasAttribute("link"))) return;
+    /** The anchor's URL when the router manages it, else `undefined`. */
+    function anchorUrl(a: HTMLAnchorElement | SVGAElement) {
+      if (explicitLinks && !a.hasAttribute("link")) return;
 
       const svg = isSvg(a);
       const href = svg ? a.href.baseVal : a.href;
@@ -89,7 +94,7 @@ export function setupNativeEvents({
       // inherit the page origin, so the origin check below won't reject them. #382
       if (url.protocol !== "https:" && url.protocol !== "http:") return;
       if (url.origin !== window.location.origin || !isUnderBase(url.pathname, basePath)) return;
-      return [a, url] as const;
+      return url;
     }
 
     function handleAnchorClick(evt: Event) {
@@ -151,6 +156,7 @@ export function setupNativeEvents({
       ([] as LinkPreload[]).concat(preload).forEach(strategy =>
         strategy({
           anchor: findAnchor,
+          url: anchorUrl,
           preload: (url, data) => linkPreloader!(router, url, data)
         })
       );
