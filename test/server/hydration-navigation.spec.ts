@@ -10,7 +10,8 @@ const root = fileURLToPath(new URL("../../", import.meta.url));
 const fixtures = [
   "hydration-navigation",
   "hydration-late-boundary",
-  "hydration-lazy-route"
+  "hydration-lazy-route",
+  "hydration-lazy-subtree"
 ] as const;
 type Fixture = (typeof fixtures)[number];
 const serverEntry = (fixture: Fixture) => `${root}test/fixtures/${fixture}-server.tsx`;
@@ -439,6 +440,49 @@ describe("navigation during hydration", () => {
           "clicked: routing=false hydrating=false at=/",
           "click pending: routing=true hydrating=false at=/",
           "landed: routing=false hydrating=false at=/destination",
+        ]
+      `);
+      expect(errors).toEqual([]);
+    } finally {
+      await finish();
+      app.dispose();
+      dom.window.close();
+    }
+  });
+
+  // The initial route is a lazy subtree. The server's render parks on the
+  // route table; the client's, with the table already loaded, does not, and
+  // client-only readers must not take ids either. The ids must line up.
+  test("an initial route inside a lazy route subtree hydrates in place", async () => {
+    const { dom, window, app, errors, finish } = await setup("hydration-lazy-subtree");
+    const seen: string[] = [];
+    const read = (label: string) =>
+      seen.push(
+        `${label}: routing=${routingOf(app)} hydrating=${app.isHydrationInProgress()} shows=${window.document.querySelector("main")?.textContent} at=${window.location.pathname}`
+      );
+    try {
+      read("shell");
+      app.releaseTable();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      read("table loaded");
+      await finish();
+      read("streamed");
+      expect(window.document.querySelectorAll("main")).toHaveLength(1);
+      expect(errors).toEqual([]);
+      const click = new window.MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+      window.document.querySelector("a").dispatchEvent(click);
+      expect(click.defaultPrevented).toBe(true);
+      await vi.waitFor(() =>
+        expect(window.document.querySelector("h1").textContent).toBe("Destination")
+      );
+      read("landed");
+      expect(window.document.querySelectorAll("main")).toHaveLength(1);
+      expect(seen).toMatchInlineSnapshot(`
+        [
+          "shell: routing=<not ready> hydrating=true shows=Loading... at=/",
+          "table loaded: routing=false hydrating=true shows=Loading... at=/",
+          "streamed: routing=false hydrating=false shows=HomeDestination at=/",
+          "landed: routing=false hydrating=false shows=Destination at=/destination",
         ]
       `);
       expect(errors).toEqual([]);

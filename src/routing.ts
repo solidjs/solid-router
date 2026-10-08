@@ -918,7 +918,9 @@ export function createRouterContext(
   // NotReadyError's source must be a reactive async node, not the raw
   // Promise. Keep one reader per boundary for this router owner so rejection
   // is delivered through the graph's error channel and resolution wakes the
-  // parked matches computation.
+  // parked matches computation. `transparent`: the reader exists on the
+  // client only (the server parks `matches` on the promise directly), so it
+  // must not take a hydration id the server never allocated.
   const routerOwner = getOwner();
   const lazyReaders = new WeakMap<LazyBoundary, Accessor<void>>();
   const readLazySubtree = (record: LazyBoundary) => {
@@ -930,7 +932,7 @@ export function createRouterContext(
             const result = resolveLazySubtree(record);
             return result instanceof Promise ? result.then(() => undefined) : undefined;
           },
-          DEV && { name: "lazyRoutes" }
+          { transparent: true, ...(DEV && { name: "lazyRoutes" }) } as {}
         )
       );
       lazyReaders.set(record, read);

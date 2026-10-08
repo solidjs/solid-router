@@ -2,7 +2,15 @@
 
 import type {Component} from "solid-js";
 import type {JSX} from "@solidjs/web";
-import {createMemo, createRoot, getOwner, onCleanup, runWithOwner, untrack, Show} from "solid-js";
+import {
+  createMemo,
+  createOwner,
+  createRoot,
+  onCleanup,
+  runWithOwner,
+  untrack,
+  Show
+} from "solid-js";
 import {getRequestEvent, isServer, type RequestEvent} from "@solidjs/web";
 import {
     createRouteContext,
@@ -87,9 +95,12 @@ export function Routes(props: { routerState: RouterContext; branches: () => Bran
   // they stay subscribed to `matches` and crash on a later navigation (#451)
   onCleanup(() => disposers.forEach(dispose => dispose()));
   // Route roots must outlive re-runs of the `routeStates` memo below, so they
-  // are created under the owner of this component rather than the memo's
-  // computation (which disposes its children every time it re-runs).
-  const owner = getOwner()!;
+  // are created under an owner of this component rather than the memo's
+  // computation (which disposes its children every time it re-runs). A
+  // dedicated one, created before the memo: the roots draw hydration ids from
+  // its counter, so the ids don't depend on whether the memo first parked on
+  // a lazy subtree (the server's render can park where the client's doesn't).
+  const owner = createOwner();
 
   const routeStates = createMemo((prev: RouteContext[] | undefined) => {
       // While a lazy subtree resolves, `matches()` is not ready and this
