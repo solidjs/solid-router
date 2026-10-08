@@ -1,4 +1,4 @@
-import { delegateEvents } from "@solidjs/web";
+import { delegateEvents, dispatchAsInteraction } from "@solidjs/web";
 import { onCleanup } from "solid-js";
 import type { RouterContext } from "../types.js";
 import { isUnderBase } from "../utils.js";
@@ -88,12 +88,16 @@ export function setupNativeEvents({
       const state = a.getAttribute("state");
 
       evt.preventDefault();
-      navigateFromRoute(to, {
-        resolve: false,
-        replace: a.hasAttribute("replace"),
-        scroll: !a.hasAttribute("noscroll"),
-        state: state ? JSON.parse(state) : undefined
-      });
+      // Only a click the router acts on joins the event's interaction: this
+      // listener hears every click on the document.
+      dispatchAsInteraction(evt, () =>
+        navigateFromRoute(to, {
+          resolve: false,
+          replace: a.hasAttribute("replace"),
+          scroll: !a.hasAttribute("noscroll"),
+          state: state ? JSON.parse(state) : undefined
+        })
+      );
     }
 
     function handleAnchorPreload(evt: Event) {
@@ -140,15 +144,19 @@ export function setupNativeEvents({
       import("./serverForms.js").then(m => m.submitServerForm(router, path, form, data));
     }
 
+    const handleSubmit = (evt: SubmitEvent) =>
+      dispatchAsInteraction(evt, () => handleFormSubmit(evt));
+
     // ensure delegated event run first
     delegateEvents(["click", "submit"]);
     document.addEventListener("click", handleAnchorClick);
+    // preloads are not interactions: those listeners run outside any frame
     if (preload) {
       document.addEventListener("mousemove", handleAnchorMove, { passive: true });
       document.addEventListener("focusin", handleAnchorPreload, { passive: true });
       document.addEventListener("touchstart", handleAnchorPreload, { passive: true });
     }
-    document.addEventListener("submit", handleFormSubmit);
+    document.addEventListener("submit", handleSubmit);
     onCleanup(() => {
       document.removeEventListener("click", handleAnchorClick);
       if (preload) {
@@ -156,7 +164,7 @@ export function setupNativeEvents({
         document.removeEventListener("focusin", handleAnchorPreload);
         document.removeEventListener("touchstart", handleAnchorPreload);
       }
-      document.removeEventListener("submit", handleFormSubmit);
+      document.removeEventListener("submit", handleSubmit);
     });
   };
 }
