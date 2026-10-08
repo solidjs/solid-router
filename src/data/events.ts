@@ -54,7 +54,11 @@ export function setupNativeEvents({
         evt.shiftKey
       )
         return;
+      return findAnchor(evt);
+    }
 
+    // no button or modifier gate: focus and touch events carry neither
+    function findAnchor(evt: Event) {
       const a = evt
         .composedPath()
         .find(el => el instanceof Node && el.nodeName.toUpperCase() === "A") as
@@ -101,7 +105,7 @@ export function setupNativeEvents({
     }
 
     function handleAnchorPreload(evt: Event) {
-      const res = handleAnchor(evt as MouseEvent);
+      const res = findAnchor(evt);
       if (!res) return;
       const [a, url] = res;
       transformUrl && (url.pathname = transformUrl(url.pathname));
@@ -110,7 +114,7 @@ export function setupNativeEvents({
 
     function handleAnchorMove(evt: Event) {
       clearTimeout(preloadTimeout);
-      const res = handleAnchor(evt as MouseEvent);
+      const res = findAnchor(evt);
       if (!res) return (lastElement = null);
       const [a, url] = res;
       if (lastElement === a) return;

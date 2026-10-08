@@ -27,6 +27,8 @@ class MockNode {
   }
 }
 
+const RealNode = global.Node;
+const RealURL = global.URL;
 global.Node = MockNode as any;
 
 const createMockElement = (tagName: string, attributes: Record<string, string> = {}) => {
@@ -703,5 +705,46 @@ describe("form submit lazy fallback", () => {
     expect(event.preventDefault).toHaveBeenCalled();
     await vi.waitFor(() => expect(submitServerForm).toHaveBeenCalled());
     expect(submitServerForm.mock.calls[0][1]).toBe("/_server/other%230");
+  });
+});
+
+// Preload triggers dispatched as the browser does: focus and touch events
+// carry no `button`, so they must not go through the click gate.
+describe("link preload triggers", () => {
+  let mockRouter: RouterContext;
+  let link: HTMLAnchorElement;
+  let dispose: () => void;
+
+  beforeEach(() => {
+    global.Node = RealNode;
+    global.URL = RealURL;
+    mockRouter = createMockRouter();
+    dispose = createRoot(d => (setupNativeEvents()(mockRouter), d));
+    link = document.createElement("a");
+    link.href = "/target";
+    document.body.append(link);
+  });
+
+  afterEach(() => {
+    dispose();
+    link.remove();
+    global.Node = MockNode as any;
+  });
+
+  test("focusin preloads", () => {
+    link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    expect(mockRouter.preloadRoute).toHaveBeenCalledTimes(1);
+  });
+
+  test("touchstart preloads", () => {
+    link.dispatchEvent(new TouchEvent("touchstart", { bubbles: true }));
+    expect(mockRouter.preloadRoute).toHaveBeenCalledTimes(1);
+  });
+
+  test("mousemove preloads once the pointer rests", async () => {
+    link.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+    expect(mockRouter.preloadRoute).not.toHaveBeenCalled();
+    await new Promise(r => setTimeout(r, 30));
+    expect(mockRouter.preloadRoute).toHaveBeenCalledTimes(1);
   });
 });
