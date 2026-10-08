@@ -878,7 +878,7 @@ const target = () =>
   isPending(() => location.pathname) ? latest(() => location.pathname) : undefined;
 ```
 
-In Solid's dev and observe builds the router also declares every navigation to the attribution engine (`solid-js/attribution`): holds and re-runs caused by a navigation are named after the route pattern (`navigation to /users/:id`), timed from the user event that started it, and redirect hops fold onto the navigation they belong to. `attribution.history("navigation")` and `feedback().navigations` list them; nothing of this exists in production builds.
+In Solid's dev and observe builds the router also declares every navigation to the attribution engine (`solid-js/attribution`): holds and re-runs caused by a navigation are named after the route pattern (`navigation to /users/:id`), timed from the user event that started it, and redirect hops fold onto the navigation they belong to. A link click or a native form submit the router handles runs in the interaction Solid records for that event, so the navigation or action belongs to the same record as any `onClick` work for that click. `attribution.history("navigation")` and `feedback().navigations` list them; nothing of this exists in production builds.
 
 ### useMatch
 

@@ -4,17 +4,19 @@
 // onto the navigation they belong to, and a lazy subtree that resolved during
 // the hold names the exact route it landed on. Nothing here exists in the
 // production build: `OBSERVE` is undefined there and the declaration folds out.
-import { createMemo } from "solid-js";
+import { createMemo, createSignal } from "solid-js";
 import { render } from "@solidjs/web";
 import { attribution, feedback } from "solid-js/attribution";
 import { vi } from "vitest";
 import {
+  action,
   createRouter,
   defineRoutes,
   memoryHistory,
   query,
   useNavigate,
-  useParams
+  useParams,
+  useSubmissions
 } from "../src/index.js";
 import type { Navigator } from "../src/index.js";
 
@@ -395,6 +397,167 @@ describe("observe tier: navigations declared to attribution", () => {
       expect(nav.name).toBe("/");
       expect(nav.from).toBe("/users/1");
       expect(nav.redirects).toBeUndefined();
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// #643: the router's `document` click and submit listeners run inside the
+// interaction frame the web runtime opens for the same event
+// (`dispatchAsInteraction`), so a link click or a native form submit is one
+// interaction record carrying the navigation or the action, beside whatever
+// component handlers ran for that event.
+describe("observe tier: native link clicks and form submits are interactions (#643)", () => {
+  const originalScrollTo = window.scrollTo;
+  beforeEach(() => {
+    window.scrollTo = vi.fn();
+    attribution.enable({ log: false });
+  });
+  afterEach(() => attribution.disable());
+  afterAll(() => {
+    window.scrollTo = originalScrollTo;
+  });
+
+  const interactionsSince = (n: number) => attribution.history("interaction").slice(n);
+
+  test("an anchor click is the navigation's interaction", async () => {
+    const Router = createRouter({
+      routes: [
+        {
+          path: "/",
+          component: () => (
+            <a id="to-user" href="/users/6">
+              user
+            </a>
+          )
+        },
+        { path: "/users/:id", component: () => <div data-route="user">user</div> }
+      ] as const,
+      history: memoryHistory()
+    });
+    const { div, cleanup } = mount(Router);
+    try {
+      const interactions = attribution.history("interaction").length;
+      const navigations = attribution.history("navigation").length;
+      div.querySelector<HTMLAnchorElement>("#to-user")!.click();
+      await settle();
+      expect(div.querySelector('[data-route="user"]')).toBeTruthy();
+
+      expect(attribution.history("navigation").length).toBe(navigations + 1);
+      const nav = last();
+      expect(nav.name).toBe("/users/:id");
+      const clicks = interactionsSince(interactions).filter(i => i.name === "click");
+      expect(clicks).toHaveLength(1);
+      expect(clicks[0].target).toMatch(/^a#to-user/);
+      expect(nav.interaction).toBe(clicks[0].origin);
+      expect(clicks[0].navigations.map(n => n.origin)).toEqual([nav.origin]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("a component onClick on the anchor and the navigation are one interaction", async () => {
+    const [count, setCount] = createSignal(0, { ownedWrite: true });
+    const Router = createRouter({
+      routes: [
+        {
+          path: "/",
+          component: () => (
+            <a id="to-user" href="/users/6" onClick={() => setCount(c => c + 1)}>
+              user {count()}
+            </a>
+          )
+        },
+        { path: "/users/:id", component: () => <div data-route="user">user</div> }
+      ] as const,
+      history: memoryHistory()
+    });
+    const { div, cleanup } = mount(Router);
+    try {
+      const interactions = attribution.history("interaction").length;
+      div.querySelector<HTMLAnchorElement>("#to-user")!.click();
+      await settle();
+      expect(div.querySelector('[data-route="user"]')).toBeTruthy();
+
+      const clicks = interactionsSince(interactions).filter(i => i.name === "click");
+      expect(clicks).toHaveLength(1);
+      expect(last().interaction).toBe(clicks[0].origin);
+      // the handler's write and the navigation's location write
+      expect(clicks[0].writes).toBeGreaterThanOrEqual(2);
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("a component onClick that prevents default still stops the navigation", async () => {
+    const Router = createRouter({
+      routes: [
+        {
+          path: "/",
+          component: () => (
+            <a id="to-user" href="/users/6" onClick={e => e.preventDefault()}>
+              user
+            </a>
+          )
+        },
+        { path: "/users/:id", component: () => <div data-route="user">user</div> }
+      ] as const,
+      history: memoryHistory()
+    });
+    const { div, cleanup } = mount(Router);
+    try {
+      const navigations = attribution.history("navigation").length;
+      div.querySelector<HTMLAnchorElement>("#to-user")!.click();
+      await settle();
+      expect(div.querySelector('[data-route="user"]')).toBeNull();
+      expect(attribution.history("navigation").length).toBe(navigations);
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("a native form submit to an action is the action's interaction", async () => {
+    const [saves, setSaves] = createSignal(0, { ownedWrite: true });
+    const save = action(async (_form: FormData) => {
+      setSaves(n => n + 1);
+      return "saved";
+    }, "observe-643-save");
+    const Router = createRouter({
+      routes: [
+        {
+          path: "/",
+          component: () => {
+            const subs = useSubmissions(save);
+            return (
+              <form id="save" action={save} method="post">
+                <output>{subs.length}</output>
+                <span>{saves()}</span>
+                <button type="submit">save</button>
+              </form>
+            );
+          }
+        }
+      ] as const,
+      history: memoryHistory()
+    });
+    const { div, cleanup } = mount(Router);
+    try {
+      const interactions = attribution.history("interaction").length;
+      const holds = attribution.history("hold").length;
+      div.querySelector<HTMLFormElement>("#save")!.requestSubmit();
+      await settle(10);
+      expect(div.querySelector("output")!.textContent).toBe("1");
+
+      const submits = interactionsSince(interactions).filter(i => i.name === "submit");
+      expect(submits).toHaveLength(1);
+      expect(submits[0].target).toMatch(/^form#save/);
+      // the action body's write (plus its default revalidation's, when other
+      // queries are cached), and the transition it held, are the submit's
+      expect(submits[0].writes).toBeGreaterThanOrEqual(1);
+      const actionHolds = attribution.history("hold").slice(holds);
+      expect(actionHolds.length).toBeGreaterThan(0);
+      expect(actionHolds.every(h => h.interaction === submits[0].origin)).toBe(true);
     } finally {
       cleanup();
     }
