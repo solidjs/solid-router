@@ -40,6 +40,7 @@ import {
   useBeforeLeave,
   useIsRouting,
   useLinkState,
+  useLocation,
   useNavigate,
   useParams,
   useSearchParams,
@@ -159,6 +160,16 @@ function harness(initial = "/", options: Options = {}) {
     useBeforeLeave(e => void log.push(`leave:${e.to}`));
     return <div data-route="watched" />;
   };
+  // data keyed by the parts of the location a same-path navigation changes
+  const Loc = () => {
+    const location = useLocation<{ n?: number }>();
+    const data = createMemo(() => {
+      const key = `loc${location.search}${location.hash}${location.state?.n ?? ""}`;
+      log.push(`loc:${key}`);
+      return gate(key).promise;
+    });
+    return <div data-route="loc">{data()}</div>;
+  };
   const page = (name: string) => () => <div data-route={name} />;
 
   const links = ["/", "/a", "/slow/1", "/slow/2"];
@@ -236,6 +247,7 @@ function harness(initial = "/", options: Options = {}) {
       { path: "/hop/:n", component: Hop },
       { path: "/guarded", component: Guarded },
       { path: "/watched", component: Watched },
+      { path: "/loc", component: Loc },
       {
         path: "/lazy",
         component: lazy(() => gate("lazy").promise.then(() => ({ default: page("lazy") })))
@@ -1067,6 +1079,224 @@ describe("navigation pending state (characterization, #655)", () => {
           "routing:false",
           "scrollTo:0",
           "| resolved routing=false at=/slow/w",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("a navigation into an unresolved lazy route subtree", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      h.reset();
+      await h.step("navigate /tree", () => h.navigate("/tree"));
+      h.gate("tree").resolve("tree");
+      await h.wait("resolved");
+      expect(h.route()).toBe("tree");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| navigate /tree: call routing=false at=/",
+          "routing:true@/tree",
+          "| navigate /tree: flush routing=true target=/tree intent=navigate at=/",
+          "| navigate /tree: settled routing=true target=/tree intent=navigate at=/",
+          "routing:false",
+          "scrollTo:0",
+          "| resolved routing=false at=/tree",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("a back navigation into an unresolved lazy route subtree", async () => {
+    window.history.pushState(null, "", "/tree");
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      h.reset();
+      await h.traverse("back to /tree", () => window.history.back());
+      h.gate("tree").resolve("tree");
+      await h.wait("resolved");
+      expect(h.route()).toBe("tree");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "routing:true",
+          "| back to /tree routing=true intent=native at=/",
+          "routing:false",
+          "| resolved routing=false at=/tree",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("initial load into an unresolved lazy route subtree", async () => {
+    const h = harness("/tree", { outerLoading: true });
+    try {
+      h.mark("rendered");
+      flush();
+      h.mark("flushed");
+      await h.wait("settled");
+      h.gate("tree").resolve("tree");
+      await h.wait("resolved");
+      expect(h.route()).toBe("tree");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| rendered routing=<not ready> at=/tree",
+          "| flushed routing=<not ready> at=/tree",
+          "| settled routing=<not ready> at=/tree",
+          "routing:false",
+          "| resolved routing=false at=/tree",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("a navigation and a back navigation to a lazy route component", async () => {
+    const h = harness();
+    try {
+      await h.wait("mounted");
+      await h.step("navigate /a", () => h.navigate("/a"));
+      h.reset();
+      await h.step("navigate /lazy", () => h.navigate("/lazy"));
+      h.gate("lazy").resolve("lazy");
+      await h.wait("resolved");
+      expect(h.route()).toBe("lazy");
+      await h.traverse("back to /a", () => window.history.back());
+      await h.traverse("forward to /lazy", () => window.history.forward());
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| navigate /lazy: call routing=false at=/a",
+          "routing:true@/lazy",
+          "| navigate /lazy: flush routing=true target=/lazy intent=navigate at=/a",
+          "| navigate /lazy: settled routing=true target=/lazy intent=navigate at=/a",
+          "routing:false",
+          "scrollTo:0",
+          "| resolved routing=false at=/lazy",
+          "routing:true",
+          "routing:false",
+          "| back to /a routing=false at=/a",
+          "routing:true",
+          "routing:false",
+          "| forward to /lazy routing=false at=/lazy",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("search-only and hash-only navigations, sync and async", async () => {
+    const h = harness("/a");
+    try {
+      await h.wait("mounted");
+      h.reset();
+      await h.step("navigate /a?q=1", () => h.navigate("/a?q=1"));
+      await h.step("navigate /a?q=1#x", () => h.navigate("/a?q=1#x"));
+      await h.step("navigate /loc", () => h.navigate("/loc"));
+      h.gate("loc").resolve("loc");
+      await h.wait("resolved /loc");
+      await h.step("navigate /loc?q=1", () => h.navigate("/loc?q=1"));
+      h.gate("loc?q=1").resolve("q");
+      await h.wait("resolved ?q=1");
+      await h.step("navigate /loc?q=1#x", () => h.navigate("/loc?q=1#x"));
+      h.gate("loc?q=1#x").resolve("x");
+      await h.wait("resolved #x");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| navigate /a?q=1: call routing=false at=/a",
+          "routing:true@/a?q=1",
+          "routing:false",
+          "scrollTo:0",
+          "| navigate /a?q=1: flush routing=false at=/a",
+          "| navigate /a?q=1: settled routing=false at=/a",
+          "| navigate /a?q=1#x: call routing=false at=/a",
+          "routing:true@/a?q=1#x",
+          "routing:false",
+          "scrollTo:0",
+          "| navigate /a?q=1#x: flush routing=false at=/a",
+          "| navigate /a?q=1#x: settled routing=false at=/a",
+          "| navigate /loc: call routing=false at=/a",
+          "loc:loc",
+          "routing:true@/loc",
+          "| navigate /loc: flush routing=true target=/loc intent=navigate at=/a",
+          "| navigate /loc: settled routing=true target=/loc intent=navigate at=/a",
+          "routing:false",
+          "scrollTo:0",
+          "| resolved /loc routing=false at=/loc",
+          "| navigate /loc?q=1: call routing=false at=/loc",
+          "loc:loc?q=1",
+          "routing:true@/loc?q=1",
+          "| navigate /loc?q=1: flush routing=true target=/loc?q=1 intent=navigate at=/loc",
+          "| navigate /loc?q=1: settled routing=true target=/loc?q=1 intent=navigate at=/loc",
+          "routing:false",
+          "scrollTo:0",
+          "| resolved ?q=1 routing=false at=/loc",
+          "| navigate /loc?q=1#x: call routing=false at=/loc",
+          "loc:loc?q=1#x",
+          "routing:true@/loc?q=1#x",
+          "| navigate /loc?q=1#x: flush routing=true target=/loc?q=1#x intent=navigate at=/loc",
+          "| navigate /loc?q=1#x: settled routing=true target=/loc?q=1#x intent=navigate at=/loc",
+          "routing:false",
+          "scrollTo:0",
+          "| resolved #x routing=false at=/loc",
+        ]
+      `);
+    } finally {
+      h.cleanup();
+    }
+  });
+
+  test("a navigation to the current location, with and without new state", async () => {
+    const h = harness("/a");
+    try {
+      await h.wait("mounted");
+      h.reset();
+      await h.step("navigate /a (same)", () => h.navigate("/a"));
+      await h.step("navigate /a (state)", () => h.navigate("/a", { state: { n: 1 } }));
+      await h.step("navigate /loc", () => h.navigate("/loc"));
+      h.gate("loc").resolve("loc");
+      await h.wait("resolved /loc");
+      await h.step("navigate /loc (same)", () => h.navigate("/loc"));
+      await h.step("navigate /loc (state)", () => h.navigate("/loc", { state: { n: 1 } }));
+      h.gate("loc1").resolve("1");
+      await h.wait("resolved state");
+      expect(h.log).toMatchInlineSnapshot(`
+        [
+          "| navigate /a (same): call routing=false at=/a",
+          "| navigate /a (same): flush routing=false at=/a",
+          "| navigate /a (same): settled routing=false at=/a",
+          "| navigate /a (state): call routing=false at=/a",
+          "routing:true@/a",
+          "routing:false",
+          "scrollTo:0",
+          "| navigate /a (state): flush routing=false at=/a",
+          "| navigate /a (state): settled routing=false at=/a",
+          "| navigate /loc: call routing=false at=/a",
+          "loc:loc",
+          "routing:true@/loc",
+          "| navigate /loc: flush routing=true target=/loc intent=navigate at=/a",
+          "| navigate /loc: settled routing=true target=/loc intent=navigate at=/a",
+          "routing:false",
+          "scrollTo:0",
+          "| resolved /loc routing=false at=/loc",
+          "| navigate /loc (same): call routing=false at=/loc",
+          "| navigate /loc (same): flush routing=false at=/loc",
+          "| navigate /loc (same): settled routing=false at=/loc",
+          "| navigate /loc (state): call routing=false at=/loc",
+          "loc:loc1",
+          "routing:true@/loc",
+          "| navigate /loc (state): flush routing=true target=/loc intent=navigate at=/loc",
+          "| navigate /loc (state): settled routing=true target=/loc intent=navigate at=/loc",
+          "routing:false",
+          "scrollTo:0",
+          "| resolved state routing=false at=/loc",
         ]
       `);
     } finally {
