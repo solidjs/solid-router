@@ -656,6 +656,21 @@ describe("form submit lazy fallback", () => {
     expect(global.FormData).toHaveBeenCalledWith(event.target, null);
   });
 
+  test("does not intercept server-action posts when server components are off", () => {
+    vi.stubGlobal("__SOLID_SERVER_COMPONENTS__", false);
+    try {
+      mount();
+
+      const event = createSubmitEvent({ action: "/_server/echo%230?args=%5B7%5D" });
+      submitHandler(event);
+
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(global.FormData).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   test("ignores client-only action urls", () => {
     mount();
 

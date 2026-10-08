@@ -3,6 +3,12 @@ import solidPlugin from "@solidjs/vite-plugin";
 
 export default defineConfig({
   plugins: [solidPlugin() as Plugin],
+  // Vite string-replaces this; Vitest pulls simple identifiers off `define`
+  // and assigns the parsed boolean onto `globalThis` per worker, so tests can
+  // stub it. `"true"` parses to the boolean `true`.
+  define: {
+    __SOLID_SERVER_COMPONENTS__: "true"
+  },
   resolve: {
     conditions: ["module", "browser", "development|production"],
     // the fs adapter's runtime-only peer; the shipped module says `true`

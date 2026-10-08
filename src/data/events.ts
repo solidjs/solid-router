@@ -4,6 +4,13 @@ import type { LinkPreload, RouterContext } from "../types.js";
 import { isUnderBase } from "../utils.js";
 
 /**
+ * App bundlers define this (`"true"` when server components are on, including
+ * `'external'`, otherwise `"false"`). Not assigned here: the published build
+ * keeps the `typeof` check so they can fold the fallback away.
+ */
+declare const __SOLID_SERVER_COMPONENTS__: boolean | undefined;
+
+/**
  * The submit delegation consults this slot instead of importing the action
  * module: the action side installs its handler on first action creation
  * (see data/action.ts), so an app that never creates an action never pulls
@@ -135,9 +142,14 @@ export function setupNativeEvents({
       const url = new URL(ref, document.baseURI);
       const path = router.parsePath(url.pathname + url.search);
       if (!path.startsWith(actionBase) || form.method.toUpperCase() !== "POST") return;
-      evt.preventDefault();
-      const data = new FormData(form, evt.submitter);
-      import("./serverForms.js").then(m => m.submitServerForm(router, path, form, data));
+      // The import sits inside the check so bundlers drop the server-forms
+      // chunk. An early return above a still-present import() does not.
+      // Missing stays off: an undefined constant does not fold.
+      if (typeof __SOLID_SERVER_COMPONENTS__ !== "undefined" && __SOLID_SERVER_COMPONENTS__) {
+        evt.preventDefault();
+        const data = new FormData(form, evt.submitter);
+        import("./serverForms.js").then(m => m.submitServerForm(router, path, form, data));
+      }
     }
 
     const handleSubmit = (evt: SubmitEvent) =>
