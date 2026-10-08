@@ -394,6 +394,61 @@ describe("navigation during hydration", () => {
     }
   });
 
+  // `useIsRouting` read from outside the graph while the page's own route
+  // code is still loading on the client, then across a navigation.
+  const routingOf = (app: any) => {
+    try {
+      return String(app.isRouting());
+    } catch (e: any) {
+      if (e?.constructor?.name !== "NotReadyError") throw e;
+      return "<not ready>";
+    }
+  };
+
+  test("useIsRouting while the route module loads during hydration", async () => {
+    const { dom, window, app, errors, finish } = await setup("hydration-lazy-route");
+    const seen: string[] = [];
+    const read = (label: string) =>
+      seen.push(
+        `${label}: routing=${routingOf(app)} hydrating=${app.isHydrationInProgress()} at=${window.location.pathname}`
+      );
+    try {
+      read("shell");
+      await new Promise(resolve => setTimeout(resolve, 10));
+      read("modules pending");
+      app.releaseModules();
+      await new Promise(resolve => setTimeout(resolve, 10));
+      read("modules loaded");
+      await finish();
+      read("streamed");
+      window.document.querySelector("a").click();
+      read("clicked");
+      await new Promise(resolve => setTimeout(resolve, 10));
+      read("click pending");
+      app.releaseDestination();
+      await vi.waitFor(() =>
+        expect(window.document.querySelector("h1").textContent).toBe("Destination ready")
+      );
+      read("landed");
+      expect(seen).toMatchInlineSnapshot(`
+        [
+          "shell: routing=false hydrating=true at=/",
+          "modules pending: routing=false hydrating=true at=/",
+          "modules loaded: routing=false hydrating=false at=/",
+          "streamed: routing=false hydrating=false at=/",
+          "clicked: routing=false hydrating=false at=/",
+          "click pending: routing=true hydrating=false at=/",
+          "landed: routing=false hydrating=false at=/destination",
+        ]
+      `);
+      expect(errors).toEqual([]);
+    } finally {
+      await finish();
+      app.dispose();
+      dom.window.close();
+    }
+  });
+
   // #625: the server showed the page, but the root boundary is still waiting
   // for its route module when the click lands.
   test("a link click before the root boundary's route module loads claims the server DOM", async () => {
