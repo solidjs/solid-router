@@ -396,6 +396,45 @@ describe("createRouter factory", () => {
       }
     });
 
+    test("preloading matches the transformed pathname, as navigation does", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+
+      const preloaded = vi.fn();
+      let preload!: ReturnType<typeof usePreloadRoute>;
+      const Router = createRouter({
+        routes: [
+          {
+            path: "/",
+            component: () => ((preload = usePreloadRoute()), (<div data-route="home" />))
+          },
+          { path: "/users/:id", preload: ({ params }) => preloaded(params.id), component: () => "" }
+        ],
+        history: memoryHistory(),
+        transformUrl: url => url.replace(/^\/en/, "")
+      });
+
+      const dispose = render(() => <Router />, div);
+      try {
+        await settle();
+        preload("/en/users/3", { preloadData: true });
+        expect(preloaded).toHaveBeenCalledWith("3");
+      } finally {
+        dispose();
+        div.remove();
+      }
+    });
+
+    test("warns in dev when preloadLinks is a boolean", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        createRouter({ routes: [{ path: "/" }], preloadLinks: true as any });
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining("intentPreload()"));
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
     test("params/query work without Proxy via history utils wrappers", async () => {
       const div = document.createElement("div");
       document.body.appendChild(div);

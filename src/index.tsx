@@ -36,6 +36,7 @@ export {
 } from "./routing.js";
 export type { LinkState } from "./routing.js";
 export { pendingLinks } from "./pending.js";
+export { intentPreload } from "./preload.js";
 export { mergeSearchString as _mergeSearchString } from "./utils.js";
 export { int } from "./paths.js";
 export { serverRouteComponent } from "./serverRouteComponent.js";
@@ -48,6 +49,7 @@ export type {
 } from "./paths.js";
 export * from "./data/index.js";
 export type {
+  LinkPreload,
   LinksPlugin,
   Location,
   LocationChange,

@@ -1,7 +1,8 @@
 import { createRoot, createSignal } from "solid-js";
 import { vi } from "vitest";
 import { setRouterFormHandler, setupNativeEvents } from "../../src/data/events.js";
-import type { RouterContext } from "../../src/types.js";
+import { intentPreload } from "../../src/preload.js";
+import type { LinkPreload, RouterContext } from "../../src/types.js";
 import { createMockRouter } from "../helpers.js";
 
 class MockNode {
@@ -100,53 +101,41 @@ describe("setupNativeEvents", () => {
     vi.clearAllMocks();
   });
 
-  test("should set up default event listeners", () => {
+  test("should set up only click and submit listeners by default", () => {
     return createRoot(() => {
       setupNativeEvents()(mockRouter);
 
-      expect(addEventListener).toHaveBeenCalledWith("click", expect.any(Function));
-      expect(addEventListener).toHaveBeenCalledWith("submit", expect.any(Function));
-      expect(addEventListener).toHaveBeenCalledWith("mousemove", expect.any(Function), {
-        passive: true
-      });
-      expect(addEventListener).toHaveBeenCalledWith("focusin", expect.any(Function), {
-        passive: true
-      });
-      expect(addEventListener).toHaveBeenCalledWith("touchstart", expect.any(Function), {
-        passive: true
-      });
+      expect(addEventListener.mock.calls.map(c => c[0]).sort()).toEqual(["click", "submit"]);
     });
   });
 
-  test("should skip preload listeners when preload disabled", () => {
+  test("should ignore a boolean preload option", () => {
     return createRoot(() => {
-      setupNativeEvents({ preload: false })(mockRouter);
+      setupNativeEvents({ preload: true as any })(mockRouter);
 
-      expect(addEventListener).toHaveBeenCalledWith("click", expect.any(Function));
-      expect(addEventListener).toHaveBeenCalledWith("submit", expect.any(Function));
-      expect(addEventListener).not.toHaveBeenCalledWith("mousemove", expect.any(Function), {
-        passive: true
-      });
-      expect(addEventListener).not.toHaveBeenCalledWith("focusin", expect.any(Function), {
-        passive: true
-      });
-      expect(addEventListener).not.toHaveBeenCalledWith("touchstart", expect.any(Function), {
-        passive: true
-      });
+      expect(addEventListener.mock.calls.map(c => c[0]).sort()).toEqual(["click", "submit"]);
+    });
+  });
+
+  test("should set up intent preload listeners", () => {
+    return createRoot(() => {
+      setupNativeEvents({ preload: intentPreload() })(mockRouter);
+
+      for (const type of ["mousemove", "focusin", "touchstart"])
+        expect(addEventListener).toHaveBeenCalledWith(type, expect.any(Function), {
+          passive: true
+        });
     });
   });
 
   test("should clean up event listeners on cleanup", () => {
     return createRoot(dispose => {
-      setupNativeEvents()(mockRouter);
+      setupNativeEvents({ preload: [intentPreload()] })(mockRouter);
 
       dispose();
 
-      expect(removeEventListener).toHaveBeenCalledWith("click", expect.any(Function));
-      expect(removeEventListener).toHaveBeenCalledWith("submit", expect.any(Function));
-      expect(removeEventListener).toHaveBeenCalledWith("mousemove", expect.any(Function));
-      expect(removeEventListener).toHaveBeenCalledWith("focusin", expect.any(Function));
-      expect(removeEventListener).toHaveBeenCalledWith("touchstart", expect.any(Function));
+      for (const type of ["click", "submit", "mousemove", "focusin", "touchstart"])
+        expect(removeEventListener).toHaveBeenCalledWith(type, expect.any(Function));
     });
   });
 });
@@ -475,7 +464,7 @@ describe("anchor link handling", () => {
   test("should require `link` attribute when `explicitLinks` enabled", () => {
     return createRoot(() => {
       // Reset with explicitLinks enabled
-      setupNativeEvents({ preload: true, explicitLinks: true })(mockRouter);
+      setupNativeEvents({ explicitLinks: true })(mockRouter);
 
       const link = createMockElement("a", { href: "/test-page" });
       const event = createMockEvent("click", link, { path: [link] });
@@ -491,7 +480,7 @@ describe("anchor link handling", () => {
       const navigateFromRoute = vi.fn();
       mockRouter.navigatorFactory = () => navigateFromRoute;
       // Reset with explicitLinks enabled
-      setupNativeEvents({ preload: true, explicitLinks: true })(mockRouter);
+      setupNativeEvents({ explicitLinks: true })(mockRouter);
 
       const link = createMockElement("a", { href: "/test-page", link: "true" });
       const event = createMockEvent("click", link, { path: [link] });
@@ -710,41 +699,93 @@ describe("form submit lazy fallback", () => {
 
 // Preload triggers dispatched as the browser does: focus and touch events
 // carry no `button`, so they must not go through the click gate.
-describe("link preload triggers", () => {
+describe("intentPreload", () => {
   let mockRouter: RouterContext;
   let link: HTMLAnchorElement;
-  let dispose: () => void;
+  let dispose: (() => void) | undefined;
+
+  const mount = (preload: LinkPreload | LinkPreload[] | undefined) =>
+    (dispose = createRoot(d => (setupNativeEvents({ preload })(mockRouter), d)));
 
   beforeEach(() => {
     global.Node = RealNode;
     global.URL = RealURL;
     mockRouter = createMockRouter();
-    dispose = createRoot(d => (setupNativeEvents()(mockRouter), d));
     link = document.createElement("a");
     link.href = "/target";
     document.body.append(link);
   });
 
   afterEach(() => {
-    dispose();
+    dispose?.();
+    dispose = undefined;
     link.remove();
     global.Node = MockNode as any;
   });
 
-  test("focusin preloads", () => {
+  test("focusin preloads code and data", () => {
+    mount(intentPreload());
     link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
     expect(mockRouter.preloadRoute).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(mockRouter.preloadRoute).mock.calls[0][0].pathname).toBe("/target");
+    expect(vi.mocked(mockRouter.preloadRoute).mock.calls[0][1]).toBe(true);
   });
 
   test("touchstart preloads", () => {
+    mount(intentPreload());
     link.dispatchEvent(new TouchEvent("touchstart", { bubbles: true }));
     expect(mockRouter.preloadRoute).toHaveBeenCalledTimes(1);
   });
 
-  test("mousemove preloads once the pointer rests", async () => {
+  test("mousemove preloads once the pointer rests, once per link", async () => {
+    mount(intentPreload());
     link.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
     expect(mockRouter.preloadRoute).not.toHaveBeenCalled();
     await new Promise(r => setTimeout(r, 30));
     expect(mockRouter.preloadRoute).toHaveBeenCalledTimes(1);
+    link.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+    await new Promise(r => setTimeout(r, 30));
+    expect(mockRouter.preloadRoute).toHaveBeenCalledTimes(1);
+  });
+
+  test("a custom delay holds the hover preload", async () => {
+    mount(intentPreload({ delay: 60 }));
+    link.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+    await new Promise(r => setTimeout(r, 30));
+    expect(mockRouter.preloadRoute).not.toHaveBeenCalled();
+    await new Promise(r => setTimeout(r, 50));
+    expect(mockRouter.preloadRoute).toHaveBeenCalledTimes(1);
+  });
+
+  test("data: false preloads code only", () => {
+    mount(intentPreload({ data: false }));
+    link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    expect(mockRouter.preloadRoute).toHaveBeenCalledWith(expect.any(URL), false);
+  });
+
+  test('preload="false" opts the link out entirely', async () => {
+    mount(intentPreload());
+    link.setAttribute("preload", "false");
+    link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    link.dispatchEvent(new TouchEvent("touchstart", { bubbles: true }));
+    link.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+    await new Promise(r => setTimeout(r, 30));
+    expect(mockRouter.preloadRoute).not.toHaveBeenCalled();
+  });
+
+  test("without a strategy nothing preloads", () => {
+    mount(undefined);
+    link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    expect(mockRouter.preloadRoute).not.toHaveBeenCalled();
+  });
+
+  test("disposal removes the listeners and a pending hover", async () => {
+    mount(intentPreload());
+    link.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+    dispose!();
+    dispose = undefined;
+    link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    await new Promise(r => setTimeout(r, 30));
+    expect(mockRouter.preloadRoute).not.toHaveBeenCalled();
   });
 });

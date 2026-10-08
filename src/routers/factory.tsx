@@ -37,6 +37,7 @@ import type {
   Branch,
   DefinedRouteFilters,
   LazyRouteChildren,
+  LinkPreload,
   LinksPlugin,
   LocationChange,
   LocationWrite,
@@ -190,8 +191,18 @@ export interface RouterConfig<R extends readonly RouteDefinition[] = RouteDefini
    * ```
    */
   links?: LinksPlugin;
-  /** Preload route code/data on link hover and focus. Defaults to `true`. */
-  preloadLinks?: boolean;
+  /**
+   * Link preload strategies: when to warm a link's route code and data ahead
+   * of the click. None by default. Client-only.
+   *
+   * @example
+   * ```ts
+   * import { createRouter, intentPreload } from "@solidjs/router";
+   *
+   * const Router = createRouter({ routes, preloadLinks: intentPreload() });
+   * ```
+   */
+  preloadLinks?: LinkPreload | readonly LinkPreload[];
   /**
    * Explicit scroll restoration for back/forward navigation: positions are
    * saved per history entry and restored once the navigation settles,
@@ -457,6 +468,12 @@ function staticIntegration(url?: string, utils?: RouterHistory["utils"]): Router
 export function createRouter<const R extends readonly RouteDefinition[]>(
   config: RouterConfig<R>
 ): RouterInstance<R> {
+  if (DEV && typeof config.preloadLinks === "boolean") {
+    console.warn(
+      "`preloadLinks` takes preload strategies, not a boolean, and preloads nothing by default. " +
+        "Use `preloadLinks: intentPreload()` for hover/focus preloading."
+    );
+  }
   const basePath = config.base || "";
   // Routes are immutable per instance, so compilation is shared by every
   // mount, request, and `match()` call — recompiled only when a lazy subtree
@@ -521,8 +538,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
       setupNativeEvents({
         preload: config.preloadLinks,
         explicitLinks: config.explicitLinks,
-        actionBase: config.actionBase,
-        transformUrl: config.transformUrl
+        actionBase: config.actionBase
       })(routerState);
       setupLinkClaims(routerState, config.explicitLinks, config.links);
       if (routerState.singleFlight) onCleanup(registerFlightRouter(routerState));

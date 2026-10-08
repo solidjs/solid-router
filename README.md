@@ -19,7 +19,7 @@ Explore the official [documentation](https://docs.solidjs.com/solid-router) for 
 - **Typed Routing**: URLs built through a typed path proxy inferred from your route config — `paths.users(2).settings` typechecks against the tree
 - **Plain Anchors**: no link component — `<a>` elements get `aria-current` and `data-active` automatically via compiler-claimed anchors, and `data-pending` with the opt-in `pendingLinks` plugin
 - **Universal Rendering**: one factory for browser, hash, memory, and server rendering; history adapters are imports, so unused ones never enter your bundle
-- **Preload Functions**: parallel data fetching following the render-as-you-fetch pattern, triggered eagerly on link hover/focus
+- **Preload Functions**: parallel data fetching following the render-as-you-fetch pattern, triggered eagerly by opt-in [link preloading](#preloading)
 - **Data APIs with Caching**: `query` and `action` with deduplication, revalidation, single-flight mutations, and progressive enhancement — plus experimental `liveQuery` for keyed queries over live streams
 - **Typed Search Params**: opt-in per-route [Standard Schema](https://github.com/standard-schema/standard-schema) validation — `search.page` is a `number`, not `"2"`
 
@@ -40,6 +40,7 @@ Explore the official [documentation](https://docs.solidjs.com/solid-router) for 
   - [File-System Routes](#file-system-routes)
 - [Typed Paths](#typed-paths)
 - [Links](#links)
+- [Preloading](#preloading)
 - [Preload Functions](#preload-functions)
 - [Data APIs](#data-apis)
 - [Typed Search Params](#typed-search-params)
@@ -171,7 +172,7 @@ A route definition supports:
 | `path`         | `string \| string[]`                                         | Path partial for this route segment                                             |
 | `component`    | `Component`                                                  | Component rendered for the matched segment                                      |
 | `children`     | `RouteDefinition \| RouteDefinition[] \| () => Promise<...>` | Nested route definitions, or a thunk for a [lazy subtree](#lazy-route-subtrees) |
-| `preload`      | `RoutePreloadFunc`                                           | Called on preload intent (hover/focus) and navigation                           |
+| `preload`      | `RoutePreloadFunc`                                           | Called on [link preloading](#preloading) and navigation                         |
 | `matchFilters` | `MatchFilters`                                               | Additional constraints for matching parameters                                  |
 | `search`       | `StandardSchemaV1`                                           | Search-param validator; its types flow into `paths` and hooks                   |
 | `info`         | `Record<string, any>`                                        | Arbitrary metadata, readable via `useRouteMatches`                              |
@@ -360,11 +361,11 @@ const router = createRouter({
 });
 ```
 
-The import only fires when something needs the subtree — hovering a link into it, navigating into it, or the server matching a URL beneath it. Until then the tree carries a placeholder that knows every URL under `/admin` belongs to the subtree without knowing its contents (static sibling routes still win without triggering the load). Everything folds in as if the routes were inline:
+The import only fires when something needs the subtree — preloading a link into it, navigating into it, or the server matching a URL beneath it. Until then the tree carries a placeholder that knows every URL under `/admin` belongs to the subtree without knowing its contents (static sibling routes still win without triggering the load). Everything folds in as if the routes were inline:
 
 - **Types**: TypeScript never runs the thunk — inference flows through the import's promise type, so `paths.admin.users(2)` typechecks (match filters and search schemas included) before any of the subtree's code exists client-side. The module's `default` or `routes` export is used. Only tables genuinely built at runtime (typed as plain `RouteDefinition[]`) degrade to untyped.
 - **Navigation**: the table load folds into the navigation transition — the old screen holds until the subtree (and its matched components) are ready, exactly like a `lazy()` route component.
-- **Preloading**: hover intent kicks the table load, and when it lands the preload continues into the inner routes' components and `preload` functions — one cascading warm-up from the earliest possible moment.
+- **Preloading**: a link preload kicks the table load, and when it lands the preload continues into the inner routes' components and `preload` functions — one cascading warm-up from the earliest possible moment.
 - **Server**: SSR resolves matched boundaries during the render (use the streaming entry point `renderToStream` — awaiting it resolves with the settled HTML — as with any async work), and the single-flight collector resolves them before its data pass.
 
 Resolution is cached per thunk and append-only: the tree never changes shape after a subtree lands, it just gets more specific. Keep thunks deterministic — `() => import(...)` — rather than switching tables on runtime state.
@@ -399,10 +400,10 @@ The source is called with **derived** arguments, not a live location — the cal
 
 A route view is route-shaped on purpose — the address stays stable and `defineRoute` can check its params against the pattern — which means it is only callable as a route. When the same server component is also used elsewhere, keep it a plain (non-exported, non-endpoint) function and have the route view call it with `params.id`. The value `serverRouteComponent` returns is a component only so it fits the `component` field; mounting it any other way (through `lazy()`, or by hand) throws, since outside the match there are only merged params to call with.
 
-The router mounts the resolved component with the outlet as `children`, so a server component can be a layout, and it calls the same source under preload intent — link hover, `preloadRoute`, the [single-flight collector](#server-integration) — with the same derived args. What that call _means_ is the source's: the router does not choose the cache strategy or own the key.
+The router mounts the resolved component with the outlet as `children`, so a server component can be a layout, and it calls the same source under preload intent — link preloading, `usePreloadRoute`, the [single-flight collector](#server-integration) — with the same derived args. What that call _means_ is the source's: the router does not choose the cache strategy or own the key.
 
 - `query(fn, key)`: link intent warms the entry the render reads, `revalidate("story")` and action responses refetch it, and the collector reproduces it so a mutation's response carries the route's fresh markup. Argument changes deliver into the mounted boundary — it morphs in place rather than remounting.
-- [`liveQuery(fn, key)`](#livequery-experimental): the frame stream stays open and the channel owns it — hover connects it (held through the preload window, so a hovered link is an open stream), `revalidate(key)` reconnects, and the mutation sweep and the single-flight collector both leave it alone — nothing pulls it server-side, and the stream is its own freshness.
+- [`liveQuery(fn, key)`](#livequery-experimental): the frame stream stays open and the channel owns it — a link preload connects it (held through the preload window, so a preloaded link is an open stream), `revalidate(key)` reconnects, and the mutation sweep and the single-flight collector both leave it alone — nothing pulls it server-side, and the stream is its own freshness.
 
 Anything else callable with the args works too; wrapping is what gives dedupe, preload, and revalidation.
 
@@ -507,7 +508,7 @@ Behavior modifiers are attributes, so they work identically in client, server-re
 | `replace`  | Replace the history entry instead of pushing                                                                    |
 | `noscroll` | Turn off scrolling to the top after navigation                                                                  |
 | `state`    | JSON string [pushed](https://developer.mozilla.org/en-US/docs/Web/API/History/pushState) onto the history stack |
-| `preload`  | Set to `"false"` to opt this link out of hover/focus preloading                                                 |
+| `preload`  | `"false"` opts this link out of all [preloading](#preloading)                                                   |
 | `link`     | Marks a router link when `explicitLinks` is enabled                                                             |
 | `target`   | Any value (e.g. `_self`) opts the anchor out of router handling                                                 |
 
@@ -563,9 +564,31 @@ function TabLink(props: { href: string; children: JSX.Element }) {
 }
 ```
 
+## Preloading
+
+The router can warm a link's route before it is clicked: preloading **code** loads the matched routes' `lazy()` components (and any [lazy subtree](#lazy-route-subtrees) on the way), and preloading **data** also runs their [preload functions](#preload-functions) with `intent: "preload"`. Nothing is preloaded unless you choose a strategy:
+
+```tsx
+import { createRouter, intentPreload } from "@solidjs/router";
+
+const Router = createRouter({ routes, preloadLinks: intentPreload() });
+```
+
+| strategy                              | preloads a link when                                                            | default       |
+| ------------------------------------- | ------------------------------------------------------------------------------- | ------------- |
+| `intentPreload({ delay = 20, data })` | the pointer rests on it for `delay` ms, it takes focus, or a touch starts on it | code and data |
+
+Pass an array to combine strategies. They are client-only and add only their own code to your bundle.
+
+Preloading is purely an optimization: without it every navigation still loads the same code and data, just after the click instead of before it. A link with `preload="false"` is never preloaded by any strategy.
+
+Whether a strategy also preloads data is its own `data` option, not a per-link choice. Interaction strategies like `intentPreload` default to data because the user is about to click; a data preload runs only for route levels the navigation would change, and `query` keeps the result for the few seconds until the click arrives. Strategies that preload links merely on screen are better kept to code unless your data layer keeps results for longer — `{ data: true }` there fits long-lived caches such as TanStack Query or HTTP-cached `GET` server functions.
+
+`usePreloadRoute` triggers the same work by hand.
+
 ## Preload Functions
 
-Even with smart caches, waterfalls happen when data fetching waits on view logic or lazy-loaded code. Preload functions start fetching data in parallel with loading the route — called when a route renders, and eagerly when links are hovered or focused.
+Even with smart caches, waterfalls happen when data fetching waits on view logic or lazy-loaded code. Preload functions start fetching data in parallel with loading the route — called when a route renders, and eagerly when the router [preloads a link](#preloading) with data.
 
 ```tsx
 import { lazy } from "solid-js";
@@ -581,11 +604,11 @@ const routes = defineRoutes([{ path: "/users/:id", component: User, preload: pre
 
 The preload function receives:
 
-| key      | type                                               | description                                                                                                                                                       |
-| -------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| params   | object                                             | The route parameters (same value as `useParams()` inside the route component)                                                                                     |
-| location | `{ pathname, search, hash, query, state, key }`    | Path information (corresponds to [`useLocation()`](#uselocation))                                                                                                 |
-| intent   | `"initial" \| "navigate" \| "native" \| "preload"` | Why this is being called: `initial` — first render; `navigate` — router navigation; `native` — browser back/forward; `preload` — link hover/focus, not navigating |
+| key      | type                                               | description                                                                                                                                                      |
+| -------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| params   | object                                             | The route parameters (same value as `useParams()` inside the route component)                                                                                    |
+| location | `{ pathname, search, hash, query, state, key }`    | Path information (corresponds to [`useLocation()`](#uselocation))                                                                                                |
+| intent   | `"initial" \| "navigate" \| "native" \| "preload"` | Why this is being called: `initial` — first render; `navigate` — router navigation; `native` — browser back/forward; `preload` — link preloading, not navigating |
 
 The factory-level `preload` option is the app-wide counterpart: it runs once per mount/request with the merged params of every match, and its result reaches the root render-prop as `props.data`.
 
@@ -606,7 +629,7 @@ const getUser = query(async id => {
 A query:
 
 1. Dedupes on the server for the lifetime of the request.
-2. Fills a preload cache in the browser lasting 5 seconds, so hover preloads and route entry share one fetch.
+2. Fills a preload cache in the browser lasting 5 seconds, so link preloads and route entry share one fetch.
 3. Refetches reactively by key on action revalidation.
 4. Serves as a back/forward cache for browser navigation up to 5 minutes; user-initiated navigation bypasses it.
 
@@ -793,18 +816,18 @@ Without a schema, `useSearchParams()` behaves as before: raw string values, merg
 createRouter(config);
 ```
 
-| option          | type                      | description                                                                                           |
-| --------------- | ------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `routes`        | `RouteDefinition[]`       | The route tree — inline arrays infer literally; wrap extracted trees in `defineRoutes`                |
-| `base`          | `string`                  | Base url to use for matching routes                                                                   |
-| `preload`       | `RoutePreloadFunc`        | App-wide preload: once per mount/request, result reaches the root render-prop as `props.data`         |
-| `history`       | `RouterHistory`           | History adapter; defaults to browser history on the client and the request URL on the server          |
-| `singleFlight`  | `boolean`                 | Single-flight mutations, default `true`                                                               |
-| `actionBase`    | `string`                  | Root url for server actions, default `/_server`                                                       |
-| `preloadLinks`  | `boolean`                 | Preload route code/data on link hover and focus, default `true`                                       |
-| `explicitLinks` | `boolean`                 | Require the `link` attribute for router handling instead of intercepting all anchors, default `false` |
-| `links`         | `LinksPlugin`             | Link claims plugin — `pendingLinks` adds `data-pending` to the in-flight navigation's target          |
-| `transformUrl`  | `(url: string) => string` | Rewrite URLs before matching                                                                          |
+| option          | type                           | description                                                                                           |
+| --------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `routes`        | `RouteDefinition[]`            | The route tree — inline arrays infer literally; wrap extracted trees in `defineRoutes`                |
+| `base`          | `string`                       | Base url to use for matching routes                                                                   |
+| `preload`       | `RoutePreloadFunc`             | App-wide preload: once per mount/request, result reaches the root render-prop as `props.data`         |
+| `history`       | `RouterHistory`                | History adapter; defaults to browser history on the client and the request URL on the server          |
+| `singleFlight`  | `boolean`                      | Single-flight mutations, default `true`                                                               |
+| `actionBase`    | `string`                       | Root url for server actions, default `/_server`                                                       |
+| `preloadLinks`  | `LinkPreload \| LinkPreload[]` | [Link preload strategies](#preloading), e.g. `intentPreload()`; none by default                       |
+| `explicitLinks` | `boolean`                      | Require the `link` attribute for router handling instead of intercepting all anchors, default `false` |
+| `links`         | `LinksPlugin`                  | Link claims plugin — `pendingLinks` adds `data-pending` to the in-flight navigation's target          |
+| `transformUrl`  | `(url: string) => string`      | Rewrite URLs before matching                                                                          |
 
 The returned instance is the provider component and carries the static surface:
 
@@ -913,7 +936,7 @@ declare module "@solidjs/router" {
 
 ### usePreloadRoute
 
-Returns a function to preload a route manually — the same work link hover/focus triggers automatically. Accepts strings, URLs, and typed path nodes:
+Returns a function to preload a route manually — the same work [link preloading](#preloading) triggers automatically. Accepts strings, URLs, and typed path nodes:
 
 ```tsx
 const preload = usePreloadRoute();
@@ -1056,6 +1079,7 @@ Route props map 1:1 onto definition keys (`path`, `component`, `preload`, `match
 - Pending link styling → `[data-pending]`, opt-in with `createRouter({ routes, links: pendingLinks })`
 - Route-relative hrefs → typed `paths`; `useResolvedPath` / `useHref` remain for manual resolution
 - Custom link components → `useLinkState`
+- Hover/focus preloading is opt-in → `createRouter({ routes, preloadLinks: intentPreload() })`; `preload="false"` on a link skips it entirely
 
 ### Removed and renamed
 

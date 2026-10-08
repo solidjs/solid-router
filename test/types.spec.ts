@@ -1,5 +1,6 @@
 import type { Component, VoidComponent } from "solid-js";
-import { defineRoute } from "../src/routers/factory.jsx";
+import { createRouter, defineRoute } from "../src/routers/factory.jsx";
+import { intentPreload } from "../src/preload.js";
 import { useMatch } from "../src/routing.js";
 import {
   MatchFilters,
@@ -267,5 +268,17 @@ describe("Type checking on various route definitions", () => {
       preload: () => ({ n: 1 }),
       component: StoryComponent
     });
+  };
+});
+
+describe("Type checking on preloadLinks", () => {
+  test("Does not check implementations", () => {});
+
+  const _check = () => {
+    const routes = [{ path: "/" }];
+    createRouter({ routes, preloadLinks: intentPreload() });
+    createRouter({ routes, preloadLinks: [intentPreload({ delay: 50, data: false })] });
+    // @ts-expect-error strategies, not a boolean
+    createRouter({ routes, preloadLinks: true });
   };
 });

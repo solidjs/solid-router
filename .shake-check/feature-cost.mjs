@@ -69,12 +69,6 @@ const stubs = {
           );
     }
   },
-  hoverPreload: {
-    transform(code, id) {
-      if (id.endsWith("/src/data/events.ts"))
-        return code.replace(/if \(preload\) \{[\s\S]*?\}\n/g, "");
-    }
-  },
   pathsProxy: {
     load(id) {
       if (id.endsWith("/src/paths.ts"))

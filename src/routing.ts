@@ -1164,7 +1164,10 @@ export function createRouterContext(
   }
 
   function preloadRoute(url: URL, preloadData?: boolean) {
-    const next = getRouteMatches(branches(), url.pathname);
+    const next = getRouteMatches(
+      branches(),
+      options.transformUrl ? options.transformUrl(url.pathname) : url.pathname
+    );
     // An unresolved lazy subtree in the chain: the placeholder's
     // component.preload (below) kicks the table load; once it lands,
     // preload again so the real inner routes warm too. Preloads are

@@ -1,6 +1,6 @@
 import { delegateEvents, dispatchAsInteraction } from "@solidjs/web";
 import { onCleanup } from "solid-js";
-import type { RouterContext } from "../types.js";
+import type { LinkPreload, RouterContext } from "../types.js";
 import { isUnderBase } from "../utils.js";
 
 /**
@@ -22,23 +22,19 @@ export function setRouterFormHandler(handler: RouterFormHandler | undefined) {
 }
 
 type NativeEventConfig = {
-  preload?: boolean; // defaults `true`
+  preload?: LinkPreload | readonly LinkPreload[];
   explicitLinks?: boolean; // defaults false
   actionBase?: string; // defaults "/_server"
-  transformUrl?: (url: string) => string;
 };
 
 export function setupNativeEvents({
-  preload = true,
+  preload,
   explicitLinks = false,
-  actionBase = "/_server",
-  transformUrl
+  actionBase = "/_server"
 }: NativeEventConfig = {}) {
   return (router: RouterContext) => {
     const basePath = router.base.path();
     const navigateFromRoute = router.navigatorFactory(router.base);
-    let preloadTimeout: string;
-    let lastElement: Node | null;
 
     function isSvg<T extends SVGElement>(el: T | HTMLElement): el is T {
       return el.namespaceURI === "http://www.w3.org/2000/svg";
@@ -104,27 +100,6 @@ export function setupNativeEvents({
       );
     }
 
-    function handleAnchorPreload(evt: Event) {
-      const res = findAnchor(evt);
-      if (!res) return;
-      const [a, url] = res;
-      transformUrl && (url.pathname = transformUrl(url.pathname));
-      router.preloadRoute(url, a.getAttribute("preload") !== "false");
-    }
-
-    function handleAnchorMove(evt: Event) {
-      clearTimeout(preloadTimeout);
-      const res = findAnchor(evt);
-      if (!res) return (lastElement = null);
-      const [a, url] = res;
-      if (lastElement === a) return;
-      transformUrl && (url.pathname = transformUrl(url.pathname));
-      preloadTimeout = setTimeout(() => {
-        router.preloadRoute(url, a.getAttribute("preload") !== "false");
-        lastElement = a;
-      }, 20) as any;
-    }
-
     function handleFormSubmit(evt: SubmitEvent) {
       if (formHandler) return formHandler(evt, router, actionBase);
       // No form handler means no action module in the client graph at all
@@ -154,21 +129,15 @@ export function setupNativeEvents({
     // ensure delegated event run first
     delegateEvents(["click", "submit"]);
     document.addEventListener("click", handleAnchorClick);
-    // preloads are not interactions: those listeners run outside any frame
-    if (preload) {
-      document.addEventListener("mousemove", handleAnchorMove, { passive: true });
-      document.addEventListener("focusin", handleAnchorPreload, { passive: true });
-      document.addEventListener("touchstart", handleAnchorPreload, { passive: true });
-    }
     document.addEventListener("submit", handleSubmit);
     onCleanup(() => {
       document.removeEventListener("click", handleAnchorClick);
-      if (preload) {
-        document.removeEventListener("mousemove", handleAnchorMove);
-        document.removeEventListener("focusin", handleAnchorPreload);
-        document.removeEventListener("touchstart", handleAnchorPreload);
-      }
       document.removeEventListener("submit", handleSubmit);
     });
+    // the pre-strategy boolean option is ignored (a dev warning names it)
+    if (preload && (preload as unknown) !== true)
+      ([] as LinkPreload[])
+        .concat(preload)
+        .forEach(strategy => strategy({ anchor: findAnchor, preload: router.preloadRoute }));
   };
 }

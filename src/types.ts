@@ -487,6 +487,21 @@ export type LinksPlugin = (
   pending(target: string | undefined): boolean;
 };
 
+/** @internal What the router hands a link preload strategy. */
+export interface LinkPreloadContext {
+  /** The router-managed anchor on an event's composed path, with its URL. */
+  anchor(evt: Event): readonly [HTMLAnchorElement | SVGAElement, URL] | undefined;
+  /** Warm `url`: route code always, `preload` functions too when `data` is true. */
+  preload(url: URL, data: boolean): void;
+}
+
+/**
+ * A link preload strategy for the router's `preloadLinks` option, such as
+ * `intentPreload()`. Client-only: runs once under the router's owner and
+ * cleans up with it.
+ */
+export type LinkPreload = (ctx: LinkPreloadContext) => void;
+
 export interface BeforeLeaveEventArgs {
   from: Location;
   to: string | number;
