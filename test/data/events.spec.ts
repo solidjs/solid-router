@@ -2,8 +2,11 @@ import { createRoot, createSignal } from "solid-js";
 import { vi } from "vitest";
 import { setRouterFormHandler, setupNativeEvents } from "../../src/data/events.js";
 import { intentPreload } from "../../src/preload.js";
+import { preloadRoute } from "../../src/preloadRoute.js";
 import type { LinkPreload, RouterContext } from "../../src/types.js";
 import { createMockRouter } from "../helpers.js";
+
+vi.mock("../../src/preloadRoute.js", () => ({ preloadRoute: vi.fn() }));
 
 class MockNode {
   nodeName: string;
@@ -711,6 +714,7 @@ describe("intentPreload", () => {
     global.Node = RealNode;
     global.URL = RealURL;
     mockRouter = createMockRouter();
+    vi.mocked(preloadRoute).mockClear();
     link = document.createElement("a");
     link.href = "/target";
     document.body.append(link);
@@ -726,41 +730,41 @@ describe("intentPreload", () => {
   test("focusin preloads code and data", () => {
     mount(intentPreload());
     link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
-    expect(mockRouter.preloadRoute).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(mockRouter.preloadRoute).mock.calls[0][0].pathname).toBe("/target");
-    expect(vi.mocked(mockRouter.preloadRoute).mock.calls[0][1]).toBe(true);
+    expect(preloadRoute).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(preloadRoute).mock.calls[0][1].pathname).toBe("/target");
+    expect(vi.mocked(preloadRoute).mock.calls[0][2]).toBe(true);
   });
 
   test("touchstart preloads", () => {
     mount(intentPreload());
     link.dispatchEvent(new TouchEvent("touchstart", { bubbles: true }));
-    expect(mockRouter.preloadRoute).toHaveBeenCalledTimes(1);
+    expect(preloadRoute).toHaveBeenCalledTimes(1);
   });
 
   test("mousemove preloads once the pointer rests, once per link", async () => {
     mount(intentPreload());
     link.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
-    expect(mockRouter.preloadRoute).not.toHaveBeenCalled();
+    expect(preloadRoute).not.toHaveBeenCalled();
     await new Promise(r => setTimeout(r, 30));
-    expect(mockRouter.preloadRoute).toHaveBeenCalledTimes(1);
+    expect(preloadRoute).toHaveBeenCalledTimes(1);
     link.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
     await new Promise(r => setTimeout(r, 30));
-    expect(mockRouter.preloadRoute).toHaveBeenCalledTimes(1);
+    expect(preloadRoute).toHaveBeenCalledTimes(1);
   });
 
   test("a custom delay holds the hover preload", async () => {
     mount(intentPreload({ delay: 60 }));
     link.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
     await new Promise(r => setTimeout(r, 30));
-    expect(mockRouter.preloadRoute).not.toHaveBeenCalled();
+    expect(preloadRoute).not.toHaveBeenCalled();
     await new Promise(r => setTimeout(r, 50));
-    expect(mockRouter.preloadRoute).toHaveBeenCalledTimes(1);
+    expect(preloadRoute).toHaveBeenCalledTimes(1);
   });
 
   test("data: false preloads code only", () => {
     mount(intentPreload({ data: false }));
     link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
-    expect(mockRouter.preloadRoute).toHaveBeenCalledWith(expect.any(URL), false);
+    expect(preloadRoute).toHaveBeenCalledWith(mockRouter, expect.any(URL), false);
   });
 
   test('preload="false" opts the link out entirely', async () => {
@@ -770,13 +774,13 @@ describe("intentPreload", () => {
     link.dispatchEvent(new TouchEvent("touchstart", { bubbles: true }));
     link.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
     await new Promise(r => setTimeout(r, 30));
-    expect(mockRouter.preloadRoute).not.toHaveBeenCalled();
+    expect(preloadRoute).not.toHaveBeenCalled();
   });
 
   test("without a strategy nothing preloads", () => {
     mount(undefined);
     link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
-    expect(mockRouter.preloadRoute).not.toHaveBeenCalled();
+    expect(preloadRoute).not.toHaveBeenCalled();
   });
 
   test("disposal removes the listeners and a pending hover", async () => {
@@ -786,6 +790,6 @@ describe("intentPreload", () => {
     dispose = undefined;
     link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
     await new Promise(r => setTimeout(r, 30));
-    expect(mockRouter.preloadRoute).not.toHaveBeenCalled();
+    expect(preloadRoute).not.toHaveBeenCalled();
   });
 });

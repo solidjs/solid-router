@@ -458,11 +458,14 @@ export interface RouterContext {
   _source: () => LocationChange;
   /** @internal The owner the router's own computations live under. */
   _owner: Owner | null;
+  /** @internal The owner route components and their `preload` functions run under. */
+  _routeOwner: () => Owner;
+  /** @internal Route matches for a pathname, after `transformUrl`. */
+  _match: (pathname: string) => RouteMatch[];
   matches: () => RouteMatch[];
   renderPath(path: string): string;
   parsePath(str: string): string;
   beforeLeave: BeforeLeaveSlot;
-  preloadRoute: (url: URL, preloadData?: boolean) => void;
   singleFlight: boolean;
   submissions: Signal<Submission<any, any>[]>;
 }

@@ -3,6 +3,7 @@ import { vi } from "vitest";
 import {
   createRouter,
   defineRoute,
+  intentPreload,
   memoryHistory,
   useBeforeLeave,
   useLinkState,
@@ -419,6 +420,35 @@ describe("createRouter factory", () => {
         await settle();
         preload("/en/users/3", { preloadData: true });
         expect(preloaded).toHaveBeenCalledWith("3");
+      } finally {
+        dispose();
+        div.remove();
+      }
+    });
+
+    test("a link preload strategy warms the link's route", async () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+
+      const preloaded = vi.fn();
+      const Router = createRouter({
+        routes: [
+          { path: "/", component: () => <a href="/users/4">user</a> },
+          {
+            path: "/users/:id",
+            preload: ({ params, intent }) => preloaded(params.id, intent),
+            component: () => ""
+          }
+        ],
+        history: memoryHistory(),
+        preloadLinks: intentPreload()
+      });
+
+      const dispose = render(() => <Router />, div);
+      try {
+        await settle();
+        div.querySelector("a")!.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+        expect(preloaded).toHaveBeenCalledWith("4", "preload");
       } finally {
         dispose();
         div.remove();

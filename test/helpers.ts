@@ -47,7 +47,6 @@ export function createMockRouter(): RouterContext {
     navigate: vi.fn(),
     navigateFromRoute: vi.fn(),
     parsePath: (path: string) => path,
-    preloadRoute: vi.fn(),
     renderPath: (path: string) => path,
     utils: {
       go: vi.fn(),

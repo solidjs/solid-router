@@ -246,24 +246,6 @@ export const useRouteMatches = () => {
 };
 
 /**
- * `usePreloadRoute` returns a function for warming a route by hand — the same
- * work link hover/focus intent triggers automatically: the matched routes'
- * lazy components load, and with `preloadData` their `preload` functions run.
- *
- * @example
- * ```js
- * const preload = usePreloadRoute();
- *
- * preload(paths.users(2).settings, { preloadData: true });
- * ```
- */
-export const usePreloadRoute = () => {
-  const pre = useRouter().preloadRoute;
-  return (url: string | URL | TypedPath, options: { preloadData?: boolean } = {}) =>
-    pre(url instanceof URL ? url : new URL(String(url), mockBase), options.preloadData);
-};
-
-/**
  * Retrieves a reactive, store-like object containing the current route path parameters as defined in the Route.
  * 
  * @example
@@ -799,6 +781,11 @@ let preloadIntent: Intent | undefined;
 export function getIntent() {
   return preloadIntent || useOptionalContext(RouterContextObj)?.intent?.();
 }
+export function setPreloadIntent(intent: Intent | undefined) {
+  const prev = preloadIntent;
+  preloadIntent = intent;
+  return prev;
+}
 let inPreloadFn = false;
 export function getInPreloadFn() {
   return inPreloadFn;
@@ -940,13 +927,12 @@ export function createRouterContext(
     return read();
   };
 
+  const matchPath = (pathname: string) =>
+    getRouteMatches(branches(), options.transformUrl ? options.transformUrl(pathname) : pathname);
+
   const matches = createMemo(
     () => {
-      const pathname =
-        typeof options.transformUrl === "function"
-          ? options.transformUrl(location.pathname)
-          : location.pathname;
-      const m = getRouteMatches(branches(), pathname);
+      const m = matchPath(location.pathname);
       // An unresolved lazy subtree parks readers on not-ready semantics — the
       // navigation transition (or the SSR stream) holds until the table lands.
       // NotReadyError (not a returned promise) because a match chain is full
@@ -1012,12 +998,13 @@ export function createRouterContext(
     intent: transitionIntent,
     _source: source,
     _owner: routerOwner,
+    _routeOwner: getContext!,
+    _match: matchPath,
     renderPath,
     parsePath,
     navigatorFactory,
     matches,
     beforeLeave,
-    preloadRoute,
     singleFlight: options.singleFlight === undefined ? true : options.singleFlight,
     get submissions() {
       return (submissions ||= createSignal<Submission<any, any>[]>(
@@ -1161,81 +1148,6 @@ export function createRouterContext(
       to: string | TypedPath | number | ComposedTarget,
       options?: Partial<NavigateOptions>
     ) => navigateFromRoute(route!, to, options)) as Navigator;
-  }
-
-  function preloadRoute(url: URL, preloadData?: boolean) {
-    const next = getRouteMatches(
-      branches(),
-      options.transformUrl ? options.transformUrl(url.pathname) : url.pathname
-    );
-    // An unresolved lazy subtree in the chain: the placeholder's
-    // component.preload (below) kicks the table load; once it lands,
-    // preload again so the real inner routes warm too. Preloads are
-    // speculative: a failed load (held sync throw or rejection) is ignored
-    // here — the real navigation surfaces and retries it.
-    const boundary = next.find(m => m.route.lazy && !m.route.lazy.resolved);
-    if (boundary) {
-      try {
-        (resolveLazySubtree(boundary.route.lazy!) as Promise<unknown>).then(
-          () => preloadRoute(url, preloadData),
-          () => {}
-        );
-      } catch {}
-    }
-    // Data preloads run only for levels a navigation would mount fresh or
-    // reuse with changed inputs: this level's params, and search as the
-    // declared schema's output or else the raw string. Navigation itself is
-    // already this selective (a matching level is reused and re-reads through
-    // tracked params), so an unchanged level has nothing new to warm.
-    let current: RouteMatch[] | undefined;
-    try {
-      current = untrack(matches);
-    } catch {}
-    const query = extractSearchParams(url);
-    const inputs = (p: Params, q: SearchParams, s: string, r: RouteDescription) => {
-      const a = serverRouteArgs(r, p, q);
-      a.search === undefined && (a.search = s);
-      return a;
-    };
-    const prevIntent = preloadIntent;
-    preloadIntent = "preload";
-    for (let match in next) {
-      const { route, params } = next[match];
-      const { preload, component } = route;
-      (component as MaybePreloadableComponent | undefined)?.preload?.();
-      const now = current && current[match];
-      const unchanged =
-        now &&
-        now.route.key === route.key &&
-        serverRouteArgsEqual(
-          inputs(params, query, url.search, route),
-          inputs(now.params, location.query, location.search, route)
-        );
-      inPreloadFn = true;
-      preloadData &&
-        !unchanged &&
-        runWithOwner(getContext!(), () => {
-          // A server component route's data IS its call: warm the same
-          // query entry the render will read, under the same derived args.
-          const server = serverRouteOf(component);
-          server && server.call(serverRouteArgs(route, params, query));
-          preload &&
-            preload({
-              params,
-              location: {
-                pathname: url.pathname,
-                search: url.search,
-                hash: url.hash,
-                query,
-                state: null,
-                key: ""
-              },
-              intent: "preload"
-            });
-        });
-      inPreloadFn = false;
-    }
-    preloadIntent = prevIntent;
   }
 
   // Seeds the initial submission from a no-JS form post: the server

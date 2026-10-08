@@ -1,4 +1,6 @@
 import { onCleanup } from "solid-js";
+import { setLinkPreloader } from "./data/events.js";
+import { preloadRoute } from "./preloadRoute.js";
 import type { LinkPreload, LinkPreloadContext } from "./types.js";
 
 // `preload="false"` opts a link out of every strategy
@@ -9,6 +11,7 @@ function target(anchor: LinkPreloadContext["anchor"], evt: Event) {
 
 // preloads are not interactions: these listeners run outside any frame
 function listen(types: string[], fn: (evt: Event) => void) {
+  setLinkPreloader(preloadRoute);
   types.forEach(t => document.addEventListener(t, fn, { passive: true }));
   onCleanup(() => types.forEach(t => document.removeEventListener(t, fn)));
 }

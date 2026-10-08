@@ -21,6 +21,18 @@ export function setRouterFormHandler(handler: RouterFormHandler | undefined) {
   formHandler = handler;
 }
 
+/**
+ * Link preload strategies reach route preloading through this slot instead
+ * of the event wiring importing it: a strategy installs it when it runs (see
+ * preload.ts), so an app with no strategy and no `usePreloadRoute` never
+ * ships route preloading.
+ */
+let linkPreloader: ((router: RouterContext, url: URL, data: boolean) => void) | undefined;
+
+export function setLinkPreloader(preloader: typeof linkPreloader) {
+  linkPreloader = preloader;
+}
+
 type NativeEventConfig = {
   preload?: LinkPreload | readonly LinkPreload[];
   explicitLinks?: boolean; // defaults false
@@ -136,8 +148,11 @@ export function setupNativeEvents({
     });
     // the pre-strategy boolean option is ignored (a dev warning names it)
     if (preload && (preload as unknown) !== true)
-      ([] as LinkPreload[])
-        .concat(preload)
-        .forEach(strategy => strategy({ anchor: findAnchor, preload: router.preloadRoute }));
+      ([] as LinkPreload[]).concat(preload).forEach(strategy =>
+        strategy({
+          anchor: findAnchor,
+          preload: (url, data) => linkPreloader!(router, url, data)
+        })
+      );
   };
 }

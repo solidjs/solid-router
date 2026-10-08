@@ -27,7 +27,6 @@ export {
   useLocation,
   useMatch,
   useNavigate,
-  usePreloadRoute,
   useParams,
   useResolvedPath,
   useRouteMatches,
@@ -37,6 +36,7 @@ export {
 export type { LinkState } from "./routing.js";
 export { pendingLinks } from "./pending.js";
 export { intentPreload } from "./preload.js";
+export { usePreloadRoute } from "./preloadRoute.js";
 export { mergeSearchString as _mergeSearchString } from "./utils.js";
 export { int } from "./paths.js";
 export { serverRouteComponent } from "./serverRouteComponent.js";
