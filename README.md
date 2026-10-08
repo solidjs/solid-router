@@ -566,7 +566,7 @@ function TabLink(props: { href: string; children: JSX.Element }) {
 
 ## Preloading
 
-The router can warm a link's route before it is clicked: preloading **code** loads the matched routes' `lazy()` components (and any [lazy subtree](#lazy-route-subtrees) on the way), and preloading **data** also runs their [preload functions](#preload-functions) with `intent: "preload"`. Nothing is preloaded unless you choose a strategy:
+The router can warm a link's route before it is clicked: preloading **code** loads the matched routes' `lazy()` components (and any [lazy subtree](#lazy-route-subtrees) on the way), and preloading **data** also runs their [preload functions](#preload-functions) with `intent: "preload"`. Nothing is preloaded unless you opt in. Earlier `next` prereleases preloaded on hover, focus, and touch by default; that built-in is gone. A boolean `preloadLinks` is a type error and, in development, a warning — it preloads nothing.
 
 ```tsx
 import { createRouter, intentPreload } from "@solidjs/router";
@@ -574,14 +574,14 @@ import { createRouter, intentPreload } from "@solidjs/router";
 const Router = createRouter({ routes, preloadLinks: intentPreload() });
 ```
 
-| strategy                                                  | preloads a link when                                                                        | default       |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------- |
-| `intentPreload({ delay = 20, data })`                     | the pointer rests on it for `delay` ms, it takes focus, or a touch starts on it             | code and data |
-| `tapPreload({ data })`                                    | a pointer goes down on it (mouse, touch, or pen), ahead of the click                        | code and data |
-| `viewportPreload({ all, data, delay = 100, rootMargin })` | it has stayed in the viewport for `delay` ms, once the browser is idle; once per `href`     | code          |
-| `eagerPreload({ all, data })`                             | the page has loaded and the browser is idle, including links mounted later; once per `href` | code          |
+| strategy                                                           | preloads a link when                                                                                                                                                                                                                                | defaults      |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `intentPreload({ delay = 20, data = true })`                       | the pointer rests on it for `delay` ms, it is focused (`focusin`), or a touch starts on it (`touchstart`). Moving over a link that already preloaded does not preload it again until the pointer leaves                                             | code and data |
+| `tapPreload({ data = true })`                                      | a pointer goes down on it (`pointerdown`: mouse, touch, or pen), ahead of the click                                                                                                                                                                 | code and data |
+| `viewportPreload({ all = false, data = false, delay = 100, rootMargin })` | it has stayed in the viewport for `delay` ms and the browser is then idle (`requestIdleCallback`, or `setTimeout` if that is missing). Once per `href`; leaving before the idle flush cancels it, and a new `href` preloads again. One shared `IntersectionObserver`. `rootMargin` is passed through (the observer's own `"0px"` when omitted) | code          |
+| `eagerPreload({ all = false, data = false })`                      | the page has loaded and the browser is idle, including links mounted later. Once per `href`; a link removed before that flush is dropped                                                                                                                                 | code          |
 
-Pass an array to combine strategies — say, viewport for code and intent for data:
+Pass an array to combine strategies — viewport for code, intent for data:
 
 ```tsx
 const Router = createRouter({
@@ -590,11 +590,15 @@ const Router = createRouter({
 });
 ```
 
-Strategies are client-only and add only their own code to your bundle. Interaction strategies (`intentPreload`, `tapPreload`) apply to every router link. Ambient strategies (`viewportPreload`, `eagerPreload`) apply only to links that name them, `<a href="/pricing" preload="viewport">`, unless created with `{ all: true }`; they also skip preloading when the browser reports Save-Data or a 2g connection.
+Strategies are client-only, and an app ships only the ones it imports. `intentPreload` and `tapPreload` apply to every router link. `viewportPreload` and `eagerPreload` apply only to links that name them, `<a href="/pricing" preload="viewport">` or `preload="eager"`, unless created with `{ all: true }`. They also skip preloading when the browser reports Save-Data or a 2g connection (`effectiveType` of `"2g"` or `"slow-2g"`).
+
+The `href` and `preload` attribute are read when the preload runs, so a dynamic `href` is the one the link has then.
+
+Hover, focus, and touch preloads do not check modifier keys or `defaultPrevented`, and neither does `tapPreload`'s `pointerdown`. A click still does: the router ignores it when `preventDefault` was already called, when it is not the primary button, or when alt, ctrl, meta, or shift is held.
 
 Preloading is purely an optimization: without it every navigation still loads the same code and data, just after the click instead of before it. A link with `preload="false"` is never preloaded by any strategy.
 
-Whether a strategy also preloads data is its own `data` option, not a per-link choice. Interaction strategies like `intentPreload` default to data because the user is about to click; a data preload runs only for route levels the navigation would change, and `query` keeps the result for the few seconds until the click arrives. Ambient strategies preload links merely on screen, so they default to code only; keep it that way unless your data layer keeps results for longer — `{ data: true }` there fits long-lived caches such as TanStack Query or HTTP-cached `GET` server functions.
+Whether a strategy also preloads data is its own `data` option, not a per-link choice. `intentPreload` and `tapPreload` default to data because the user is about to click; a data preload runs only for route levels the navigation would change, and `query` keeps the result for the few seconds until the click arrives. `viewportPreload` and `eagerPreload` warm links that are merely on screen or already on the page, so they default to code only — a data preload there is worth it only when the cache outlives the moment of clicking, as with TanStack Query or an HTTP-cached `GET` server function. Pass `{ data: true }` to opt in.
 
 `usePreloadRoute` triggers the same work by hand.
 
@@ -836,7 +840,7 @@ createRouter(config);
 | `history`       | `RouterHistory`                | History adapter; defaults to browser history on the client and the request URL on the server          |
 | `singleFlight`  | `boolean`                      | Single-flight mutations, default `true`                                                               |
 | `actionBase`    | `string`                       | Root url for server actions, default `/_server`                                                       |
-| `preloadLinks`  | `LinkPreload \| LinkPreload[]` | [Link preload strategies](#preloading), e.g. `intentPreload()`; none by default                       |
+| `preloadLinks`  | `LinkPreload \| LinkPreload[]` | [Link preload strategies](#preloading), e.g. `intentPreload()`; none by default. A boolean is a type error |
 | `explicitLinks` | `boolean`                      | Require the `link` attribute for router handling instead of intercepting all anchors, default `false` |
 | `links`         | `LinksPlugin`                  | Link claims plugin — `pendingLinks` adds `data-pending` to the in-flight navigation's target          |
 | `transformUrl`  | `(url: string) => string`      | Rewrite URLs before matching                                                                          |
@@ -1091,7 +1095,7 @@ Route props map 1:1 onto definition keys (`path`, `component`, `preload`, `match
 - Pending link styling → `[data-pending]`, opt-in with `createRouter({ routes, links: pendingLinks })`
 - Route-relative hrefs → typed `paths`; `useResolvedPath` / `useHref` remain for manual resolution
 - Custom link components → `useLinkState`
-- Hover/focus preloading is opt-in → `createRouter({ routes, preloadLinks: intentPreload() })`; `preload="false"` on a link skips it entirely
+- Hover/focus preloading is opt-in → `createRouter({ routes, preloadLinks: intentPreload() })`; `preload="false"` on a link skips it entirely. The previous `next` prerelease preloaded on hover by default
 
 ### Removed and renamed
 

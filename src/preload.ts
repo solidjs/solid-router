@@ -6,26 +6,6 @@ import type { LinkPreload, LinkPreloadContext } from "./types.js";
 
 type Anchor = HTMLAnchorElement | SVGAElement;
 
-// `preload="false"` opts a link out of every strategy
-function target(anchor: LinkPreloadContext["anchor"], evt: Event) {
-  const res = anchor(evt);
-  return res && res[0].getAttribute("preload") !== "false" ? res : undefined;
-}
-
-// preloads are not interactions: these listeners run outside any frame
-function listen(types: string[], fn: (evt: Event) => void) {
-  setLinkPreloader(preloadRoute);
-  types.forEach(t => document.addEventListener(t, fn, { passive: true }));
-  onCleanup(() => types.forEach(t => document.removeEventListener(t, fn)));
-}
-
-const preloadOn =
-  ({ anchor, preload }: LinkPreloadContext, data: boolean) =>
-  (evt: Event) => {
-    const res = target(anchor, evt);
-    res && preload(res[1], data);
-  };
-
 /**
  * Anchors as the runtime claims them: at creation and again on `href`
  * writes. `disarm` runs when the creating owner is disposed. Claims fire
@@ -79,9 +59,12 @@ const ambientPreload =
   };
 
 /**
- * Preload a link when the pointer rests on it for `delay` ms, when it takes
- * focus, and on touchstart. Warms route code and, unless `data` is false,
- * runs the matched routes' `preload` functions.
+ * Preload a link when the pointer rests on it for `delay` ms (default 20),
+ * when it takes focus, and on touchstart. Moving over a link that already
+ * preloaded does not preload it again until the pointer leaves. These
+ * listeners do not check modifier keys or `defaultPrevented`; clicks still do.
+ * Warms route code and, unless `data` is false (default true), runs the
+ * matched routes' `preload` functions.
  *
  * @example
  * ```ts
@@ -93,35 +76,59 @@ export const intentPreload =
   ctx => {
     let timeout: ReturnType<typeof setTimeout>;
     let lastElement: Node | undefined;
-    listen(["focusin", "touchstart"], preloadOn(ctx, data));
-    listen(["mousemove"], evt => {
-      clearTimeout(timeout);
-      const res = target(ctx.anchor, evt);
-      if (!res) return (lastElement = undefined);
-      const [a, url] = res;
+    setLinkPreloader(preloadRoute);
+    const onIntent = (evt: Event) => {
+      // clear before resolving: a throw must not leave the rest timer armed
+      if (evt.type === "mousemove") clearTimeout(timeout);
+      const res = ctx.anchor(evt);
+      const link = res && res[0].getAttribute("preload") !== "false" ? res : undefined;
+      if (evt.type !== "mousemove") return link && ctx.preload(link[1], data);
+      if (!link) return (lastElement = undefined);
+      const [a, url] = link;
       if (lastElement === a) return;
       timeout = setTimeout(() => {
         ctx.preload(url, data);
         lastElement = a;
       }, delay);
+    };
+    const passive = { passive: true };
+    document.addEventListener("focusin", onIntent, passive);
+    document.addEventListener("touchstart", onIntent, passive);
+    document.addEventListener("mousemove", onIntent, passive);
+    onCleanup(() => {
+      clearTimeout(timeout);
+      document.removeEventListener("focusin", onIntent);
+      document.removeEventListener("touchstart", onIntent);
+      document.removeEventListener("mousemove", onIntent);
     });
-    onCleanup(() => clearTimeout(timeout));
   };
 
 /**
- * Preload a link on `pointerdown` (mouse, touch, or pen), ahead of its
- * click. Warms route code and, unless `data` is false, route data.
+ * Preload a link on `pointerdown` (mouse, touch, or pen), ahead of its click.
+ * Does not check modifier keys or `defaultPrevented`. Warms route code and,
+ * unless `data` is false (default true), route data.
  */
 export const tapPreload =
   ({ data = true }: { data?: boolean } = {}): LinkPreload =>
-  ctx =>
-    listen(["pointerdown"], preloadOn(ctx, data));
+  ctx => {
+    setLinkPreloader(preloadRoute);
+    const onTap = (evt: Event) => {
+      const res = ctx.anchor(evt);
+      res && res[0].getAttribute("preload") !== "false" && ctx.preload(res[1], data);
+    };
+    document.addEventListener("pointerdown", onTap, { passive: true });
+    onCleanup(() => document.removeEventListener("pointerdown", onTap));
+  };
 
 /**
- * Preload a link once it has stayed in the viewport for `delay` ms, when the
- * browser is next idle. Each link preloads once, and again after its `href`
- * changes. Applies to links with `preload="viewport"`, or with `all` to
- * every link. Warms route code only unless `data` is true.
+ * Preload a link once it has stayed in the viewport for `delay` ms (default
+ * 100), when the browser is next idle (`requestIdleCallback`, or `setTimeout`
+ * where that is missing). Each link preloads once, and again after its `href`
+ * changes; a link that leaves before then is dropped. One `IntersectionObserver`
+ * is shared. `rootMargin` is passed through to it (the observer's own `"0px"`
+ * when omitted). Applies to links with `preload="viewport"`, or with `all`
+ * (default false) to every link except `preload="false"`. Skips Save-Data and
+ * 2g connections. Warms route code only unless `data` is true (default false).
  */
 export const viewportPreload =
   ({
@@ -172,8 +179,10 @@ export const viewportPreload =
 
 /**
  * Preload links as soon as the page has loaded and the browser is idle,
- * including links mounted later. Applies to links with `preload="eager"`,
- * or with `all` to every link. Warms route code only unless `data` is true.
+ * including links mounted later. A link removed before the flush is dropped.
+ * Applies to links with `preload="eager"`, or with `all` (default false) to
+ * every link except `preload="false"`. Skips Save-Data and 2g connections.
+ * Warms route code only unless `data` is true (default false).
  */
 export const eagerPreload =
   ({ all, data = false }: { all?: boolean; data?: boolean } = {}): LinkPreload =>

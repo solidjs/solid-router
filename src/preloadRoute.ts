@@ -104,10 +104,10 @@ export function preloadRoute(router: RouterContext, url: URL, preloadData?: bool
  */
 export const usePreloadRoute = () => {
   const router = useRouter();
-  return (url: string | URL | TypedPath, options: { preloadData?: boolean } = {}) =>
+  return (url: string | URL | TypedPath, options?: { preloadData?: boolean }) =>
     preloadRoute(
       router,
       url instanceof URL ? url : new URL(String(url), mockBase),
-      options.preloadData
+      options?.preloadData
     );
 };
