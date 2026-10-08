@@ -56,6 +56,9 @@ export function setupNativeEvents({
       if (a.hasAttribute("download") || (rel && rel.includes("external"))) return;
 
       const url = svg ? new URL(href, document.baseURI) : new URL(href);
+      // Skip non-http(s) schemes (blob:, mailto:, tel:, data:, ...). blob: URLs
+      // inherit the page origin, so the origin check below won't reject them. #382
+      if (url.protocol !== "https:" && url.protocol !== "http:") return;
       if (
         url.origin !== window.location.origin ||
         (basePath && url.pathname && !url.pathname.toLowerCase().startsWith(basePath.toLowerCase()))
