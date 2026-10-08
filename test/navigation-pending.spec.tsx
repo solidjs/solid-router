@@ -363,8 +363,6 @@ describe("navigation pending state (characterization, #655)", () => {
       expect(h.log).toMatchInlineSnapshot(`
         [
           "| navigate /a: call routing=false at=/",
-          "routing:true@/a",
-          "routing:false",
           "scrollTo:0",
           "| navigate /a: flush routing=false at=/a",
           "| navigate /a: settled routing=false at=/a",
@@ -433,11 +431,11 @@ describe("navigation pending state (characterization, #655)", () => {
           "routing:true@/slow/2",
           "link:/slow/1:false",
           "link:/slow/2:true",
+          "attr:/slow/1:-",
+          "attr:/slow/2:+",
           "| navigate /slow/2: flush routing=true target=/slow/2 intent=navigate at=/",
           "| navigate /slow/2: settled routing=true target=/slow/2 intent=navigate at=/",
           "| resolved 1 routing=true target=/slow/2 intent=navigate at=/",
-          "attr:/slow/1:-",
-          "attr:/slow/2:+",
           "attr:/slow/2:-",
           "routing:false",
           "link:/slow/2:false",
@@ -470,10 +468,10 @@ describe("navigation pending state (characterization, #655)", () => {
           "| navigate /slow/1: settled routing=true target=/slow/1 intent=navigate at=/",
           "| navigate /a: call routing=true target=/slow/1 intent=navigate at=/",
           "routing:true@/a",
-          "link:/a:true",
-          "link:/slow/1:false",
           "attr:/a:+",
           "attr:/slow/1:-",
+          "link:/a:true",
+          "link:/slow/1:false",
           "attr:/a:-",
           "routing:false",
           "link:/a:false",
@@ -510,10 +508,10 @@ describe("navigation pending state (characterization, #655)", () => {
           "| navigate /slow/1: settled routing=true target=/slow/1 intent=navigate at=/",
           "| navigate /: call routing=true target=/slow/1 intent=navigate at=/",
           "routing:true@/",
-          "link:/:true",
-          "link:/slow/1:false",
           "attr:/:+",
           "attr:/slow/1:-",
+          "link:/:true",
+          "link:/slow/1:false",
           "attr:/:-",
           "routing:false",
           "link:/:false",
@@ -633,8 +631,6 @@ describe("navigation pending state (characterization, #655)", () => {
       expect(h.log).toMatchInlineSnapshot(`
         [
           "| burst: call routing=false at=/",
-          "routing:true@/b",
-          "routing:false",
           "scrollTo:0",
           "| burst: flush routing=false at=/b",
           "| burst: settled routing=false at=/b",
@@ -668,8 +664,8 @@ describe("navigation pending state (characterization, #655)", () => {
           "| navigate /slow/1: settled routing=true target=/slow/1 intent=navigate at=/",
           "| navigate /b replace: call routing=true target=/slow/1 intent=navigate at=/",
           "routing:true@/b",
-          "link:/slow/1:false",
           "attr:/slow/1:-",
+          "link:/slow/1:false",
           "routing:false",
           "scrollTo:0",
           "| navigate /b replace: flush routing=false at=/b",
@@ -696,8 +692,6 @@ describe("navigation pending state (characterization, #655)", () => {
       expect(h.route()).toBe("slow");
       expect(h.log).toMatchInlineSnapshot(`
         [
-          "routing:true",
-          "routing:false",
           "| back to / routing=false at=/",
           "| back routing=false at=/",
           "preload:pop:native",
@@ -975,8 +969,6 @@ describe("navigation pending state (characterization, #655)", () => {
           "scrollTo:0",
           "| rejected routing=false at=/slow/bad",
           "| navigate /a: call routing=false at=/slow/bad",
-          "routing:true@/a",
-          "routing:false",
           "scrollTo:0",
           "| navigate /a: flush routing=false at=/a",
           "| navigate /a: settled routing=false at=/a",
@@ -1014,11 +1006,9 @@ describe("navigation pending state (characterization, #655)", () => {
           "scrollTo:0",
           "| resolved routing=false at=/slow/1",
           "| navigate /a: call routing=false at=/slow/1",
-          "routing:true@/a",
           "render-intent:/a:navigate",
-          "user-intent:/a:navigate",
-          "routing:false",
           "scrollTo:0",
+          "user-intent:/a:navigate",
           "| navigate /a: flush routing=false at=/a",
           "| navigate /a: settled routing=false at=/a",
         ]
@@ -1041,8 +1031,6 @@ describe("navigation pending state (characterization, #655)", () => {
       expect(window.history.state?.n).toBe(1);
       expect(h.log).toMatchInlineSnapshot(`
         [
-          "routing:true",
-          "routing:false",
           "scrollTo:300",
           "| back to /a #1 routing=false at=/a",
         ]
@@ -1179,11 +1167,7 @@ describe("navigation pending state (characterization, #655)", () => {
           "routing:false",
           "scrollTo:0",
           "| resolved routing=false at=/lazy",
-          "routing:true",
-          "routing:false",
           "| back to /a routing=false at=/a",
-          "routing:true",
-          "routing:false",
           "| forward to /lazy routing=false at=/lazy",
         ]
       `);
@@ -1211,14 +1195,10 @@ describe("navigation pending state (characterization, #655)", () => {
       expect(h.log).toMatchInlineSnapshot(`
         [
           "| navigate /a?q=1: call routing=false at=/a",
-          "routing:true@/a?q=1",
-          "routing:false",
           "scrollTo:0",
           "| navigate /a?q=1: flush routing=false at=/a",
           "| navigate /a?q=1: settled routing=false at=/a",
           "| navigate /a?q=1#x: call routing=false at=/a",
-          "routing:true@/a?q=1#x",
-          "routing:false",
           "scrollTo:0",
           "| navigate /a?q=1#x: flush routing=false at=/a",
           "| navigate /a?q=1#x: settled routing=false at=/a",
@@ -1273,8 +1253,6 @@ describe("navigation pending state (characterization, #655)", () => {
           "| navigate /a (same): flush routing=false at=/a",
           "| navigate /a (same): settled routing=false at=/a",
           "| navigate /a (state): call routing=false at=/a",
-          "routing:true@/a",
-          "routing:false",
           "scrollTo:0",
           "| navigate /a (state): flush routing=false at=/a",
           "| navigate /a (state): settled routing=false at=/a",

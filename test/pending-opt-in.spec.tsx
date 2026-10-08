@@ -274,9 +274,9 @@ describe("pay-for-use pending state (#655)", () => {
       app.release();
       await settle();
       expect(target()).toBeUndefined();
-      // a synchronous navigation is pending within its own flush, as
-      // useIsRouting reports it
-      expect(effect).toEqual([undefined, "/slow", undefined, "/a", undefined, "/slow", undefined]);
+      // a synchronous navigation never reads as pending: verdict readers see
+      // the screen, and its flush commits it (solid 2.0.0-rc.14's hold model)
+      expect(effect).toEqual([undefined, "/slow", undefined, undefined, "/slow", undefined]);
     } finally {
       app.cleanup();
     }

@@ -70,9 +70,52 @@ describe("flash decode per request", () => {
     );
 
     expect(html).toContain('class="status">Failed to save</p>');
-    // the retry did render a new router; the request still decoded once and
-    // cleared the cookie once
-    expect(routerRenders).toBeGreaterThan(1);
+    // since solid 2.0.0-rc.14 (solidjs/solid#3770) the retry resumes the
+    // accessor that suspended instead of re-reading the document's hole, so
+    // the router is no longer re-created here; the next test re-creates it
+    // explicitly
+    expect(routerRenders).toBe(1);
+    expect(decodes).toBe(1);
+    expect(event.response.headers.getSetCookie().filter(c => c.startsWith("flash="))).toHaveLength(
+      1
+    );
+  });
+
+  test("two routers in one request share one decode", async () => {
+    decodes = 0;
+    const Router = createRouter({ routes: [{ path: "/", component: () => <main>page</main> }] });
+    function Status() {
+      const subs = useSubmissions(save);
+      return <p class="status">{subs.find(s => s.result?.error)?.result?.error}</p>;
+    }
+    const routed = () => (
+      <Router>
+        {props => (
+          <Errored fallback={() => <p>failed</p>}>
+            <Status />
+            <Loading fallback={<p>loading</p>}>{props.children}</Loading>
+          </Errored>
+        )}
+      </Router>
+    );
+
+    const cookie = (await encodeFlashCookie("/_server/save", { error: "Failed to save" }, []))!;
+    const event = createRequestEvent(
+      new Request("http://localhost/", { headers: { cookie: cookie.split(";")[0] } })
+    );
+    const html = await provideRequestEvent(event, () =>
+      Promise.race([
+        renderToStream(() => (
+          <div>
+            {routed()}
+            {routed()}
+          </div>
+        )).then(String),
+        delay(2000).then(() => "TIMEOUT")
+      ])
+    );
+
+    expect(html.match(/class="status">Failed to save<\/p>/g)).toHaveLength(2);
     expect(decodes).toBe(1);
     expect(event.response.headers.getSetCookie().filter(c => c.startsWith("flash="))).toHaveLength(
       1

@@ -80,8 +80,8 @@ function setup(extra?: (loc: () => string, log: string[]) => void) {
   };
 }
 
-describe("onSettled vs isPending (solid 2.0 rc.13)", () => {
-  test("no async: settle at the end of the carrying flush; the verdict reader still blips true→false in it", () => {
+describe("onSettled vs isPending (solid 2.0 rc.14)", () => {
+  test("no async: settle at the end of the carrying flush; the verdict reader never reads it as pending", () => {
     const t = setup();
     t.write("/a");
     t.mark(`write pending=${t.pendingNow()} latest=${t.latestNow()}`);
@@ -89,9 +89,10 @@ describe("onSettled vs isPending (solid 2.0 rc.13)", () => {
     expect(t.log).toEqual([
       // unflushed (A28): no verdict, no settle — onSettled never fires synchronously
       "| write pending=false latest=/",
-      "pending:true",
-      "frame:/a",
+      // a verdict reader sees the screen, and the flush commits the write: no
+      // true→false blip (rc.13 logged pending:true before the frame)
       "pending:false",
+      "frame:/a",
       "settled:/a"
     ]);
     t.dispose();
@@ -126,7 +127,6 @@ describe("onSettled vs isPending (solid 2.0 rc.13)", () => {
     expect(t.log).toEqual([
       "pending:true",
       "| parked",
-      "pending:false",
       "frame:/b",
       "pending:false",
       // the live queue's run first, then the merged transaction's stash
@@ -151,10 +151,11 @@ describe("onSettled vs isPending (solid 2.0 rc.13)", () => {
     await tick();
     expect(t.log).toEqual([
       "pending:true",
+      // the second write re-derives the verdict reader in its parking flush
+      "pending:true",
       "| both parked",
       "| first resolved",
       "frame:two",
-      "pending:true",
       "pending:false",
       "settled:/slow1",
       "settled:/slow2"
@@ -162,7 +163,7 @@ describe("onSettled vs isPending (solid 2.0 rc.13)", () => {
     t.dispose();
   });
 
-  test("written back to the committed value while held: the verdict is final, both settle in that flush", async () => {
+  test("written back to the committed value while held: the verdict is false before the flush, both settle in that flush", async () => {
     const t = setup();
     t.write("/slow");
     flush();
@@ -173,9 +174,9 @@ describe("onSettled vs isPending (solid 2.0 rc.13)", () => {
     await tick();
     expect(t.log).toEqual([
       "pending:true",
-      // the earlier write's staging is still up until the carrying flush
-      "| write-back unflushed pending=true",
-      "pending:false",
+      // the write back joins the held node's transaction before its equality
+      // gate (A34 (1)): it reads not pending at once (rc.13: still true here)
+      "| write-back unflushed pending=false",
       "pending:false",
       "settled:/",
       "settled:/slow",
@@ -199,13 +200,7 @@ describe("onSettled vs isPending (solid 2.0 rc.13)", () => {
     t.write("/a");
     t.write("/b");
     flush();
-    expect(t.log).toEqual([
-      "pending:true",
-      "frame:/b",
-      "pending:false",
-      "settled:/a",
-      "settled:/b"
-    ]);
+    expect(t.log).toEqual(["pending:false", "frame:/b", "settled:/a", "settled:/b"]);
     t.dispose();
   });
 
@@ -265,12 +260,12 @@ describe("onSettled vs isPending (solid 2.0 rc.13)", () => {
 
 /**
  * Could the router own a pending marker — a plain signal it writes in
- * `navigate()` — instead of asking `isPending`? `initTransition` adopts
- * every node staged in the ambient batch into the transaction
- * (scheduler.ts rc.13, `batch._pendingNodes` → `activeTransition`), so a
- * write beside the location is the navigation's write, held with it.
+ * `navigate()` — instead of asking `isPending`? A flush that parks holds
+ * every node it staged in one transaction (the hold model, "one frame
+ * concept"), so a write beside the location is the navigation's write, held
+ * with it.
  */
-describe("a router-owned pending marker (solid 2.0 rc.13)", () => {
+describe("a router-owned pending marker (solid 2.0 rc.14)", () => {
   function withMarker() {
     let setMarker!: (v: string | undefined) => void;
     const t = setup((_loc, log) => {
@@ -430,7 +425,7 @@ describe("a router-owned pending marker (solid 2.0 rc.13)", () => {
   });
 });
 
-describe("onSettled ownership (solid 2.0 rc.13)", () => {
+describe("onSettled ownership (solid 2.0 rc.14)", () => {
   test("owned onSettled is a tracked effect: it waits for its owner's first settle, not a write", async () => {
     const log: string[] = [];
     const d = deferred<string>();
