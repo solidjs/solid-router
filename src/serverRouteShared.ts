@@ -1,6 +1,6 @@
 // The light half of server component routes: the brand the router core reads
 // off a route `component`, and the derivation of a route's call arguments.
-// Deliberately free of `query`/`dynamic` — routing.ts imports this module,
+// Deliberately free of `query`/`dynamicComponent` — routing.ts imports this module,
 // and routing.ts is in every app's eager graph. The heavy half (the helper
 // that builds the branded component) lives in serverRouteComponent.ts and only
 // enters a bundle when an app calls `serverRouteComponent()`.

@@ -8,7 +8,7 @@
 //   // before: a client component exists only to make the call
 //   const getStory = query(storyView, "story");
 //   component: props => {
-//     const View = dynamic(() => getStory(props.params.id));
+//     const View = dynamicComponent(() => getStory(props.params.id));
 //     return <View>{props.children}</View>;
 //   }
 //   // after
@@ -36,7 +36,7 @@
 // A server component that takes other client positions — handlers, refs,
 // named slots — has a client half, and that half is a client component; the
 // helper does not pretend otherwise. Write the wrapper for that route.
-import { dynamic } from "@solidjs/web";
+import { dynamicComponent } from "@solidjs/web";
 import type { JSX } from "@solidjs/web";
 import { createComponent, DEV } from "solid-js";
 import type { Component } from "solid-js";
@@ -93,8 +93,9 @@ export function serverRouteComponent<P extends Params | TypedRouteConfig = Param
 
   function render(args: () => ServerRouteArgs<Params, unknown>, routeProps: RouteSectionProps) {
     // The source may answer a component, a promise of one, or (a live query)
-    // successive components; `dynamic`'s memo lands each the same way.
-    const View = dynamic(() => call(args()) as Promise<Component<any>>);
+    // successive components; `dynamicComponent`'s memo lands each the same
+    // way. Never a tag, so the element runtime `dynamic` retains stays out.
+    const View = dynamicComponent(() => call(args()) as Promise<Component<any>>);
     return createComponent(View, {
       get children() {
         return routeProps.children;

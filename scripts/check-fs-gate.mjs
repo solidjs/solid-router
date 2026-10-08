@@ -17,6 +17,9 @@ const MARKERS = ["serverRouteComponent(): mount it"];
 // a liveQuery status literal: the adapter never imports liveQuery — a live
 // page's route file does — so neither build may carry it
 const LIVE_MARKER = '"reconnecting"';
+// the element runtime's MathML namespace: `dynamic` (which can render a tag)
+// retains it, `dynamicComponent` never does, so a server page must not carry it
+const ELEMENT_RUNTIME_MARKER = "http://www.w3.org/1998/Math/MathML";
 
 const root = mkdtempSync(join(tmpdir(), "router-fs-gate-"));
 writeFileSync(
@@ -63,6 +66,11 @@ try {
   console.log(`fs gate: serverRoutes=false ${kb(off)}, serverRoutes=true ${kb(on)}`);
   if (off.includes(LIVE_MARKER) || on.includes(LIVE_MARKER)) {
     throw new Error("fs gate: liveQuery reached a bundle with no live page");
+  }
+  if (on.includes(ELEMENT_RUNTIME_MARKER)) {
+    throw new Error(
+      "fs gate: a server page pulled in the element runtime (dynamic, not dynamicComponent)"
+    );
   }
   for (const marker of MARKERS) {
     if (off.includes(marker)) {

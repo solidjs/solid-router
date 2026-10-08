@@ -2,7 +2,7 @@
 // `component`, where `source` is the app's `query(fn, key)` (or `liveQuery`).
 // The router derives the call from the match (this level's params, the
 // declared search output), mounts the resolved server component through
-// `dynamic`, fills its `children` position with the outlet, and calls the
+// `dynamicComponent`, fills its `children` position with the outlet, and calls the
 // same source under preload intent. The key is the app's: `revalidate(key)`
 // reaches the route.
 //
