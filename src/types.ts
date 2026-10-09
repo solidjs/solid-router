@@ -29,6 +29,25 @@ declare module "@solidjs/web" {
   }
 }
 
+// Solid 2 type-checks `<a>` against `@solidjs/web/jsx-runtime` (`jsxImportSource`),
+// not `solid-js` and not the `@solidjs/web` entry. `link` stays on core.
+// Values match the other anchor props there: jsx-sync unwraps `FunctionMaybe`,
+// so these are `T | RemoveAttribute`. `preload` also accepts `"viewport"` and `"eager"`.
+declare module "@solidjs/web/jsx-runtime" {
+  namespace JSX {
+    interface AnchorHTMLAttributes<T> {
+      /** Serialized (JSON) history state pushed alongside the navigation. */
+      state?: string | JSX.RemoveAttribute;
+      /** Suppress scroll restoration/reset after the navigation. */
+      noscroll?: JSX.BooleanAttribute | JSX.RemoveAttribute;
+      /** Replace the current history entry instead of pushing a new one. */
+      replace?: JSX.BooleanAttribute | JSX.RemoveAttribute;
+      /** Route preload intent. `"false"` disables preload; `"viewport"` and `"eager"` select those strategies. */
+      preload?: boolean | "false" | "viewport" | "eager" | JSX.RemoveAttribute;
+    }
+  }
+}
+
 export type Params = Record<string, string | undefined>;
 export type SearchParams = Record<string, string | string[] | undefined>;
 
