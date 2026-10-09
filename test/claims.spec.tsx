@@ -103,6 +103,42 @@ describe("compiler-claimed anchors", () => {
     }
   });
 
+  test("a client-created anchor is not taken for server link state", async () => {
+    const div = mount();
+    let navigate!: Navigator;
+    (globalThis as any)._$HY = { r: { links: 1 } };
+    const Router = createRouter({ routes, history: memoryHistory("/about") });
+    const dispose = render(
+      () => (
+        <Router>
+          {props => {
+            navigate = useNavigate();
+            return (
+              <nav>
+                <a data-testid="marked" href="/about" aria-current="page" data-active>
+                  Marked
+                </a>
+                {props.children}
+              </nav>
+            );
+          }}
+        </Router>
+      ),
+      div
+    );
+    try {
+      navigate("/");
+      await settle();
+      expect(div.querySelector('[data-testid="marked"]')!.getAttribute("aria-current")).toBe(
+        "page"
+      );
+    } finally {
+      dispose();
+      div.remove();
+      delete (globalThis as any)._$HY;
+    }
+  });
+
   test("marks prefix matches active but not current", async () => {
     const div = mount();
 
