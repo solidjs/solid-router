@@ -1,5 +1,5 @@
-import { registerElementClaim } from "@solidjs/web";
-import { createRenderEffect, getOwner, onCleanup, untrack } from "solid-js";
+import { hasServerLinkState, registerElementClaim, setLinkClaim } from "@solidjs/web";
+import { createRenderEffect, getOwner, isHydrating, onCleanup, untrack } from "solid-js";
 import type { LinksPlugin, RouterContext } from "./types.js";
 import { isUnderBase, linkMatcher } from "./utils.js";
 
@@ -50,6 +50,7 @@ export function setupLinkClaims(
 ) {
   const basePath = router.base.path();
   const plugin = links && links(router, basePath);
+  const serverState = hasServerLinkState();
   // per-element record; `owned` is whether the `aria-current` on the element
   // is the router's, so it never writes over or removes an authored one
   const claimed = new WeakMap<Node, { owned: boolean }>();
@@ -66,25 +67,22 @@ export function setupLinkClaims(
     // claims fire at creation while the element is still in the template's
     // inert fragment, where the `href` property is not resolved — resolve the
     // raw attribute against the live document instead
-    const href = svg ? a.href.baseVal : a.getAttribute("href");
-    const target = svg ? a.target.baseVal : (a as HTMLAnchorElement).target;
-    if (target || !href) return;
-    const rel = (a.getAttribute("rel") || "").split(/\s+/);
-    if (a.hasAttribute("download") || rel.includes("external")) return;
-    let url;
-    try {
-      url = new URL(href, document.baseURI);
-    } catch {
-      return;
-    }
-    if (url.origin !== window.location.origin || !isUnderBase(url.pathname, basePath)) return;
-    return url;
+    return managedLinkUrl(
+      {
+        href: svg ? a.href.baseVal : a.getAttribute("href"),
+        target: svg ? a.target.baseVal : (a as HTMLAnchorElement).target,
+        rel: a.getAttribute("rel"),
+        download: a.hasAttribute("download"),
+        link: true
+      },
+      false,
+      document.baseURI,
+      window.location.origin,
+      basePath
+    );
   }
 
-  // every anchor matches against the same location, so its parse is shared
-  // until the location changes
-  let matched: string | undefined;
-  let match: ReturnType<typeof linkMatcher>;
+  const match = locationMatcher(router, basePath);
 
   function linkState(a: HTMLAnchorElement | SVGAElement) {
     // read reactive sources unconditionally so the owning effect stays
@@ -93,12 +91,7 @@ export function setupLinkClaims(
     const routing = plugin && plugin.track();
     const url = managedUrl(a);
     const target = url && url.pathname + url.search;
-    const key = location.pathname + location.search;
     // no per-anchor `end` opt-out like useLinkState has
-    if (key !== matched) {
-      matched = key;
-      match = linkMatcher(location, basePath);
-    }
     const { active, current } = match(target);
     const pending = !!routing && plugin!.pending(target);
     return { active, pending, current };
@@ -112,8 +105,8 @@ export function setupLinkClaims(
     active ? a.setAttribute("data-active", "") : a.removeAttribute("data-active");
     if (plugin) pending ? a.setAttribute("data-pending", "") : a.removeAttribute("data-pending");
     // Ownership is read against the element, not just the record. A
-    // server-component morph resets attributes to the server HTML, which
-    // never carries router link state, then re-claims: an owned value that
+    // server-component morph resets attributes to the frame's HTML, which
+    // carries no router link state, then re-claims: an owned value that
     // went missing is re-applied, while a value the morph restored from the
     // server HTML (or the author wrote since) is authored and left alone.
     const value = a.getAttribute("aria-current");
@@ -160,7 +153,15 @@ export function setupLinkClaims(
       // effect, so refresh without leaking subscriptions into it
       const existing = claimed.get(a);
       if (existing) return refresh(a, existing);
-      const rec = { owned: false };
+      // server HTML (hydrating, or already in the document) pairs the router's
+      // `aria-current` with `data-active` and never writes over an authored one
+      const rec = {
+        owned:
+          serverState &&
+          (isHydrating() || a.isConnected) &&
+          a.getAttribute("aria-current") === "page" &&
+          a.hasAttribute("data-active")
+      };
       claimed.set(a, rec);
       // claims fire during component setup, so an owner is present in
       // practice to bound the registry entry's lifetime; without one, state
@@ -172,4 +173,78 @@ export function setupLinkClaims(
       refresh(a, rec);
     })
   );
+}
+
+type LinkAttrs = {
+  href: string | null;
+  target: string;
+  rel: string | null;
+  download: boolean;
+  link: boolean;
+};
+
+/** A link's resolved URL when the router manages it, else `undefined`. */
+function managedLinkUrl(
+  a: LinkAttrs,
+  explicitLinks: boolean | undefined,
+  page: string | URL,
+  origin: string,
+  basePath: string
+): URL | undefined {
+  if ((explicitLinks && !a.link) || a.target || !a.href || a.download) return;
+  if (a.rel && a.rel.split(/\s+/).includes("external")) return;
+  let url;
+  try {
+    url = new URL(a.href, page);
+  } catch {
+    return;
+  }
+  if (url.origin !== origin || !isUnderBase(url.pathname, basePath)) return;
+  return url;
+}
+
+/** Matches targets against the router's location, sharing its parse until it changes. */
+function locationMatcher(router: RouterContext, basePath: string) {
+  let matched: string | undefined;
+  let match: ReturnType<typeof linkMatcher>;
+  return (target: string | undefined) => {
+    const location = router.location;
+    const key = location.pathname + location.search;
+    if (key !== matched) {
+      matched = key;
+      match = linkMatcher(location, basePath);
+    }
+    return match(target);
+  };
+}
+
+// a raw SSR attribute value as the DOM would read it back
+const attr = (v: unknown) => (v == null || v === false ? null : v === true ? "" : String(v));
+
+/** Server link handler: marks anchors by the client's rule, resolved against `page`. */
+export function setupServerLinkClaims(
+  router: RouterContext,
+  explicitLinks: boolean | undefined,
+  page: URL
+) {
+  const basePath = router.base.path();
+  const match = locationMatcher(router, basePath);
+  setLinkClaim(attrs => {
+    const url = managedLinkUrl(
+      {
+        href: attr(attrs.href),
+        target: attr(attrs.target) || "",
+        rel: attr(attrs.rel),
+        download: attr(attrs.download) !== null,
+        link: attr(attrs.link) !== null
+      },
+      explicitLinks,
+      page,
+      page.origin,
+      basePath
+    );
+    if (!url) return "";
+    const { active, current } = match(url.pathname + url.search);
+    return current ? ' data-active aria-current="page"' : active ? " data-active" : "";
+  });
 }
