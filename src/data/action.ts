@@ -79,6 +79,40 @@ export function action<T extends Array<any>, U = void>(
   options: string | { name?: string; onComplete?: (s: Submission<T, U>) => void } = {}
 ): Action<T, U> {
   function mutate(this: { r: RouterContext; f?: HTMLFormElement }, ...variables: T) {
+    if (typeof this !== 'object' || !Object.hasOwn(this, 'r')) {
+      throw new Error(`Seems like you are directly calling a function wrapped in "action". To properly use an action, you will need to first call "useAction". 
+
+So, if you have code like this:
+
+1    const myFunc = action(...);
+2  
+3 /  function MyComponent() {
+4 |    return <button 
+5 |      onClick={() => myFunc(...)}
+  |____________________^ This is where the error is going to happen
+6      >
+7        Click me!
+8      </button>
+9    }
+
+You will need to change it to something like:
+
+1    const myAction = action(...);
+2    
+3    function MyComponent() {
+4      const callMyAction = useAction(myAction);
+5    
+6      return <button 
+7        onClick={() => callMyAction(...)}
+8      >
+9        Click me!
+10     </button>
+11   }
+
+This is the case because the action will need to tune itself to the surrounding context for the Router so that it can
+keep track of all the submissions. See https://docs.solidjs.com/solid-router/concepts/actions#creating-actions for more information on how to use actions.
+`)
+    }
     const router = this.r;
     const form = this.f;
     const p = (
