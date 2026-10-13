@@ -768,6 +768,54 @@ describe("intentPreload", () => {
     expect(preloadRoute).toHaveBeenCalledTimes(1);
   });
 
+  test("a click after a hover rest preloads once (solidjs/solid-router#677)", async () => {
+    mount(intentPreload());
+    link.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+    await new Promise(r => setTimeout(r, 30));
+    link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    link.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+    await new Promise(r => setTimeout(r, 30));
+    expect(preloadRoute).toHaveBeenCalledTimes(1);
+  });
+
+  test("a click with no dwell preloads once: focus cancels the pending hover", async () => {
+    mount(intentPreload());
+    link.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+    link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    expect(preloadRoute).toHaveBeenCalledTimes(1);
+    await new Promise(r => setTimeout(r, 30));
+    expect(preloadRoute).toHaveBeenCalledTimes(1);
+  });
+
+  test("touch then focus on the same link preloads once", () => {
+    mount(intentPreload());
+    link.dispatchEvent(new TouchEvent("touchstart", { bubbles: true }));
+    link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    expect(preloadRoute).toHaveBeenCalledTimes(1);
+  });
+
+  test("focusing another link preloads it", () => {
+    mount(intentPreload());
+    const other = document.createElement("a");
+    other.href = "/other";
+    document.body.append(other);
+    link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    other.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    other.remove();
+    expect(preloadRoute).toHaveBeenCalledTimes(2);
+  });
+
+  test("refocusing a link after focus moved elsewhere preloads it again", () => {
+    mount(intentPreload());
+    const input = document.createElement("input");
+    document.body.append(input);
+    link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    input.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    input.remove();
+    expect(preloadRoute).toHaveBeenCalledTimes(2);
+  });
+
   test("a custom delay holds the hover preload", async () => {
     mount(intentPreload({ delay: 60 }));
     link.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));

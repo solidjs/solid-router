@@ -60,8 +60,9 @@ const ambientPreload =
 
 /**
  * Preload a link when the pointer rests on it for `delay` ms (default 20),
- * when it takes focus, and on touchstart. Moving over a link that already
- * preloaded does not preload it again until the pointer leaves. These
+ * when it takes focus, and on touchstart, once per link: a link that already
+ * preloaded (by any of these) does not preload again until the pointer or
+ * focus moves elsewhere, and a focus or touch cancels a pending hover preload. These
  * listeners do not check modifier keys or `defaultPrevented`; clicks still do.
  * Warms route code and, unless `data` is false (default true), runs the
  * matched routes' `preload` functions.
@@ -78,14 +79,20 @@ export const intentPreload =
     let lastElement: Node | undefined;
     setLinkPreloader(preloadRoute);
     const onIntent = (evt: Event) => {
+      const move = evt.type === "mousemove";
       // clear before resolving: a throw must not leave the rest timer armed
-      if (evt.type === "mousemove") clearTimeout(timeout);
+      if (move) clearTimeout(timeout);
       const res = ctx.anchor(evt);
       const link = res && res[0].getAttribute("preload") !== "false" ? res : undefined;
-      if (evt.type !== "mousemove") return link && ctx.preload(link[1], data);
       if (!link) return (lastElement = undefined);
       const [a, url] = link;
+      // one preload per link per visit, whichever intent comes first
       if (lastElement === a) return;
+      if (!move) {
+        clearTimeout(timeout);
+        lastElement = a;
+        return ctx.preload(url, data);
+      }
       timeout = setTimeout(() => {
         ctx.preload(url, data);
         lastElement = a;
