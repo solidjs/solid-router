@@ -121,6 +121,22 @@ export const useRouter = () =>
     "<A> and 'use' router primitives can be only used inside a Route."
   );
 
+/**
+ * Returns whether the component is rendered under a router. Unlike the other
+ * router primitives, it doesn't throw outside one. Like them, it reads from the
+ * reactive owner, so call it during component setup, not from an event handler.
+ *
+ * @example
+ * ```js
+ * const location = useInRouter() ? useLocation() : undefined;
+ * ```
+ */
+export const useInRouter = () => {
+  // no owner: throw like the other primitives rather than report "no router"
+  if (!getOwner()) useRouter();
+  return useOptionalContext(RouterContextObj) !== undefined;
+};
+
 let TempRoute: RouteContext | undefined;
 export const useRoute = () => TempRoute || useOptionalContext(RouteContextObj) || useRouter().base;
 

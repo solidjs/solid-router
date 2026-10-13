@@ -7,6 +7,7 @@ import {
   intentPreload,
   memoryHistory,
   useBeforeLeave,
+  useInRouter,
   useLinkState,
   useMatch,
   useRouteMatches,
@@ -262,6 +263,58 @@ describe("createRouter factory", () => {
         dispose();
         div.remove();
         warn.mockRestore();
+      }
+    });
+
+    test("useInRouter tells components under a router from ones outside it", () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+
+      let inside: boolean | undefined;
+      let inRoot: boolean | undefined;
+      let outside: boolean | undefined;
+      const Router = createRouter({
+        routes: [
+          {
+            path: "/",
+            component: () => {
+              inside = useInRouter();
+              return <span />;
+            }
+          }
+        ],
+        history: memoryHistory()
+      });
+      // a sibling of the router, like an error fallback above it
+      const Outside = () => {
+        outside = useInRouter();
+        return <span />;
+      };
+
+      const dispose = render(
+        () => (
+          <>
+            <Outside />
+            <Router>
+              {props => {
+                // under the router but outside any route
+                inRoot = useInRouter();
+                return <>{props.children}</>;
+              }}
+            </Router>
+          </>
+        ),
+        div
+      );
+      try {
+        expect(outside).toBe(false);
+        expect(inRoot).toBe(true);
+        expect(inside).toBe(true);
+        // no owner here, so it throws like the other primitives
+        expect(() => useInRouter()).toThrow();
+      } finally {
+        dispose();
+        div.remove();
       }
     });
 

@@ -894,6 +894,14 @@ const location = useLocation();
 const pathname = createMemo(() => parsePath(location.pathname));
 ```
 
+### useInRouter
+
+Returns `true` under a router and `false` elsewhere. The other primitives throw outside a router, so a component that also renders outside it (an error fallback above the router, for example) can check first. Like them, it reads from the reactive owner, so call it during component setup, not from an event handler:
+
+```tsx
+const location = useInRouter() ? useLocation() : undefined;
+```
+
 ### useSearchParams
 
 See [Typed Search Params](#typed-search-params). Reads are proxied — access properties to subscribe.
