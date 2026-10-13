@@ -1,5 +1,21 @@
 # @solidjs/router
 
+## 2.0.0-next.39
+
+### Patch Changes
+
+- f3b5f56: Put `state`, `noscroll`, `replace`, and `preload` back on `JSX.AnchorHTMLAttributes` by augmenting `@solidjs/web/jsx-runtime`. `preload` also accepts `"viewport"` and `"eager"`. `link` stays owned by core. Pairs with the core change that removes those four props from the anchor type.
+- 4a85130: `intentPreload` preloads a link once per visit whichever intent comes first: a focus or touch on a link that already preloaded no longer preloads it again, and cancels a pending hover preload. A click after a hover, or a click with no dwell, now sends one preload instead of two.
+- ea24119: Follow client-side query redirects by status and origin. Keep local paths such as `/next` and server-function redirects relative to the router base. Other same-origin URLs use the history parser without adding the base again; targets outside the base, or URLs the integration cannot represent, navigate the document. A `Location` header on a non-redirect response stays data on the client, and the server-function carrier takes precedence. Server rendering is unchanged.
+- 5729e79: Require solid-js / @solidjs/web 2.0.0-rc.15. Link and form claims follow rc.15's claim contract: an element's compiled mount claim fires once, after its initial attributes are applied, and later claims come from compiler-owned `href`/`action` writes or from `claimElementTree` sweeps (frame streams, morphs). The router's claim handlers are unchanged.
+- af98854: Server-rendered anchors carry link state (#654). The router sets the render's
+  link handler (`setLinkClaim` from `@solidjs/web`), so plain anchors arrive with
+  `data-active` and `aria-current="page"` in the server HTML instead of gaining
+  them only after hydration, and pages that never hydrate mark the current page
+  too. When the client claims an anchor from that HTML, it treats a
+  server-written `aria-current` as its own and removes it on navigation. The peer
+  floor for `@solidjs/web` and `solid-js` is raised to `^2.0.0-rc.15`.
+
 ## 2.0.0-next.38
 
 ### Patch Changes
