@@ -4,7 +4,7 @@
  * wrapper component. These specs compile real JSX, so they exercise the full
  * chain — compiler claim emission → runtime claim hook → router consumer.
  */
-import { claimElement, render } from "@solidjs/web";
+import { claimElementTree, render } from "@solidjs/web";
 import {
   createRoot,
   createSignal,
@@ -351,7 +351,7 @@ describe("compiler-claimed anchors", () => {
 
       about.removeAttribute("aria-current");
       about.removeAttribute("data-active");
-      claimElement(about);
+      claimElementTree(about);
 
       expect(about.getAttribute("aria-current")).toBe("page");
       expect(about.hasAttribute("data-active")).toBe(true);
@@ -725,7 +725,7 @@ describe("compiler-claimed anchors", () => {
       // state stripped) and re-claims
       step.setAttribute("aria-current", "step");
       step.removeAttribute("data-active");
-      claimElement(step);
+      claimElementTree(step);
       expect(step.getAttribute("aria-current")).toBe("step");
       expect(step.hasAttribute("data-active")).toBe(true);
 
@@ -807,7 +807,7 @@ describe("compiler-claimed anchors", () => {
     const morph = (a: Element) => {
       a.removeAttribute("aria-current");
       a.removeAttribute("data-active");
-      claimElement(a);
+      claimElementTree(a);
     };
     try {
       const about = div.querySelector('[data-testid="about"]')!;
