@@ -160,8 +160,8 @@ export function createMatcher<S extends string>(
       const locSegment = dynamic ? locSegments[i] : locSegments[i].toLowerCase();
       const key = dynamic ? segment.slice(1) : segment.toLowerCase();
 
-      const value = dynamic ? decodeParam(locSegment) : locSegment;
-      if (dynamic && matchSegment(value, filters?.[key])) {
+      let value: string;
+      if (dynamic && matchSegment((value = decodeParam(locSegment)), filters?.[key])) {
         match.params[key] = value;
       } else if (dynamic || !matchSegment(locSegment, key)) {
         return null;
