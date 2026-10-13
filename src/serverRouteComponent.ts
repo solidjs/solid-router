@@ -36,9 +36,10 @@
 // A server component that takes other client positions — handlers, refs,
 // named slots — has a client half, and that half is a client component; the
 // helper does not pretend otherwise. Write the wrapper for that route.
-import { dynamicComponent } from "@solidjs/web";
+import { dynamicComponent, getServerFunctionMetadata, isServer } from "@solidjs/web";
 import type { JSX } from "@solidjs/web";
-import { createComponent, DEV } from "solid-js";
+import { createComponent, DEV, untrack } from "solid-js";
+import { getIntent } from "./routing.js";
 import type { Component } from "solid-js";
 import { SERVER_ROUTE, type BrandedRouteComponent } from "./serverRouteShared.js";
 import type {
@@ -72,7 +73,7 @@ export function serverRouteComponent<P extends Params | TypedRouteConfig = Param
   // once `query()` has typed it; that is the same call, so accept it too.
   source: ServerRouteFunction<P, S> | ((...args: never[]) => ReturnType<ServerRouteFunction<P, S>>)
 ): Component<RouteSectionProps<unknown, ServerRouteParams<P>>> {
-  const call = source as ServerRouteFunction<any, any>;
+  const call = handOffPreloads(source as ServerRouteFunction<any, any>);
 
   // The value is a component only so it fits the `component` field; the
   // router core never calls it — it mounts through the brand, with THIS
@@ -105,4 +106,39 @@ export function serverRouteComponent<P extends Params | TypedRouteConfig = Param
 
   route[SERVER_ROUTE] = { call, render };
   return route as Component<RouteSectionProps<unknown, ServerRouteParams<P>>>;
+}
+
+// How long a preload's call stays claimable by the render it warmed — the
+// same window `query()` gives a preloaded entry.
+const PRELOAD_TIMEOUT = 5000;
+
+// A bare `GET(fn)` source has no cache of its own, so a link preload and the
+// render it warms would each send the request (#677). Hand the preload's
+// call to the next render with the same args, once: the render mounts the
+// result the preload already started, and a later render calls fresh, as a
+// bare GET always does. Concurrent preloads of the same args share one call.
+// `query()`/`liveQuery()` sources and plain functions keep their own path.
+function handOffPreloads(source: ServerRouteFunction<any, any>): ServerRouteFunction<any, any> {
+  if (isServer || getServerFunctionMetadata(source)?.method !== "GET") return source;
+  const preloads = new Map<string, [time: number, result: ReturnType<typeof source>]>();
+  return args => {
+    const now = Date.now();
+    for (const [k, [time]] of preloads) now - time >= PRELOAD_TIMEOUT && preloads.delete(k);
+    const key = JSON.stringify(args);
+    const entry = preloads.get(key);
+    if (untrack(getIntent) === "preload") {
+      if (entry) return entry[1];
+      const result = source(args);
+      preloads.set(key, [now, result]);
+      // A failed preload is not handed on: the render retries.
+      const drop = () => preloads.get(key)?.[1] === result && preloads.delete(key);
+      result && typeof (result as any).then === "function" && (result as any).then(undefined, drop);
+      return result;
+    }
+    if (entry) {
+      preloads.delete(key);
+      return entry[1];
+    }
+    return source(args);
+  };
 }
