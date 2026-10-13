@@ -19,8 +19,11 @@ describe.each(["returned", "thrown"] as const)(
       "%s preserves document headers, cookies and query metadata",
       async kind => {
         const value = { message: "query result" };
-        const result = kind === "respond" ? respond(value) : new Response("query body");
-        const response = result instanceof Response ? result : result.response!;
+        // respond() is typed as its value; at runtime it is a Response envelope
+        const result = (
+          kind === "respond" ? respond(value) : new Response("query body")
+        ) as Response;
+        const response = result;
         response.headers.set("Content-Type", "application/json");
         response.headers.set("Content-Length", "42");
         response.headers.set("Content-Encoding", "br");
