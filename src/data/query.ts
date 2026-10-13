@@ -36,8 +36,10 @@ import {
 import { decodeRedirectHeaderValue, REDIRECT_HEADER } from "@solidjs/web/server-functions";
 import { useRouter, getIntent, getInPreloadFn } from "../routing.js";
 import type { CacheEntry, NarrowResponse } from "../types.js";
+import { isUnderBase } from "../utils.js";
 
 const LocationHeader = "Location";
+const REDIRECT_STATUSES = /* #__PURE__ */ new Set([301, 302, 303, 307, 308]);
 const PRELOAD_TIMEOUT = 5000;
 const CACHE_TIMEOUT = 180000;
 const responseBodyHeaders = /* #__PURE__ */ new Set([
@@ -350,26 +352,13 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
           }
 
           let url = v.headers.get(LocationHeader);
+          let carried: ReturnType<typeof decodeRedirectHeaderValue>;
 
-          // A `"use server"` redirect reaches a client-side read masked: the
-          // transport answers scripted callers with a 200, drops `Location`
-          // and carries "<status> <absolute-url>" in REDIRECT_HEADER instead.
-          // Decode it with the runtime's own reader, as action() does. The
-          // carrier arrives RESOLVED to an absolute url, so same-origin vs
-          // cross-origin is a real origin comparison: same-origin folds to
-          // a path the soft branch below navigates under the router, any
-          // other origin keeps its href and the document goes with it. This
-          // stays synchronous on purpose — navigate runs in the same tick as
-          // the `Location` branch would, so the transition semantics match.
-          if (url === null && !isServer && v.headers.has(REDIRECT_HEADER)) {
-            const carried = decodeRedirectHeaderValue(v.headers.get(REDIRECT_HEADER));
-            if (carried) {
-              const target = new URL(carried.url);
-              url =
-                target.origin === window.location.origin
-                  ? target.pathname + target.search + target.hash
-                  : target.href;
-            }
+          // The transport masks redirects to 200 and carries their target in a
+          // header. A local Location only redirects on an actual redirect status.
+          if (!isServer) {
+            carried = decodeRedirectHeaderValue(v.headers.get(REDIRECT_HEADER));
+            url = carried?.url ?? (REDIRECT_STATUSES.has(v.status) ? url : null);
           }
 
           if (url !== null) {
@@ -382,10 +371,31 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
             const keys = declared !== null ? readRevalidateKeys(declared) : undefined;
             declared !== null && cacheKeyOp(keys, entry => (entry[0] = 0));
 
-            // client + server relative redirect
-            const soft = navigate && url.startsWith("/");
-            if (soft) navigate!(url, { replace: true });
-            else if (!isServer) window.location.href = url;
+            if (!isServer) {
+              const target = new URL(url, window.location.href);
+              if (navigate && target.origin === window.location.origin) {
+                // Carried redirects and local leading slashes keep their
+                // router-base meaning. Other URLs need the integration's parser
+                // (e.g. hash history) without applying the base again.
+                const relativeToBase = !!carried || (url[0] === "/" && url[1] !== "/");
+                const resolved = target.pathname + target.search + target.hash;
+                const path = carried
+                  ? resolved
+                  : relativeToBase
+                    ? url
+                    : router!.parsePath(resolved);
+                const rendered = new URL(router!.renderPath(path), window.location.href);
+                // Resolved URLs must stay within the router base and round-trip
+                // to the same document URL, including with hash history.
+                if (
+                  relativeToBase ||
+                  (isUnderBase(path.split(/[?#]/, 1)[0], router!.base.path()) &&
+                    rendered.href === target.href)
+                ) {
+                  navigate(path, { replace: true, resolve: relativeToBase });
+                } else window.location.href = target.href;
+              } else window.location.href = target.href;
+            } else if (navigate && url.startsWith("/")) navigate(url, { replace: true });
             else if (e) e.response.status = 302;
 
             // sweep the live signals inside the same transition as the
