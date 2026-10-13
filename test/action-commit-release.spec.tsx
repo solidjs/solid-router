@@ -11,7 +11,7 @@
  */
 import { action, createMemo, createRoot, createSignal, For, Loading, Show } from "solid-js";
 import { vi } from "vitest";
-import { claimElement, redirect, render } from "@solidjs/web";
+import { claimElementTree, redirect, render } from "@solidjs/web";
 import {
   action as routerAction,
   createRouter,
@@ -199,14 +199,14 @@ describe("#649 router actions release at the transition's commit", () => {
     // a server-component morph resets attributes to the server HTML (which
     // never carries aria-busy), then re-claims the element
     t.form().removeAttribute("aria-busy");
-    claimElement(t.form());
+    claimElementTree(t.form());
     expect(t.busy()).toBe("true");
 
     t.mutation().resolve("ok");
     await until(() => t.log.length > 0);
     expect(t.busy()).toBeNull();
 
-    claimElement(t.form());
+    claimElementTree(t.form());
     expect(t.busy()).toBeNull();
     t.dispose();
   });
@@ -315,7 +315,7 @@ describe("#649 router actions release at the transition's commit", () => {
     t.form().requestSubmit();
     await t.mutationStarted();
     expect(t.busy()).toBe("false");
-    claimElement(t.form());
+    claimElementTree(t.form());
     expect(t.busy()).toBe("false");
 
     t.mutation().resolve("ok");
@@ -419,7 +419,7 @@ describe("#649 router actions release at the transition's commit", () => {
     expect(t.busy()).toBe("true");
 
     t.form().setAttribute("aria-busy", "false");
-    claimElement(t.form());
+    claimElementTree(t.form());
     expect(t.busy()).toBe("false");
 
     t.mutation().resolve("ok");

@@ -8,8 +8,9 @@ describe.each(["returned", "thrown"] as const)("%s query response cookies", outc
     "%s appends cookies once across concurrent and cached reads",
     async kind => {
       const value = { message: "query result" };
-      const result = kind === "respond" ? respond(value) : new Response("query body");
-      const response = result instanceof Response ? result : result.response!;
+      // respond() is typed as its value; at runtime it is a Response envelope
+      const result = (kind === "respond" ? respond(value) : new Response("query body")) as Response;
+      const response = result;
       response.headers.set("Cache-Control", "private, no-store");
       response.headers.set("X-Query", "metadata");
       const cookies = [

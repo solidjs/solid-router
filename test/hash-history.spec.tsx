@@ -92,7 +92,7 @@ describe("hashHistory navigation (#582)", () => {
     // header carries (display today, logical once @solidjs/web unwraps the
     // brand) must route — this is the client leg of an action redirect
     expect(isHref(paths.page1)).toBe(true);
-    const res = redirect(paths.page1);
+    const res = redirect<Response>(paths.page1);
     const target = res.headers.get("Location")!;
     nav(target, { scroll: false });
     await settle();

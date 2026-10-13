@@ -17,7 +17,7 @@ import { DEV, OBSERVE } from "solid-js";
 import type { NavigationRef } from "solid-js";
 import { getRequestEvent, isServer } from "@solidjs/web";
 import type { JSX } from "@solidjs/web";
-import { setupLinkClaims } from "../claims.js";
+import { setupLinkClaims, setupServerLinkClaims } from "../claims.js";
 import { setupNativeEvents } from "../data/events.js";
 import { createPathsProxy, HREF } from "../paths.js";
 import type { RoutePaths } from "../paths.js";
@@ -437,22 +437,21 @@ function createIntegration(
 }
 
 /**
- * Server default: a static view of the request URL — no signal machinery, a
- * server render never navigates. The request event (when the harness scopes
+ * The URL a server render is for. The request event (when the harness scopes
  * one) wins; the provider's `url` prop is the fallback for renders outside a
  * request scope (SSG scripts, server-side tests, runtimes without
  * `node:async_hooks`). History adapters are a client navigation concern and
  * play no part in locating a server render.
  */
-function staticIntegration(url?: string, utils?: RouterHistory["utils"]): RouterIntegration {
+function serverPage(url?: string): URL | undefined {
   const e = getRequestEvent();
   const source = e ? e.request.url : url;
-  let value = "";
-  if (source) {
-    const u = new URL(source, mockBase);
-    value = u.pathname + u.search;
-  }
-  const obj: LocationChange = { value };
+  return source ? new URL(source, mockBase) : undefined;
+}
+
+/** Server default: a static view of the page URL — a server render never navigates. */
+function staticIntegration(page?: URL, utils?: RouterHistory["utils"]): RouterIntegration {
+  const obj: LocationChange = { value: page ? page.pathname + page.search : "" };
   return {
     signal: [
       () => obj,
@@ -516,8 +515,9 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
       restoration = createScrollRestoration(isHydrating());
       history = withScrollRestoration(history || browserHistory(), restoration);
     }
+    const page = isServer ? serverPage(props.url) : undefined;
     const integration = isServer
-      ? staticIntegration(props.url, config.history && config.history.utils)
+      ? staticIntegration(page, config.history && config.history.utils)
       : createIntegration(history || browserHistory(), matchPath);
     let context: Owner;
     const buildContext = () =>
@@ -543,6 +543,9 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
       setupLinkClaims(routerState, config.explicitLinks, config.links);
       if (routerState.singleFlight) onCleanup(registerFlightRouter(routerState));
       restoration && restoration.create();
+    } else if (!renderPath) {
+      // hash routing renders `#/path` hrefs, which all resolve to the server's one path
+      setupServerLinkClaims(routerState, config.explicitLinks, page || new URL(mockBase));
     }
     // Registered on both sides, outside the client-only branch: an owned
     // onSettled takes a hydration id on the server too, so the ids line up.
