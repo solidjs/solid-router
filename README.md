@@ -668,7 +668,7 @@ getUser.keyFor(5); // "users[5]"
 
 Revalidate with the `revalidate` export or by setting `revalidate` keys on action responses — the whole key invalidates every entry for the query, `keyFor` invalidates one.
 
-A query may also redirect — a guard read that throws or returns `redirect()` (from `@solidjs/web`) navigates instead of resolving: same-origin targets navigate softly with `replace`, other origins leave the document, any `revalidate` keys on the response invalidate first, and the read itself stays pending so nothing renders the redirect as data. This holds for `"use server"` queries too, where the transport carries the redirect to the client rather than letting `fetch` follow it.
+A query may also redirect: a guard read that throws or returns `redirect()` (from `@solidjs/web`) navigates instead of resolving. Local paths starting with a single `/` and same-origin server-function redirects stay relative to the router's `base`. Other targets navigate softly with `replace` only within the same origin and base, when the history integration can represent their URL; otherwise they navigate the document. On the client, a `Location` header only navigates for redirect statuses (301, 302, 303, 307, 308). For example, returning `respond({ id: 1 }, { status: 201, headers: { Location: "/items/1" } })` delivers `{ id: 1 }` without navigating. Any `revalidate` keys on a redirect response invalidate first, and the client read stays pending so nothing renders the redirect as data. This holds for `"use server"` queries too, where the transport carries the redirect to the client rather than letting `fetch` follow it. The carrier takes precedence over `Location`.
 
 ### `liveQuery` (experimental)
 
