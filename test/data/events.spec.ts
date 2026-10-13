@@ -1,4 +1,4 @@
-import { claimElement } from "@solidjs/web";
+import { claimElement, setAttribute } from "@solidjs/web";
 import { createRoot, createSignal } from "solid-js";
 import { vi } from "vitest";
 import { setRouterFormHandler, setupNativeEvents } from "../../src/data/events.js";
@@ -959,10 +959,10 @@ describe("tap and ambient preload strategies", () => {
       const a = link({ href: "/a", preload: "viewport" });
       observer().intersect(a);
       vi.runAllTimers();
-      a.setAttribute("href", "/b");
-      // the re-claim runs under the effect writing `href`, which outlives
-      // neither the anchor nor its arming
-      createRoot(d => (claimElement(a), d))();
+      // a compiler-owned `href` write re-claims the claimed anchor; it runs
+      // under the effect writing `href`, which outlives neither the anchor
+      // nor its arming
+      createRoot(d => (setAttribute(a, "href", "/b"), d))();
       observer().intersect(a);
       vi.runAllTimers();
       expect(preloaded()).toEqual(["/a:false", "/b:false"]);
