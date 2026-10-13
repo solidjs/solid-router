@@ -122,6 +122,14 @@ describe("createRouter factory", () => {
       expect(matches[0].path).toBe("*404");
     });
 
+    test("decodes params, so paths round-trips (#670)", () => {
+      const Users = createRouter({ routes: [{ path: "/users/:id" }] as const });
+      const url = String(Users.paths.users("猫 a%"));
+      expect(url).toBe("/users/%E7%8C%AB%20a%25");
+      expect(Users.match(url)[0].params).toEqual({ id: "猫 a%" });
+      expect(Users.match(url)[0].match).toBe(url);
+    });
+
     test("returns an empty array when nothing matches", () => {
       const Bare = createRouter({ routes: [{ path: "/only" }] as const });
       expect(Bare.match("/other")).toEqual([]);

@@ -192,6 +192,8 @@ const routes = defineRoutes([
 
 As long as the URL fits the pattern, the `User` component shows, and `id` is available via `useParams`.
 
+Params are decoded: on `/users/%E7%8C%AB` (`/users/猫`), `id` is `"猫"`, and `matchFilters` see the decoded value too. Each segment is decoded after matching, so an encoded slash stays inside its param (`/users/a%2Fb` gives `id: "a/b"`), and a malformed escape is left as-is. `paths` encodes params on the way out, so `paths.users("猫")` round-trips. When building a URL from a param by hand, encode it (`encodeURIComponent`) or use `paths`. `location.pathname` keeps the URL's own encoding.
+
 **Note on Animation/Transitions**: routes that share the same path match are treated as the same route. To force a re-render, wrap your component in a keyed `<Show>`:
 
 ```tsx

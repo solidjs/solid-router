@@ -160,8 +160,9 @@ export function createMatcher<S extends string>(
       const locSegment = dynamic ? locSegments[i] : locSegments[i].toLowerCase();
       const key = dynamic ? segment.slice(1) : segment.toLowerCase();
 
-      if (dynamic && matchSegment(locSegment, filters?.[key])) {
-        match.params[key] = locSegment;
+      const value = dynamic ? decodeParam(locSegment) : locSegment;
+      if (dynamic && matchSegment(value, filters?.[key])) {
+        match.params[key] = value;
       } else if (dynamic || !matchSegment(locSegment, key)) {
         return null;
       }
@@ -169,7 +170,7 @@ export function createMatcher<S extends string>(
     }
 
     if (splat) {
-      const remainder = lenDiff ? locSegments.slice(-lenDiff).join("/") : "";
+      const remainder = lenDiff ? locSegments.slice(-lenDiff).map(decodeParam).join("/") : "";
       if (matchSegment(remainder, filters?.[splat])) {
         match.params[splat] = remainder;
       } else {
@@ -180,6 +181,16 @@ export function createMatcher<S extends string>(
     return match;
   };
 }
+
+// Params are decoded per segment after matching, so an encoded `%2F` can't
+// split a segment (#220) and `paths` round-trips. A malformed escape stays raw.
+const decodeParam = (segment: string) => {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+};
 
 // a string filter is the segment itself; anything else not listed never matches
 const matchSegment = (input: string, filter?: string | MatchFilter): boolean =>

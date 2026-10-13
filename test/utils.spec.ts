@@ -358,6 +358,40 @@ describe("createMatcher should", () => {
     const failure = matcher("tree/left/up/right/12");
     expect(failure).toBe(null);
   });
+  describe("decode params (#670)", () => {
+    test("per segment after matching", () => {
+      const matcher = createMatcher("/item/:id");
+      expect(matcher("/item/%E7%8C%AB")!.params).toEqual({ id: "猫" });
+      expect(matcher("/item/a%20b")!.params).toEqual({ id: "a b" });
+      expect(matcher("/item/%25")!.params).toEqual({ id: "%" });
+    });
+
+    test("once, so an escaped escape survives", () => {
+      expect(createMatcher("/item/:id")("/item/%252F")!.params).toEqual({ id: "%2F" });
+    });
+
+    test("without letting an encoded slash split the segment", () => {
+      const matcher = createMatcher("/:name/view");
+      const match = matcher("/hello%2Fworld/view")!;
+      expect(match.params).toEqual({ name: "hello/world" });
+      expect(match.path).toBe("/hello%2Fworld/view");
+    });
+
+    test("leaving a malformed escape raw", () => {
+      expect(createMatcher("/item/:id")("/item/%E0%A4%A")!.params).toEqual({ id: "%E0%A4%A" });
+    });
+
+    test("before matchFilters see them", () => {
+      const matcher = createMatcher("/kanji/:k", false, { k: ["猫"] });
+      expect(matcher("/kanji/%E7%8C%AB")!.params).toEqual({ k: "猫" });
+      expect(matcher("/kanji/%E7%8A%AC")).toBe(null);
+    });
+
+    test("in a splat", () => {
+      const matcher = createMatcher("/files/*rest");
+      expect(matcher("/files/a%2Fb/c%20d/%E7%8C%AB")!.params).toEqual({ rest: "a/b/c d/猫" });
+    });
+  });
 });
 
 describe("joinPaths should", () => {
