@@ -30,10 +30,13 @@ const SERVER_FUNCTION_METADATA = Symbol.for("solid.ServerFunctionMetadata");
 
 let nextId = 0;
 /** Brand `fn` as a server function reference (what compiled `"use server"` output produces). */
-function serverFunction<F extends (...args: any[]) => any>(fn: F): F & { id: string } {
+function serverFunction<F extends (...args: any[]) => any>(
+  fn: F,
+  meta: Record<string, unknown> = {}
+): F & { id: string } {
   const branded = fn as F & { id: string };
   branded.id = "srv#" + nextId++;
-  (branded as any)[SERVER_FUNCTION_METADATA] = {};
+  (branded as any)[SERVER_FUNCTION_METADATA] = meta;
   return branded;
 }
 
@@ -288,6 +291,109 @@ describe("server component routes", () => {
     // the navigation read the preloaded entry
     expect(fn).toHaveBeenCalledTimes(1);
     cleanup();
+  });
+
+  describe("a bare GET source", () => {
+    function setup(fn: (args: ServerRouteArgs<{ id: string }>) => unknown) {
+      let navigate!: Navigator;
+      let preload!: ReturnType<typeof usePreloadRoute>;
+      const Router = createRouter({
+        routes: [
+          defineRoute({
+            path: "/stories/:id",
+            component: serverRouteComponent(serverFunction(fn, { method: "GET" }) as any)
+          }),
+          defineRoute({
+            path: "/",
+            component: () => {
+              navigate = useNavigate();
+              preload = usePreloadRoute();
+              return <p>home</p>;
+            }
+          })
+        ],
+        history: memoryHistory("/")
+      });
+      const mounted = mount(() => (
+        <Router>{props => <Loading fallback="loading">{props.children}</Loading>}</Router>
+      ));
+      return {
+        ...mounted,
+        navigate: (to: string) => navigate(to),
+        preload: (to: string) => preload(to, { preloadData: true })
+      };
+    }
+
+    test("the render mounts the preload's call instead of sending its own (#677)", async () => {
+      const fn = vi.fn(async ({ params }: ServerRouteArgs<{ id: string }>) => {
+        await new Promise(r => setTimeout(r, 10));
+        return () => <article data-story={params.id} />;
+      });
+      const app = setup(fn);
+      await settle();
+      app.preload("/stories/5");
+      app.preload("/stories/5");
+      expect(fn).toHaveBeenCalledTimes(1);
+
+      app.navigate("/stories/5");
+      await settle(30);
+      expect(app.div.querySelector("[data-story]")!.getAttribute("data-story")).toBe("5");
+      expect(fn).toHaveBeenCalledTimes(1);
+      app.cleanup();
+    });
+
+    test("a preload is handed on once: a later visit calls fresh", async () => {
+      const fn = vi.fn(async ({ params }: ServerRouteArgs<{ id: string }>) => {
+        return () => <article data-story={params.id} />;
+      });
+      const app = setup(fn);
+      await settle();
+      app.preload("/stories/5");
+      app.navigate("/stories/5");
+      await settle(20);
+      expect(fn).toHaveBeenCalledTimes(1);
+
+      app.navigate("/");
+      await settle(20);
+      app.navigate("/stories/5");
+      await settle(20);
+      expect(fn).toHaveBeenCalledTimes(2);
+      expect(app.div.querySelector("[data-story]")!.getAttribute("data-story")).toBe("5");
+      app.cleanup();
+    });
+
+    test("a failed preload is not handed on: the render retries", async () => {
+      let fail = true;
+      const fn = vi.fn(async ({ params }: ServerRouteArgs<{ id: string }>) => {
+        if (fail) throw new Error("upstream down");
+        return () => <article data-story={params.id} />;
+      });
+      const app = setup(fn);
+      await settle();
+      app.preload("/stories/5");
+      await settle();
+      fail = false;
+      app.navigate("/stories/5");
+      await settle(20);
+      expect(fn).toHaveBeenCalledTimes(2);
+      expect(app.div.querySelector("[data-story]")!.getAttribute("data-story")).toBe("5");
+      app.cleanup();
+    });
+
+    test("a preload for other args is not handed to this render", async () => {
+      const fn = vi.fn(async ({ params }: ServerRouteArgs<{ id: string }>) => {
+        return () => <article data-story={params.id} />;
+      });
+      const app = setup(fn);
+      await settle();
+      app.preload("/stories/4");
+      app.navigate("/stories/5");
+      await settle(20);
+      expect(fn).toHaveBeenCalledTimes(2);
+      expect(fn.mock.calls[1][0]).toEqual({ params: { id: "5" } });
+      expect(app.div.querySelector("[data-story]")!.getAttribute("data-story")).toBe("5");
+      app.cleanup();
+    });
   });
 
   test("the key is the app's: `revalidate(key)` refetches the route", async () => {
