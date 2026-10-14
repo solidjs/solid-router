@@ -1,5 +1,17 @@
 # @solidjs/router
 
+## 2.0.0-next.40
+
+### Patch Changes
+
+- 9cf2230: Route params are decoded (#670). `useParams()`, `props.params` and `Router.match()` return each dynamic segment decoded after matching, so `/item/%E7%8C%AB` gives `id: "猫"` and `paths.item("猫")` round-trips. `matchFilters` see the decoded value, so `{ k: ["猫"] }` now matches. An encoded slash stays inside its param (`/a%2Fb/view` gives `name: "a/b"` for `/:name/view`), splat params are decoded segment by segment, and a malformed escape is left raw. `match.path` and `location.pathname` keep the URL's encoding.
+
+  Breaking: code that already calls `decodeURIComponent` on params decodes twice; drop the extra decode. Encode a param (or use `paths`) when interpolating it into a URL by hand.
+
+- 3832cd5: Link claims trust the server's link state at hydration: an anchor the server marked is registered without resolving its URL, and is resolved on the first routing change. Anchors with an authored `aria-current`, and pages rendered without server link state, are resolved at claim as before.
+- 5943f7f: `serverRouteComponent` with a bare `GET(fn)` source sends one request per link visit instead of two (#677). The router hands a preload's call to the next render with the same args, so the route mounts the result the hover or focus preload already started. The hand-off happens once, within the same 5 s window `query()` gives a preload. A later visit calls fresh, a failed preload makes the render retry, and concurrent preloads of the same args share one call. `query()` and `liveQuery()` sources are unchanged.
+- 828b232: Add `useInRouter`, which returns whether the calling component is rendered under a router. The other router primitives throw outside one, so components that also render there (an error fallback above the router, a shared link component) can check first instead of wrapping `useLocation()` in a `try`/`catch`. Like the other primitives, it throws when called with no reactive owner, such as from an event handler.
+
 ## 2.0.0-next.39
 
 ### Patch Changes
