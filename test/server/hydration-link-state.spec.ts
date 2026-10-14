@@ -142,7 +142,20 @@ describe("link state across hydration", () => {
     for (const [text, value] of Object.entries(expected))
       expect([text, state(anchor(document, text))]).toEqual([text, value]);
 
+    // anchors resolve against the document; record which ones hydration parses
+    const resolved: string[] = [];
+    const NativeURL = window.URL;
+    window.URL = new Proxy(NativeURL, {
+      construct(target, args) {
+        if (args[1] === document.baseURI) resolved.push(args[0]);
+        return new target(...args);
+      }
+    });
     window.eval(code);
+    window.URL = NativeURL;
+    // the server's state is trusted: only the anchor it skipped for an
+    // authored aria-current is resolved at hydration
+    expect(resolved).toEqual(["/about"]);
     const app = window.hydrationTest;
     // the boundary's anchor streams in after hydration starts
     stream.release();
