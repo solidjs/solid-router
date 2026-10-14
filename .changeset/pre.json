@@ -20,6 +20,7 @@
     "compose-location-writes-a28",
     "coordination-off-ispending",
     "declare-initial-route",
+    "decode-route-params",
     "decouple-data-layer",
     "default-scroll-restoration",
     "define-route-typed-params",
@@ -43,6 +44,7 @@
     "fs-server-pages",
     "golf-client-entries-next31",
     "hash-history-typed-paths",
+    "hydration-trusts-server-link-state",
     "intent-preload-once-per-link",
     "is-routing-native-pops",
     "late-bound-server-function-codec",
@@ -110,6 +112,7 @@
     "server-route-component-source",
     "server-route-component",
     "server-route-dynamic-component",
+    "server-route-get-preload-handoff",
     "server-route-zero-arg-source",
     "server-url-prop",
     "settle-actions-at-commit",
@@ -130,6 +133,7 @@
     "update-solid-rc-0",
     "update-solid-rc-1",
     "update-solid-rc-3",
+    "use-in-router",
     "use-submissions-stable-identity",
     "warn-nested-router-mounts"
   ]
