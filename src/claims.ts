@@ -155,10 +155,10 @@ export function setupLinkClaims(
       if (existing) return refresh(a, existing);
       // server HTML (hydrating, or already in the document) pairs the router's
       // `aria-current` with `data-active` and never writes over an authored one
+      const hydrating = serverState && isHydrating();
       const rec = {
         owned:
-          serverState &&
-          (isHydrating() || a.isConnected) &&
+          (hydrating || (serverState && a.isConnected)) &&
           a.getAttribute("aria-current") === "page" &&
           a.hasAttribute("data-active")
       };
@@ -170,7 +170,11 @@ export function setupLinkClaims(
         registry.add(a);
         onCleanup(() => registry.delete(a));
       }
-      refresh(a, rec);
+      // A hydrating anchor already carries the server's state for the location
+      // hydrating now, unless the server skipped it for an authored
+      // `aria-current`. Skipping the refresh keeps URL resolution off the load
+      // path; the sweep resolves it on the first routing change.
+      if (!hydrating || (!rec.owned && a.getAttribute("aria-current") !== null)) refresh(a, rec);
     })
   );
 }
