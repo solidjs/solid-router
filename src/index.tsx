@@ -22,6 +22,7 @@ export * from "./routers/index.js";
 export * from "./lifecycle.js";
 export {
   useHref,
+  useInRouter,
   useIsRouting,
   useLinkState,
   useLocation,
