@@ -121,6 +121,7 @@
     "skip-non-http-anchor-links",
     "solid-2-beta-router-migration",
     "ssr-link-state",
+    "stamp-query-flights",
     "static-render-history-fallback",
     "submission-retry-promise",
     "tap-viewport-eager-preload",
