@@ -4,6 +4,7 @@ import {
   getOwner,
   isHydratable,
   isHydrating,
+  OBSERVE,
   onCleanup,
   untrack,
   type Signal
@@ -37,6 +38,23 @@ import { decodeRedirectHeaderValue, REDIRECT_HEADER } from "@solidjs/web/server-
 import { useRouter, getIntent, getInPreloadFn } from "../routing.js";
 import type { CacheEntry, NarrowResponse } from "../types.js";
 import { isUnderBase } from "../utils.js";
+
+/**
+ * Observe: stamps a promise this cache hands out with when its fetch started
+ * (`from`'s start, or now). Each read gets a fresh wrapper, so without the
+ * stamp a reader that meets it after a preload (a lazy route a render pass
+ * later) looks like work that only started then, and the waterfall checks
+ * read parallel work as a chain (solid #4105). Callers gate on `OBSERVE`,
+ * which folds out of shipped bundles.
+ */
+function stampFlight(flight: object, from?: object) {
+  // Optional: solid-js versions before the core slot carried stamps lack these.
+  const slot = OBSERVE!.attribution as {
+    markFlight?: (flight: object, startedAt?: number) => void;
+    flightOrigin?: (flight: object) => number | undefined;
+  };
+  slot.markFlight?.(flight, from && slot.flightOrigin?.(from));
+}
 
 const LocationHeader = "Location";
 const REDIRECT_STATUSES = /* #__PURE__ */ new Set([301, 302, 303, 307, 308]);
@@ -274,6 +292,8 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
       // read (no intent) may still need it for server-DOM consistency.
     }
     if (!adopted) res = fn(...(args as any));
+    // Observe: the fetch starts now, whoever reads it later (see `stampFlight`).
+    OBSERVE && res && typeof res.then === "function" && stampFlight(res);
 
     // Adopted entries are stamped at boot — when their data was actually
     // fetched — not at consumption. Later hydration reads still reuse them
@@ -317,9 +337,10 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     function settle(v: any) {
       let cookies = isServer ? forwardedCookies.get(cached) : undefined;
       if (isServer && !cookies) forwardedCookies.set(cached, (cookies = new WeakSet()));
-      return "then" in v
-        ? v.then(handleResponse(false, cookies), handleResponse(true, cookies))
-        : handleResponse(false, cookies)(v);
+      if (!("then" in v)) return handleResponse(false, cookies)(v);
+      const read = v.then(handleResponse(false, cookies), handleResponse(true, cookies));
+      OBSERVE && stampFlight(read, v);
+      return read;
     }
 
     function handleResponse(error: boolean, cookies?: WeakSet<Headers>) {
