@@ -1,5 +1,13 @@
 # @solidjs/router
 
+## 2.0.0-next.41
+
+### Patch Changes
+
+- 7ec5ea1: Rename the router's `action` to `formAction` (and the `Action` type to `FormAction`): it is the form layer — submissions, `aria-busy`, no-JS posts, `.with()` — while `action` is solid-js's own primitive. `action` and `Action` stay as deprecated aliases with a dev warning until the next major. `useAction` is deprecated with no replacement: call the server function (or a core `action`) directly, since the router now applies revalidation and redirects on any server function call.
+- 27312e1: Single flight is now the router's, not the action layer's: a mounted router subscribes to the server function transport at mount (unless `singleFlight={false}`), so a server function called straight from an event handler gets its `X-Revalidate` keys, redirect and flight data applied without an action. Query reads, the flight consumer and actions now share one redirect/revalidation path, so action redirects resolve against the router base the same way query redirects do.
+- 3c0fe32: `query()` stamps the fetch it starts, and every wrapper it hands a reader, with when that fetch started (`OBSERVE.attribution.markFlight`, observe and dev builds only). Page data a route's preload started, and read a render pass later behind the page's lazy chunk, no longer reads as a waterfall to `ASYNC_WATERFALL` or `SSR_BOUNDARY_WATERFALL`. Takes effect with the solid release that carries the stamps on its core slot (solidjs/solid#4108); older versions ignore it.
+
 ## 2.0.0-next.40
 
 ### Patch Changes
