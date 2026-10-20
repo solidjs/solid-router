@@ -39,25 +39,14 @@ const carrier = (target: string, status = 302) => ({
   "X-Server-Function-Redirect": `${status} ${new URL(target, window.location.href).href}`
 });
 
-// Spy on the sweep: these tests pin the ordering the action layer applies to
-// a flight response — invalidate, seed, navigate, then sweep synchronously —
-// not the query cache mechanics (covered by query.spec.ts and
-// flight-consumer.spec.ts).
-const hoisted = vi.hoisted(() => ({
-  sweepSpy: vi.fn(),
-  actualQuery: undefined as unknown as typeof import("../../src/data/query.js")
-}));
-const { sweepSpy } = hoisted;
-vi.mock("../../src/data/query.js", async importOriginal => {
-  hoisted.actualQuery = await importOriginal<typeof import("../../src/data/query.js")>();
-  return {
-    ...hoisted.actualQuery,
-    revalidate: (...args: unknown[]) => hoisted.sweepSpy(...args)
-  };
-});
-
-import { setupFlightDataConsumer } from "../../src/data/action.js";
-import { query } from "../../src/data/query.js";
+// Spy on the sweep through the revalidate hook seam: these tests pin the
+// ordering applied to a flight response — invalidate, seed, navigate, then
+// sweep synchronously — not the query cache mechanics (covered by
+// query.spec.ts and flight-consumer.spec.ts).
+const sweepSpy = vi.fn();
+import { setupFlightDataConsumer } from "../../src/data/query.js";
+import { query, registerRevalidateHook } from "../../src/data/query.js";
+registerRevalidateHook(sweepSpy);
 
 // A redirecting flight response commits atomically: the sweep runs in the
 // same synchronous pass as the navigation so both join one transition.

@@ -28,7 +28,6 @@ let mockRouterContext: RouterContext;
 
 vi.mock("../../src/routing.js", () => ({
   useRouter: () => mockRouterContext,
-  provideFlightConsumer: vi.fn(),
   provideFlashDecoder: vi.fn(),
   createRouterContext: () => createMockRouter(),
   RouterContextObj: {},
@@ -244,7 +243,7 @@ describe("action", () => {
     const boundAction = useAction(redirectAction);
     await boundAction();
 
-    expect(navigate).toHaveBeenCalledWith("/next", { replace: true });
+    expect(navigate).toHaveBeenCalledWith("/next", { replace: true, resolve: true });
     expect(onSettled).toHaveBeenCalledTimes(1);
     expect(mockRouterContext.submissions[0]()).toHaveLength(0);
   });

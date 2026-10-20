@@ -34,9 +34,13 @@ import {
 // dependency-free bindings off a `sideEffects: false` entry, so they
 // tree-shake to a few hundred bytes without dragging the codec in (the same
 // bindings action.ts already imports statically).
-import { decodeRedirectHeaderValue, REDIRECT_HEADER } from "@solidjs/web/server-functions";
+import {
+  decodeRedirectHeaderValue,
+  REDIRECT_HEADER,
+  subscribeFlightData
+} from "@solidjs/web/server-functions";
 import { useRouter, getIntent, getInPreloadFn } from "../routing.js";
-import type { CacheEntry, NarrowResponse } from "../types.js";
+import type { CacheEntry, Navigator, NarrowResponse, RouterContext } from "../types.js";
 import { isUnderBase } from "../utils.js";
 
 /**
@@ -372,65 +376,14 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
             }
           }
 
-          let url = v.headers.get(LocationHeader);
-          let carried: ReturnType<typeof decodeRedirectHeaderValue>;
-
-          // The transport masks redirects to 200 and carries their target in a
-          // header. A local Location only redirects on an actual redirect status.
-          if (!isServer) {
-            carried = decodeRedirectHeaderValue(v.headers.get(REDIRECT_HEADER));
-            url = carried?.url ?? (REDIRECT_STATUSES.has(v.status) ? url : null);
-          }
-
-          if (url !== null) {
-            // invalidate the redirect's revalidation keys before navigating so
-            // the destination's preloads see the miss and fetch fresh (#580 thread).
-            // A read that redirects declares nothing by default (unlike an
-            // action), so only a header present here sweeps: named keys their
-            // matches, `*` everything.
-            const declared = !isServer ? v.headers.get(REVALIDATE_HEADER) : null;
-            const keys = declared !== null ? readRevalidateKeys(declared) : undefined;
-            declared !== null && cacheKeyOp(keys, entry => (entry[0] = 0));
-
-            if (!isServer) {
-              const target = new URL(url, window.location.href);
-              if (navigate && target.origin === window.location.origin) {
-                // Carried redirects and local leading slashes keep their
-                // router-base meaning. Other URLs need the integration's parser
-                // (e.g. hash history) without applying the base again.
-                const relativeToBase = !!carried || (url[0] === "/" && url[1] !== "/");
-                const resolved = target.pathname + target.search + target.hash;
-                const path = carried
-                  ? resolved
-                  : relativeToBase
-                    ? url
-                    : router!.parsePath(resolved);
-                const rendered = new URL(router!.renderPath(path), window.location.href);
-                // Resolved URLs must stay within the router base and round-trip
-                // to the same document URL, including with hash history.
-                if (
-                  relativeToBase ||
-                  (isUnderBase(path.split(/[?#]/, 1)[0], router!.base.path()) &&
-                    rendered.href === target.href)
-                ) {
-                  navigate(path, { replace: true, resolve: relativeToBase });
-                } else window.location.href = target.href;
-              } else window.location.href = target.href;
-            } else if (navigate && url.startsWith("/")) navigate(url, { replace: true });
-            else if (e) e.response.status = 302;
-
-            // sweep the live signals inside the same transition as the
-            // navigation: surviving consumers (shared layouts) refetch and
-            // hold the commit, so the destination never paints stale data
-            declared !== null && revalidate(keys, false);
-
-            // Hold the read pending on the client: the navigation unmounts this
-            // consumer, and resolving `undefined` instead hands a missing value
-            // to whatever renders before the transition commits (a downstream
-            // `.map()` crashes). The server keeps resolving — its render can't
-            // await a navigation and the 302 discards the body anyway.
+          // A redirect navigates (after sweeping any keys it declares), and
+          // the read stays pending on the client: the navigation unmounts
+          // this consumer, and resolving `undefined` instead hands a missing
+          // value to whatever renders before the transition commits (a
+          // downstream `.map()` crashes). The server keeps resolving — its
+          // render can't await a navigation and the 302 discards the body.
+          if (applyServerResponse(v, router, navigate, false, e))
             return isServer ? undefined : new Promise(() => {});
-          }
 
           if (hasEnveloped) v = enveloped;
           else if (v.body) {
@@ -498,6 +451,98 @@ query.clear = () => getCache().clear();
  * host-independent spelling of "all", for hosts whose default is narrower
  * than this router's.
  */
+/**
+ * Applies a server function response's routing metadata, shared by query
+ * reads and the single-flight consumer. The redirect carrier (or a real
+ * redirect status's `Location`) navigates — softly within the router base,
+ * otherwise as a document load — and `X-Revalidate` keys are invalidated
+ * before the navigation (so the destination's preloads miss and fetch
+ * fresh) and swept after it, inside the same transition, so surviving
+ * consumers refetch and hold the commit. Flight data, when delivered, seeds
+ * the cache between the two. A read declares nothing by default; a mutation
+ * (`mutation`) with no header revalidates everything. Returns whether the
+ * response redirected.
+ */
+export function applyServerResponse(
+  v: Response | undefined,
+  router: RouterContext | undefined,
+  navigate: Navigator | undefined,
+  mutation: boolean,
+  e?: { response: { status?: number } },
+  flightData?: Record<string, any>
+): boolean {
+  let url = v ? v.headers.get(LocationHeader) : null;
+  let carried: ReturnType<typeof decodeRedirectHeaderValue>;
+  let declared: string | null = null;
+  // The transport masks redirects to 200 and carries their target in a
+  // header. A local Location only redirects on an actual redirect status.
+  if (v && !isServer) {
+    carried = decodeRedirectHeaderValue(v.headers.get(REDIRECT_HEADER));
+    url = carried?.url ?? (REDIRECT_STATUSES.has(v.status) ? url : null);
+    declared = v.headers.get(REVALIDATE_HEADER);
+  }
+  if (url === null && !mutation) return false;
+  const sweep = mutation || declared !== null;
+  const keys = declared !== null ? readRevalidateKeys(declared) : undefined;
+  sweep && cacheKeyOp(keys, entry => (entry[0] = 0));
+  if (url !== null) {
+    if (!isServer) {
+      const target = new URL(url, window.location.href);
+      if (navigate && target.origin === window.location.origin) {
+        // Carried redirects and local leading slashes keep their router-base
+        // meaning. Other URLs need the integration's parser (e.g. hash
+        // history) without applying the base again.
+        const relativeToBase = !!carried || (url[0] === "/" && url[1] !== "/");
+        const resolved = target.pathname + target.search + target.hash;
+        const path = carried ? resolved : relativeToBase ? url : router!.parsePath(resolved);
+        const rendered = new URL(router!.renderPath(path), window.location.href);
+        // Resolved URLs must stay within the router base and round-trip to
+        // the same document URL, including with hash history.
+        if (
+          relativeToBase ||
+          (isUnderBase(path.split(/[?#]/, 1)[0], router!.base.path()) &&
+            rendered.href === target.href)
+        ) {
+          navigate(path, { replace: true, resolve: relativeToBase });
+        } else window.location.href = target.href;
+      } else window.location.href = target.href;
+    } else if (navigate && url.startsWith("/")) navigate(url, { replace: true });
+    else if (e) e.response.status = 302;
+  }
+  // seed the cache — and fan the payload out to other keyed stores (live
+  // query channels adopt delivered values instead of reconnecting)
+  if (flightData) {
+    Object.keys(flightData).forEach(k => query.set(k, flightData[k]));
+    deliverFlightData(flightData);
+  }
+  sweep && revalidate(keys, false);
+  return url !== null;
+}
+
+// Invocation count of the flight-data consumer. An action compares it across
+// its mutation call to learn whether the transport already applied this
+// response's metadata (and so its default revalidation pass must not run
+// again and wipe the freshly seeded cache).
+export let flightApplications = 0;
+
+/**
+ * Registers the router as the single-flight consumer of the server function
+ * transport. Subscribing is the opt-in: while registered, the transport
+ * sends the `X-Single-Flight` request header on mutations and delivers the
+ * folded payload here — fresh route data is seeded into the `query` cache
+ * and the envelope metadata (redirect, `X-Revalidate` keys) is applied
+ * before the caller sees its plain return value, whether the call came from
+ * an action or straight from an event handler. The Router subscribes at
+ * mount on the client unless `singleFlight={false}`. Returns the
+ * unsubscribe function.
+ */
+export function setupFlightDataConsumer(router: RouterContext) {
+  return subscribeFlightData<Record<string, any>>((data, { response }) => {
+    flightApplications++;
+    applyServerResponse(response, router, router.navigatorFactory(), true, undefined, data);
+  });
+}
+
 const REVALIDATE_ALL = "*";
 
 /**

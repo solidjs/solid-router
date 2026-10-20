@@ -6,28 +6,18 @@ import {
   onSettled,
   getOwner
 } from "solid-js";
-import { isResponseEnvelope, isServer, REVALIDATE_HEADER, type JSX } from "@solidjs/web";
+import { isResponseEnvelope, isServer, type JSX } from "@solidjs/web";
 import {
   createServerReference,
-  decodeRedirectHeaderValue,
   decodeResponsePayload,
-  parseServerFunctionActionUrl,
-  REDIRECT_HEADER,
-  subscribeFlightData
+  parseServerFunctionActionUrl
 } from "@solidjs/web/server-functions";
 import { setFormClaimHandler } from "../claims.js";
-import { provideFlashDecoder, provideFlightConsumer, useRouter } from "../routing.js";
+import { provideFlashDecoder, useRouter } from "../routing.js";
 import { setRouterFormHandler } from "./events.js";
-import type { RouterContext, Submission, Navigator, NarrowResponse } from "../types.js";
+import type { RouterContext, Submission, NarrowResponse } from "../types.js";
 import { mockBase, setFunctionName } from "../utils.js";
-import {
-  cacheKeyOp,
-  deliverFlightData,
-  hashKey,
-  readRevalidateKeys,
-  revalidate,
-  query
-} from "./query.js";
+import { applyServerResponse, flightApplications, hashKey } from "./query.js";
 
 export type Action<T extends Array<any>, U, V = T> = (T extends [FormData | URLSearchParams] | []
   ? JSX.SerializableAttributeValue
@@ -276,8 +266,8 @@ export function submitServerForm(
 // the first action creation. Not an import side effect — with
 // `sideEffects: false`, module evaluation only happens when action() is
 // actually used, which is precisely when the wiring is wanted: no action in
-// the graph means no form interception, no single-flight subscription (the
-// server is never asked to collect), and no flash cookies to decode. On the
+// the graph means no form interception and no flash cookies to decode
+// (single flight is the router's own, subscribed at mount). On the
 // server, actions are created at module scope, so the flash decoder is
 // always installed before useSubmission can read the submissions signal.
 let integrationsInstalled = false;
@@ -300,7 +290,6 @@ function installRouterIntegrations() {
   } else {
     setRouterFormHandler(handleFormAction);
     setFormClaimHandler(claimBusyForm);
-    provideFlightConsumer(setupFlightDataConsumer);
   }
 }
 
@@ -348,9 +337,9 @@ function actionImpl<T extends Array<any>, U = void>(
     const form = this.f;
     const submitHooks = current[submitHooksSymbol];
     const settledHooks = current[settledHooksSymbol];
-    // Single-flight opt-in is no longer per call: the router's registered
-    // flight-data consumer (see setupFlightDataConsumer) makes the transport
-    // send the request header itself, so the mutation is just called.
+    // Single-flight opt-in is no longer per call: the router's flight-data
+    // consumer (setupFlightDataConsumer in query.ts) makes the transport send
+    // the request header itself, so the mutation is just called.
     const runMutation = () => fn(...variables);
     // The busy release, the submission record and the settled hooks wait for
     // the action's transition to COMMIT, not just its body: the body's final
@@ -428,7 +417,7 @@ function actionImpl<T extends Array<any>, U = void>(
         // the release of the caller's optimistic writes commit as one frame (#619).
         const response = applyResponse(
           read,
-          router.navigatorFactory(),
+          router,
           flightApplications !== flightApplicationsBefore
         );
         finish(response);
@@ -584,97 +573,6 @@ async function settleActionResult<T>(result: T | Promise<T> | AsyncIterable<T>) 
   return result as T;
 }
 
-// Invocation count of the flight-data consumer. An action compares it across
-// its mutation call to learn whether the transport already applied this
-// response's metadata (and so the default revalidation pass must not run
-// again and wipe the freshly seeded cache).
-let flightApplications = 0;
-
-// The statuses fetch follows (Fetch §2.2.3) — the set the server masks into
-// the redirect carrier for scripted calls, and the set a locally-produced
-// redirect() envelope wears for real.
-const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
-
-/**
- * Registers the router as the single-flight consumer of the server function
- * transport. Subscribing is the opt-in: while registered, the transport
- * sends the `X-Single-Flight` request header on mutations and delivers the
- * folded payload here — fresh route data is seeded into the `query` cache
- * and the envelope metadata (redirect `Location`, `X-Revalidate` keys) is
- * applied, all before the action sees its plain return value. Called by the
- * Router component on the client unless `singleFlight={false}`, which now
- * simply means "never subscribe" — no consumer, no request header, no
- * collection work on the server. Returns the unsubscribe function.
- */
-export function setupFlightDataConsumer(router: RouterContext) {
-  return subscribeFlightData<Record<string, any>>((data, { response }) => {
-    flightApplications++;
-    return applyResponseMetadata(response, router.navigatorFactory(), data);
-  });
-}
-
-/**
- * Applies a server function response's integration metadata: `X-Revalidate`
- * keys invalidate, the redirect carrier navigates (soft when same-origin,
- * hard otherwise), flight data seeds the query cache, and matching entries
- * revalidate. Shared by the flight-data consumer and the action response
- * path (which still sees metadata-bearing responses when no flight data was
- * collected).
- */
-function applyResponseMetadata(
-  metadata: Response | undefined,
-  navigate: Navigator,
-  flightData?: Record<string, any>
-) {
-  let keys: string[] | undefined;
-  if (metadata) {
-    if (metadata.headers.has(REVALIDATE_HEADER))
-      keys = readRevalidateKeys(metadata.headers.get(REVALIDATE_HEADER)!);
-    // The carrier delivers the target RESOLVED to an absolute url
-    // (solidjs/solid#3102), so the soft/hard split is a real origin
-    // comparison — never a guess from how the author spelled the target,
-    // which sent `redirect("/")` and `redirect(new URL("/", url).href)`
-    // down different navigation paths (solidjs/solid#3107). A redirect
-    // produced locally (a client-side action's `redirect()`) never crossed
-    // the wire, so no carrier was attached: it is the real 3xx with its
-    // Location, resolved against the page it runs in. A `Location` on any
-    // other status is the author's data (a 201's created-at) and never
-    // navigates. Same-origin targets navigate softly under the router;
-    // anything else leaves the app, so the document goes with it.
-    // `replace` matches what HTTP gives a form post: the target takes the
-    // submission's place in history rather than stacking on it.
-    const carried = decodeRedirectHeaderValue(metadata.headers.get(REDIRECT_HEADER));
-    const local =
-      !carried && REDIRECT_STATUSES.has(metadata.status) && metadata.headers.get("Location");
-    const target = carried
-      ? new URL(carried.url)
-      : local
-        ? new URL(local, window.location.href)
-        : undefined;
-    if (target) {
-      if (target.origin === window.location.origin) {
-        navigate(target.pathname + target.search + target.hash, { replace: true });
-      } else {
-        window.location.href = target.href;
-      }
-    }
-  }
-  // invalidate
-  cacheKeyOp(keys, entry => (entry[0] = 0));
-  // set cache — and fan the payload out to other keyed stores (live query
-  // channels adopt delivered values instead of reconnecting)
-  if (flightData) {
-    Object.keys(flightData).forEach(k => query.set(k, flightData[k]));
-    deliverFlightData(flightData);
-  }
-  // trigger revalidation inside the same transition as the navigation, so
-  // the redirect commits atomically with fresh data: surviving consumers
-  // (shared layouts) the flight payload didn't seed refetch and hold the
-  // commit rather than painting stale and updating after. Seeded entries
-  // are fresh again by now, so the sweep re-reads them from cache.
-  revalidate(keys, false);
-}
-
 type ReadResponse =
   | { error: unknown }
   | { data?: any; flightData?: Record<string, any>; metadata?: Response };
@@ -707,13 +605,13 @@ async function readResponse(response: unknown, error: boolean): Promise<ReadResp
   return { data, flightData, metadata };
 }
 
-function applyResponse(read: ReadResponse, navigate: Navigator, metadataHandled: boolean) {
+function applyResponse(read: ReadResponse, router: RouterContext, metadataHandled: boolean) {
   if ("error" in read) return read;
   const { data, flightData, metadata } = read;
   // The transport consumer applies metadata before returning a server
   // function's unwrapped value. Do not treat that value as a second plain
   // action response and invalidate the freshly seeded query cache again.
   if (!metadataHandled || metadata || flightData)
-    applyResponseMetadata(metadata, navigate, flightData);
+    applyServerResponse(metadata, router, router.navigatorFactory(), true, undefined, flightData);
   return data != null ? { data } : undefined;
 }
