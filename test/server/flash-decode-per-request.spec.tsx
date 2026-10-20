@@ -8,7 +8,7 @@ import { Errored, Loading } from "solid-js";
 import { createRequestEvent, renderToStream, type JSX } from "@solidjs/web";
 import { provideRequestEvent } from "@solidjs/web/storage";
 import { decodeFlashCookie, encodeFlashCookie } from "@solidjs/web/server-functions/server";
-import { action, useSubmissions } from "../../src/data/action.js";
+import { formAction, useSubmissions } from "../../src/data/action.js";
 import { provideFlashDecoder } from "../../src/routing.js";
 import { createRouter } from "../../src/index.js";
 
@@ -21,7 +21,7 @@ provideFlashDecoder(cookieHeader => {
   return decodeFlashCookie(cookieHeader);
 });
 
-const save = action(
+const save = formAction(
   Object.assign(async () => ({ error: "Failed to save" }), { url: "/_server/save" })
 );
 

@@ -1,13 +1,13 @@
 import { createEffect, createRoot, flush } from "solid-js";
 import { vi } from "vitest";
 import {
-  action,
+  formAction,
   useAction,
   useSubmissions,
   actions,
   handleFormAction,
   submitServerForm,
-  type Action
+  type FormAction
 } from "../../src/data/action.js";
 import type { RouterContext } from "../../src/types.js";
 import { createMockRouter } from "../helpers.js";
@@ -52,7 +52,7 @@ describe("action", () => {
   });
 
   test("should create an action function with `url` property", () => {
-    const testAction = action(async (data: string) => {
+    const testAction = formAction(async (data: string) => {
       return `processed: ${data}`;
     }, "test-action");
 
@@ -62,7 +62,7 @@ describe("action", () => {
 
   test("should create action with auto-generated hash when no `name` provided", () => {
     const testFn = async (data: string) => `result: ${data}`;
-    const testAction = action(testFn);
+    const testAction = formAction(testFn);
 
     expect(testAction.url).toMatch(/^https:\/\/action\/-?\d+$/);
     expect((testAction as any).name).toMatch(/^-?\d+$/);
@@ -70,7 +70,7 @@ describe("action", () => {
 
   test("should use it as `name` when `options` are provided as a string", () => {
     const testFn = async (data: string) => `result: ${data}`;
-    const testAction = action(testFn, "test-action");
+    const testAction = formAction(testFn, "test-action");
 
     expect(testAction.url).toMatch("https://action/test-action");
     expect((testAction as any).name).toBe("test-action");
@@ -78,21 +78,21 @@ describe("action", () => {
 
   test("should use `name` when provided in object options", () => {
     const testFn = async (data: string) => `result: ${data}`;
-    const testAction = action(testFn, { name: "test-action" });
+    const testAction = formAction(testFn, { name: "test-action" });
 
     expect(testAction.url).toMatch("https://action/test-action");
     expect((testAction as any).name).toBe("test-action");
   });
 
   test("should register action in actions map", () => {
-    const testAction = action(async () => "result", "register-test");
+    const testAction = formAction(async () => "result", "register-test");
 
     expect(actions.has(testAction.url)).toBe(true);
     expect(actions.get(testAction.url)).toBe(testAction);
   });
 
   test("disposing an older owner should not unregister a newer action with the same URL", () => {
-    const base = action(async (id: string, data: string) => `${id}: ${data}`, "cleanup-test");
+    const base = formAction(async (id: string, data: string) => `${id}: ${data}`, "cleanup-test");
 
     let disposeFirst!: () => void;
     let first!: ReturnType<typeof base.with>;
@@ -116,10 +116,10 @@ describe("action", () => {
 
   test("disposing the current owner should unregister its action", () => {
     let dispose!: () => void;
-    let registered!: Action<[], string>;
+    let registered!: FormAction<[], string>;
     createRoot(d => {
       dispose = d;
-      registered = action(async () => "result", "self-cleanup-test");
+      registered = formAction(async () => "result", "self-cleanup-test");
     });
 
     expect(actions.get(registered.url)).toBe(registered);
@@ -128,7 +128,7 @@ describe("action", () => {
   });
 
   test("should support `.with` method for currying arguments", () => {
-    const baseAction = action(async (prefix: string, data: string) => {
+    const baseAction = formAction(async (prefix: string, data: string) => {
       return `${prefix}: ${data}`;
     }, "with-test");
 
@@ -139,7 +139,7 @@ describe("action", () => {
   });
 
   test("a chained `.with` url carries every bound argument", () => {
-    const move = action(async (from: string, to: string, data: string) => data, "chained-with");
+    const move = formAction(async (from: string, to: string, data: string) => data, "chained-with");
     const fromA = move.with("a").with("x");
     const fromB = move.with("b").with("x");
 
@@ -153,7 +153,7 @@ describe("action", () => {
   // actions are invoked outside `createRoot` — as of Solid 2.0.0-beta.18 calling an
   // action inside an owned scope throws ACTION_CALLED_IN_OWNED_SCOPE in dev
   test("should execute action and create submission", async () => {
-    const testAction = action(async (data: string) => {
+    const testAction = formAction(async (data: string) => {
       return `processed: ${data}`;
     }, "execute-test");
 
@@ -175,7 +175,7 @@ describe("action", () => {
   });
 
   test("should still record thrown action errors for legacy usage", async () => {
-    const errorAction = action(async () => {
+    const errorAction = formAction(async () => {
       throw new Error("Test error");
     }, "error-test");
 
@@ -193,7 +193,7 @@ describe("action", () => {
 
   test("should support `onSettled` callback", async () => {
     const onSettled = vi.fn();
-    const testAction = action(async (data: string) => `result: ${data}`, {
+    const testAction = formAction(async (data: string) => `result: ${data}`, {
       name: "callback-test"
     }).onSettled(onSettled);
 
@@ -212,7 +212,9 @@ describe("action", () => {
   // worth showing or retrying (a result or an error) enter the submissions list
   test("onSettled fires for a void action without recording a submission", async () => {
     const onSettled = vi.fn();
-    const voidAction = action(async () => {}, { name: "void-settled-test" }).onSettled(onSettled);
+    const voidAction = formAction(async () => {}, { name: "void-settled-test" }).onSettled(
+      onSettled
+    );
 
     const boundAction = useAction(voidAction);
     await boundAction();
@@ -235,7 +237,7 @@ describe("action", () => {
 
     // a real redirect: 302 + Location, what redirect() produces — a
     // Location on a non-redirect status is data and never navigates
-    const redirectAction = action(
+    const redirectAction = formAction(
       async () => new Response(null, { status: 302, headers: { Location: "/next" } }),
       { name: "redirect-settled-test" }
     ).onSettled(onSettled);
@@ -251,7 +253,7 @@ describe("action", () => {
   test("should run onSubmit hook before mutation settles", async () => {
     const order: string[] = [];
     let current = "initial";
-    const testAction = action(async (next: string) => {
+    const testAction = formAction(async (next: string) => {
       order.push("mutation");
       expect(current).toBe(next);
       return next;
@@ -269,7 +271,7 @@ describe("action", () => {
 
   test("should preserve onSubmit hook for curried actions", async () => {
     const onSubmit = vi.fn();
-    const baseAction = action(
+    const baseAction = formAction(
       async (prefix: string, value: string) => `${prefix}:${value}`,
       "curried-on-submit"
     ).onSubmit(onSubmit);
@@ -283,7 +285,7 @@ describe("action", () => {
     return createRoot(async () => {
       const solid = (await import("solid-js")) as any;
       const [value, setValue] = solid.createOptimistic("initial");
-      const testAction = action(async (next: string) => {
+      const testAction = formAction(async (next: string) => {
         // A28 (5): an optimistic write becomes the override at the flush that
         // carries it — the mutation's synchronous plain read, in the same tick
         // as onSubmit's write, still sees the flushed value. The scheduler's
@@ -304,7 +306,7 @@ describe("action", () => {
 
   test("should notify all live onSubmit registrations for an action", async () => {
     const calls: string[] = [];
-    const testAction = action(async (value: string) => value, "shared-on-submit");
+    const testAction = formAction(async (value: string) => value, "shared-on-submit");
 
     createRoot(dispose => {
       testAction.onSubmit(value => calls.push(`one:${value}`));
@@ -323,7 +325,7 @@ describe("action", () => {
 
   test("should clean up onSubmit registrations with owner disposal", async () => {
     const calls: string[] = [];
-    const testAction = action(async (value: string) => value, "cleanup-on-submit");
+    const testAction = formAction(async (value: string) => value, "cleanup-on-submit");
     let disposeFirst!: () => void;
     let disposeSecond!: () => void;
 
@@ -348,7 +350,7 @@ describe("action", () => {
 
   test("should notify all live onSettled registrations for an action", async () => {
     const calls: string[] = [];
-    const testAction = action(async (value: string) => value, "shared-on-settled");
+    const testAction = formAction(async (value: string) => value, "shared-on-settled");
 
     createRoot(dispose => {
       testAction.onSettled(submission => calls.push(`one:${submission.result}`));
@@ -367,7 +369,7 @@ describe("action", () => {
 
   test("should clean up onSettled registrations with owner disposal", async () => {
     const calls: string[] = [];
-    const testAction = action(async (value: string) => value, "cleanup-on-settled");
+    const testAction = formAction(async (value: string) => value, "cleanup-on-settled");
     let disposeFirst!: () => void;
     let disposeSecond!: () => void;
 
@@ -398,7 +400,7 @@ describe("useSubmissions", () => {
 
   test("should return submissions for specific action", () => {
     return createRoot(() => {
-      const testAction = action(async () => "result", "submissions-test");
+      const testAction = formAction(async () => "result", "submissions-test");
 
       mockRouterContext.submissions[1](submissions => [
         ...submissions,
@@ -430,7 +432,7 @@ describe("useSubmissions", () => {
 
   test("should filter submissions when filter function provided", () => {
     return createRoot(() => {
-      const testAction = action(async (data: string) => data, "filter-test");
+      const testAction = formAction(async (data: string) => data, "filter-test");
 
       mockRouterContext.submissions[1](submissions => [
         ...submissions,
@@ -461,7 +463,7 @@ describe("useSubmissions", () => {
 
   test("should return an empty array when no submissions match", () => {
     return createRoot(() => {
-      const testAction = action(async () => "result", "no-pending-test");
+      const testAction = formAction(async () => "result", "no-pending-test");
 
       const submissions = useSubmissions(testAction, () => false);
       expect(submissions).toHaveLength(0);
@@ -470,7 +472,7 @@ describe("useSubmissions", () => {
 
   test("should allow reading the latest submission with at(-1)", () => {
     return createRoot(() => {
-      const testAction = action(async () => "result", "latest-test");
+      const testAction = formAction(async () => "result", "latest-test");
 
       mockRouterContext.submissions[1](submissions => [
         ...submissions,
@@ -501,7 +503,7 @@ describe("useSubmissions", () => {
 
   test("should return undefined from at(-1) when no submissions exist", () => {
     return createRoot(() => {
-      const testAction = action(async () => "result", "empty-latest-test");
+      const testAction = formAction(async () => "result", "empty-latest-test");
       const submission = useSubmissions(testAction).at(-1);
 
       expect(submission).toBeUndefined();
@@ -510,7 +512,7 @@ describe("useSubmissions", () => {
 
   test("should allow filtering before reading the latest submission", () => {
     return createRoot(() => {
-      const testAction = action(async (data: string) => data, "filter-submission-test");
+      const testAction = formAction(async (data: string) => data, "filter-submission-test");
 
       mockRouterContext.submissions[1](submissions => [
         ...submissions,
@@ -548,8 +550,8 @@ describe("useSubmissions", () => {
       clear: vi.fn(),
       retry: vi.fn()
     });
-    const a = action(async () => "a", "identity-a");
-    const b = action(async () => "b", "identity-b");
+    const a = formAction(async () => "a", "identity-a");
+    const b = formAction(async () => "b", "identity-b");
     let runs = 0;
     const dispose = createRoot(dispose => {
       const submissions = useSubmissions(a);
@@ -583,7 +585,7 @@ describe("useAction", () => {
 
   test("should return bound action function", () => {
     return createRoot(() => {
-      const testAction = action(async (data: string) => `result: ${data}`, "bound-test");
+      const testAction = formAction(async (data: string) => `result: ${data}`, "bound-test");
       const boundAction = useAction(testAction);
 
       expect(typeof boundAction).toBe("function");
@@ -591,7 +593,7 @@ describe("useAction", () => {
   });
 
   test("should execute action through useAction", async () => {
-    const testAction = action(async (data: string) => {
+    const testAction = formAction(async (data: string) => {
       await new Promise(resolve => setTimeout(resolve, 1));
       return `result: ${data}`;
     }, "context-test");
@@ -613,13 +615,13 @@ describe("form aria-busy", () => {
   });
 
   // invoke the action the way handleFormAction does: with the form as context
-  const submitViaForm = (act: Action<any, any>, form: HTMLFormElement, data: any = {}) =>
+  const submitViaForm = (act: FormAction<any, any>, form: HTMLFormElement, data: any = {}) =>
     (act as any).call({ r: mockRouterContext, f: form }, data);
 
   test("marks the form while the action is in flight and clears after settle", async () => {
     let release!: () => void;
     const gate = new Promise<void>(resolve => (release = resolve));
-    const busyAction = action(async () => {
+    const busyAction = formAction(async () => {
       await gate;
       return "done";
     }, "busy-test");
@@ -636,7 +638,7 @@ describe("form aria-busy", () => {
   test("clears even when the action errors", async () => {
     let reject!: (e: Error) => void;
     const gate = new Promise<void>((_, r) => (reject = r));
-    const failing = action(async () => {
+    const failing = formAction(async () => {
       await gate;
     }, "busy-error-test");
     const form = document.createElement("form");
@@ -653,7 +655,7 @@ describe("form aria-busy", () => {
 
   test("stays busy across overlapping submissions of the same form", async () => {
     const releases: (() => void)[] = [];
-    const overlapping = action(
+    const overlapping = formAction(
       () => new Promise<void>(resolve => releases.push(resolve)),
       "busy-overlap-test"
     );
@@ -673,7 +675,7 @@ describe("form aria-busy", () => {
   });
 
   test("releases when the invocation is refused before a transition begins", async () => {
-    const refused = action(async () => "ok", "busy-refused-test");
+    const refused = formAction(async () => "ok", "busy-refused-test");
     const form = document.createElement("form");
     form.setAttribute("action", String(refused));
     // dev refuses invoking an action inside an owned scope, synchronously
@@ -688,7 +690,7 @@ describe("form aria-busy", () => {
   });
 
   test("does not touch forms for programmatic (formless) calls", async () => {
-    const plain = action(async () => "ok", "busy-formless-test");
+    const plain = formAction(async () => "ok", "busy-formless-test");
     await useAction(plain)();
     // nothing to assert on a form — the run simply must not throw without one
     expect(mockRouterContext.submissions[0]()).toHaveLength(1);
@@ -955,7 +957,7 @@ describe("generic server actions", () => {
       vi.fn(async (_id: string, _form: unknown) => ({ ok: true })),
       { url: "/_server/toggle%230" }
     );
-    const toggle = action(serverFn);
+    const toggle = formAction(serverFn);
     const hook = vi.fn();
     toggle.onSubmit(hook);
     const ref = `/_server/toggle%230?args=${encodeURIComponent(JSON.stringify(["a"]))}`;
@@ -976,7 +978,7 @@ describe("generic server actions", () => {
 
   test("a server-rendered `.with()` form on a client action runs through its base action", async () => {
     const clientFn = vi.fn(async (_id: string, _form: unknown) => ({ ok: true }));
-    const toggle = action(clientFn, "toggle");
+    const toggle = formAction(clientFn, "toggle");
     const hook = vi.fn();
     toggle.onSubmit(hook);
     const ref = `${toggle.url}?args=${encodeURIComponent(JSON.stringify(["a"]))}`;

@@ -4,7 +4,8 @@ import {
   createMemo,
   onCleanup,
   onSettled,
-  getOwner
+  getOwner,
+  DEV
 } from "solid-js";
 import { isResponseEnvelope, isServer, type JSX } from "@solidjs/web";
 import {
@@ -19,7 +20,15 @@ import type { RouterContext, Submission, NarrowResponse } from "../types.js";
 import { mockBase, setFunctionName } from "../utils.js";
 import { applyServerResponse, flightApplications, hashKey } from "./query.js";
 
-export type Action<T extends Array<any>, U, V = T> = (T extends [FormData | URLSearchParams] | []
+/**
+ * A router form action: the form layer over a mutation. Bind it to a
+ * `<form action={...}>` (or a `formaction` button) for submissions,
+ * `aria-busy`, no-JS posts, redirects and revalidation; `.with()` binds
+ * leading arguments into the URL.
+ */
+export type FormAction<T extends Array<any>, U, V = T> = (T extends
+  | [FormData | URLSearchParams]
+  | []
   ? JSX.SerializableAttributeValue
   : unknown) &
   ((...vars: T) => Promise<NarrowResponse<U>>) & {
@@ -27,19 +36,19 @@ export type Action<T extends Array<any>, U, V = T> = (T extends [FormData | URLS
     with<A extends any[], B extends any[]>(
       this: (this: any, ...args: [...A, ...B]) => Promise<NarrowResponse<U>>,
       ...args: A
-    ): Action<B, U, V>;
-    onSubmit(hook: (...args: V extends Array<any> ? V : T) => void): Action<T, U, V>;
+    ): FormAction<B, U, V>;
+    onSubmit(hook: (...args: V extends Array<any> ? V : T) => void): FormAction<T, U, V>;
     onSettled(
       hook: (submission: Submission<V extends Array<any> ? V : T, NarrowResponse<U>>) => void
-    ): Action<T, U, V>;
+    ): FormAction<T, U, V>;
   };
 
-type ActionFactory = {
-  <T extends Array<any>, U = void>(fn: (...args: T) => Promise<U>, name?: string): Action<T, U>;
+type FormActionFactory = {
+  <T extends Array<any>, U = void>(fn: (...args: T) => Promise<U>, name?: string): FormAction<T, U>;
   <T extends Array<any>, U = void>(
     fn: (...args: T) => Promise<U>,
     options?: { name?: string }
-  ): Action<T, U>;
+  ): FormAction<T, U>;
 };
 
 type InternalAction<T extends Array<any>, U, V = T> = {
@@ -137,7 +146,7 @@ function claimBusyForm(form: HTMLFormElement) {
   showBusy(form);
 }
 
-export const actions = /* #__PURE__ */ new Map<string, Action<any, any>>();
+export const actions = /* #__PURE__ */ new Map<string, FormAction<any, any>>();
 
 /**
  * The document-delegation submit handler for router actions. Lives here —
@@ -187,7 +196,7 @@ export function handleFormAction(evt: SubmitEvent, router: RouterContext, action
  * the rendered arguments, so the submission runs through that action's
  * submit and settled hooks and is recorded under its base.
  */
-function findAction(url: string): Action<any, any> | undefined {
+function findAction(url: string): FormAction<any, any> | undefined {
   const handler = actions.get(url);
   if (handler) return handler;
   const query = url.indexOf("?");
@@ -219,7 +228,7 @@ function findAction(url: string): Action<any, any> | undefined {
  */
 function createServerFormAction(
   url: string
-): Action<[FormData | URLSearchParams], unknown> | undefined {
+): FormAction<[FormData | URLSearchParams], unknown> | undefined {
   const id = parseServerFunctionActionUrl(url);
   if (!id) return undefined;
   // typecheck resolves the server half of the dual module; this path only
@@ -294,7 +303,7 @@ function installRouterIntegrations() {
 }
 
 export function useSubmissions<T extends Array<any>, U, V>(
-  fn: Action<T, U, V>,
+  fn: FormAction<T, U, V>,
   filter?: (input: V) => boolean
 ): Submission<V, NarrowResponse<U>>[] {
   const router = useRouter();
@@ -319,15 +328,22 @@ export function useSubmissions<T extends Array<any>, U, V>(
   });
 }
 
-export function useAction<T extends Array<any>, U, V>(action: Action<T, U, V>) {
+/**
+ * @deprecated Call the server function (or a core `action`) directly: the
+ * router applies a server function's revalidation and redirect on any call,
+ * and a form action is meant to be bound to a form. Will be removed in the
+ * next major.
+ */
+export function useAction<T extends Array<any>, U, V>(action: FormAction<T, U, V>) {
+  DEV && warnUseAction();
   const r = useRouter();
-  return (...args: Parameters<Action<T, U, V>>) => action.apply({ r }, args);
+  return (...args: Parameters<FormAction<T, U, V>>) => action.apply({ r }, args);
 }
 
 function actionImpl<T extends Array<any>, U = void>(
   fn: (...args: T) => Promise<U>,
   options: string | { name?: string } = {}
-): Action<T, U> {
+): FormAction<T, U> {
   async function invoke(
     this: { r: RouterContext; f?: HTMLFormElement },
     variables: T,
@@ -484,11 +500,24 @@ function actionImpl<T extends Array<any>, U = void>(
   const wrapped = toAction<T, U, T>(
     invoke as InternalAction<T, U, T>[typeof invokeSymbol],
     url
-  ) as Action<T, U>;
+  ) as FormAction<T, U>;
   if (name) setFunctionName(wrapped, name);
   return wrapped;
 }
-export const action = actionImpl as ActionFactory;
+/**
+ * Creates a form action from a mutation (a server function or any async
+ * function). See {@link FormAction}.
+ */
+export const formAction = actionImpl as FormActionFactory;
+
+let useActionWarned = false;
+function warnUseAction() {
+  if (useActionWarned) return;
+  useActionWarned = true;
+  console.warn(
+    "[@solidjs/router] `useAction` is deprecated and will be removed in the next major; call the server function or a core `action` directly, and bind form actions to forms."
+  );
+}
 
 function toAction<T extends Array<any>, U, V = T>(
   invoke: InternalAction<T, U, V>[typeof invokeSymbol],
@@ -497,7 +526,7 @@ function toAction<T extends Array<any>, U, V = T>(
   base = url,
   submitHooks = new Map<symbol, (...args: any[]) => void>(),
   settledHooks = new Map<symbol, (submission: Submission<any, any>) => void>()
-): Action<T, U, V> {
+): FormAction<T, U, V> {
   const fn = function (this: { r: RouterContext; f?: HTMLFormElement }, ...args: T) {
     return invoke.call(this, [...boundArgs, ...args], fn);
   } as InternalAction<T, U, V>;
@@ -545,13 +574,13 @@ function toAction<T extends Array<any>, U, V = T>(
   fn[invokeSymbol] = invoke;
   installRouterIntegrations();
   if (!isServer) {
-    actions.set(url, fn as unknown as Action<T, U, V>);
+    actions.set(url, fn as unknown as FormAction<T, U, V>);
     // Only remove the registration if it still belongs to this instance —
     // a re-created action (e.g. a new `.with()` binding after revalidation)
     // may have registered itself under the same URL since.
     getOwner() && onCleanup(() => actions.get(url) === (fn as unknown) && actions.delete(url));
   }
-  return fn as unknown as Action<T, U, V>;
+  return fn as unknown as FormAction<T, U, V>;
 }
 
 const hashString = (s: string) =>

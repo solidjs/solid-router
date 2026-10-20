@@ -39,7 +39,7 @@ vi.mock("@solidjs/web/server-functions", () => ({
   }
 }));
 
-import { action } from "../../src/data/action.js";
+import { formAction } from "../../src/data/action.js";
 import { setupFlightDataConsumer } from "../../src/data/query.js";
 import { query } from "../../src/data/query.js";
 
@@ -111,7 +111,7 @@ describe("setupFlightDataConsumer", () => {
       );
       return "saved";
     };
-    await action(save, "save-all").call({ r: router });
+    await formAction(save, "save-all").call({ r: router });
     await other();
 
     expect(query.get("notes[]")).toEqual(["fresh"]);
@@ -130,7 +130,7 @@ describe("setupFlightDataConsumer", () => {
       await consumer!({}, { response: new Response(null, { headers: { "X-Revalidate": "" } }) });
       return "saved";
     };
-    await action(save, "save-nothing").call({ r: router });
+    await formAction(save, "save-nothing").call({ r: router });
     await other();
 
     expect(fetchOther).toHaveBeenCalledTimes(1);
@@ -152,7 +152,7 @@ describe("setupFlightDataConsumer", () => {
       return "saved";
     };
 
-    await action(save, "save-notes").call({ r: router });
+    await formAction(save, "save-notes").call({ r: router });
 
     expect(await notes()).toEqual(["fresh"]);
     expect(fetchNotes).toHaveBeenCalledTimes(1);
@@ -175,7 +175,7 @@ describe("setupFlightDataConsumer", () => {
       );
       return "saved";
     };
-    await action(save, "keyless-save").call({ r: router });
+    await formAction(save, "keyless-save").call({ r: router });
 
     expect(navigate).toHaveBeenCalledWith("/dash/b", { replace: true, resolve: true });
     expect(await layout()).toBe("fresh-layout");
@@ -195,7 +195,7 @@ describe("setupFlightDataConsumer", () => {
       await consumer!({ "layout[]": "fresh-layout" }, { response: new Response(null) });
       return "saved";
     };
-    await action(save, "keyless-save").call({ r: router });
+    await formAction(save, "keyless-save").call({ r: router });
     await other();
 
     expect(fetchOther).toHaveBeenCalledTimes(2);
@@ -206,7 +206,7 @@ describe("setupFlightDataConsumer", () => {
     const notes = query(fetchNotes, "notes");
     await notes();
 
-    await action(async () => "saved", "save-notes").call({ r: router });
+    await formAction(async () => "saved", "save-notes").call({ r: router });
     await notes();
 
     expect(fetchNotes).toHaveBeenCalledTimes(2);
@@ -222,7 +222,7 @@ describe("setupFlightDataConsumer", () => {
     // invokes the consumer (no referrer, empty collection pass, or no
     // server-side collector). The default revalidation must still run.
     setupFlightDataConsumer(router);
-    await action(async () => "saved", "save-notes").call({ r: router });
+    await formAction(async () => "saved", "save-notes").call({ r: router });
     await notes();
 
     expect(fetchNotes).toHaveBeenCalledTimes(2);
