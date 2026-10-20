@@ -485,7 +485,8 @@ export function createRouterContext(
 
   // Transition the location to a new value
   const transition = (newIntent: Intent, newTarget: LocationChange) => {
-    if (newTarget.value === reference() && newTarget.state === state()) return;
+    const currentTarget = lastTransitionTarget || { value: reference(), state: state() };
+    if (newTarget.value === currentTarget.value && newTarget.state === currentTarget.state) return;
 
     if (lastTransitionTarget === undefined) setIsRouting(true);
 
