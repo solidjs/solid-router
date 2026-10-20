@@ -9,7 +9,7 @@ import { render } from "@solidjs/web";
 import { attribution, feedback } from "solid-js/attribution";
 import { vi } from "vitest";
 import {
-  action,
+  formAction,
   createRouter,
   defineRoutes,
   memoryHistory,
@@ -519,7 +519,7 @@ describe("observe tier: native link clicks and form submits are interactions (#6
 
   test("a native form submit to an action is the action's interaction", async () => {
     const [saves, setSaves] = createSignal(0, { ownedWrite: true });
-    const save = action(async (_form: FormData) => {
+    const save = formAction(async (_form: FormData) => {
       setSaves(n => n + 1);
       return "saved";
     }, "observe-643-save");

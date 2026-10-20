@@ -39,9 +39,9 @@ vi.mock("@solidjs/web/server-functions", () => ({
   }
 }));
 
-import { action, setupFlightDataConsumer } from "../../src/data/action.js";
+import { formAction } from "../../src/data/action.js";
+import { setupFlightDataConsumer } from "../../src/data/query.js";
 import { query } from "../../src/data/query.js";
-import { registerFlightRouter } from "../../src/routing.js";
 
 describe("setupFlightDataConsumer", () => {
   let router: RouterContext;
@@ -79,7 +79,7 @@ describe("setupFlightDataConsumer", () => {
       { "notes[]": ["destination data"] },
       { response: new Response(null, { headers: carrier("/notes") }) }
     );
-    expect(navigate).toHaveBeenCalledWith("/notes", { replace: true });
+    expect(navigate).toHaveBeenCalledWith("/notes", { replace: true, resolve: true });
     expect(query.get("notes[]")).toEqual(["destination data"]);
   });
 
@@ -111,7 +111,7 @@ describe("setupFlightDataConsumer", () => {
       );
       return "saved";
     };
-    await action(save, "save-all").call({ r: router });
+    await formAction(save, "save-all").call({ r: router });
     await other();
 
     expect(query.get("notes[]")).toEqual(["fresh"]);
@@ -130,7 +130,7 @@ describe("setupFlightDataConsumer", () => {
       await consumer!({}, { response: new Response(null, { headers: { "X-Revalidate": "" } }) });
       return "saved";
     };
-    await action(save, "save-nothing").call({ r: router });
+    await formAction(save, "save-nothing").call({ r: router });
     await other();
 
     expect(fetchOther).toHaveBeenCalledTimes(1);
@@ -152,7 +152,7 @@ describe("setupFlightDataConsumer", () => {
       return "saved";
     };
 
-    await action(save, "save-notes").call({ r: router });
+    await formAction(save, "save-notes").call({ r: router });
 
     expect(await notes()).toEqual(["fresh"]);
     expect(fetchNotes).toHaveBeenCalledTimes(1);
@@ -175,9 +175,9 @@ describe("setupFlightDataConsumer", () => {
       );
       return "saved";
     };
-    await action(save, "keyless-save").call({ r: router });
+    await formAction(save, "keyless-save").call({ r: router });
 
-    expect(navigate).toHaveBeenCalledWith("/dash/b", { replace: true });
+    expect(navigate).toHaveBeenCalledWith("/dash/b", { replace: true, resolve: true });
     expect(await layout()).toBe("fresh-layout");
     expect(fetchLayout).toHaveBeenCalledTimes(1);
   });
@@ -195,7 +195,7 @@ describe("setupFlightDataConsumer", () => {
       await consumer!({ "layout[]": "fresh-layout" }, { response: new Response(null) });
       return "saved";
     };
-    await action(save, "keyless-save").call({ r: router });
+    await formAction(save, "keyless-save").call({ r: router });
     await other();
 
     expect(fetchOther).toHaveBeenCalledTimes(2);
@@ -206,7 +206,7 @@ describe("setupFlightDataConsumer", () => {
     const notes = query(fetchNotes, "notes");
     await notes();
 
-    await action(async () => "saved", "save-notes").call({ r: router });
+    await formAction(async () => "saved", "save-notes").call({ r: router });
     await notes();
 
     expect(fetchNotes).toHaveBeenCalledTimes(2);
@@ -222,89 +222,9 @@ describe("setupFlightDataConsumer", () => {
     // invokes the consumer (no referrer, empty collection pass, or no
     // server-side collector). The default revalidation must still run.
     setupFlightDataConsumer(router);
-    await action(async () => "saved", "save-notes").call({ r: router });
+    await formAction(async () => "saved", "save-notes").call({ r: router });
     await notes();
 
     expect(fetchNotes).toHaveBeenCalledTimes(2);
-  });
-});
-
-// The Router no longer imports setupFlightDataConsumer; it registers itself
-// into a rendezvous in routing.ts, and the action side provides the
-// consumer factory on first action creation. These tests exercise the
-// rendezvous ordering on fresh module instances (the slots are
-// module-global and first-provide-wins).
-describe("flight consumer rendezvous", () => {
-  const loadRouting = async () => {
-    vi.resetModules();
-    return await import("../../src/routing.js");
-  };
-
-  test("provide before register subscribes at registration and unsubscribes on cleanup", async () => {
-    const { registerFlightRouter, provideFlightConsumer } = await loadRouting();
-    const unsubscribe = vi.fn();
-    const factory = vi.fn(() => unsubscribe);
-    provideFlightConsumer(factory);
-
-    const router = createMockRouter();
-    const cleanup = registerFlightRouter(router);
-    expect(factory).toHaveBeenCalledWith(router);
-
-    cleanup();
-    expect(unsubscribe).toHaveBeenCalled();
-  });
-
-  test("register before provide attaches when the consumer arrives", async () => {
-    const { registerFlightRouter, provideFlightConsumer } = await loadRouting();
-    const unsubscribe = vi.fn();
-    const factory = vi.fn(() => unsubscribe);
-
-    const router = createMockRouter();
-    const cleanup = registerFlightRouter(router);
-    expect(factory).not.toHaveBeenCalled();
-
-    provideFlightConsumer(factory);
-    expect(factory).toHaveBeenCalledWith(router);
-
-    cleanup();
-    expect(unsubscribe).toHaveBeenCalled();
-  });
-
-  test("a router unregistered before the consumer arrives is never subscribed", async () => {
-    const { registerFlightRouter, provideFlightConsumer } = await loadRouting();
-    const factory = vi.fn(() => vi.fn());
-
-    const cleanup = registerFlightRouter(createMockRouter());
-    cleanup();
-
-    provideFlightConsumer(factory);
-    expect(factory).not.toHaveBeenCalled();
-  });
-
-  test("the first provided consumer wins", async () => {
-    const { registerFlightRouter, provideFlightConsumer } = await loadRouting();
-    const first = vi.fn(() => vi.fn());
-    const second = vi.fn(() => vi.fn());
-
-    provideFlightConsumer(first);
-    provideFlightConsumer(second);
-    registerFlightRouter(createMockRouter());
-
-    expect(first).toHaveBeenCalled();
-    expect(second).not.toHaveBeenCalled();
-  });
-
-  // End-to-end over the real modules (static imports above): creating an
-  // action provides setupFlightDataConsumer, which subscribes for the
-  // already-registered router through the mocked transport.
-  test("creating an action installs the consumer for a registered router", () => {
-    consumer = undefined;
-    const cleanup = registerFlightRouter(createMockRouter());
-
-    action(async () => "result", "rendezvous-install-test");
-    expect(typeof consumer).toBe("function");
-
-    cleanup();
-    expect(consumer).toBeUndefined();
   });
 });

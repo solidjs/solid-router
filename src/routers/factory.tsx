@@ -19,6 +19,7 @@ import { getRequestEvent, isServer } from "@solidjs/web";
 import type { JSX } from "@solidjs/web";
 import { setupLinkClaims, setupServerLinkClaims } from "../claims.js";
 import { setupNativeEvents } from "../data/events.js";
+import { setupFlightDataConsumer } from "../data/query.js";
 import { createPathsProxy, HREF } from "../paths.js";
 import type { RoutePaths } from "../paths.js";
 import { serverRouteOf } from "../serverRouteShared.js";
@@ -27,7 +28,6 @@ import {
   createRouterContext,
   getRouteMatches,
   mergeParams,
-  registerFlightRouter,
   resolveLocationWrite,
   RouterContextObj,
   trackLazySubtrees,
@@ -541,7 +541,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
         actionBase: config.actionBase
       })(routerState);
       setupLinkClaims(routerState, config.explicitLinks, config.links);
-      if (routerState.singleFlight) onCleanup(registerFlightRouter(routerState));
+      if (routerState.singleFlight) onCleanup(setupFlightDataConsumer(routerState));
       restoration && restoration.create();
     } else if (!renderPath) {
       // hash routing renders `#/path` hrefs, which all resolve to the server's one path

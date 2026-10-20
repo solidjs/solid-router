@@ -13,7 +13,7 @@ import { action, createMemo, createRoot, createSignal, For, Loading, Show } from
 import { vi } from "vitest";
 import { claimElementTree, redirect, render } from "@solidjs/web";
 import {
-  action as routerAction,
+  formAction as routerAction,
   createRouter,
   memoryHistory,
   query,

@@ -2,7 +2,7 @@
 import { action, createMemo, createOptimisticStore, For, Loading } from "solid-js";
 import { render } from "@solidjs/web";
 import {
-  action as routerAction,
+  formAction as routerAction,
   createRouter,
   memoryHistory,
   query,

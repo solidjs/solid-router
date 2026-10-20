@@ -20,7 +20,7 @@ Explore the official [documentation](https://docs.solidjs.com/solid-router) for 
 - **Plain Anchors**: no link component — `<a>` elements get `aria-current` and `data-active` automatically via compiler-claimed anchors, and `data-pending` with the opt-in `pendingLinks` plugin
 - **Universal Rendering**: one factory for browser, hash, memory, and server rendering; history adapters are imports, so unused ones never enter your bundle
 - **Preload Functions**: parallel data fetching following the render-as-you-fetch pattern, triggered eagerly by opt-in [link preloading](#preloading)
-- **Data APIs with Caching**: `query` and `action` with deduplication, revalidation, single-flight mutations, and progressive enhancement — plus experimental `liveQuery` for keyed queries over live streams
+- **Data APIs with Caching**: `query` and `formAction` with deduplication, revalidation, single-flight mutations, and progressive enhancement — plus experimental `liveQuery` for keyed queries over live streams
 - **Typed Search Params**: opt-in per-route [Standard Schema](https://github.com/standard-schema/standard-schema) validation — `search.page` is a `number`, not `"2"`
 
 ## Table of Contents
@@ -412,7 +412,7 @@ Anything else callable with the args works too; wrapping is what gives dedupe, p
 Mutations reach these routes the way they reach any query, and the cost model is worth knowing: a swept server route is a server-side re-render plus its markup in the response, not a small data blob. From a server action, `redirect(url)` re-collects everything the target shows and a bare `reload()` everything the current page shows — server routes included, shell and layouts too. On a server-component-heavy page, name what a mutation actually changed instead. `Router.keysFor(url)` answers the query keys of the server routes a URL shows, root to leaf — the app's own keys, from pure matching, so it works in an action and never spells a key:
 
 ```ts
-export const addComment = action(async (form: FormData) => {
+export const addComment = formAction(async (form: FormData) => {
   "use server";
   await db.comments.add(form);
   return reload({ revalidate: Router.keysFor(paths.stories(form.get("id"))) });
@@ -704,16 +704,16 @@ Live queries ride the router's existing machinery rather than adding their own:
 
 The callable carries the `query` conventions (`key`, `keyFor`) plus a reactive `status(...args)` read (`"idle" | "connecting" | "connected" | "reconnecting" | "closed"`) for surfacing connection state in UI.
 
-### `action`
+### `formAction`
 
-A router action is _an action with a URL_ — Solid's mutation primitive plus URL addressability, submission tracking, and response handling. Data helpers come from the router; response helpers (`redirect`, `reload`) come from `@solidjs/web` — they're protocol-level and work without the router:
+A form action is _an action with a URL_ — Solid's `action` primitive plus a form binding: URL addressability, submission tracking, `aria-busy`, and no-JS posts. Data helpers come from the router; response helpers (`redirect`, `reload`) come from `@solidjs/web` — they're protocol-level and work without the router:
 
 ```tsx
-import { action } from "@solidjs/router";
+import { formAction } from "@solidjs/router";
 import { redirect } from "@solidjs/web";
 import { paths } from "./router";
 
-const updateUser = action(async (form: FormData) => {
+const updateUser = formAction(async (form: FormData) => {
   await db.users.update(form.get("id"), form);
   throw redirect(paths.users(form.get("id"))); // typed paths work in redirects
 });
@@ -728,7 +728,7 @@ const updateUser = action(async (form: FormData) => {
 <button type="submit" formaction={updateUser}>Save</button>
 ```
 
-Actions only work with POST requests, so put `method="post"` on your form. Submitting forms get `aria-busy="true"` automatically from submit until the action's result is on screen — the mutation, then its revalidation or redirect, until that update commits — the same CSS story as links:
+Form actions only work with POST requests, so put `method="post"` on your form. Submitting forms get `aria-busy="true"` automatically from submit until the action's result is on screen — the mutation, then its revalidation or redirect, until that update commits — the same CSS story as links:
 
 ```css
 form[aria-busy] button {
@@ -741,18 +741,22 @@ Busy state belongs to the form's `action` URL, not the element: a form re-render
 
 Forms work without JavaScript: a real POST, a redirect back, and the result seeded into submission state through a one-shot flash cookie. Single-flight mutations are on by default — the mutation response carries the refreshed route data in the same round trip.
 
-Delegation doesn't require the action's module on the client either. A form bound directly to a server action in a server-only module (a server component) renders a plain `action="/_server?id=...&args=..."` — a self-describing URL. On submit, the router synthesizes the invocation from it: the form data posts to that URL through the server-function transport, `.with()` arguments ride along in the query string, and submissions, `aria-busy`, redirects, revalidation, and single-flight data flow through the normal pipeline. The handler loads lazily on first such submit, so router-only bundles don't carry the data layer. The no-JS POST above remains the fallback only for clients that actually have no JavaScript. (Client-only actions — `action(fn, "name")` without `use server` — are their module's JS by definition and still require it on the client.)
+Single flight is the router's, not the form action's: a mounted router applies any server function's revalidation keys, `redirect()`, `reload()`, and flight data, so a mutation called straight from an event handler needs no wrapper — call the server function (or a core `action` around it) directly. `singleFlight={false}` on the router opts out.
+
+> **Every POST server function call is treated as a mutation.** POST is the default for server functions. A call that declares no `revalidate` keys has the server re-collect the current page's data, and the client then revalidates every `query` on screen, the same default form actions have always had. Reads are exempt when they go through `query()`, which switches a server function to `GET` automatically, or when the function is declared with `GET(fn)`. A POST that isn't a mutation (logging, a search called on keystroke) should return `respond(value, { revalidate: "" })` (or `respond(null, { revalidate: "" })` with nothing to return) to touch nothing, or name the keys it did change.
+
+Delegation doesn't require the action's module on the client either. A form bound directly to a server action in a server-only module (a server component) renders a plain `action="/_server?id=...&args=..."` — a self-describing URL. On submit, the router synthesizes the invocation from it: the form data posts to that URL through the server-function transport, `.with()` arguments ride along in the query string, and submissions, `aria-busy`, redirects, revalidation, and single-flight data flow through the normal pipeline. The handler loads lazily on first such submit, so router-only bundles don't carry the data layer. The no-JS POST above remains the fallback only for clients that actually have no JavaScript. (Client-only form actions — `formAction(fn, "name")` without `use server` — are their module's JS by definition and still require it on the client.)
 
 For optimistic UI, attach owner-scoped hooks to the action and use Solid's optimistic primitives for rendered state:
 
 ```tsx
 import { createOptimisticStore } from "solid-js";
-import { action, query } from "@solidjs/router";
+import { formAction, query } from "@solidjs/router";
 
 const getTodos = query(async () => fetchTodos(), "todos");
 const [todos, setTodos] = createOptimisticStore(() => getTodos(), []);
 
-const addTodo = action(async todo => {
+const addTodo = formAction(async todo => {
   await saveTodo(todo);
   return { ok: true, todo };
 }, "add-todo").onSubmit(todo => {
@@ -762,37 +766,32 @@ const addTodo = action(async todo => {
 });
 ```
 
-`onSubmit(...)` registers a listener in the current reactive owner — multiple components can register against the same action, and hooks are removed when their owner is disposed. `onSettled(...)` works the same way for observing completed submissions. A submission settles when its result is on screen: the hooks run, the record enters `useSubmissions`, and `aria-busy` clears once the action's update commits — after any revalidation or redirect it triggered, which may be later than the promise from `useAction` resolves. The hooks that run are the ones registered when the action finished: a hook whose owner that commit unmounts (the page a redirect leaves) still sees the submission, while a hook registered later, or removed with its owner before then, does not.
+`onSubmit(...)` registers a listener in the current reactive owner — multiple components can register against the same action, and hooks are removed when their owner is disposed. `onSettled(...)` works the same way for observing completed submissions. A submission settles when its result is on screen: the hooks run, the record enters `useSubmissions`, and `aria-busy` clears once the action's update commits — after any revalidation or redirect it triggered, which may be later than the promise from a direct call resolves. The hooks that run are the ones registered when the action finished: a hook whose owner that commit unmounts (the page a redirect leaves) still sees the submission, while a hook registered later, or removed with its owner before then, does not.
 
 The preferred pattern is returning values and letting the client interpret the result; thrown errors are still captured on `Submission.error` as an escape hatch.
 
-Actions have a `with` method (like `bind`) for typed arguments instead of hidden form fields:
+Form actions have a `with` method (like `bind`) for typed arguments instead of hidden form fields:
 
 ```tsx
-const deleteTodo = action(api.deleteTodo);
+const deleteTodo = formAction(api.deleteTodo);
 
 <form action={deleteTodo.with(todo.id)} method="post">
   <button type="submit">Delete</button>
 </form>;
 ```
 
-Since form actions serialize to string attributes that must match across SSR, actions that aren't server functions need a stable name: `action(fn, "my-action")`.
+Since form actions serialize to string attributes that must match across SSR, form actions that aren't server functions need a stable name: `formAction(fn, "my-action")`.
 
-### `useAction`
+### `useAction` (deprecated)
 
-Call an action directly instead of through a form — this is how the router context is captured. Outside a form you can pass typed data instead of `FormData`, but this requires client-side JavaScript and is not progressively enhanceable:
-
-```tsx
-const submit = useAction(myAction);
-submit(...args);
-```
+Deprecated, with no replacement: outside a form, call the server function (or a core `action`) directly — the router applies its revalidation and redirect either way. Still works, with a dev warning, until the next major.
 
 ### `useSubmissions`
 
 Returns settled submission records for an action — the durable history layer, not in-flight state. Useful for reading completed results, clearing old submissions, retrying, or replaying settled errors:
 
 ```tsx
-const submissions = useSubmissions(action, input => filter(input));
+const submissions = useSubmissions(addTodo, input => filter(input));
 const latest = submissions.at(-1);
 // { input, result?, error, url, clear(), retry() }
 ```
@@ -1114,6 +1113,8 @@ Route props map 1:1 onto definition keys (`path`, `component`, `preload`, `match
 - `redirect` / `reload` → import from `@solidjs/web`; they're protocol-level and work without the router
 - `json(data, init)` → `respond(data, init)` from `@solidjs/web`
 - `cache` (deprecated alias) → `query`
+- `action` → `formAction` (`Action` → `FormAction`); the old names remain as deprecated aliases with a dev warning. `action` is solid-js's own primitive.
+- `useAction` → deprecated with no replacement; call the server function or a core `action` directly
 - `RouterContext`'s `isRouting` / `pendingTarget` → `useIsRouting()`; for the in-flight destination, the [`isPending`/`latest` recipe](#useisrouting)
 
 ### Data APIs (Solid 2)
@@ -1138,7 +1139,7 @@ const submitting = useSubmission(addTodo);
 
 // 1.0 — optimistic primitives own in-flight state
 const [todos, setTodos] = createOptimisticStore(() => getTodos(), []);
-const addTodo = action(saveTodo).onSubmit(todo =>
+const addTodo = formAction(saveTodo).onSubmit(todo =>
   setTodos(items => {
     items.push({ ...todo, pending: true });
   })

@@ -725,36 +725,6 @@ function createLocation(
 }
 
 /**
- * Rendezvous between the router and the data layer's single-flight consumer.
- * The Router registers itself at mount (unless `singleFlight={false}`); the
- * action side provides the consumer factory when the first action is created
- * (see data/action.ts). Whichever side arrives first waits for the other, so
- * an action module loaded lazily (a code-split route) still attaches to the
- * already-mounted router — and a router-only app, where no action ever
- * loads, never subscribes to the transport, so the server is never asked to
- * collect.
- */
-let flightConsumerFactory: ((router: RouterContext) => () => void) | undefined;
-const flightRouters = new Map<RouterContext, (() => void) | undefined>();
-
-export function registerFlightRouter(router: RouterContext): () => void {
-  flightRouters.set(router, flightConsumerFactory && flightConsumerFactory(router));
-  return () => {
-    const unsubscribe = flightRouters.get(router);
-    flightRouters.delete(router);
-    unsubscribe && unsubscribe();
-  };
-}
-
-export function provideFlightConsumer(factory: (router: RouterContext) => () => void): void {
-  if (flightConsumerFactory) return;
-  flightConsumerFactory = factory;
-  for (const [router, unsubscribe] of flightRouters) {
-    if (!unsubscribe) flightRouters.set(router, factory(router));
-  }
-}
-
-/**
  * The flash-cookie codec, provided by the action side (data/action.ts) so
  * the router core never carries it: the core consumes the cookie eagerly
  * per request (detection + one-shot clear via the runtime's isomorphic half)
