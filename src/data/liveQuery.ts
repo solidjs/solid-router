@@ -2,10 +2,10 @@ import { createSignal, type Signal } from "solid-js";
 import {
   getRequestEvent,
   getServerFunctionMetadata,
-  getServerFunctionRPC,
   isServer,
   isServerFunction
 } from "@solidjs/web";
+import { live } from "@solidjs/web/server-functions";
 import { getIntent } from "../routing.js";
 import { hashKey, matchKey, registerFlightDataHook, registerRevalidateHook } from "./query.js";
 
@@ -17,9 +17,16 @@ const PRELOAD_TIMEOUT = 5000;
 // computations meeting a branded iterable apply live SSR policy (document
 // face takes the first value; hydration re-runs the compute after adoption
 // to reconnect). liveQuery writes it on both faces itself — the server-side
-// resolved iterable and the client-side multicast iterable — so a producer
-// needs no separate live() declaration to be live here.
+// resolved iterable and the client-side multicast iterable. A server function
+// producer is declared live() by liveQuery (below); a plain producer needs no
+// declaration at all.
 const LIVE_SOURCE = Symbol.for("solid.LiveSource");
+// Stamped by hydration's takeover on the iterable the compute returned (the
+// subscriber iterable below): the value the page was served with. Forwarded
+// onto the channel's first live() iterable, which yields it first and names
+// it as its position, so a takeover whose value is unchanged costs nothing
+// on the wire.
+const LIVE_RESUME_FROM = Symbol.for("solid.LiveResumeFrom");
 
 export type LiveQueryStatus = "idle" | "connecting" | "connected" | "reconnecting" | "closed";
 
@@ -47,6 +54,8 @@ type Channel = {
   /** keep the record (latest value) past teardown — request-scoped channels
    * replay it to later consumers of the same render for value consistency */
   retain: boolean;
+  /** the hydrated value the first connection resumes from (see LIVE_RESUME_FROM) */
+  resume?: any;
 };
 
 const channelMap = new Map<string, Channel>();
@@ -95,6 +104,10 @@ async function connect(ch: Channel) {
             if (gen === ch.gen && state !== "closed") setStatus(state as LiveQueryStatus);
           };
         } catch {}
+      }
+      if (ch.resume !== undefined && result !== null && typeof result === "object") {
+        result[LIVE_RESUME_FROM] = ch.resume;
+        ch.resume = undefined;
       }
       const it =
         result !== null && typeof result === "object" && result[Symbol.asyncIterator]
@@ -179,7 +192,8 @@ function openChannel(
   key: string,
   call: () => any,
   report: boolean,
-  retain: boolean
+  retain: boolean,
+  resume?: any
 ): Channel {
   let ch = map.get(key);
   if (!ch) {
@@ -196,7 +210,8 @@ function openChannel(
       close: () => {},
       call,
       report,
-      retain
+      retain,
+      resume
     };
     map.set(key, ch);
     connect(ch);
@@ -208,11 +223,11 @@ function openChannel(
 // channel lazily (first pull connects — a hydration trace or speculative
 // call opens nothing), replay the latest value immediately, then follow
 // with latest-wins delivery.
-function subscriberIterable(open: () => Channel) {
-  return {
+function subscriberIterable(open: (resume?: any) => Channel) {
+  const iterable: any = {
     [LIVE_SOURCE]: true,
     [Symbol.asyncIterator]() {
-      const ch = open();
+      const ch = open(iterable[LIVE_RESUME_FROM]);
       ch.count++;
       let seen = 0;
       let released = false;
@@ -248,6 +263,7 @@ function subscriberIterable(open: () => Channel) {
       };
     }
   };
+  return iterable;
 }
 
 function reconnectChannel(ch: Channel) {
@@ -334,7 +350,8 @@ export type LiveFunction<T extends (...args: any) => any> = T extends (...args: 
  *   definite rejection (4xx: the transport stamps HTTP statuses onto
  *   failures) ends the channel and surfaces the error to consumers, as does
  *   a first-connect failure.
- * - Server functions are declared GET at creation (like `query`). Live keys
+ * - Server functions are declared `live()` (which implies GET) at creation,
+ *   so the connection gets the transport's live lifecycle. Live keys
  *   are neither collected for single-flight nor swept after a mutation: the
  *   stream is the freshness mechanism, and the mutation reaches a live
  *   query through its producer. (The flight-data hook below still adopts a
@@ -359,13 +376,11 @@ export type LiveFunction<T extends (...args: any) => any> = T extends (...args: 
  */
 export function liveQuery<T extends (...args: any) => any>(fn: T, name: string): LiveFunction<T> {
   hookRevalidate();
-  // liveQuery implies GET, exactly as query does: reads belong on the GET
-  // transport (cacheable URLs, no single-flight enveloping). An explicit
-  // GET(fn) or live(GET(fn)) declaration passes through untouched.
-  if (isServerFunction(fn) && !getServerFunctionMetadata(fn)?.method) {
-    const rpc = getServerFunctionRPC();
-    if (rpc) fn = rpc.GET(fn) as unknown as T;
-  }
+  // liveQuery implies live (which implies GET): live() brings the wire
+  // lifecycle — the live address, Last-Event-ID resume, response-lifetime
+  // deaths, Retry-After — so the channel multicasts a live connection. An
+  // explicit live() declaration passes through untouched.
+  if (isServerFunction(fn) && !getServerFunctionMetadata(fn)?.live) fn = live(fn) as unknown as T;
   const liveFn = ((...args: Parameters<T>) => {
     const key = name + hashKey(args);
     if (isServer) {
@@ -395,7 +410,8 @@ export function liveQuery<T extends (...args: any) => any>(fn: T, name: string):
         openChannel(channels, key, () => fn(...(args as any)), false, true)
       );
     }
-    const open = () => openChannel(channelMap, key, () => fn(...(args as any)), true, false);
+    const open = (resume?: any) =>
+      openChannel(channelMap, key, () => fn(...(args as any)), true, false, resume);
     // Preload warms the channel, exactly as calling a query in a preload
     // function warms its cache: connect now, hold a temporary consumer slot
     // so refcounting doesn't close it before navigation renders. When the
