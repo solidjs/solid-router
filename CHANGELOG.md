@@ -1,5 +1,12 @@
 # @solidjs/router
 
+## 2.0.0-next.42
+
+### Patch Changes
+
+- eee71c5: `liveQuery(fn, key)` now declares a server function `live()` itself, so `liveQuery(fn, key)` gets the transport's live lifecycle (live address, `Last-Event-ID` resume, response-lifetime deaths, `Retry-After`) without wrapping by hand. An explicit `live(fn)` passes through untouched. Hydration takeover forwards the served value to the first connection, so an unchanged value costs nothing on the wire.
+- 22c6306: Dev builds name the data layer's primitives after their keys (`query:<key>`, `liveQuery.status:<key>`) and the router's location, url and submissions nodes (`router.*`), so attribution diagnostics say which query is waiting instead of `"signal"`. The names sit behind `DEV &&` and fold out of production bundles.
+
 ## 2.0.0-next.41
 
 ### Patch Changes
