@@ -1,5 +1,10 @@
 import { vi } from "vitest";
 import { flush } from "solid-js";
+import {
+  createServerReference,
+  getServerFunctionMetadata,
+  live
+} from "@solidjs/web/server-functions";
 import { liveQuery } from "../../src/data/liveQuery.js";
 import { deliverFlightData, revalidate } from "../../src/data/query.js";
 
@@ -561,5 +566,85 @@ describe("liveQuery through solid's reactive consumption", () => {
       expect(two()).toBe("B");
       dispose();
     });
+  });
+});
+
+describe("liveQuery over a server function", () => {
+  // vitest's browser conditions load the client entry, whose
+  // createServerReference takes an id (the types resolve the server ABI).
+  const reference = (id: string) => (createServerReference as unknown as (id: string) => any)(id);
+
+  async function withFetch(run: (seen: string[]) => Promise<void>) {
+    const seen: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: any) => {
+      seen.push(String(url));
+      // BodyFormat.String: a one-value answer
+      return new Response("v1", {
+        headers: { "X-Server-Function-Format": "1", "Content-Type": "text/plain" }
+      });
+    }) as typeof fetch;
+    try {
+      await run(seen);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  }
+
+  test("implies live(): the channel connects at the live address", async () => {
+    const ref = reference("lq-sf-0");
+    await withFetch(async seen => {
+      const lq = liveQuery(ref, uniqueName());
+      const it = lq()[Symbol.asyncIterator]();
+      expect((await it.next()).value).toBe("v1");
+      await it.return!();
+      expect(seen).toHaveLength(1);
+      expect(seen[0]).toContain("/_server/live/lq-sf-0");
+    });
+    // the declaration is the wrapper's; the reference itself is untouched
+    expect(getServerFunctionMetadata(ref)?.live).toBeUndefined();
+  });
+
+  test("an explicit live() declaration passes through untouched", async () => {
+    await withFetch(async seen => {
+      const lq = liveQuery(live(reference("lq-sf-1")), uniqueName());
+      const it = lq()[Symbol.asyncIterator]();
+      expect((await it.next()).value).toBe("v1");
+      await it.return!();
+      expect(seen).toHaveLength(1);
+      expect(seen[0]).toContain("/_server/live/lq-sf-1");
+    });
+  });
+});
+
+describe("hydration takeover resume", () => {
+  const RESUME = Symbol.for("solid.LiveResumeFrom");
+
+  test("the hydrated value is forwarded onto the first connection's iterable", async () => {
+    const stamped: any[] = [];
+    const fn = () => {
+      const source: any = {
+        [Symbol.asyncIterator]() {
+          stamped.push(source[RESUME]);
+          let sent = false;
+          return {
+            next: async () =>
+              sent
+                ? new Promise<never>(() => {})
+                : ((sent = true), { done: false, value: "fresh" }),
+            return: async () => ({ done: true, value: undefined })
+          };
+        }
+      };
+      return source;
+    };
+    const lq = liveQuery(fn, uniqueName());
+    const iterable: any = lq();
+    // what solid's takeover run does to the iterable its compute returned
+    iterable[RESUME] = "served";
+    const it = iterable[Symbol.asyncIterator]();
+    expect((await it.next()).value).toBe("fresh");
+    expect(stamped).toEqual(["served"]);
+    await it.return!();
   });
 });
