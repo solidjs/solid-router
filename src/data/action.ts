@@ -315,7 +315,10 @@ export function useSubmissions<T extends Array<any>, U, V>(
       router.submissions[0]().filter(
         s => s.url === (fn as any).base && (!filter || filter(s.input))
       ),
-    { equals: (a, b) => a.length === b.length && a.every((s, i) => s === b[i]) }
+    {
+      equals: (a, b) => a.length === b.length && a.every((s, i) => s === b[i]),
+      ...(DEV && { name: "router.submissions" })
+    }
   );
   return new Proxy<Submission<any, any>[]>([] as any, {
     get(_, property) {

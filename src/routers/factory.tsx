@@ -364,7 +364,7 @@ function createIntegration(
   const [read, write] = createSignal(wrap(history.get()), {
     equals: (a, b) => a.value === b.value && a.state === b.state && a._navigation === b._navigation,
     ownedWrite: true,
-    name: "location"
+    ...(DEV && { name: "router.location" })
   });
   const signal: RouterIntegration["signal"] = [
     read,

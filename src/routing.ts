@@ -694,7 +694,8 @@ function createLocation(
       }
     },
     {
-      equals: (a, b) => a.href === b.href
+      equals: (a, b) => a.href === b.href,
+      ...(DEV && { name: "router.url" })
     }
   );
 

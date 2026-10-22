@@ -1,4 +1,5 @@
 import { createSignal, type Signal } from "solid-js";
+import { DEV } from "solid-js";
 import {
   getRequestEvent,
   getServerFunctionMetadata,
@@ -68,7 +69,14 @@ function statusSignal(key: string) {
   // ownedWrite: the first write happens synchronously inside whatever
   // computation pulled the channel open — this is channel-owned state, not
   // the computation's own.
-  if (!s) statusMap.set(key, (s = createSignal<LiveQueryStatus>("idle", { ownedWrite: true })));
+  if (!s)
+    statusMap.set(
+      key,
+      (s = createSignal<LiveQueryStatus>("idle", {
+        ownedWrite: true,
+        ...(DEV && { name: `liveQuery.status:${key}` })
+      }))
+    );
   return s;
 }
 

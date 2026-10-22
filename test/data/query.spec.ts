@@ -1,4 +1,4 @@
-import { createRoot } from "solid-js";
+import { DEV, createRoot } from "solid-js";
 import { vi } from "vitest";
 import {
   GET,
@@ -621,5 +621,29 @@ describe("hashKey should", () => {
     expect(hashKey([{ b: 2, a: 1 }, [3, { z: 2, a: 1 }], null])).toBe(
       '[{"a":1,"b":2},[3,{"a":1,"z":2}],null]'
     );
+  });
+});
+
+// Dev builds name the data layer's primitives after their keys, so
+// attribution diagnostics (SILENT_HOLD, waterfalls) say which query is
+// waiting instead of "signal". Production folds the names out (`DEV &&`).
+function namesCreatedBy(run: () => void): string[] {
+  const names: string[] = [];
+  DEV!.hooks.onGraph = (node: any) => node?._name && names.push(node._name);
+  try {
+    createRoot(run);
+  } finally {
+    DEV!.hooks.onGraph = undefined;
+  }
+  return names;
+}
+
+describe("query primitive names", () => {
+  test("a query's version signal carries its key", () => {
+    const q = query(async (id: string) => id, "names-query");
+    const names = namesCreatedBy(() => {
+      q("a");
+    });
+    expect(names).toContain(`query:${q.keyFor("a")}`);
   });
 });
