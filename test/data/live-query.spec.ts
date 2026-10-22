@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import { flush } from "solid-js";
+import { DEV, createRoot, flush } from "solid-js";
 import {
   createServerReference,
   getServerFunctionMetadata,
@@ -646,5 +646,31 @@ describe("hydration takeover resume", () => {
     expect((await it.next()).value).toBe("fresh");
     expect(stamped).toEqual(["served"]);
     await it.return!();
+  });
+});
+
+// Dev builds name the data layer's primitives after their keys, so
+// attribution diagnostics (SILENT_HOLD, waterfalls) say which query is
+// waiting instead of "signal". Production folds the names out (`DEV &&`).
+function namesCreatedBy(run: () => void): string[] {
+  const names: string[] = [];
+  DEV!.hooks.onGraph = (node: any) => node?._name && names.push(node._name);
+  try {
+    createRoot(run);
+  } finally {
+    DEV!.hooks.onGraph = undefined;
+  }
+  return names;
+}
+
+describe("liveQuery primitive names", () => {
+  test("the status signal carries the channel key", () => {
+    const lq = liveQuery(async function* () {
+      yield 1;
+    }, uniqueName());
+    const names = namesCreatedBy(() => {
+      lq.status();
+    });
+    expect(names).toContain(`liveQuery.status:${lq.keyFor()}`);
   });
 });

@@ -1,3 +1,4 @@
+import { DEV } from "solid-js";
 import {
   createSignal,
   getObserver,
@@ -319,7 +320,10 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
           res,
           ,
           intent,
-          createSignal(stamp, { ownedWrite: true }) as Signal<number> & { count: number }
+          createSignal(stamp, {
+            ownedWrite: true,
+            ...(DEV && { name: `query:${key}` })
+          }) as Signal<number> & { count: number }
         ])
       );
       cached[4].count = 0;
@@ -434,7 +438,10 @@ query.set = <T>(key: string, value: T extends Promise<any> ? never : T) => {
         Promise.resolve(value),
         value,
         "preload",
-        createSignal(now, { ownedWrite: true }) as Signal<number> & { count: number }
+        createSignal(now, {
+          ownedWrite: true,
+          ...(DEV && { name: `query:${key}` })
+        }) as Signal<number> & { count: number }
       ])
     );
     cached[4].count = 0;
