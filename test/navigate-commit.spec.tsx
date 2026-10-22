@@ -406,6 +406,93 @@ describe("navigateFromRoute never drops the last navigation", () => {
     }
   });
 
+  test("Forward during a pending Back lands on the Forward target (#687)", async () => {
+    const history = memoryHistory();
+    history.set({ value: "/slow" });
+    history.set({ value: "/fast" });
+
+    let releaseSlow!: () => void;
+    let gate = Promise.resolve();
+    const routes = [
+      { path: "/", component: page("home") },
+      {
+        path: "/slow",
+        component: () => {
+          const value = createMemo(async () => {
+            await gate;
+            return "slow";
+          });
+          return <div>{value()}</div>;
+        }
+      },
+      { path: "/fast", component: page("fast") }
+    ] as const;
+    const app = mount(routes, history);
+    try {
+      await settle();
+      expect(app.text()).toBe("fast");
+      gate = new Promise<void>(resolve => (releaseSlow = resolve));
+
+      history.back();
+      await settle();
+      // held on /slow's data: still showing /fast
+      expect(app.text()).toBe("fast");
+
+      history.forward();
+      await settle();
+      releaseSlow();
+      await settle();
+
+      expect(history.get()).toBe("/fast");
+      expect(app.text()).toBe("fast");
+    } finally {
+      app.cleanup();
+    }
+  });
+
+  test("a navigation during a held one lands on the newer target (#687)", async () => {
+    const history = memoryHistory();
+    let navigate!: Navigator;
+    let releaseSlow!: () => void;
+    const gate = new Promise<void>(resolve => (releaseSlow = resolve));
+    const routes = [
+      {
+        path: "/",
+        component: () => {
+          navigate = useNavigate();
+          return <div>home</div>;
+        }
+      },
+      {
+        path: "/slow",
+        component: () => {
+          const value = createMemo(async () => {
+            await gate;
+            return "slow";
+          });
+          return <div>{value()}</div>;
+        }
+      },
+      { path: "/fast", component: page("fast") }
+    ] as const;
+    const app = mount(routes, history);
+    try {
+      navigate("/slow");
+      await settle();
+      expect(app.text()).toBe("home");
+
+      navigate("/fast");
+      await settle();
+      releaseSlow();
+      await settle();
+
+      expect(history.get()).toBe("/fast");
+      expect(app.text()).toBe("fast");
+    } finally {
+      app.cleanup();
+    }
+  });
+
   test("navigation intent is derived from the pending source transition", async () => {
     const history = memoryHistory();
     let navigate!: Navigator;
