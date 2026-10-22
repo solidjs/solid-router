@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createServerReference } from "@solidjs/web/server-functions";
 
 import { liveQuery } from "../src/data/liveQuery.js";
 import { defineFileRoute, fileRoutes } from "../src/fs.js";
@@ -192,6 +193,10 @@ describe("fileRoutes", () => {
  * is the shipped one (`serverRoutes: true`, aliased in vitest.config.ts).
  */
 const SERVER_FUNCTION_METADATA = Symbol.for("solid.ServerFunctionMetadata");
+// Any app with a server page holds a real reference, which fills the
+// transport's RPC seam that `live()` (implied by liveQuery) reaches GET
+// through; the hand-branded stubs below don't.
+(createServerReference as unknown as (id: string) => unknown)("fs-spec-seam");
 /** Brand `fn` the way compiled `"use server"` output does. */
 function serverFunction<F extends (...args: any[]) => any>(fn: F): F {
   (fn as any)[SERVER_FUNCTION_METADATA] = {};
