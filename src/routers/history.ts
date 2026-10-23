@@ -27,6 +27,17 @@ function keepDepth(state: any) {
   };
 }
 
+// A pushed entry sits one above the current one. Stamp it from `depth`, not
+// `history.length`: once the browser's session history is full (50 entries in
+// Chromium and Firefox) a push drops the oldest entry and `length` stays the
+// same, so `length - 1` would give every new entry the depth of the one below.
+function nextDepth(state: any) {
+  return {
+    ...state,
+    _depth: (depth ?? window.history.length - 1) + 1
+  };
+}
+
 function notifyIfNotBlocked(
   notify: (value?: string | LocationChange) => void,
   block: (delta: number | null) => boolean
@@ -87,7 +98,7 @@ export function browserHistory(): RouterHistory {
       if (replace) {
         window.history.replaceState(keepDepth(state), "", value);
       } else {
-        window.history.pushState(state, "", value);
+        window.history.pushState(nextDepth(state), "", value);
       }
       scrollToHash(decodeURIComponent(window.location.hash.slice(1)), scroll);
       saveCurrentDepth();
@@ -136,7 +147,7 @@ export function hashHistory(): RouterHistory {
       if (replace) {
         window.history.replaceState(keepDepth(state), "", "#" + value);
       } else {
-        window.history.pushState(state, "", "#" + value);
+        window.history.pushState(nextDepth(state), "", "#" + value);
       }
       const hashIndex = value.indexOf("#");
       const hash = hashIndex >= 0 ? value.slice(hashIndex + 1) : "";
