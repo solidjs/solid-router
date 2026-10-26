@@ -114,12 +114,22 @@ export function setupNativeEvents({
       evt.preventDefault();
       // Only a click the router acts on joins the event's interaction: this
       // listener hears every click on the document.
+      // `viewtransition` opts in (its value is space-separated types).
+      // `noviewtransition` opts out of a router-wide default. Absent, the
+      // navigation inherits `createRouter({ viewTransition })`.
+      const typed = a.getAttribute("viewtransition");
+      const viewTransition = a.hasAttribute("noviewtransition")
+        ? false
+        : typed !== null
+          ? { types: typed.split(/\s+/).filter(Boolean) }
+          : undefined;
       dispatchAsInteraction(evt, () =>
         navigateFromRoute(to, {
           resolve: false,
           replace: a.hasAttribute("replace"),
           scroll: !a.hasAttribute("noscroll"),
-          state: state ? JSON.parse(state) : undefined
+          state: state ? JSON.parse(state) : undefined,
+          ...(viewTransition !== undefined ? { viewTransition } : {})
         })
       );
     }

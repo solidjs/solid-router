@@ -67,11 +67,7 @@ import {
 import type { FlashSubmission } from "@solidjs/web/server-functions/server";
 import { HREF } from "./paths.js";
 import { linkPending, routingState } from "./pending.js";
-import {
-  serverRouteOf,
-  serverRouteArgs,
-  serverRouteArgsEqual
-} from "./serverRouteShared.js";
+import { serverRouteOf, serverRouteArgs, serverRouteArgsEqual } from "./serverRouteShared.js";
 
 const MAX_REDIRECTS = 100;
 
@@ -145,7 +141,7 @@ export const useResolvedPath = (path: () => string) => {
   return createMemo(() => route.resolvePath(path()));
 };
 
-export const useHref = <T extends string | undefined>(to: () => T): () => string | T => {
+export const useHref = <T extends string | undefined>(to: () => T): (() => string | T) => {
   const router = useRouter();
   return createMemo(() => {
     const to_ = to();
@@ -155,18 +151,18 @@ export const useHref = <T extends string | undefined>(to: () => T): () => string
 
 /**
  * Retrieves method to do navigation. The method accepts a path to navigate to and an optional object with the following options:
- * 
+ *
  * - resolve (*boolean*, default `true`): resolve the path against the current route
  * - replace (*boolean*, default `false`): replace the history entry
  * - scroll (*boolean*, default `true`): scroll to top after navigation
  * - state (*any*, default `undefined`): pass custom state to `location.state`
- * 
+ *
  * **Note**: The state is serialized using the structured clone algorithm which does not support all object types.
- * 
+ *
  * @example
  * ```js
  * const navigate = useNavigate();
- * 
+ *
  * if (unauthorized) {
  *   navigate("/login", { replace: true });
  * }
@@ -176,11 +172,11 @@ export const useNavigate = () => useRouter().navigatorFactory();
 
 /**
  * Retrieves reactive `location` object useful for getting things like `pathname`.
- * 
+ *
  * @example
  * ```js
  * const location = useLocation();
- * 
+ *
  * const pathname = createMemo(() => parsePath(location.pathname));
  * ```
  */
@@ -191,11 +187,11 @@ export const useLocation = <S = unknown>() => useRouter().location as Location<S
  * Useful for showing pending navigation state while the next route and its data settle.
  * This is the way to read routing state: `RouterContext` doesn't carry `isRouting`.
  * For the in-flight destination, read the location with Solid's `isPending`/`latest`.
- * 
+ *
  * @example
  * ```js
  * const isRouting = useIsRouting();
- * 
+ *
  * return (
  *   <div classList={{ "grey-out": isRouting() }}>
  *     <MyAwesomeContent />
@@ -263,11 +259,11 @@ export const useRouteMatches = () => {
 
 /**
  * Retrieves a reactive, store-like object containing the current route path parameters as defined in the Route.
- * 
+ *
  * @example
  * ```js
  * const params = useParams();
- * 
+ *
  * // fetch user based on the id path parameter
  * const getUser = query(() => fetchUser(params.id), "user");
  * ```
@@ -282,15 +278,15 @@ export function useParams(_path?: TypedPath): Params {
  * Retrieves a tuple containing a reactive object to read the current location's query parameters and a method to update them.
  * The object is a proxy so you must access properties to subscribe to reactive updates.
  * **Note** that values will be strings and property names will retain their casing.
- * 
+ *
  * The setter method accepts an object whose entries will be merged into the current query string.
  * Values `''`, `undefined` and `null` will remove the key from the resulting query string.
  * Updates will behave just like a navigation and the setter accepts the same optional second parameter as `navigate` and auto-scrolling is disabled by default.
- * 
+ *
  * @examples
  * ```js
  * const [searchParams, setSearchParams] = useSearchParams();
- * 
+ *
  * return (
  *   <div>
  *     <span>Page: {searchParams.page}</span>
@@ -327,7 +323,10 @@ export function useSearchParams(
     // navigation lands on that navigation's target.
     navigate(
       headed => {
-        const url = new URL(headed.value[0] === "/" ? mockBase + headed.value : headed.value, mockBase);
+        const url = new URL(
+          headed.value[0] === "/" ? mockBase + headed.value : headed.value,
+          mockBase
+        );
         return url.pathname + mergeSearchString(url.search, params) + url.hash;
       },
       {
@@ -380,7 +379,6 @@ export interface LinkState {
    */
   pending: () => boolean;
 }
-
 
 /**
  * Reactive link state for custom link components — the programmatic
@@ -1091,10 +1089,7 @@ export function createRouterContext(
       }
 
       const navigationDepth =
-        !isServer &&
-        headed._navigation !== undefined &&
-        headed._navigation > 0 &&
-        unsettled(headed)
+        !isServer && headed._navigation !== undefined && headed._navigation > 0 && unsettled(headed)
           ? headed._navigation
           : 0;
 
@@ -1121,7 +1116,20 @@ export function createRouterContext(
             state: nextState,
             replace: navigationDepth ? headed.replace : replace,
             scroll: navigationDepth ? headed.scroll : scroll,
-            _navigation: navigationDepth + 1
+            _navigation: navigationDepth + 1,
+            // A hop that doesn't say inherits the router default. `true`
+            // carries an empty override so the integration can tell it from
+            // "not specified".
+            ...(options && "viewTransition" in options && options.viewTransition !== undefined
+              ? {
+                  viewTransition:
+                    options.viewTransition === true
+                      ? {}
+                      : options.viewTransition === false
+                        ? false
+                        : { types: options.viewTransition.types }
+                }
+              : {})
           })
         );
       }

@@ -107,6 +107,17 @@ export interface Location<S = unknown> extends Path {
   key: string;
 }
 
+/**
+ * Router-wide view transitions (`createRouter({ viewTransition })`).
+ * `true` runs every client navigation inside `document.startViewTransition`.
+ * `types` sets the active types, or — as a function — varies or declines
+ * (`false`) per navigation. Off unless set. Ignored on the server, in
+ * browsers without the API, and when `prefers-reduced-motion: reduce` matches.
+ */
+export interface ViewTransitionOptions {
+  types?: string[] | ((info: { from: string; to: string }) => string[] | false);
+}
+
 export interface NavigateOptions<S = unknown> {
   /**
    * Resolve the target like an href: leading-`/` paths are prefixed with the
@@ -118,6 +129,12 @@ export interface NavigateOptions<S = unknown> {
   replace: boolean;
   scroll: boolean;
   state: S;
+  /**
+   * Run this navigation inside `document.startViewTransition`.
+   * `false` skips a router-wide `viewTransition`. `{ types }` sets the
+   * active view-transition types for this navigation only.
+   */
+  viewTransition?: boolean | { types?: string[] };
 }
 
 export interface Navigator {
@@ -150,6 +167,11 @@ export interface LocationChange<S = unknown> {
  */
 export interface LocationWrite<S = unknown> extends Omit<LocationChange<S>, "value"> {
   value: string | ((headed: LocationChange) => string | undefined);
+  /**
+   * @internal Per-navigation override from `navigate`. Stripped before the
+   * location is stored — it is not history state.
+   */
+  viewTransition?: false | { types?: string[] };
 }
 export interface RouterIntegration {
   // Structural getter/setter pair rather than solid's `Signal` — the server's

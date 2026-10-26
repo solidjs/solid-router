@@ -82,6 +82,7 @@ export type {
   ServerRouteView,
   Submission,
   BeforeLeaveEventArgs,
+  ViewTransitionOptions,
   TypedPath,
   TypedSearchPath,
   StandardSchemaV1

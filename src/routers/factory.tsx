@@ -3,6 +3,7 @@
 import type { Owner } from "solid-js";
 import {
   createSignal,
+  flush,
   getOwner,
   isHydrating,
   onCleanup,
@@ -54,7 +55,8 @@ import type {
   RouteSectionProps,
   StandardSchemaV1,
   TypedPath,
-  ValidFilters
+  ValidFilters,
+  ViewTransitionOptions
 } from "../types.js";
 import { mockBase } from "../utils.js";
 import { Root, Routes } from "./components.jsx";
@@ -214,6 +216,20 @@ export interface RouterConfig<R extends readonly RouteDefinition[] = RouteDefini
    * must opt in explicitly.
    */
   scrollRestoration?: boolean;
+  /**
+   * Snapshot client navigations with the View Transitions API. The browser
+   * captures the current page, then the revealing flush — new route, history
+   * write, scroll restoration — runs inside the update callback, and the
+   * callback stays open until that navigation settles. Async data keeps the
+   * old pixels up until the reveal. Off by default. A per-navigation
+   * `navigate(to, { viewTransition })` or a `viewtransition` /
+   * `noviewtransition` attribute on an anchor overrides it.
+   *
+   * Same-tick navigations share one transition and land on the last target.
+   * Browsers without `document.startViewTransition`, and
+   * `prefers-reduced-motion: reduce`, commit the same way without a snapshot.
+   */
+  viewTransition?: boolean | ViewTransitionOptions;
   transformUrl?: (url: string) => string;
 }
 
@@ -352,10 +368,86 @@ function describeInitial(
   };
 }
 
+type StartViewTransition = {
+  (update: () => void | Promise<void>): unknown;
+  (options: { update: () => void | Promise<void>; types?: string[] }): unknown;
+};
+
+function startViewTransitionOf(): StartViewTransition | undefined {
+  const start = (document as Document & { startViewTransition?: StartViewTransition })
+    .startViewTransition;
+  return typeof start === "function" ? start.bind(document) : undefined;
+}
+
+function reducedMotion() {
+  return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function supportsTransitionTypes() {
+  return typeof CSS !== "undefined" && CSS.supports("selector(:active-view-transition-type(a))");
+}
+
+/** Drop the navigation-only override so it never becomes stored location state. */
+function locationWrite(next: LocationWrite): LocationWrite {
+  if (next.viewTransition === undefined) return next;
+  const { viewTransition: _viewTransition, ...rest } = next;
+  return rest;
+}
+
+function requestsTransition(
+  config: boolean | ViewTransitionOptions | undefined,
+  next: LocationWrite
+) {
+  if (next.viewTransition === false) return false;
+  if (next.viewTransition) return true;
+  return !!config;
+}
+
+/**
+ * Active types for the last write in a same-tick batch, or `false` when that
+ * write declines the snapshot. Composers run once here and again when the
+ * write lands; they are pure (search params build a string from `headed`).
+ */
+function transitionTypes(
+  config: boolean | ViewTransitionOptions | undefined,
+  writes: LocationWrite[],
+  from: LocationChange
+): string[] | false {
+  const last = writes[writes.length - 1];
+  const override = last.viewTransition;
+  if (override === false) return false;
+  if (override && override.types) return override.types;
+  if (override) return [];
+  if (!config || config === true) return [];
+  if (typeof config.types === "function") {
+    let headed = from;
+    let to = from.value;
+    try {
+      for (const next of writes) {
+        const resolved = resolveLocationWrite(headed, locationWrite(next));
+        if (resolved) {
+          headed = resolved;
+          to = resolved.value;
+        }
+      }
+    } catch {
+      to = from.value;
+    }
+    const decided = config.types({ from: from.value, to });
+    return decided === false ? false : (decided ?? []);
+  }
+  return config.types ?? [];
+}
+
 /** Wraps a history adapter in the integration signal the router core consumes. Must run under a reactive owner. */
 function createIntegration(
   history: RouterHistory,
-  match: (pathname: string) => RouteMatch[]
+  match: (pathname: string) => RouteMatch[],
+  options?: {
+    viewTransition?: boolean | ViewTransitionOptions;
+    /** Bind scroll restoration to the write that is about to commit. */
+    prepare?: () => void;
+  }
 ): RouterIntegration {
   let committing = false;
   // Writes whose transition has landed (see `RouterIntegration.settled`).
@@ -366,58 +458,150 @@ function createIntegration(
     ownedWrite: true,
     ...(DEV && { name: "router.location" })
   });
-  const signal: RouterIntegration["signal"] = [
-    read,
-    (next: LocationWrite) => {
-      // What the write resolved to, or undefined when there was nothing to
-      // write (see `resolveLocationWrite`).
-      let written: LocationChange | undefined;
-      const commit = () => {
-        // The functional updater is the one channel that serves an unflushed
-        // write of this same tick (A28): the destination composes on it and
-        // the no-op rule compares against it, so `navigate()` behind another
-        // write in one handler sees that write rather than the flushed world.
-        write(headed => (written = resolveLocationWrite(headed, next)) || headed);
-        if (written && written._navigation) {
-          const next = written;
-          // Register out of band so a destination error boundary replacing the
-          // Router subtree cannot suppress the winning history commit. The
-          // settle is tied to the transition carrying the write: it fires when
-          // that lands, a rejection included, and a superseded write's settle
-          // fires with the transition that absorbed it.
-          runWithOwner(null, () =>
-            onSettled(() => {
-              settled.add(next);
-              if (next._navigation! < 0 || read() !== next) return;
+  // Same-tick navigations share one snapshot. `open` covers the update
+  // callback and the settle it is still waiting on, so a redirect hop joins
+  // that transition instead of starting another (which would skip the first
+  // and push a second history entry).
+  let batch: LocationWrite[] | null = null;
+  let inUpdate = false;
+  let open = false;
+
+  const runCommit = (next: LocationWrite): Promise<void> | void => {
+    // What the write resolved to, or undefined when there was nothing to
+    // write (see `resolveLocationWrite`).
+    let written: LocationChange | undefined;
+    let pending: Promise<void> | undefined;
+    const commit = () => {
+      options?.prepare?.();
+      const bare = locationWrite(next);
+      // The functional updater is the one channel that serves an unflushed
+      // write of this same tick (A28): the destination composes on it and
+      // the no-op rule compares against it, so `navigate()` behind another
+      // write in one handler sees that write rather than the flushed world.
+      write(headed => (written = resolveLocationWrite(headed, bare)) || headed);
+      if (written && written._navigation) {
+        const landed = written;
+        let resolve!: () => void;
+        const done = new Promise<void>(r => {
+          resolve = r;
+        });
+        // Register out of band so a destination error boundary replacing the
+        // Router subtree cannot suppress the winning history commit. The
+        // settle is tied to the transition carrying the write: it fires when
+        // that lands, a rejection included, and a superseded write's settle
+        // fires with the transition that absorbed it.
+        runWithOwner(null, () =>
+          onSettled(() => {
+            settled.add(landed);
+            try {
+              if (landed._navigation! < 0 || read() !== landed) return;
               committing = true;
               try {
-                history.set(next);
+                history.set(landed);
               } finally {
                 committing = false;
               }
-            })
-          );
-        }
-      };
-      // Every client location write passes here — navigate(), a redirect hop,
-      // the browser's own back/forward — so this is the one place the
-      // navigation is declared. `read()` still holds the committed location
-      // while a navigation is pending, which is the `from` a hop wants too.
-      // A write the no-op rule drops is still declared: the engine settles a
-      // navigation whose write "did not survive the equality gate" on the spot.
-      // A write from NO location is not a navigation: it is the arrival being
-      // normalized (`createRouterContext` moving an empty location — a hash
-      // history with no hash, a memory history seeded with "" — onto the base
-      // path), and the arrival is already declared by the initial frame open
-      // around the context build (`describeInitial`), which this write then
-      // stamps. The location is never empty again after that first write.
+            } finally {
+              resolve();
+            }
+          })
+        );
+        pending = done;
+      }
+    };
+    // Every client location write passes here — navigate(), a redirect hop,
+    // the browser's own back/forward — so this is the one place the
+    // navigation is declared. `read()` still holds the committed location
+    // while a navigation is pending, which is the `from` a hop wants too.
+    // A write the no-op rule drops is still declared: the engine settles a
+    // navigation whose write "did not survive the equality gate" on the spot.
+    // A write from NO location is not a navigation: it is the arrival being
+    // normalized (`createRouterContext` moving an empty location — a hash
+    // history with no hash, a memory history seeded with "" — onto the base
+    // path), and the arrival is already declared by the initial frame open
+    // around the context build (`describeInitial`), which this write then
+    // stamps. The location is never empty again after that first write.
+    const from = untrack(read).value;
+    OBSERVE && from
+      ? OBSERVE.attribution.withOrigin(
+          describeNavigation(match, locationWrite(next), () => written, from),
+          commit
+        )
+      : commit();
+    return pending;
+  };
+
+  const signal: RouterIntegration["signal"] = [
+    read,
+    (next: LocationWrite) => {
+      // A hop while the snapshot's update is in flight belongs to it.
+      if (inUpdate || open) {
+        void runCommit(next);
+        return;
+      }
+      // A second navigate() before the shared snapshot is taken lands in the
+      // same batch. Last write wins, one history entry.
+      if (batch) {
+        batch.push(next);
+        return;
+      }
       const from = untrack(read).value;
-      OBSERVE && from
-        ? OBSERVE.attribution.withOrigin(
-            describeNavigation(match, next, () => written, from),
-            commit
-          )
-        : commit();
+      if (!from || !requestsTransition(options?.viewTransition, next)) {
+        void runCommit(next);
+        return;
+      }
+      batch = [next];
+      queueMicrotask(() => {
+        const writes = batch;
+        batch = null;
+        if (!writes || !writes.length) return;
+        const headed = untrack(read);
+        const types = transitionTypes(options?.viewTransition, writes, headed);
+        const apply = () => {
+          // Arm scroll restoration before the flush, so the restore is this
+          // write's settle and not the popstate turn's (that turn is what
+          // the browser snapshots).
+          options?.prepare?.();
+          inUpdate = true;
+          open = true;
+          try {
+            let pending: Promise<void> | undefined;
+            flush(() => {
+              for (const item of writes) {
+                const result = runCommit(item);
+                if (result) pending = result;
+              }
+            });
+            if (!pending) {
+              open = false;
+              return;
+            }
+            return pending.finally(() => {
+              open = false;
+            });
+          } catch (error) {
+            open = false;
+            throw error;
+          } finally {
+            inUpdate = false;
+          }
+        };
+        if (types === false || reducedMotion()) {
+          void apply();
+          return;
+        }
+        const start = startViewTransitionOf();
+        if (!start) {
+          void apply();
+          return;
+        }
+        try {
+          if (types.length && supportsTransitionTypes()) start({ update: apply, types });
+          else start(apply);
+        } catch {
+          if (!open) void apply();
+        }
+      });
     }
   ];
 
@@ -518,7 +702,10 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
     const page = isServer ? serverPage(props.url) : undefined;
     const integration = isServer
       ? staticIntegration(page, config.history && config.history.utils)
-      : createIntegration(history || browserHistory(), matchPath);
+      : createIntegration(history || browserHistory(), matchPath, {
+          viewTransition: config.viewTransition,
+          prepare: restoration ? () => restoration!.arm() : undefined
+        });
     let context: Owner;
     const buildContext = () =>
       createRouterContext(integration, branches, () => context, {

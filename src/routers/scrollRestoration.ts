@@ -75,6 +75,11 @@ export function createScrollRestoration(hydrating?: boolean) {
 
   let programmatic = false;
   let pending: number | undefined;
+  // The pop's settle callback has to be registered with the write that
+  // reveals the destination, not with the popstate turn. A view transition
+  // snapshots first and writes on a later task; registering here would
+  // restore against the page that is about to be snapshotted.
+  let armed = false;
 
   const unbind = [
     bindEvent(window, "scroll", () => {
@@ -121,6 +126,15 @@ export function createScrollRestoration(hydrating?: boolean) {
     onPop() {
       claim();
       pending = depth();
+      armed = false;
+    },
+    /**
+     * Bind the pending restore to the transition that is about to commit.
+     * Called once per pop, beside the location write, before that write flushes.
+     */
+    arm() {
+      if (pending == null || armed) return;
+      armed = true;
       runWithOwner(null, () => onSettled(restore));
     },
     /** The initial page settled: restore a reload/back_forward arrival. */
