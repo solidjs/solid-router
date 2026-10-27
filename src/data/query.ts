@@ -345,13 +345,13 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     function settle(v: any) {
       let cookies = isServer ? forwardedCookies.get(cached) : undefined;
       if (isServer && !cookies) forwardedCookies.set(cached, (cookies = new WeakSet()));
-      if (!("then" in v)) return handleResponse(false, cookies)(v);
-      const read = v.then(handleResponse(false, cookies), handleResponse(true, cookies));
+      if (!("then" in v)) return handleResponse(false, v, cookies)(v);
+      const read = v.then(handleResponse(false, v, cookies), handleResponse(true, v, cookies));
       OBSERVE && stampFlight(read, v);
       return read;
     }
 
-    function handleResponse(error: boolean, cookies?: WeakSet<Headers>) {
+    function handleResponse(error: boolean, source: any, cookies?: WeakSet<Headers>) {
       return async (v: any) => {
         let enveloped: any;
         let hasEnveloped = false;
@@ -405,7 +405,8 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
           }
         }
         if (error) throw v;
-        cached[2] = v;
+        // a superseded fetch or a query.set since must not overwrite the newer value
+        if (cached[1] === source) cached[2] = v;
         return v;
       };
     }
