@@ -1,4 +1,5 @@
 import { createMemo, getOwner, runWithOwner } from "solid-js";
+import { isServer } from "@solidjs/web";
 import type {
   StandardSchemaV1,
   MatchFilter,
@@ -24,10 +25,33 @@ export function normalizePath(path: string, omitSlash: boolean = false) {
  * link matching compares. Raw and encoded spellings (`/café`, `/caf%C3%A9`)
  * meet; escapes are never decoded, so `%2F` is not a path separator.
  */
-export const comparablePath = (path: string) =>
-  new URL(mockBase + normalizePath(path.split(/[?#]/, 1)[0])).pathname
-    .toLowerCase()
-    .replace(/\/$/, "");
+export const comparablePath = (path: string) => {
+  const p = normalizePath(path.split(/[?#]/, 1)[0]);
+  return (isServer && isPlainPath(p) ? p : new URL(mockBase + p).pathname).toLowerCase().replace(/\/$/, "");
+};
+
+// characters `URL` keeps verbatim in a special-scheme path (no `%`, `\`)
+const plainPathRegex = /^[\w\-.~!$&'()*+,;=:@/]*$/;
+const dotSegmentRegex = /(?:^|\/)\.\.?(?:\/|$)/;
+// a root-relative href whose path and query `URL` would keep verbatim
+const plainHrefRegex =
+  /^(\/(?![/\\])[\w\-.~!$&'()*+,;=:@/]*)(?:\?([\w\-.~!$&()*+,;=:@/?]*))?(?:#|$)/;
+
+const hasDotSegment = (path: string) => path.includes("/.") && dotSegmentRegex.test(path);
+
+/** Whether `URL` would report this pathname unchanged, so it can skip the parse. */
+const isPlainPath = (path: string) => plainPathRegex.test(path) && !hasDotSegment(path);
+
+/** A root-relative href's pathname, search and comparable path, or `undefined` if `URL` would change them. */
+export function plainHref(href: string) {
+  const m = plainHrefRegex.exec(href);
+  if (!m || hasDotSegment(m[1])) return;
+  const pathname = m[1];
+  const comparable = (
+    pathname.endsWith("/") ? pathname.replace(/\/+$/, "") : pathname
+  ).toLowerCase();
+  return { pathname, search: m[2] ? "?" + m[2] : "", comparable };
+}
 
 /**
  * Whether a URL pathname is the router's base path or under it, on a segment
@@ -65,15 +89,21 @@ export function linkMatcher(
 ) {
   const loc = comparablePath(pathname);
   const root = comparablePath(base);
-  return (target: string | undefined): { active: boolean; current: boolean } => {
+  return (
+    target: string | undefined,
+    path = target === undefined ? "" : comparablePath(target)
+  ): { active: boolean; current: boolean } => {
     if (target === undefined) return { active: false, current: false };
-    const path = comparablePath(target);
-    const exact = loc === path;
+    if (loc !== path)
+      return {
+        active: !end && path !== "" && path !== root && loc.startsWith(path + "/"),
+        current: false
+      };
     const hashless = target.split("#", 1)[0];
     const q = hashless.indexOf("?");
     return {
-      active: exact || (!end && path !== "" && path !== root && loc.startsWith(path + "/")),
-      current: exact && comparableQuery(search) === comparableQuery(q < 0 ? "" : hashless.slice(q))
+      active: true,
+      current: comparableQuery(search) === comparableQuery(q < 0 ? "" : hashless.slice(q))
     };
   };
 }
