@@ -126,6 +126,8 @@ describe("link state across hydration", () => {
       beforeParse(window: Window) {
         Object.assign(window, {
           scrollTo: () => {},
+          // hydration runs a pending memo with fetch mocked, which reads the global
+          fetch,
           Request,
           Response,
           Headers,
