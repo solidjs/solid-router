@@ -84,6 +84,35 @@ describe("SSR link state", () => {
     expect(anchor(html, "About")).not.toContain("aria-current");
   });
 
+  test("hrefs URL normalizes match the same as plain ones", async () => {
+    const Router = createRouter({
+      routes: [
+        {
+          path: "/",
+          component: () => (
+            <>
+              <a href="/About/">Upper</a>
+              <a href="/users/../about">Dots</a>
+              <a href="/about?#top">EmptyQuery</a>
+              <a href="/caf%C3%A9">Encoded</a>
+              <a href="/café">Raw</a>
+            </>
+          ),
+          children: [
+            { path: "/about", component: () => null },
+            { path: "/café", component: () => null }
+          ]
+        }
+      ]
+    });
+    let html = await renderToString(() => <Router url="/about" />);
+    for (const text of ["Upper", "Dots", "EmptyQuery"])
+      expect(anchor(html, text)).toContain('data-active aria-current="page"');
+    html = await renderToString(() => <Router url="/caf%C3%A9" />);
+    for (const text of ["Encoded", "Raw"])
+      expect(anchor(html, text)).toContain('data-active aria-current="page"');
+  });
+
   test("anchors the router does not manage stay unmarked", async () => {
     const Router = createRouter({ routes });
     const html = await renderToString(() => <Router url="/about" />);

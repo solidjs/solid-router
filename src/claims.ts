@@ -1,7 +1,7 @@
-import { hasServerLinkState, registerElementClaim, setLinkClaim } from "@solidjs/web";
+import { hasServerLinkState, isServer, registerElementClaim, setLinkClaim } from "@solidjs/web";
 import { createRenderEffect, getOwner, isHydrating, onCleanup, untrack } from "solid-js";
 import type { LinksPlugin, RouterContext } from "./types.js";
-import { isUnderBase, linkMatcher } from "./utils.js";
+import { isUnderBase, linkMatcher, plainHref } from "./utils.js";
 
 /**
  * Claimed forms are handed to this slot instead of the claims importing the
@@ -61,7 +61,7 @@ export function setupLinkClaims(
   }
 
   /** The anchor's resolved URL when the router manages it, else `undefined`. */
-  function managedUrl(a: HTMLAnchorElement | SVGAElement): URL | undefined {
+  function managedUrl(a: HTMLAnchorElement | SVGAElement) {
     if (explicitLinks && !a.hasAttribute("link")) return;
     const svg = isSvg(a);
     // claims fire at creation while the element is still in the template's
@@ -194,16 +194,24 @@ function managedLinkUrl(
   page: string | URL,
   origin: string,
   basePath: string
-): URL | undefined {
+): { pathname: string; search: string; comparable?: string } | undefined {
   if ((explicitLinks && !a.link) || a.target || !a.href || a.download) return;
   if (a.rel && a.rel.split(/\s+/).includes("external")) return;
-  let url;
-  try {
-    url = new URL(a.href, page);
-  } catch {
-    return;
+  // server pages resolve root-relative hrefs against `origin`, so plain ones skip `URL`
+  let url: { pathname: string; search: string; comparable?: string } | undefined = isServer
+    ? plainHref(a.href)
+    : undefined;
+  if (!url) {
+    let parsed;
+    try {
+      parsed = new URL(a.href, page);
+    } catch {
+      return;
+    }
+    if (parsed.origin !== origin) return;
+    url = parsed;
   }
-  if (url.origin !== origin || !isUnderBase(url.pathname, basePath)) return;
+  if (!isUnderBase(url.pathname, basePath)) return;
   return url;
 }
 
@@ -211,14 +219,14 @@ function managedLinkUrl(
 function locationMatcher(router: RouterContext, basePath: string) {
   let matched: string | undefined;
   let match: ReturnType<typeof linkMatcher>;
-  return (target: string | undefined) => {
+  return (target: string | undefined, comparable?: string) => {
     const location = router.location;
     const key = location.pathname + location.search;
     if (key !== matched) {
       matched = key;
       match = linkMatcher(location, basePath);
     }
-    return match(target);
+    return match(target, comparable);
   };
 }
 
@@ -232,6 +240,7 @@ export function setupServerLinkClaims(
   page: URL
 ) {
   const basePath = router.base.path();
+  const origin = page.origin;
   const match = locationMatcher(router, basePath);
   setLinkClaim(attrs => {
     const url = managedLinkUrl(
@@ -244,11 +253,11 @@ export function setupServerLinkClaims(
       },
       explicitLinks,
       page,
-      page.origin,
+      origin,
       basePath
     );
     if (!url) return "";
-    const { active, current } = match(url.pathname + url.search);
+    const { active, current } = match(url.pathname + url.search, url.comparable);
     return current ? ' data-active aria-current="page"' : active ? " data-active" : "";
   });
 }
