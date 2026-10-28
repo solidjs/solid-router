@@ -1,5 +1,17 @@
 # @solidjs/router
 
+## 2.0.0-next.43
+
+### Patch Changes
+
+- 7872c96: A `base` with a trailing slash, such as Vite's `import.meta.env.BASE_URL` (`"/app/"`), no longer produces double slashes. `Router.paths` hrefs and `navigate("/about")` now give `/app/about` instead of `/app//about`, which matched no route.
+- 1865ccc: Stamp a pushed history entry's `_depth` as one above the current entry instead of `history.length - 1`. Browsers cap session history (50 entries in Chromium and Firefox), so once the cap was reached every new entry got the same depth. That broke scroll restoration and `useBeforeLeave` back-navigation deltas on long sessions. Entries the router did not push, such as a `#anchor` jump, are stamped one above the last known depth as well.
+- d4c5e6e: Peer dependencies on `solid-js` and `@solidjs/web` move to `^2.0.0-rc.19`.
+- ea3d8ba: Server link claims no longer parse a root-relative href with `URL` when its path and query only use characters `URL` keeps unchanged and it has no `.`/`..` segments, and `comparablePath` skips its parse for such paths. Other hrefs still go through `URL`. On a 1000-link SSR page this cuts the claims' cost per request from about 1.2 ms to about 0.4 ms.
+- 8d2a9e4: `query.get` no longer returns a value from a fetch that was superseded. When an older fetch for a key settles after `revalidate()` started a newer one, or after `query.set` wrote a value, its result is no longer written over the newer value.
+- 5f02d81: A server-side `navigate()` now writes its 302 status and `Location` header into the existing `event.response` instead of replacing the object. Headers already on the response, such as `Set-Cookie` and the flash-cookie clear, are kept, and a redirect issued after `createSSRResponse` captured the head still reaches it. Query redirects during SSR resolve `Location` against the router base as a result.
+- 7488be9: Link preloading and click handling resolve an anchor's `href` against `document.baseURI`. An anchor cloned from a `<template>` keeps its raw `href` (e.g. `/about`) until it is adopted into the page, so `eagerPreload`'s idle flush threw `Invalid URL` when it reached one that a transition still held off the page (#704).
+
 ## 2.0.0-next.42
 
 ### Patch Changes
