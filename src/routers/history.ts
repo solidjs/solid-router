@@ -14,10 +14,14 @@ export function bindEvent(target: EventTarget, type: string, handler: EventListe
 let depth: number;
 export function saveCurrentDepth() {
   const h = window.history;
-  if (!h.state || h.state._depth == null) {
-    h.replaceState({ ...h.state, _depth: h.length - 1 }, "");
+  let d = h.state?._depth;
+  if (d == null) {
+    // an entry the router didn't push (e.g. a `#anchor` jump) sits one above
+    // the last known one; `length` only counts once nothing is known (#694)
+    d = depth == null ? h.length - 1 : depth + 1;
+    h.replaceState({ ...h.state, _depth: d }, "");
   }
-  depth = h.state?._depth ?? h.length - 1;
+  depth = h.state?._depth ?? d;
 }
 
 function keepDepth(state: any) {

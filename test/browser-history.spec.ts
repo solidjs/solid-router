@@ -29,6 +29,18 @@ describe("browserHistory", () => {
     expect(window.history.state._depth).toBe(51);
   });
 
+  test("an entry pushed outside the router counts up from the last depth when history.length is capped", () => {
+    window.history.replaceState({ _depth: 49 }, "", "/");
+    vi.spyOn(window.history, "length", "get").mockReturnValue(50);
+    const notify = vi.fn();
+    const unbind = browserHistory().init!(notify);
+    window.history.pushState(null, "", "/#anchor");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    unbind();
+    expect(window.history.state._depth).toBe(50);
+    expect(notify).toHaveBeenCalledTimes(1);
+  });
+
   test("keeps user state when stamping the depth on push", () => {
     window.history.replaceState({ _depth: 3 }, "", "/");
     const history = browserHistory();
