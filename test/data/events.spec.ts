@@ -1105,5 +1105,16 @@ describe("tap and ambient preload strategies", () => {
       vi.runAllTimers();
       expect(preloaded()).toEqual(["/b:false"]);
     });
+
+    test("an anchor cloned from a template preloads before it is adopted (#704)", () => {
+      mount(eagerPreload({ all: true }));
+      const t = document.createElement("template");
+      t.innerHTML = '<a href="/a">a</a>';
+      const a = t.content.firstChild!.cloneNode(true) as HTMLAnchorElement;
+      const disposeLink = createRoot(d => (claimElement(a), d));
+      expect(() => vi.runAllTimers()).not.toThrow();
+      expect(preloaded()).toEqual(["/a:false"]);
+      disposeLink();
+    });
   });
 });

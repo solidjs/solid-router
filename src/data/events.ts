@@ -96,7 +96,8 @@ export function setupNativeEvents({
       const rel = (a.getAttribute("rel") || "").split(/\s+/);
       if (a.hasAttribute("download") || rel.includes("external")) return;
 
-      const url = svg ? new URL(href, document.baseURI) : new URL(href);
+      // a clone from a `<template>` keeps a raw `href` until it is adopted (#704)
+      const url = new URL(href, document.baseURI);
       // Skip non-http(s) schemes (blob:, mailto:, tel:, data:, ...). blob: URLs
       // inherit the page origin, so the origin check below won't reject them. #382
       if (url.protocol !== "https:" && url.protocol !== "http:") return;
