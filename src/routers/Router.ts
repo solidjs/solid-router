@@ -4,7 +4,7 @@ import { StaticRouter } from "./StaticRouter.js";
 import { setupNativeEvents } from "../data/events.js";
 import type { BaseRouterProps } from "./components.jsx";
 import type { JSX } from "solid-js";
-import { createBeforeLeave, keepDepth, notifyIfNotBlocked, saveCurrentDepth } from "../lifecycle.js";
+import { createBeforeLeave, keepDepth, nextDepth, notifyIfNotBlocked, saveCurrentDepth } from "../lifecycle.js";
 import { createScrollRestoration } from "./scrollRestoration.js";
 
 export type RouterProps = BaseRouterProps & {
@@ -40,7 +40,7 @@ export function Router(props: RouterProps): JSX.Element {
       if (replace) {
         window.history.replaceState(keepDepth(state), "", value);
       } else {
-        window.history.pushState(state, "", value);
+        window.history.pushState(nextDepth(state), "", value);
       }
       scrollToHash(decodeURIComponent(window.location.hash.slice(1)), scroll);
       saveCurrentDepth();
