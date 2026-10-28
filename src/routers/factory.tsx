@@ -473,7 +473,8 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
         "Use `preloadLinks: intentPreload()` for hover/focus preloading."
     );
   }
-  const basePath = config.base || "";
+  // a trailing slash (Vite's BASE_URL) would double up when paths are appended
+  const basePath = (config.base || "").replace(/\/+$/, "");
   // Routes are immutable per instance, so compilation is shared by every
   // mount, request, and `match()` call — recompiled only when a lazy subtree
   // resolves (append-only: resolution, not mutation). Reading the version

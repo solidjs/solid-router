@@ -1108,7 +1108,13 @@ export function createRouterContext(
         // the redirect is recorded on the response.
         if (resolvedTo === headed.value && nextState === headed.state) return;
         const e = getRequestEvent();
-        e && (e.response = { status: 302, headers: new Headers({ Location: resolvedTo }) });
+        // write into the head the handler holds; replacing it would drop headers already set
+        const head = e && (e.response || (e.response = { headers: new Headers() }));
+        if (head && !head.committed) {
+          head.status = 302;
+          head.statusText = undefined;
+          head.headers.set("Location", resolvedTo);
+        }
         setSource({ value: resolvedTo, replace, scroll, state: nextState });
       } else if (!beforeLeave.current || beforeLeave.current.confirm(resolvedTo, options)) {
         // Heading there already (same value and state) writes nothing — the

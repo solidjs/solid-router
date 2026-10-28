@@ -335,8 +335,9 @@ describe("a router-owned pending marker (solid 2.0 rc.14)", () => {
       "sweep:/|/slow",
       "| marker written",
       "frame:x",
-      "pending:false",
+      // since signals rc.18 (#4217) a landing's held runs go last in its effect phase
       "sweep:/slow|/slow",
+      "pending:false",
       "settled:/slow",
       "| landed"
     ]);
@@ -371,9 +372,10 @@ describe("a router-owned pending marker (solid 2.0 rc.14)", () => {
       "| marker written",
       "frame:x",
       "marker:/slow",
-      "user:/slow|/slow",
       "pending:false",
       "settled:/slow",
+      // since signals rc.18 (#4217) the held user run goes last, still in the landing flush
+      "user:/slow|/slow",
       "| landed"
     ]);
     t.dispose();
