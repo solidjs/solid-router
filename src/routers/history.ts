@@ -14,16 +14,31 @@ export function bindEvent(target: EventTarget, type: string, handler: EventListe
 let depth: number;
 export function saveCurrentDepth() {
   const h = window.history;
-  if (!h.state || h.state._depth == null) {
-    h.replaceState({ ...h.state, _depth: h.length - 1 }, "");
+  let d = h.state?._depth;
+  if (d == null) {
+    // an entry the router didn't push (e.g. a `#anchor` jump) sits one above
+    // the last known one; `length` only counts once nothing is known (#694)
+    d = depth == null ? h.length - 1 : depth + 1;
+    h.replaceState({ ...h.state, _depth: d }, "");
   }
-  depth = h.state?._depth ?? h.length - 1;
+  depth = h.state?._depth ?? d;
 }
 
 function keepDepth(state: any) {
   return {
     ...state,
     _depth: window.history.state && window.history.state._depth
+  };
+}
+
+// A pushed entry sits one above the current one. Stamp it from `depth`, not
+// `history.length`: once the browser's session history is full (50 entries in
+// Chromium and Firefox) a push drops the oldest entry and `length` stays the
+// same, so `length - 1` would give every new entry the depth of the one below.
+function nextDepth(state: any) {
+  return {
+    ...state,
+    _depth: (depth ?? window.history.length - 1) + 1
   };
 }
 
@@ -87,7 +102,7 @@ export function browserHistory(): RouterHistory {
       if (replace) {
         window.history.replaceState(keepDepth(state), "", value);
       } else {
-        window.history.pushState(state, "", value);
+        window.history.pushState(nextDepth(state), "", value);
       }
       scrollToHash(decodeURIComponent(window.location.hash.slice(1)), scroll);
       saveCurrentDepth();
@@ -136,7 +151,7 @@ export function hashHistory(): RouterHistory {
       if (replace) {
         window.history.replaceState(keepDepth(state), "", "#" + value);
       } else {
-        window.history.pushState(state, "", "#" + value);
+        window.history.pushState(nextDepth(state), "", "#" + value);
       }
       const hashIndex = value.indexOf("#");
       const hash = hashIndex >= 0 ? value.slice(hashIndex + 1) : "";
