@@ -1,5 +1,5 @@
 import { $TRACK, createMemo, createSignal, JSX, onCleanup, getOwner } from "solid-js";
-import { isServer } from "solid-js/web";
+import { isDev, isServer } from "solid-js/web";
 import { useRouter } from "../routing.js";
 import type {
   RouterContext,
@@ -79,6 +79,20 @@ export function action<T extends Array<any>, U = void>(
   options: string | { name?: string; onComplete?: (s: Submission<T, U>) => void } = {}
 ): Action<T, U> {
   function mutate(this: { r: RouterContext; f?: HTMLFormElement }, ...variables: T) {
+    if (isDev && (typeof this !== "object" || !this || !("r" in this))) {
+      throw new Error(
+        `An action was called directly. Wrap it with \`useAction\` first so it can track its submissions with the router:
+
+  const myAction = action(async () => { ... });
+
+  function MyComponent() {
+    const submit = useAction(myAction);
+    return <button onClick={() => submit()}>Click me</button>;
+  }
+
+See https://docs.solidjs.com/solid-router/concepts/actions`
+      );
+    }
     const router = this.r;
     const form = this.f;
     const p = (

@@ -55,6 +55,12 @@ describe("action", () => {
     expect(testAction.url).toBe("https://action/test-action");
   });
 
+  test("should throw a descriptive error when called directly without `useAction`", () => {
+    const testAction = action(async () => "result", "direct-call-action");
+
+    expect(() => (testAction as any)()).toThrow(/useAction/);
+  });
+
   test("should create action with auto-generated hash when no `name` provided", () => {
     const testFn = async (data: string) => `result: ${data}`;
     const testAction = action(testFn);
