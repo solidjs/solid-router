@@ -2,7 +2,7 @@ import type { JSX } from "solid-js";
 import { setupNativeEvents } from "../data/events.js";
 import type { BaseRouterProps } from "./components.jsx";
 import { createRouter, scrollToHash, bindEvent } from "./createRouter.js";
-import { createBeforeLeave, keepDepth, notifyIfNotBlocked, saveCurrentDepth } from "../lifecycle.js";
+import { createBeforeLeave, keepDepth, nextDepth, notifyIfNotBlocked, saveCurrentDepth } from "../lifecycle.js";
 
 export function hashParser(str: string) {
   const to = str.replace(/^.*?#/, "");
@@ -27,7 +27,7 @@ export function HashRouter(props: HashRouterProps): JSX.Element {
       if (replace) {
         window.history.replaceState(keepDepth(state), "", "#" + value);
       } else {
-        window.history.pushState(state, "", "#" + value);
+        window.history.pushState(nextDepth(state), "", "#" + value);
       }
       const hashIndex = value.indexOf("#");
       const hash = hashIndex >= 0 ? value.slice(hashIndex + 1) : "";

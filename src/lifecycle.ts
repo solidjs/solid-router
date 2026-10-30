@@ -47,10 +47,16 @@ export function createBeforeLeave(): BeforeLeaveLifecycle {
 
 let depth: number;
 export function saveCurrentDepth() {
-  if (!window.history.state || window.history.state._depth == null) {
-    window.history.replaceState({ ...window.history.state, _depth: window.history.length - 1 }, "");
+  const h = window.history;
+  let d = h.state && h.state._depth;
+  if (d == null) {
+    // An entry the router didn't push (e.g. a `#anchor` jump) sits one above
+    // the last known one. `history.length` stops growing once the browser's
+    // session history is full, so only fall back to it when nothing is known.
+    d = depth == null ? h.length - 1 : depth + 1;
+    h.replaceState({ ...h.state, _depth: d }, "");
   }
-  depth = window.history.state._depth;
+  depth = (h.state && h.state._depth) ?? d;
 }
 if (!isServer) {
   saveCurrentDepth();
@@ -60,6 +66,19 @@ export function keepDepth(state: any) {
   return {
     ...state,
     _depth: window.history.state && window.history.state._depth
+  };
+}
+
+// A pushed entry sits one above the current one. Stamp it from the current
+// depth, not `history.length`: once the browser's session history is full (50
+// entries in Chromium and Firefox) a push drops the oldest entry and `length`
+// stays the same, so `length - 1` would give every new entry the depth of the
+// one below it.
+export function nextDepth(state: any) {
+  const current = (window.history.state && window.history.state._depth) ?? depth;
+  return {
+    ...state,
+    _depth: (current ?? window.history.length - 1) + 1
   };
 }
 
