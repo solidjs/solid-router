@@ -1,5 +1,27 @@
 # @solidjs/router
 
+## 1.0.1
+
+### Patch Changes
+
+- eaafba6: Stamp history depth from the current entry instead of `history.length`, so `useBeforeLeave` and scroll restoration keep working on Back once the browser's session history is full (#694)
+- c3cbd67: Throw a descriptive error in development when an action is called directly instead of through `useAction`.
+- 473c270: Anchor click handling no longer intercepts links with a non-http(s) scheme (`blob:`, `mailto:`, `tel:`, `data:`, …). Previously `blob:` links could be wrongly routed because they inherit the page origin and bypassed the same-origin check.
+- 5a46ba1: Speed up `<A>` server rendering by roughly 5x
+
+  `<A>` spent most of its server render time in `mergeProps` and `splitProps`, which build
+  accessor-backed prop objects that can never be observed during a one shot
+  `renderToString`. The default `activeClass` / `inactiveClass` merge is gone, the
+  `location.pathname` normalization is shared instead of repeated per link, `JSON.stringify`
+  is skipped when there is no `state`, and on the server a link that passes nothing beyond
+  the props `<A>` consumes itself now skips `splitProps` and the JSX spread entirely.
+
+  Rendered output is unchanged on the client, and unchanged on the server apart from the
+  `link` marker serializing as `link` rather than `link="true"` on that fast path. Client
+  bundles get slightly smaller, since the server branch is constant folded away.
+
+- 65f9ee7: Fixes browser history navigation when Forward is pressed while a Back transition is waiting on route data.
+
 ## 1.0.0
 
 ### Major Changes
