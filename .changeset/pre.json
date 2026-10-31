@@ -107,6 +107,7 @@
     "revalidate-all-wildcard",
     "revalidate-same-ms-notify",
     "revert-optimistic-on-resolved-action",
+    "route-owner-create-root",
     "router-factory-typed-paths",
     "router-keys-for",
     "router-navigation-warning-fix",
