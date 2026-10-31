@@ -4,8 +4,8 @@ import type {Component} from "solid-js";
 import type {JSX} from "@solidjs/web";
 import {
   createMemo,
-  createOwner,
   createRoot,
+  getOwner,
   onCleanup,
   runWithOwner,
   untrack,
@@ -100,7 +100,10 @@ export function Routes(props: { routerState: RouterContext; branches: () => Bran
   // dedicated one, created before the memo: the roots draw hydration ids from
   // its counter, so the ids don't depend on whether the memo first parked on
   // a lazy subtree (the server's render can park where the client's doesn't).
-  const owner = createOwner();
+  // `createRoot` hands back the same kind of owner `createOwner` would, minus
+  // the bound `dispose` the public `createOwner` pays for (solid#4444): this
+  // owner is only ever disposed with the component.
+  const owner = createRoot(() => getOwner()!);
 
   const routeStates = createMemo((prev: RouteContext[] | undefined) => {
       // While a lazy subtree resolves, `matches()` is not ready and this
