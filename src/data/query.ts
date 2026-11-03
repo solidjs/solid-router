@@ -551,7 +551,7 @@ export function setupFlightDataConsumer(router: RouterContext) {
   });
 }
 
-const REVALIDATE_ALL = "*";
+export const REVALIDATE_ALL = "*";
 
 /**
  * Reads an `X-Revalidate` header value into the keys the cache ops take.

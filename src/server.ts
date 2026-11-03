@@ -34,6 +34,7 @@ import {
   peekLazySubtrees,
   resolveLazySubtree
 } from "./routing.js";
+import { REVALIDATE_ALL } from "./data/query.js";
 import { extractSearchParams } from "./utils.js";
 import { serverRouteArgs, serverRouteOf } from "./serverRouteShared.js";
 import type { Branch, RouteDefinition, RoutePreloadFunc } from "./types.js";
@@ -94,7 +95,11 @@ function isRouterInstance(
 export function createFlightDataCollector(
   options: FlightDataCollectorOptions | RouterInstanceLike
 ): CollectFlightDataHook {
-  const { routes, rootPreload, base = "" } = isRouterInstance(options)
+  const {
+    routes,
+    rootPreload,
+    base = ""
+  } = isRouterInstance(options)
     ? { routes: options.routes, rootPreload: options.config.preload, base: options.config.base }
     : options;
   if (!routes) throw new Error("createFlightDataCollector requires `routes`");
@@ -127,7 +132,7 @@ export function createFlightDataCollector(
     const event = { ...sourceEvent } as RequestEvent;
     event.request = new Request(targetUrl, { headers: outcome.foldedHeaders });
     event.router = {
-      dataOnly: revalidateKeys || true,
+      dataOnly: (!revalidateKeys?.includes(REVALIDATE_ALL) && revalidateKeys) || true,
       previousUrl,
       data: {}
     };
@@ -218,4 +223,3 @@ function runPreloads(
       });
   }
 }
-
