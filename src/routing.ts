@@ -1184,11 +1184,16 @@ export function createRouteContext(
   const params = wrapParams(() => mergeParams(matches()));
 
   (component as MaybePreloadableComponent | undefined)?.preload?.();
+  const prevInPreloadFn = inPreloadFn;
   inPreloadFn = true;
-  const data = preload
-    ? preload({ params, location, intent: router.intent?.() || "initial" })
-    : undefined;
-  inPreloadFn = false;
+  let data;
+  try {
+    data = preload
+      ? preload({ params, location, intent: router.intent?.() || "initial" })
+      : undefined;
+  } finally {
+    inPreloadFn = prevInPreloadFn;
+  }
 
   const route: RouteContext = {
     parent,
