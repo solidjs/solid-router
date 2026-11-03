@@ -20,7 +20,7 @@ Explore the official [documentation](https://docs.solidjs.com/solid-router) for 
 - **Plain Anchors**: no link component — `<a>` elements get `aria-current` and `data-active` automatically via compiler-claimed anchors, and `data-pending` with the opt-in `pendingLinks` plugin
 - **Universal Rendering**: one factory for browser, hash, memory, and server rendering; history adapters are imports, so unused ones never enter your bundle
 - **Preload Functions**: parallel data fetching following the render-as-you-fetch pattern, triggered eagerly by opt-in [link preloading](#preloading)
-- **Data APIs with Caching**: `query` and `formAction` with deduplication, revalidation, single-flight mutations, and progressive enhancement — plus experimental `liveQuery` for keyed queries over live streams
+- **Data APIs with Caching**: `query` and `formAction` with deduplication, revalidation, single-flight mutations, and progressive enhancement — plus `liveQuery` for keyed queries over live streams
 - **Typed Search Params**: opt-in per-route [Standard Schema](https://github.com/standard-schema/standard-schema) validation — `search.page` is a `number`, not `"2"`
 
 ## Table of Contents
@@ -405,7 +405,7 @@ A route view is route-shaped on purpose — the address stays stable and `define
 The router mounts the resolved component with the outlet as `children`, so a server component can be a layout, and it calls the same source under preload intent — link preloading, `usePreloadRoute`, the [single-flight collector](#server-integration) — with the same derived args. What that call _means_ is the source's: the router does not choose the cache strategy or own the key.
 
 - `query(fn, key)`: link intent warms the entry the render reads, `revalidate("story")` and action responses refetch it, and the collector reproduces it so a mutation's response carries the route's fresh markup. Argument changes deliver into the mounted boundary — it morphs in place rather than remounting.
-- [`liveQuery(fn, key)`](#livequery-experimental): the frame stream stays open and the channel owns it — a link preload connects it (held through the preload window, so a preloaded link is an open stream), `revalidate(key)` reconnects, and the mutation sweep and the single-flight collector both leave it alone — nothing pulls it server-side, and the stream is its own freshness.
+- [`liveQuery(fn, key)`](#livequery): the frame stream stays open and the channel owns it — a link preload connects it (held through the preload window, so a preloaded link is an open stream), `revalidate(key)` reconnects, and the mutation sweep and the single-flight collector both leave it alone — nothing pulls it server-side, and the stream is its own freshness.
 
 Anything else callable with the args works too; wrapping is what gives dedupe, preload, and revalidation.
 
@@ -672,7 +672,7 @@ Revalidate with the `revalidate` export or by setting `revalidate` keys on actio
 
 A query may also redirect: a guard read that throws or returns `redirect()` (from `@solidjs/web`) navigates instead of resolving. Local paths starting with a single `/` and same-origin server-function redirects stay relative to the router's `base`. Other targets navigate softly with `replace` only within the same origin and base, when the history integration can represent their URL; otherwise they navigate the document. On the client, a `Location` header only navigates for redirect statuses (301, 302, 303, 307, 308). For example, returning `respond({ id: 1 }, { status: 201, headers: { Location: "/items/1" } })` delivers `{ id: 1 }` without navigating. Any `revalidate` keys on a redirect response invalidate first, and the client read stays pending so nothing renders the redirect as data. This holds for `"use server"` queries too, where the transport carries the redirect to the client rather than letting `fetch` follow it. The carrier takes precedence over `Location`.
 
-### `liveQuery` (experimental)
+### `liveQuery`
 
 `query`'s live sibling: a keyed query over a value-shaped stream. The function is an async iterable (typically an async generator server function) whose yields are successive **values of one logical query** — each yield is the current state, not an event — with the contract that it re-yields current state on every invocation:
 
