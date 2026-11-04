@@ -1,5 +1,11 @@
 import { runWithOwner, untrack } from "solid-js";
-import { resolveLazySubtree, setInPreloadFn, setPreloadIntent, useRouter } from "./routing.js";
+import {
+  getInPreloadFn,
+  resolveLazySubtree,
+  setInPreloadFn,
+  setPreloadIntent,
+  useRouter
+} from "./routing.js";
 import { serverRouteArgs, serverRouteArgsEqual, serverRouteOf } from "./serverRouteShared.js";
 import type {
   MaybePreloadableComponent,
@@ -51,43 +57,48 @@ export function preloadRoute(router: RouterContext, url: URL, preloadData?: bool
     return a;
   };
   const prevIntent = setPreloadIntent("preload");
-  for (let match in next) {
-    const { route, params } = next[match];
-    const { preload, component } = route;
-    (component as MaybePreloadableComponent | undefined)?.preload?.();
-    const now = current && current[match];
-    const unchanged =
-      now &&
-      now.route.key === route.key &&
-      serverRouteArgsEqual(
-        inputs(params, query, url.search, route),
-        inputs(now.params, location.query, location.search, route)
-      );
-    setInPreloadFn(true);
-    preloadData &&
-      !unchanged &&
-      runWithOwner(router._routeOwner(), () => {
-        // A server component route's data IS its call: warm the same
-        // query entry the render will read, under the same derived args.
-        const server = serverRouteOf(component);
-        server && server.call(serverRouteArgs(route, params, query));
-        preload &&
-          preload({
-            params,
-            location: {
-              pathname: url.pathname,
-              search: url.search,
-              hash: url.hash,
-              query,
-              state: null,
-              key: ""
-            },
-            intent: "preload"
-          });
-      });
-    setInPreloadFn(false);
+  const prevInPreloadFn = getInPreloadFn();
+  try {
+    for (let match in next) {
+      const { route, params } = next[match];
+      const { preload, component } = route;
+      (component as MaybePreloadableComponent | undefined)?.preload?.();
+      const now = current && current[match];
+      const unchanged =
+        now &&
+        now.route.key === route.key &&
+        serverRouteArgsEqual(
+          inputs(params, query, url.search, route),
+          inputs(now.params, location.query, location.search, route)
+        );
+      setInPreloadFn(true);
+      preloadData &&
+        !unchanged &&
+        runWithOwner(router._routeOwner(), () => {
+          // A server component route's data IS its call: warm the same
+          // query entry the render will read, under the same derived args.
+          const server = serverRouteOf(component);
+          server && server.call(serverRouteArgs(route, params, query));
+          preload &&
+            preload({
+              params,
+              location: {
+                pathname: url.pathname,
+                search: url.search,
+                hash: url.hash,
+                query,
+                state: null,
+                key: ""
+              },
+              intent: "preload"
+            });
+        });
+      setInPreloadFn(prevInPreloadFn);
+    }
+  } finally {
+    setInPreloadFn(prevInPreloadFn);
+    setPreloadIntent(prevIntent);
   }
-  setPreloadIntent(prevIntent);
 }
 
 /**
