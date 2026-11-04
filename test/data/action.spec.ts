@@ -21,7 +21,8 @@ vi.mock("../../src/utils.js", () => ({
       configurable: false
     });
     return obj;
-  }
+  },
+  isUnderBase: () => true
 }));
 
 let mockRouterContext: RouterContext;
@@ -245,7 +246,7 @@ describe("action", () => {
     const boundAction = useAction(redirectAction);
     await boundAction();
 
-    expect(navigate).toHaveBeenCalledWith("/next", { replace: true, resolve: true });
+    expect(navigate).toHaveBeenCalledWith("/next", { replace: true, resolve: false });
     expect(onSettled).toHaveBeenCalledTimes(1);
     expect(mockRouterContext.submissions[0]()).toHaveLength(0);
   });

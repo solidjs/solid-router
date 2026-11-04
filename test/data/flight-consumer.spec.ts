@@ -79,7 +79,7 @@ describe("setupFlightDataConsumer", () => {
       { "notes[]": ["destination data"] },
       { response: new Response(null, { headers: carrier("/notes") }) }
     );
-    expect(navigate).toHaveBeenCalledWith("/notes", { replace: true, resolve: true });
+    expect(navigate).toHaveBeenCalledWith("/notes", { replace: true, resolve: false });
     expect(query.get("notes[]")).toEqual(["destination data"]);
   });
 
@@ -177,7 +177,7 @@ describe("setupFlightDataConsumer", () => {
     };
     await formAction(save, "keyless-save").call({ r: router });
 
-    expect(navigate).toHaveBeenCalledWith("/dash/b", { replace: true, resolve: true });
+    expect(navigate).toHaveBeenCalledWith("/dash/b", { replace: true, resolve: false });
     expect(await layout()).toBe("fresh-layout");
     expect(fetchLayout).toHaveBeenCalledTimes(1);
   });

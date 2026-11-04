@@ -54,13 +54,13 @@ export function plainHref(href: string) {
 }
 
 /**
- * Whether a URL pathname is the router's base path or under it, on a segment
+ * Whether a URL path (query and hash ignored) is the router's base path or under it, on a segment
  * boundary: base `/app` covers `/app`, `/app/` and `/app/x`, not `/apple`.
  * Case-insensitive; no base (`""` or `/`) covers every path.
  */
 export function isUnderBase(pathname: string, base: string) {
   const b = base.toLowerCase().replace(/\/+$/, "");
-  const p = pathname.toLowerCase();
+  const p = pathname.split(/[?#]/, 1)[0].toLowerCase();
   return !b || !p || p === b || p.startsWith(b + "/");
 }
 
@@ -114,14 +114,14 @@ export function resolvePath(base: string, path: string, from?: string): string |
   }
   const basePath = normalizePath(base);
   const fromPath = from && normalizePath(from);
-  let result = "";
-  if (!fromPath || path.startsWith("/")) {
-    result = basePath;
-  } else if (fromPath.toLowerCase().indexOf(basePath.toLowerCase()) !== 0) {
-    result = basePath + fromPath;
-  } else {
-    result = fromPath;
-  }
+  // A leading "/" is a full document path: the base is never added to it
+  const result = path.startsWith("/")
+    ? ""
+    : !fromPath
+      ? basePath
+      : fromPath.toLowerCase().indexOf(basePath.toLowerCase()) !== 0
+        ? basePath + fromPath
+        : fromPath;
   return (result || "/") + normalizePath(path, !result);
 }
 

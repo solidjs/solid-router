@@ -99,8 +99,11 @@ describe("an SSR redirect writes into the response head", () => {
     expect(response.headers.get("Location")).toBe("/login");
   });
 
-  test("a query redirect resolves its Location against the router base", async () => {
-    const getAccount = query(async () => redirect("/login"), "account");
+  test.each([
+    ["/app/login", "/app/login"],
+    ["/login", "/login"]
+  ])("a query redirect to %s keeps its full path under the router base", async (to, expected) => {
+    const getAccount = query(async () => redirect(to), "account");
     const Router = createRouter({
       base: "/app",
       routes: [
@@ -116,6 +119,6 @@ describe("an SSR redirect writes into the response head", () => {
       )
     );
     expect(response.status).toBe(302);
-    expect(response.headers.get("Location")).toBe("/app/login");
+    expect(response.headers.get("Location")).toBe(expected);
   });
 });

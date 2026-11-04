@@ -389,7 +389,7 @@ describe.each(["returned", "thrown"])("%s query response metadata", mode => {
   });
 
   test.each([
-    ["/next?q=1#part", "/app/next?q=1#part"],
+    ["/app/next?q=1#part", "/app/next?q=1#part"],
     ["../next?q=1#part", "/app/next?q=1#part"],
     ["?saved=1", "/app/docs/chapter?saved=1"],
     ["#part", "/app/docs/chapter?filter=active#part"],
@@ -410,12 +410,12 @@ describe.each(["returned", "thrown"])("%s query response metadata", mode => {
     expect(history.get()).toBe(expected);
   });
 
-  test("keeps a carried redirect relative to the router base", async () => {
+  test("a carried redirect is a full path, navigated softly under the router base", async () => {
     initial = "/app/docs/chapter";
     window.location.href = new URL(initial, originalLocation.href).href;
     const href = window.location.href;
     const { root, history, observed, caught } = await setup(
-      carriedRedirect("/sign-in?q=1#part"),
+      carriedRedirect("/app/sign-in?q=1#part"),
       "/app"
     );
     expect(history.get()).toBe("/app/sign-in?q=1#part");
@@ -427,8 +427,25 @@ describe.each(["returned", "thrown"])("%s query response metadata", mode => {
     expect(history.get()).toBe("/app/sign-in?q=1#part");
   });
 
+  test("a carried redirect outside the router base navigates the document", async () => {
+    initial = "/app/docs/chapter";
+    window.location.href = new URL(initial, originalLocation.href).href;
+    const expected = new URL("/sign-in?q=1#part", window.location.href).href;
+    const { root, history, observed, caught } = await setup(
+      carriedRedirect("/sign-in?q=1#part"),
+      "/app"
+    );
+    expect(window.location.href).toBe(expected);
+    expect(history.get()).toBe(initial);
+    expect(root.textContent).toBe("page");
+    expect(observed).toEqual([]);
+    expect(caught).toEqual([]);
+  });
+
   test.each([
     new URL("/other?q=1#part", window.location.href).href,
+    // a leading "/" is a full path: the base is not added
+    "/next?q=1#part",
     "../../other?q=1#part",
     new URL("/apple/next", window.location.href).href,
     `//${window.location.host}/other`
@@ -517,7 +534,7 @@ describe.each(["returned", "thrown"])("%s query redirects with hashHistory", mod
     ["local", new URL("/shell#/login?q=1#part", window.location.href).href, ""],
     ["local", `//${window.location.host}/shell#/login?q=1#part`, ""],
     ["carried", "/login?q=1#part", ""],
-    ["carried", "/login?q=1#part", "/app"]
+    ["carried", "/app/login?q=1#part", "/app"]
   ])("renders a %s redirect to %s with base '%s'", async (kind, target, base) => {
     window.history.replaceState(null, "", `/shell#${base}/private`);
     const observed: unknown[] = [];

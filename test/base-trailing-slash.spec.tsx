@@ -40,7 +40,7 @@ describe("base with a trailing slash", () => {
     expect(() => render(() => <Router />, div)).toThrow(/not a valid base path/);
   });
 
-  test("navigate('/about') lands on the about route", async () => {
+  test("navigate('/app/about'), a full path, lands on the about route", async () => {
     const div = document.createElement("div");
     document.body.appendChild(div);
     const history = memoryHistory("/app/");
@@ -62,7 +62,7 @@ describe("base with a trailing slash", () => {
     const dispose = render(() => <Router />, div);
     try {
       expect(div.querySelector('[data-route="home"]')).not.toBeNull();
-      navigate("/about");
+      navigate("/app/about");
       await settle();
       expect(history.get()).toBe("/app/about");
       expect(div.querySelector('[data-route="about"]')).not.toBeNull();
