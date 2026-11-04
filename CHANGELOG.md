@@ -1,5 +1,18 @@
 # @solidjs/router
 
+## 2.0.0-next.44
+
+### Patch Changes
+
+- aa5e4be: A single-flight mutation answered with `revalidate: "*"` now collects every query on the target page instead of none.
+- b23cdc7: Under a `base`, a path that starts with `/` is now a full path everywhere, and the router never adds the base to it. This covers `navigate()`, `useLinkState`, `useResolvedPath`, and query and server-function redirects, and matches what `<a href>` and a raw HTTP redirect already did. `redirect()` comes from `@solidjs/web`, which doesn't know the router's base, so `redirect(paths.login)` used to land on `/app/app/login`. It now lands on `/app/login`.
+
+  Migration: under `base: "/app"`, `navigate("/about")` now goes to `/about`. Use `paths.about` or `` `${base}/about` ``. The same applies to `useLinkState(() => "/about")`, `useResolvedPath(() => "/about")` and `redirect("/login")`. A full path outside the base is another document: `navigate()` to one, like an anchor or a redirect, now loads the document instead of navigating softly. Under Vite's `base`, pass `import.meta.env.BASE_URL` as the router `base`.
+
+- e29aeda: Under a `base`, `navigate(paths.about)` and `useLinkState(paths.about)` no longer add the base twice. A paths node already includes the base, so with `base: "/app"` they gave `/app/app/about`. They now use the node's path as-is and give `/app/about`. `useLinkState(paths.about)` also works under `hashHistory`, where it never reported the link as current before.
+- 10452bd: A route `preload` that throws no longer leaves the router in preload mode. `usePreloadRoute`, link preloading and route mounting now reset their preload flags even when the preload throws. Before, one throwing preload made every later query read count as a preload, so query redirects and Responses were ignored for the rest of the session.
+- d034252: The router's route-root owner now comes from `createRoot(() => getOwner())` instead of `createOwner()`. `createOwner` is leaving solid-js's public types (solid#4515, typed only through `solid-js/internal`), and this uses only public API with the same parent, hydration ids and disposal.
+
 ## 2.0.0-next.43
 
 ### Patch Changes
