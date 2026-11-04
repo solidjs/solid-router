@@ -56,7 +56,8 @@ import {
   scoreRoute,
   mergeSearchString,
   expandOptionals,
-  validateSearch
+  validateSearch,
+  isUnderBase
 } from "./utils.js";
 // Flash-cookie detection/clearing are cookie utilities on the CORE entry
 // (they live beside the cookie codec) — routing is in every app's eager
@@ -1120,6 +1121,9 @@ export function createRouterContext(
           head.headers.set("Location", resolvedTo);
         }
         setSource({ value: resolvedTo, replace, scroll, state: nextState });
+      } else if (!isUnderBase(resolvedTo!, basePath!)) {
+        // a full path outside the base is another document, as for anchors and redirects
+        window.location.href = resolvedTo!;
       } else if (!beforeLeave.current || beforeLeave.current.confirm(resolvedTo, options)) {
         // Heading there already (same value and state) writes nothing — the
         // integration decides that against the updater's `headed`, so a

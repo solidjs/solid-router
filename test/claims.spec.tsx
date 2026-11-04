@@ -620,11 +620,7 @@ describe("compiler-claimed anchors", () => {
     ];
     try {
       expect(state("apple")).toEqual([false, null]);
-
-      navigate("/application/x", { resolve: false });
-      await settle();
       expect(state("application")).toEqual([false, null]);
-      expect(state("apple")).toEqual([false, null]);
 
       navigate("/app");
       await settle();

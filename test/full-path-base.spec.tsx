@@ -114,14 +114,28 @@ describe.each<Kind>(["memory", "hash"])("a leading slash is a full path (%s hist
     }
   });
 
-  test("navigate('/about') does not add the base", async () => {
-    const { at, navigate, cleanup } = setup(kind);
+  test.each([
+    ["/about", "/about"],
+    ["/other?q=1#part", "/other?q=1#part"],
+    ["/apple", "/apple"]
+  ])("navigate(%s), a full path outside the base, loads the document", async (to, expected) => {
+    const { at, div, navigate, cleanup } = setup(kind);
+    const originalLocation = window.location;
     try {
       await settle();
-      navigate("/about");
+      const before = at();
+      Object.defineProperty(window, "location", {
+        value: { ...originalLocation },
+        configurable: true
+      });
+      navigate(to);
       await settle();
-      expect(at()).toBe("/about");
+      expect(window.location.href).toBe(expected);
+      Object.defineProperty(window, "location", { value: originalLocation, configurable: true });
+      expect(at()).toBe(before);
+      expect(div.textContent).toBe("home");
     } finally {
+      Object.defineProperty(window, "location", { value: originalLocation, configurable: true });
       cleanup();
     }
   });

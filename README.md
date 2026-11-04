@@ -846,6 +846,8 @@ createRouter(config);
 | `links`         | `LinksPlugin`                  | Link claims plugin — `pendingLinks` adds `data-pending` to the in-flight navigation's target          |
 | `transformUrl`  | `(url: string) => string`      | Rewrite URLs before matching                                                                          |
 
+Under Vite's `base`, pass `import.meta.env.BASE_URL` as the router `base` and link with `paths`, so links, `navigate()` and `redirect()` follow it.
+
 The returned instance is the provider component and carries the static surface:
 
 | member   | description                                                                                       |
@@ -884,7 +886,7 @@ const navigate = useNavigate();
 navigate(paths.login, { replace: true });
 ```
 
-A string that starts with `/` is a full path, like an `href`: under `base: "/app"`, `navigate("/about")` goes to `/about`, not `/app/about`. Use `paths.about` (or `` `${base}/about` ``) for a path under the base. A full path outside the base still navigates softly, and no route matches it unless one does.
+A string that starts with `/` is a full path, like an `href`: under `base: "/app"`, `navigate("/about")` goes to `/about`, not `/app/about`. Use `paths.about` (or `` `${base}/about` ``) for a path under the base. A full path outside the base is another document, so `navigate()` loads it (as an anchor or a redirect to it does).
 
 For declarative redirects on render (the old `<Navigate>`), call it during component setup or redirect from a preload.
 

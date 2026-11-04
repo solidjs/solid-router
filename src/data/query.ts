@@ -505,7 +505,7 @@ export function applyServerResponse(
         const resolved = target.pathname + target.search + target.hash;
         const path = local ? resolved : router!.parsePath(resolved);
         if (
-          isUnderBase(path.split(/[?#]/, 1)[0], router!.base.path()) &&
+          isUnderBase(path, router!.base.path()) &&
           (local || new URL(router!.renderPath(path), window.location.href).href === target.href)
         ) {
           navigate(path, { replace: true, resolve: false });
