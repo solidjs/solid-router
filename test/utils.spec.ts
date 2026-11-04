@@ -34,14 +34,14 @@ describe("resolvePath should", () => {
     expect(actual).toBe(expected);
   });
 
-  test("resolve root path against base and ignore from", () => {
-    const expected = "/base";
+  test("a root path is a full path: no base, and from is ignored", () => {
+    const expected = "/";
     const actual = resolvePath("/base", "/", "/base/foo");
     expect(actual).toBe(expected);
   });
 
-  test("resolve rooted paths against base and ignore from", () => {
-    const expected = "/base/bar";
+  test("a rooted path is a full path: no base, and from is ignored", () => {
+    const expected = "/bar";
     const actual = resolvePath("/base", "/bar", "/base/foo");
     expect(actual).toBe(expected);
   });
@@ -70,8 +70,8 @@ describe("resolvePath should", () => {
     expect(actual).toBe(expected);
   });
 
-  test(`work with rooted search and base`, () => {
-    const expected = "/base?foo=bar";
+  test(`a rooted search under a base is a full path`, () => {
+    const expected = "/?foo=bar";
     const actual = resolvePath("/base", "/?foo=bar", "/base/page");
     expect(actual).toBe(expected);
   });

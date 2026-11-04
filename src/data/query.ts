@@ -497,21 +497,18 @@ export function applyServerResponse(
     if (!isServer) {
       const target = new URL(url, window.location.href);
       if (navigate && target.origin === window.location.origin) {
-        // Carried redirects and local leading slashes keep their router-base
-        // meaning. Other URLs need the integration's parser (e.g. hash
-        // history) without applying the base again.
-        const relativeToBase = !!carried || (url[0] === "/" && url[1] !== "/");
+        // A carried redirect or a local leading slash is a full logical path
+        // (the base is never added). Other URLs need the integration's
+        // parser (e.g. hash history), and must round-trip to the same
+        // document URL. Either way it navigates softly only under the base.
+        const local = !!carried || (url[0] === "/" && url[1] !== "/");
         const resolved = target.pathname + target.search + target.hash;
-        const path = carried ? resolved : relativeToBase ? url : router!.parsePath(resolved);
-        const rendered = new URL(router!.renderPath(path), window.location.href);
-        // Resolved URLs must stay within the router base and round-trip to
-        // the same document URL, including with hash history.
+        const path = local ? resolved : router!.parsePath(resolved);
         if (
-          relativeToBase ||
-          (isUnderBase(path.split(/[?#]/, 1)[0], router!.base.path()) &&
-            rendered.href === target.href)
+          isUnderBase(path.split(/[?#]/, 1)[0], router!.base.path()) &&
+          (local || new URL(router!.renderPath(path), window.location.href).href === target.href)
         ) {
-          navigate(path, { replace: true, resolve: relativeToBase });
+          navigate(path, { replace: true, resolve: false });
         } else window.location.href = target.href;
       } else window.location.href = target.href;
     } else if (navigate && url.startsWith("/")) navigate(url, { replace: true });

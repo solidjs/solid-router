@@ -47,11 +47,12 @@ describe("paths nodes under a base", () => {
     }
   });
 
-  test("useLinkState(paths.about) is current on /app/about, like the base-relative string", async () => {
+  test("useLinkState(paths.about) is current on /app/about, like the full-path string", async () => {
     const history = memoryHistory("/app/about");
     const Router = createRouter({ routes, base: "/app", history });
     let node!: LinkState;
-    let relative!: LinkState;
+    let full!: LinkState;
+    let bare!: LinkState;
     let root!: LinkState;
     const div = document.createElement("div");
     const dispose = render(
@@ -59,7 +60,9 @@ describe("paths nodes under a base", () => {
         <Router>
           {p => {
             node = useLinkState(() => Router.paths.about);
-            relative = useLinkState(() => "/about");
+            full = useLinkState(() => "/app/about");
+            // a leading "/" is a full path: the base is not added
+            bare = useLinkState(() => "/about");
             root = useLinkState(() => Router.paths);
             return p.children;
           }}
@@ -71,7 +74,8 @@ describe("paths nodes under a base", () => {
       await settle();
       expect(div.textContent).toBe("about");
       expect([node.active(), node.current()]).toEqual([true, true]);
-      expect([relative.active(), relative.current()]).toEqual([true, true]);
+      expect([full.active(), full.current()]).toEqual([true, true]);
+      expect([bare.active(), bare.current()]).toEqual([false, false]);
       expect([root.active(), root.current()]).toEqual([false, false]);
     } finally {
       dispose();

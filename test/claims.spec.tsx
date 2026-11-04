@@ -626,12 +626,12 @@ describe("compiler-claimed anchors", () => {
       expect(state("application")).toEqual([false, null]);
       expect(state("apple")).toEqual([false, null]);
 
-      navigate("/");
+      navigate("/app");
       await settle();
       expect(state("root")).toEqual([true, "page"]);
       expect(state("apple")).toEqual([false, null]);
 
-      navigate("/x");
+      navigate("/app/x");
       await settle();
       expect(state("x")).toEqual([true, "page"]);
       expect(state("root")).toEqual([false, null]);
@@ -920,7 +920,7 @@ describe("link state parity: claimed anchors and useLinkState", () => {
 
   type Link = { href: string; end?: boolean; active: boolean; current: boolean };
   // `href` and `location` are full URL paths; under a `base`, useLinkState
-  // and navigate get the base-relative path, as an app would write them
+  // and navigate get the same full path the anchor does
   type Scenario = { name: string; base?: string; location: string; links: Link[] };
   const scenarios: Scenario[] = [
     {
@@ -1046,7 +1046,6 @@ describe("link state parity: claimed anchors and useLinkState", () => {
   ];
 
   const key = (link: Link) => `${link.href}|${link.end ? "end" : ""}`;
-  const relative = (base: string, path: string) => path.slice(base.length) || "/";
   const bases = [...new Set(scenarios.map(s => s.base ?? ""))];
   const scenariosUnder = (base: string) => scenarios.filter(s => (s.base ?? "") === base);
 
@@ -1069,7 +1068,7 @@ describe("link state parity: claimed anchors and useLinkState", () => {
             for (const link of uniqueLinks)
               states.set(
                 key(link),
-                useLinkState(() => relative(base, link.href), { end: link.end })
+                useLinkState(() => link.href, { end: link.end })
               );
             return (
               <>
@@ -1111,7 +1110,7 @@ describe("link state parity: claimed anchors and useLinkState", () => {
     };
     return {
       check,
-      navigate: (to: string) => navigate(relative(base, to)),
+      navigate: (to: string) => navigate(to),
       cleanup: () => {
         dispose();
         div.remove();

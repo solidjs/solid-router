@@ -114,14 +114,14 @@ export function resolvePath(base: string, path: string, from?: string): string |
   }
   const basePath = normalizePath(base);
   const fromPath = from && normalizePath(from);
-  let result = "";
-  if (!fromPath || path.startsWith("/")) {
-    result = basePath;
-  } else if (fromPath.toLowerCase().indexOf(basePath.toLowerCase()) !== 0) {
-    result = basePath + fromPath;
-  } else {
-    result = fromPath;
-  }
+  // A leading "/" is a full document path: the base is never added to it
+  const result = path.startsWith("/")
+    ? ""
+    : !fromPath
+      ? basePath
+      : fromPath.toLowerCase().indexOf(basePath.toLowerCase()) !== 0
+        ? basePath + fromPath
+        : fromPath;
   return (result || "/") + normalizePath(path, !result);
 }
 

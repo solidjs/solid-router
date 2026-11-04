@@ -497,7 +497,7 @@ paths.about(); // zero-arg/search calls terminate to a plain string
 paths(); // "/" — the root
 ```
 
-Every node coerces via `toString`, so nodes drop straight into `href`, `navigate()`, and `redirect()` without explicit termination. Accessing a segment that doesn't exist in the tree, or binding a param with the wrong type, is a compile error.
+Every node coerces via `toString`, so nodes drop straight into `href`, `navigate()`, and `redirect()` without explicit termination. Nodes include the router's `base`, so they are the portable way to link under one: a plain string that starts with `/` is a full path everywhere (`href`, `navigate()`, `useLinkState`, `useResolvedPath`, `redirect()`), and the base is never added to it. Accessing a segment that doesn't exist in the tree, or binding a param with the wrong type, is a compile error.
 
 ## Links
 
@@ -670,7 +670,7 @@ getUser.keyFor(5); // "users[5]"
 
 Revalidate with the `revalidate` export or by setting `revalidate` keys on action responses — the whole key invalidates every entry for the query, `keyFor` invalidates one.
 
-A query may also redirect: a guard read that throws or returns `redirect()` (from `@solidjs/web`) navigates instead of resolving. Local paths starting with a single `/` and same-origin server-function redirects stay relative to the router's `base`. Other targets navigate softly with `replace` only within the same origin and base, when the history integration can represent their URL; otherwise they navigate the document. On the client, a `Location` header only navigates for redirect statuses (301, 302, 303, 307, 308). For example, returning `respond({ id: 1 }, { status: 201, headers: { Location: "/items/1" } })` delivers `{ id: 1 }` without navigating. Any `revalidate` keys on a redirect response invalidate first, and the client read stays pending so nothing renders the redirect as data. This holds for `"use server"` queries too, where the transport carries the redirect to the client rather than letting `fetch` follow it. The carrier takes precedence over `Location`.
+A query may also redirect: a guard read that throws or returns `redirect()` (from `@solidjs/web`) navigates instead of resolving. A path starting with a single `/` is a full path, as everywhere in the router: the `base` is never added, so `redirect(paths.login)` and `redirect("/app/login")` both land on `/app/login` under `base: "/app"`. Same-origin targets navigate softly with `replace` only within the router's base, when the history integration can represent their URL; otherwise they navigate the document. On the client, a `Location` header only navigates for redirect statuses (301, 302, 303, 307, 308). For example, returning `respond({ id: 1 }, { status: 201, headers: { Location: "/items/1" } })` delivers `{ id: 1 }` without navigating. Any `revalidate` keys on a redirect response invalidate first, and the client read stays pending so nothing renders the redirect as data. This holds for `"use server"` queries too, where the transport carries the redirect to the client rather than letting `fetch` follow it. The carrier takes precedence over `Location`.
 
 ### `liveQuery`
 
@@ -836,7 +836,7 @@ createRouter(config);
 | option          | type                           | description                                                                                           |
 | --------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | `routes`        | `RouteDefinition[]`            | The route tree — inline arrays infer literally; wrap extracted trees in `defineRoutes`                |
-| `base`          | `string`                       | Base url to use for matching routes                                                                   |
+| `base`          | `string`                       | Base url to use for matching routes. A path that starts with `/` is a full path; use `paths` for base-aware links |
 | `preload`       | `RoutePreloadFunc`             | App-wide preload: once per mount/request, result reaches the root render-prop as `props.data`         |
 | `history`       | `RouterHistory`                | History adapter; defaults to browser history on the client and the request URL on the server          |
 | `singleFlight`  | `boolean`                      | Single-flight mutations, default `true`                                                               |
@@ -883,6 +883,8 @@ Retrieves a method to navigate. Accepts a string or a typed path node, plus opti
 const navigate = useNavigate();
 navigate(paths.login, { replace: true });
 ```
+
+A string that starts with `/` is a full path, like an `href`: under `base: "/app"`, `navigate("/about")` goes to `/about`, not `/app/about`. Use `paths.about` (or `` `${base}/about` ``) for a path under the base. A full path outside the base still navigates softly, and no route matches it unless one does.
 
 For declarative redirects on render (the old `<Navigate>`), call it during component setup or redirect from a preload.
 
@@ -973,7 +975,7 @@ preload(paths.users(2).settings, { preloadData: true });
 Reactive `active`/`current`/`pending` state for [custom link components](#links), matched by the same rule as plain anchors:
 
 - `current()` — same path and same query as the location, ignoring parameter order and the hash (what `aria-current="page"` reflects)
-- `active()` — the location's path is the link's path or lives under it, query ignored (`data-active`); a root link (`/`, which resolves to the router's `base`) is exact-only
+- `active()` — the location's path is the link's path or lives under it, query ignored (`data-active`); a root link (the router's `base`, or `/` without one) is exact-only
 - `pending()` — the link's path is the target of an in-flight navigation, back/forward excluded (`data-pending`). Works without the [`pendingLinks`](#links) plugin, which only adds the attribute to plain anchors
 
 Pass `{ end: true }` to make `active` (and `pending`) exact-path for any link.
