@@ -405,12 +405,10 @@ export const useLinkState = (
 ): LinkState => {
   const router = useRouter();
   const location = router.location;
-  const route = useRoute();
-  // a paths node's brand already holds the base; resolving would add it again
-  const to = createMemo(() => {
-    const h = href();
-    const brand = typeof h !== "string" ? ((h as any)[HREF] as string | undefined) : undefined;
-    return brand !== undefined ? brand : route.resolvePath(String(h));
+  // a paths node's brand is its logical path; toString is the display href
+  const to = useResolvedPath(() => {
+    const h: any = href();
+    return h[HREF] || String(h);
   });
   const base = router.base.path();
   const state = createMemo(() => linkMatcher(location, base, options.end)(to()));
@@ -1091,10 +1089,9 @@ export function createRouterContext(
         };
         resolvedTo = compose(headed);
       } else {
-        // the brand already holds the base, so it skips resolution
-        if (typeof to !== "string" && href === undefined) to = to.toString();
-        resolvedTo = href !== undefined ? href : resolveTarget(to as string);
-        if (resolvedTo === undefined) throw unroutable(to as string);
+        if (typeof to !== "string") to = href || to.toString();
+        resolvedTo = resolveTarget(to);
+        if (resolvedTo === undefined) throw unroutable(to);
       }
 
       const navigationDepth =
