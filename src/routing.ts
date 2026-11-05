@@ -612,8 +612,11 @@ export function createRouterContext(
       }
 
       const current = reference();
+      // While a navigation is pending, compare against where we are heading so
+      // that navigating back to the shown route still cancels the pending one
+      const target = lastTransitionTarget || { value: current, state: state() };
 
-      if (resolvedTo !== current || nextState !== state()) {
+      if (resolvedTo !== target.value || nextState !== target.state) {
         if (isServer) {
           const e = getRequestEvent();
           e && (e.response = { status: 302, headers: new Headers({ Location: resolvedTo }) });
@@ -638,14 +641,15 @@ export function createRouterContext(
 
   function navigateEnd(next: LocationChange) {
     const first = referrers[0];
-    if (first) {
+    // Ending up where the navigation started needs no new history entry
+    if (first && (next.value !== first.value || next.state !== first.state)) {
       setSource({
         ...next,
         replace: first.replace,
         scroll: first.scroll
       });
-      referrers.length = 0;
     }
+    referrers.length = 0;
   }
 
   function preloadRoute(url: URL, preloadData?: boolean) {
