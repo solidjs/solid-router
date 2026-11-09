@@ -92,6 +92,83 @@ describe("<A>", () => {
     on.dispose();
   });
 
+  test("ignores search params by default (path-only active)", () => {
+    const { anchor, dispose } = mount("/docs/intro?example=1", () => (
+      <A href="/docs/intro?example=2">2</A>
+    ));
+    expect(anchor().className).toBe("active");
+    expect(anchor().getAttribute("aria-current")).toBe("page");
+    dispose();
+  });
+
+  test("activeOptions.search requires matching search params", () => {
+    const wrong = mount("/docs/intro?example=1", () => (
+      <A href="/docs/intro?example=2" activeOptions={{ search: true }}>
+        2
+      </A>
+    ));
+    expect(wrong.anchor().className).toBe("inactive");
+    expect(wrong.anchor().hasAttribute("aria-current")).toBe(false);
+    wrong.dispose();
+
+    const right = mount("/docs/intro?example=1", () => (
+      <A href="/docs/intro?example=1" activeOptions={{ search: true }}>
+        1
+      </A>
+    ));
+    expect(right.anchor().className).toBe("active");
+    expect(right.anchor().getAttribute("aria-current")).toBe("page");
+    right.dispose();
+  });
+
+  test("activeOptions.search allows extra location search keys", () => {
+    const { anchor, dispose } = mount("/docs/intro?example=1&page=2", () => (
+      <A href="/docs/intro?example=1" activeOptions={{ search: true }}>
+        1
+      </A>
+    ));
+    expect(anchor().className).toBe("active");
+    expect(anchor().getAttribute("aria-current")).toBe("page");
+    dispose();
+  });
+
+  test("activeOptions.search treats a query-less href as match only with empty location search", () => {
+    const withQuery = mount("/docs/intro?example=1", () => (
+      <A href="/docs/intro" activeOptions={{ search: true }}>
+        all
+      </A>
+    ));
+    expect(withQuery.anchor().className).toBe("inactive");
+    withQuery.dispose();
+
+    const empty = mount("/docs/intro", () => (
+      <A href="/docs/intro" activeOptions={{ search: true }}>
+        all
+      </A>
+    ));
+    expect(empty.anchor().className).toBe("active");
+    expect(empty.anchor().getAttribute("aria-current")).toBe("page");
+    empty.dispose();
+  });
+
+  test("activeOptions.search matches repeated keys as a multiset", () => {
+    const match = mount("/docs/intro?tag=a&tag=b", () => (
+      <A href="/docs/intro?tag=a&tag=b" activeOptions={{ search: true }}>
+        tags
+      </A>
+    ));
+    expect(match.anchor().className).toBe("active");
+    match.dispose();
+
+    const partial = mount("/docs/intro?tag=a", () => (
+      <A href="/docs/intro?tag=a&tag=b" activeOptions={{ search: true }}>
+        tags
+      </A>
+    ));
+    expect(partial.anchor().className).toBe("inactive");
+    partial.dispose();
+  });
+
   test("keeps a user supplied class alongside the active state class", () => {
     const { anchor, dispose } = mount("/docs/intro", () => (
       <A href="/other" class="btn">

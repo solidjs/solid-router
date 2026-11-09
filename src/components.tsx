@@ -6,6 +6,46 @@ import { useHref, useLocation, useNavigate, useResolvedPath } from "./routing.js
 import type { Location, Navigator } from "./types.js";
 import { normalizePath } from "./utils.js";
 
+/**
+ * True when every search param on `linkHref` is present with the same value on
+ * `locationSearch`. Extra keys on the location are ignored (partial / subset
+ * match), matching the usual filter-link case from #518.
+ *
+ * A link with no query string only matches a location that also has no search
+ * (so an "All" tab with `activeOptions.search` does not stay active on every
+ * filter). Repeated keys are compared as a multiset via `getAll`.
+ */
+function linkSearchMatchesLocation(linkHref: string, locationSearch: string): boolean {
+  let linkSearch = "";
+  const q = linkHref.indexOf("?");
+  if (q !== -1) {
+    const hash = linkHref.indexOf("#", q + 1);
+    linkSearch = hash === -1 ? linkHref.slice(q + 1) : linkHref.slice(q + 1, hash);
+  }
+  const linkParams = new URLSearchParams(linkSearch);
+  const locationParams = new URLSearchParams(
+    locationSearch.startsWith("?") ? locationSearch.slice(1) : locationSearch
+  );
+  const linkEntries = [...linkParams];
+  if (linkEntries.length === 0) {
+    return [...locationParams].length === 0;
+  }
+  // Consume location values so `?tag=a&tag=b` does not match twice against the
+  // first `tag=a` on the location.
+  const remaining = new Map<string, string[]>();
+  for (const key of new Set(locationParams.keys())) {
+    remaining.set(key, locationParams.getAll(key));
+  }
+  for (const [key, value] of linkEntries) {
+    const values = remaining.get(key);
+    if (!values) return false;
+    const at = values.indexOf(value);
+    if (at === -1) return false;
+    values.splice(at, 1);
+  }
+  return true;
+}
+
 declare module "solid-js" {
   namespace JSX {
     interface AnchorHTMLAttributes<T> {
@@ -18,6 +58,16 @@ declare module "solid-js" {
   }
 }
 
+export type AnchorActiveOptions = {
+  /**
+   * When true, active / `aria-current` also require the link's search params to
+   * match the current location. Each key present on the link must equal the
+   * location (extra location keys are allowed). Default is false so existing
+   * path-only matching is unchanged.
+   */
+  search?: boolean | undefined;
+};
+
 export interface AnchorProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, "state"> {
   href: string;
   replace?: boolean | undefined;
@@ -26,6 +76,7 @@ export interface AnchorProps extends Omit<JSX.AnchorHTMLAttributes<HTMLAnchorEle
   inactiveClass?: string | undefined;
   activeClass?: string | undefined;
   end?: boolean | undefined;
+  activeOptions?: AnchorActiveOptions | undefined;
 }
 // Every <A> on a page normalizes the same `location.pathname`, so a one entry cache
 // collapses that work to once per navigation instead of once per link. Pure function
@@ -49,7 +100,8 @@ const SPLIT_PROPS = [
   "class",
   "activeClass",
   "inactiveClass",
-  "end"
+  "end",
+  "activeOptions"
 ] as const satisfies readonly (keyof AnchorProps)[];
 
 // The fast path renders children explicitly, so a link that only has children still
@@ -85,7 +137,15 @@ export function A(props: AnchorProps) {
     // trailing slashes are ignored so `/route` and `/route/` share active state
     const path = normalizePath(to_.split(/[?#]/, 1)[0]).toLowerCase().replace(/\/$/, "");
     const loc = normalizeLocationPath(location.pathname);
-    return [props.end ? path === loc : loc.startsWith(path + "/") || loc === path, path === loc];
+    const pathActive = props.end
+      ? path === loc
+      : loc.startsWith(path + "/") || loc === path;
+    const pathExact = path === loc;
+    if (!props.activeOptions?.search) {
+      return [pathActive, pathExact];
+    }
+    const searchMatches = linkSearchMatchesLocation(to_, location.search);
+    return [pathActive && searchMatches, pathExact && searchMatches];
   });
   // One read, so a getter backed `state` is not observed twice
   const state = () => {

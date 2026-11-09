@@ -61,6 +61,45 @@ describe("<A> server rendering", () => {
     ).toBe("off");
   });
 
+  test("activeOptions.search distinguishes query filters", () => {
+    expect(
+      classOf(
+        renderAt(
+          () => (
+            <A href="/docs/intro?example=2" activeOptions={{ search: true }}>
+              2
+            </A>
+          ),
+          "http://localhost/docs/intro?example=1"
+        )
+      )
+    ).toBe("inactive");
+    expect(
+      classOf(
+        renderAt(
+          () => (
+            <A href="/docs/intro?example=1" activeOptions={{ search: true }}>
+              1
+            </A>
+          ),
+          "http://localhost/docs/intro?example=1"
+        )
+      )
+    ).toContain("active");
+    expect(
+      classOf(
+        renderAt(
+          () => (
+            <A href="/docs/intro" activeOptions={{ search: true }}>
+              all
+            </A>
+          ),
+          "http://localhost/docs/intro?example=1"
+        )
+      )
+    ).toBe("inactive");
+  });
+
   test("folds a user class into the state class", () => {
     expect(
       classOf(
