@@ -1,5 +1,11 @@
 # @solidjs/router
 
+## 1.0.2
+
+### Patch Changes
+
+- 6e143b4: Fixes a link back to the shown route being ignored while a navigation to another route is pending.
+
 ## 1.0.1
 
 ### Patch Changes
