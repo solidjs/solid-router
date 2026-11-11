@@ -49,6 +49,34 @@ describe("<A>", () => {
     dispose();
   });
 
+  test("sets aria-current only when the query matches too (#518)", () => {
+    const links = () => (
+      <>
+        <A href="/docs/intro?tag=a">a</A>
+        <A href="/docs/intro?tag=b">b</A>
+        <A href="/docs/intro?b=2&tag=b">b2</A>
+        <A href="/docs/intro">all</A>
+      </>
+    );
+    const history = createMemoryHistory();
+    history.set({ value: "/docs/intro?tag=b&b=2" });
+    const root = document.createElement("div");
+    const dispose = render(
+      () => (
+        <MemoryRouter history={history}>
+          <Route path="/docs/intro" component={links} />
+        </MemoryRouter>
+      ),
+      root
+    );
+    const anchors = [...root.querySelectorAll("a")];
+    // every link is on the current path, so all keep the active class
+    expect(anchors.map(a => a.className)).toEqual(["active", "active", "active", "active"]);
+    // only the link whose query matches (in any order) is the current page
+    expect(anchors.map(a => a.getAttribute("aria-current"))).toEqual([null, null, "page", null]);
+    dispose();
+  });
+
   test("marks itself active for a parent path unless end is set", () => {
     const parent = mount("/docs/intro", () => <A href="/docs">parent</A>);
     expect(parent.anchor().className).toBe("active");

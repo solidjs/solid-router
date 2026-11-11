@@ -6,6 +6,12 @@ import { useHref, useLocation, useNavigate, useResolvedPath } from "./routing.js
 import type { Location, Navigator } from "./types.js";
 import { normalizePath } from "./utils.js";
 
+const comparableQuery = (search: string) => {
+  const params = new URLSearchParams(search);
+  params.sort();
+  return params.toString();
+};
+
 declare module "solid-js" {
   namespace JSX {
     interface AnchorHTMLAttributes<T> {
@@ -85,7 +91,15 @@ export function A(props: AnchorProps) {
     // trailing slashes are ignored so `/route` and `/route/` share active state
     const path = normalizePath(to_.split(/[?#]/, 1)[0]).toLowerCase().replace(/\/$/, "");
     const loc = normalizeLocationPath(location.pathname);
-    return [props.end ? path === loc : loc.startsWith(path + "/") || loc === path, path === loc];
+    if (path !== loc) return [!props.end && loc.startsWith(path + "/"), false];
+    // aria-current="page" also needs the query to match (parameter order aside),
+    // so filter links like `/?tag=a` and `/?tag=b` are not all the current page
+    const hashless = to_.split("#", 1)[0];
+    const q = hashless.indexOf("?");
+    return [
+      true,
+      comparableQuery(location.search) === comparableQuery(q < 0 ? "" : hashless.slice(q))
+    ];
   });
   // One read, so a getter backed `state` is not observed twice
   const state = () => {
