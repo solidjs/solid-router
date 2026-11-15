@@ -96,6 +96,23 @@ describe("query cache freshness windows", () => {
   });
 
   describe("hydration flight-entry consumption", () => {
+    test("reuses a rejected flight during hydration and retries afterward", async () => {
+      const error = new Error("server query failed");
+      const revived = Object.assign(Promise.reject(error), { s: 2, v: error });
+      const fetchData = vi.fn(async () => "fresh-data");
+      const cachedFn = query(fetchData, "rejectedFlight");
+      (globalThis as any)._$HY = { r: { [cachedFn.keyFor()]: revived } };
+
+      hydrating = true;
+      await expect(cachedFn()).rejects.toBe(error);
+      await expect(cachedFn()).rejects.toBe(error);
+      expect(fetchData).not.toHaveBeenCalled();
+
+      hydrating = false;
+      await expect(cachedFn()).resolves.toBe("fresh-data");
+      expect(fetchData).toHaveBeenCalledTimes(1);
+    });
+
     test("hydration burst adopts the flight entry and dedups, one-shot registry", async () => {
       return createRoot(async () => {
         seedFlightEntry("flightQuery[]", "server-data");

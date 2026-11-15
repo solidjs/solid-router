@@ -651,6 +651,8 @@ A query:
 3. Refetches reactively by key on action revalidation.
 4. Serves as a back/forward cache for browser navigation up to 5 minutes; user-initiated navigation bypasses it.
 
+After a query rejects in the browser, a subsequent read can fetch again immediately. For example, an `<Errored>` fallback can call `reset()` to retry the query.
+
 Consume results directly with Solid primitives — there is no router-specific async wrapper:
 
 ```tsx
