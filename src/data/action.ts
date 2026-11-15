@@ -393,10 +393,18 @@ function actionImpl<T extends Array<any>, U = void>(
       };
       // Book-keeping is intentional: only outcomes worth showing or retrying
       // (a result or an error) enter the submissions list, so the typical void
-      // mutation leaves nothing behind. Settled hooks still see every
-      // completion — void, metadata-only, and redirects included — one
+      // mutation leaves nothing behind. When a void/metadata-only/redirect
+      // completion settles, clear any earlier entries for this action so a stale
+      // failure isn't left as `useSubmissions(action).at(-1)`. Settled hooks still
+      // see every completion — void, metadata-only, and redirects included — one
       // `onSettled` per invocation (#580).
-      response && router.submissions[1](entries => [...entries, submission]);
+      router.submissions[1](entries =>
+        response
+          ? [...entries, submission]
+          : entries.some(entry => entry.url === url)
+            ? entries.filter(entry => entry.url !== url)
+            : entries
+      );
       // runs inside the scheduler's effect pass: a throwing hook must not
       // abort the pass (or the hooks after it), so it is reported on its own
       for (const hook of outcome.hooks) {

@@ -577,6 +577,55 @@ describe("useSubmissions", () => {
     expect(runs).toBe(2);
     dispose();
   });
+
+  test("should clear earlier error submissions when a later void submission succeeds (#725)", async () => {
+    let shouldFail = true;
+    const submitTodo = formAction(
+      async () => {
+        if (shouldFail) throw new Error("Too short");
+      },
+      { name: "clear-error-on-void-success" }
+    );
+    const otherAction = formAction(
+      async () => {
+        throw new Error("Other error");
+      },
+      { name: "other-action-stays" }
+    );
+
+    const boundSubmit = useAction(submitTodo);
+    const boundOther = useAction(otherAction);
+
+    await expect(boundSubmit()).rejects.toThrow("Too short");
+    await expect(boundOther()).rejects.toThrow("Other error");
+
+    let latestError: unknown;
+    let otherLatestError: unknown;
+    const dispose = createRoot(dispose => {
+      const subs = useSubmissions(submitTodo);
+      const otherSubs = useSubmissions(otherAction);
+      createEffect(
+        () => [subs.at(-1)?.error, otherSubs.at(-1)?.error] as const,
+        ([err, otherErr]) => {
+          latestError = err;
+          otherLatestError = otherErr;
+        }
+      );
+      return dispose;
+    });
+    flush();
+
+    expect((latestError as Error)?.message).toBe("Too short");
+    expect((otherLatestError as Error)?.message).toBe("Other error");
+
+    shouldFail = false;
+    await boundSubmit();
+    flush();
+
+    expect(latestError).toBeUndefined();
+    expect((otherLatestError as Error)?.message).toBe("Other error");
+    dispose();
+  });
 });
 
 describe("useAction", () => {
