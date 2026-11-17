@@ -37,6 +37,15 @@ export function Root(props: {
   preload?: RoutePreloadFunc;
   children: JSX.Element;
 }) {
+  // A no-JS form post lands back here on a GET carrying the flash cookie,
+  // and that browser cannot swap streamed <template> chunks in. Read the
+  // submissions above the app's root (and so above any of its <Loading>
+  // boundaries) so the flash decode suspends this root slot, which holds the
+  // shell, instead of a boundary that would flush its fallback (#724). Runs
+  // before anything is created so the retry starts clean; a request with no
+  // flash cookie seeds [] without suspending. Server-only: folds out of
+  // client bundles.
+  isServer && props.routerState.submissions[0]();
   const location = props.routerState.location;
   const params = props.routerState.params;
   const data = createMemo(

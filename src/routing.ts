@@ -792,6 +792,17 @@ export function createRouterContext(
   getContext?: () => any,
   options: { base?: string; singleFlight?: boolean; transformUrl?: (url: string) => string } = {}
 ): RouterContext {
+  let submissions: Signal<Submission<any, any>[]> | undefined;
+  // Settled submissions belong to the page that made them: every client
+  // location write (navigate, redirect hop, back/forward) clears them in the
+  // write's own tick, so the clear commits with that navigation and the old
+  // page keeps showing them while it is pending. An action that navigates
+  // still shows its outcome: its record is added at its transition's
+  // commit, after the clear its navigation carried.
+  if (!isServer) {
+    const write = integration.signal[1];
+    integration.signal[1] = next => (submissions && submissions[1]([]), write(next));
+  }
   const {
     signal: [source, setSource],
     utils = {}
@@ -861,7 +872,8 @@ export function createRouterContext(
   // malformed-cookie semantics. Created only when a flash cookie actually
   // arrived (server-only by construction: `flash` is only ever set there), and
   //   - `lazy`: server memos compute eagerly by default — deferred to first
-  //     read, a request whose submissions are never read never decodes;
+  //     read, which `Root` makes on every server render (#724), so the
+  //     decode suspends the root slot rather than an app boundary;
   //   - `transparent`: the memo exists on the server only, so its owner
   //     must not consume a hydration-id slot — the client, which seeds
   //     submissions as [] without ever creating this memo, would miss it
@@ -891,8 +903,6 @@ export function createRouterContext(
           { lazy: true, transparent: true }
         )
       : undefined;
-
-  let submissions: Signal<Submission<any, any>[]> | undefined;
 
   // NotReadyError's source must be a reactive async node, not the raw
   // Promise. Keep one reader per boundary for this router owner so rejection
