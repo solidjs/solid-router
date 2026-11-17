@@ -243,10 +243,9 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
       cached &&
       cached[0] &&
       (isServer ||
-        intent === "native" ||
-        cached[4].count ||
         (!intent && isHydrating()) ||
-        Date.now() - cached[0] < PRELOAD_TIMEOUT)
+        (cached[0] > 0 &&
+          (intent === "native" || cached[4].count || Date.now() - cached[0] < PRELOAD_TIMEOUT)))
     ) {
       if (tracking) {
         cached[4].count++;
@@ -404,7 +403,12 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
             }
           }
         }
-        if (error) throw v;
+        if (error) {
+          // Hydration still needs the original rejection to claim the server fallback.
+          // A negative stamp marks it rejected: never fresh, still truthy.
+          if (!isServer && cached[1] === source) cached[0] = -1;
+          throw v;
+        }
         // a superseded fetch or a query.set since must not overwrite the newer value
         if (cached[1] === source) cached[2] = v;
         return v;
