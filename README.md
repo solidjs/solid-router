@@ -798,6 +798,14 @@ const latest = submissions.at(-1);
 // { input, result?, error, url, clear(), retry() }
 ```
 
+The list is history: a later submission never removes an earlier record, including one that returns nothing, so every failed row of a list keeps its own `retry()`. Records go away through their own `clear()` / `retry()`, and every client navigation clears the list. A form that shows only its latest outcome clears the old records when a new submission starts:
+
+```tsx
+const submissions = useSubmissions(addTodo);
+addTodo.onSubmit(() => submissions.forEach(s => s.clear()));
+const error = () => submissions.at(-1)?.error;
+```
+
 Use Solid's `createOptimistic` / `createOptimisticStore` for in-flight UI.
 
 ## Typed Search Params
@@ -1136,7 +1144,7 @@ const user = createMemo(() => getUser(params.id));
 ```
 
 - `query()` stays the source of truth for cached reads and invalidation.
-- `useSubmission` (singular) is gone, and submissions are now settled history rather than in-flight state. Pending/optimistic UI moves to Solid's optimistic primitives fed by the action's `.onSubmit(...)` hook; read settled results with `useSubmissions()` and select the latest with `.at(-1)`.
+- `useSubmission` (singular) is gone, and submissions are now settled history rather than in-flight state. Pending/optimistic UI moves to Solid's optimistic primitives fed by the action's `.onSubmit(...)` hook; read settled results with `useSubmissions()` and select the latest with `.at(-1)` (clear old records in `.onSubmit` when a form shows only its latest outcome).
 
 ```tsx
 // 0.x — read in-flight state off the submission
