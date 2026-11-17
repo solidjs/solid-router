@@ -85,7 +85,7 @@ describe("navigation during hydration", () => {
       root,
       configFile: false,
       logLevel: "silent",
-      plugins: [entries, solidPlugin({ ssr: true, hot: false, solid: { hydratable: true } })],
+      plugins: [entries, solidPlugin({ ssr: true, refresh: false, solid: { hydratable: true } })],
       ssr: { noExternal: true, resolve: { conditions: ["node"] } },
       server: { middlewareMode: true },
       appType: "custom"
@@ -96,7 +96,7 @@ describe("navigation during hydration", () => {
         root,
         configFile: false,
         logLevel: "silent",
-        plugins: [entries, solidPlugin({ hot: false, dev: true, solid: { hydratable: true } })],
+        plugins: [entries, solidPlugin({ refresh: false, dev: true, solid: { hydratable: true } })],
         resolve: { conditions: ["browser", "development"] },
         build: {
           write: false,
