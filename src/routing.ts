@@ -792,6 +792,17 @@ export function createRouterContext(
   getContext?: () => any,
   options: { base?: string; singleFlight?: boolean; transformUrl?: (url: string) => string } = {}
 ): RouterContext {
+  let submissions: Signal<Submission<any, any>[]> | undefined;
+  // Settled submissions belong to the page that made them: every client
+  // location write (navigate, redirect hop, back/forward) clears them in the
+  // write's own tick, so the clear commits with that navigation and the old
+  // page keeps showing them while it is pending. An action that navigates
+  // still shows its outcome: its record is added at its transition's
+  // commit, after the clear its navigation carried.
+  if (!isServer) {
+    const write = integration.signal[1];
+    integration.signal[1] = next => (submissions && submissions[1]([]), write(next));
+  }
   const {
     signal: [source, setSource],
     utils = {}
@@ -891,8 +902,6 @@ export function createRouterContext(
           { lazy: true, transparent: true }
         )
       : undefined;
-
-  let submissions: Signal<Submission<any, any>[]> | undefined;
 
   // NotReadyError's source must be a reactive async node, not the raw
   // Promise. Keep one reader per boundary for this router owner so rejection
