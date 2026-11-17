@@ -861,7 +861,8 @@ export function createRouterContext(
   // malformed-cookie semantics. Created only when a flash cookie actually
   // arrived (server-only by construction: `flash` is only ever set there), and
   //   - `lazy`: server memos compute eagerly by default — deferred to first
-  //     read, a request whose submissions are never read never decodes;
+  //     read, which `Root` makes on every server render (#724), so the
+  //     decode suspends the root slot rather than an app boundary;
   //   - `transparent`: the memo exists on the server only, so its owner
   //     must not consume a hydration-id slot — the client, which seeds
   //     submissions as [] without ever creating this memo, would miss it
