@@ -568,7 +568,7 @@ function TabLink(props: { href: string; children: JSX.Element }) {
 
 ## Preloading
 
-The router can warm a link's route before it is clicked: preloading **code** loads the matched routes' `lazy()` components (and any [lazy subtree](#lazy-route-subtrees) on the way), and preloading **data** also runs their [preload functions](#preload-functions) with `intent: "preload"`. Nothing is preloaded unless you opt in. Earlier `next` prereleases preloaded on hover, focus, and touch by default; that built-in is gone. A boolean `preloadLinks` is a type error and, in development, a warning — it preloads nothing.
+The router can warm a link's route before it is clicked: preloading **code** loads the matched routes' `lazy()` components (and any [lazy subtree](#lazy-route-subtrees) on the way), and preloading **data** also runs their [preload functions](#preload-functions) with `intent: "preload"`. Nothing is preloaded unless you opt in. Earlier versions preloaded on hover, focus, and touch by default; that built-in is gone. A boolean `preloadLinks` is a type error and, in development, a warning — it preloads nothing.
 
 ```tsx
 import { createRouter, intentPreload } from "@solidjs/router";
@@ -1108,7 +1108,7 @@ Route props map 1:1 onto definition keys (`path`, `component`, `preload`, `match
 - Pending link styling → `[data-pending]`, opt-in with `createRouter({ routes, links: pendingLinks })`
 - Route-relative hrefs → typed `paths`; `useResolvedPath` / `useHref` remain for manual resolution
 - Custom link components → `useLinkState`
-- Hover/focus preloading is opt-in → `createRouter({ routes, preloadLinks: intentPreload() })`; `preload="false"` on a link skips it entirely. The previous `next` prerelease preloaded on hover by default
+- Hover/focus preloading is opt-in → `createRouter({ routes, preloadLinks: intentPreload() })`; `preload="false"` on a link skips it entirely. `<A>` preloaded on hover by default
 
 ### Removed and renamed
 
