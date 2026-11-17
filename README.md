@@ -1,4 +1,4 @@
-[![Banner](https://assets.solidjs.com/banner?project=Router&type=core)](https://github.com/solidjs)
+[![Banner](https://assets.solidjs.com/banner?project=Router&type=core&version=2.0)](https://github.com/solidjs)
 
 <div align="center">
 
