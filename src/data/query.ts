@@ -79,7 +79,6 @@ const responseBodyHeaders = /* #__PURE__ */ new Set([
   "last-modified"
 ]);
 const forwardedCookies = /* #__PURE__ */ new WeakMap<CacheEntry, WeakSet<Headers>>();
-const rejectedEntries = /* #__PURE__ */ new WeakSet<CacheEntry>();
 // When this client booted. Flight-registry entries (takeHydrationValue)
 // hold values the server computed while rendering THIS page, so their age is
 // anchored here — not at whenever a late query() call happens to consume one.
@@ -245,7 +244,7 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
       cached[0] &&
       (isServer ||
         (!intent && isHydrating()) ||
-        (!rejectedEntries.has(cached) &&
+        (cached[0] > 0 &&
           (intent === "native" || cached[4].count || Date.now() - cached[0] < PRELOAD_TIMEOUT)))
     ) {
       if (tracking) {
@@ -308,7 +307,6 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
     const stamp = adopted ? bootTime : now;
     if (cached) {
       isServer && forwardedCookies.delete(cached);
-      rejectedEntries.delete(cached);
       cached[0] = stamp;
       cached[1] = res;
       cached[3] = intent;
@@ -407,7 +405,8 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
         }
         if (error) {
           // Hydration still needs the original rejection to claim the server fallback.
-          if (!isServer && cached[1] === source) rejectedEntries.add(cached);
+          // A negative stamp marks it rejected: never fresh, still truthy.
+          if (!isServer && cached[1] === source) cached[0] = -1;
           throw v;
         }
         // a superseded fetch or a query.set since must not overwrite the newer value
@@ -432,7 +431,6 @@ query.set = <T>(key: string, value: T extends Promise<any> ? never : T) => {
   let cached = cache.get(key);
   if (cached) {
     isServer && forwardedCookies.delete(cached);
-    rejectedEntries.delete(cached);
     cached[0] = now;
     cached[1] = Promise.resolve(value);
     cached[2] = value;
