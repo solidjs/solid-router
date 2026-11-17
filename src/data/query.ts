@@ -253,6 +253,12 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
       }
       if (cached[3] === "preload" && intent !== "preload") {
         cached[0] = now;
+        cached[3] = intent;
+        // Adopting a preload entry reuses the same promise. Stamp that adoption
+        // once: later navigate reads write this same value, so they are no-ops.
+        // Re-stamping cached[0] on every read made each subscriber re-run write a
+        // new version and re-run the others (#739).
+        !isServer && intent === "navigate" && cached[4][1](cached[0]);
       }
       let res = cached[1];
       if (intent !== "preload") {
