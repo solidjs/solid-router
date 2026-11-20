@@ -76,7 +76,8 @@ const responseBodyHeaders = /* #__PURE__ */ new Set([
   "content-range",
   "accept-ranges",
   "etag",
-  "last-modified"
+  "last-modified",
+  "x-revalidate"
 ]);
 const forwardedCookies = /* #__PURE__ */ new WeakMap<CacheEntry, WeakSet<Headers>>();
 // When this client booted. Flight-registry entries (takeHydrationValue)

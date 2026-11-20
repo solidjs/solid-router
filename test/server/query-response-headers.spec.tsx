@@ -194,6 +194,20 @@ describe.each(["returned", "thrown"] as const)(
   }
 );
 
+test.each([[[]], [["greeting", "cart"]]])(
+  "keeps a read's X-Revalidate off the document (revalidate: %j)",
+  async revalidate => {
+    const event = createRequestEvent(new Request("http://localhost/"));
+    const read = query(async () => respond({ ok: true }, { revalidate }), "revalidate-header");
+
+    await provideRequestEvent(event, async () => {
+      await expect(read()).resolves.toEqual({ ok: true });
+    });
+
+    expect(event.response.headers.has("X-Revalidate")).toBe(false);
+  }
+);
+
 test("a synchronous query leaves the document's existing body headers intact", async () => {
   const event = createRequestEvent(new Request("http://localhost/"));
   const headers = {
