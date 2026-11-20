@@ -13,7 +13,8 @@
     "url": "https://github.com/solidjs/solid-router"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "tag": "v1-latest"
   },
   "type": "module",
   "main": "dist/index.js",
@@ -36,7 +37,7 @@
     "test:ssr": "vitest run --config vitest.ssr.config.ts",
     "test:types": "tsc --project tsconfig.test.json",
     "pretty": "prettier --write \"{src,test}/**/*.{ts,tsx}\"",
-    "release": "pnpm build && changeset publish"
+    "release": "pnpm build && changeset publish --tag v1-latest"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",
