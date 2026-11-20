@@ -247,17 +247,27 @@ export function query<T extends (...args: any) => any>(fn: T, name: string): Cac
         (cached[0] > 0 &&
           (intent === "native" || cached[4].count || Date.now() - cached[0] < PRELOAD_TIMEOUT)))
     ) {
+      // A read consumes a preloaded entry once: bump the stamp and update the
+      // version signal before this read tracks it, so the handoff notifies
+      // other consumers but not the reader itself — re-bumping on every read
+      // made consuming memos re-run per flush pass, re-adopting the still-
+      // pending preload promise as superseded flights.
+      const handed = cached[3] === "preload" && intent !== "preload";
+      if (handed) {
+        cached[0] = now;
+        cached[3] = intent;
+        !isServer && intent === "navigate" && cached[4][1](cached[0]); // update version
+      }
       if (tracking) {
         cached[4].count++;
         cached[4][0](); // track
       }
-      if (cached[3] === "preload" && intent !== "preload") {
-        cached[0] = now;
-      }
       let res = cached[1];
       if (intent !== "preload") {
         res = settle(res);
-        !isServer && intent === "navigate" && cached[4][1](cached[0]); // update version
+        if (!handed) {
+          !isServer && intent === "navigate" && cached[4][1](cached[0]); // update version
+        }
       }
       inPreloadFn && "then" in res && res.catch(() => {});
       isServer && serializeForHydration(key, res);
