@@ -1,13 +1,51 @@
 // Link state in server HTML (#654), marked by the client's claim rule.
 import { renderToString } from "@solidjs/web";
 import { provideRequestEvent } from "@solidjs/web/storage";
-import { createRouter, hashHistory } from "../../src/index.js";
+import { createRoot, createSignal } from "solid-js";
+import { createRouter, hashHistory, useLinkState } from "../../src/index.js";
+import { createRouterContext, RouterContextObj } from "../../src/routing.js";
+import type { LocationChange } from "../../src/types.js";
 
 const anchor = (html: string, text: string) => {
   const m = html.match(new RegExp(`<a\\b[^>]*>${text}</a>`));
   if (!m) throw new Error(`no anchor ${text} in ${html}`);
   return m[0];
 };
+
+describe("SSR hash-history hook state", () => {
+  test.each([
+    ["#details", "/", true, true],
+    ["#", "/", true, true],
+    ["#details", "/applications", false, false],
+    ["#/applications", "/applications", true, true],
+    ["#/applications?b=2&a=1#details", "/applications?a=1&b=2", true, true],
+    ["#/applications?tab=other", "/applications?tab=current", false, true],
+    ["/applications#details", "/applications", true, true],
+    ["applications#details", "/applications", true, true]
+  ] as const)("matches %s at %s without browser globals", (href, value, current, active) => {
+    expect(typeof window).toBe("undefined");
+    createRoot(dispose => {
+      try {
+        const signal = createSignal<LocationChange>({ value }, { ownedWrite: true });
+        const router = createRouterContext({ signal, utils: hashHistory().utils }, () => []);
+        let link!: ReturnType<typeof useLinkState>;
+        const context = RouterContextObj({
+          value: router,
+          get children() {
+            link = useLinkState(() => href);
+            return null;
+          }
+        }) as () => unknown;
+        context();
+        expect(link.current()).toBe(current);
+        expect(link.active()).toBe(active);
+        expect(link.pending()).toBe(false);
+      } finally {
+        dispose();
+      }
+    });
+  });
+});
 
 describe("SSR link state", () => {
   const Layout = (props: any) => {

@@ -70,6 +70,7 @@ describe("hash-history link state", () => {
             }
           );
           let links!: ReturnType<typeof useLinkState>[];
+          let fragments!: ReturnType<typeof useLinkState>[];
           let home!: ReturnType<typeof useLinkState>;
           let node!: ReturnType<typeof useLinkState>;
           const context = RouterContextObj({
@@ -82,6 +83,7 @@ describe("hash-history link state", () => {
                 "applications?a=1&b=2#section"
               ];
               links = hrefs.map(href => useLinkState(() => href));
+              fragments = ["#details", "#"].map(href => useLinkState(() => href));
               home = useLinkState(() => Router.paths());
               node = useLinkState(() => Router.paths.applications);
               return null;
@@ -91,6 +93,11 @@ describe("hash-history link state", () => {
           for (const link of links) {
             expect(link.current()).toBe(true);
             expect(link.active()).toBe(true);
+          }
+          for (const link of fragments) {
+            expect(link.current()).toBe(false);
+            expect(link.active()).toBe(false);
+            expect(link.pending()).toBe(false);
           }
           expect(home.current()).toBe(false);
           expect(home.active()).toBe(false);

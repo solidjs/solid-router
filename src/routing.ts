@@ -410,7 +410,7 @@ export const useLinkState = (
   const to = useResolvedPath(() => {
     const h: any = href();
     const path = h[HREF] || String(h);
-    return path[0] === "#" ? router.parsePath(path) : path;
+    return path.startsWith("#/") ? router.parsePath(path) : path;
   });
   const base = router.base.path();
   const state = createMemo(() => linkMatcher(location, base, options.end)(to()));
