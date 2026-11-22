@@ -90,7 +90,7 @@ export function setupLinkClaims(
     const location = router.location;
     const routing = plugin && plugin.track();
     const url = managedUrl(a);
-    const target = url && url.pathname + url.search;
+    const target = url && router.parsePath(url.pathname + url.search + (url.hash || ""));
     // no per-anchor `end` opt-out like useLinkState has
     const { active, current } = match(target);
     const pending = !!routing && plugin!.pending(target);
@@ -194,13 +194,12 @@ function managedLinkUrl(
   page: string | URL,
   origin: string,
   basePath: string
-): { pathname: string; search: string; comparable?: string } | undefined {
+): { pathname: string; search: string; hash?: string; comparable?: string } | undefined {
   if ((explicitLinks && !a.link) || a.target || !a.href || a.download) return;
   if (a.rel && a.rel.split(/\s+/).includes("external")) return;
   // server pages resolve root-relative hrefs against `origin`, so plain ones skip `URL`
-  let url: { pathname: string; search: string; comparable?: string } | undefined = isServer
-    ? plainHref(a.href)
-    : undefined;
+  let url: { pathname: string; search: string; hash?: string; comparable?: string } | undefined =
+    isServer ? plainHref(a.href) : undefined;
   if (!url) {
     let parsed;
     try {

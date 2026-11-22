@@ -409,7 +409,8 @@ export const useLinkState = (
   // a paths node's brand is its logical path; toString is the display href
   const to = useResolvedPath(() => {
     const h: any = href();
-    return h[HREF] || String(h);
+    const path = h[HREF] || String(h);
+    return path[0] === "#" ? router.parsePath(path) : path;
   });
   const base = router.base.path();
   const state = createMemo(() => linkMatcher(location, base, options.end)(to()));
