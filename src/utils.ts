@@ -42,6 +42,9 @@ const hasDotSegment = (path: string) => path.includes("/.") && dotSegmentRegex.t
 /** Whether `URL` would report this pathname unchanged, so it can skip the parse. */
 const isPlainPath = (path: string) => plainPathRegex.test(path) && !hasDotSegment(path);
 
+/** `isPlainPath` for server-only callers in other modules; `undefined` in client builds so they drop it. */
+export const serverPlainPath = isServer ? isPlainPath : undefined;
+
 /** A root-relative href's pathname, search and comparable path, or `undefined` if `URL` would change them. */
 export function plainHref(href: string) {
   const m = plainHrefRegex.exec(href);

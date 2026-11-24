@@ -1,7 +1,7 @@
 import { hasServerLinkState, isServer, registerElementClaim, setLinkClaim } from "@solidjs/web";
 import { createRenderEffect, getOwner, isHydrating, onCleanup, untrack } from "solid-js";
 import type { LinksPlugin, RouterContext } from "./types.js";
-import { isUnderBase, linkMatcher, plainHref } from "./utils.js";
+import { comparablePath, isUnderBase, linkMatcher, plainHref, serverPlainPath } from "./utils.js";
 
 /**
  * Claimed forms are handed to this slot instead of the claims importing the
@@ -233,6 +233,13 @@ function locationMatcher(router: RouterContext, basePath: string) {
 // a raw SSR attribute value as the DOM would read it back
 const attr = (v: unknown) => (v == null || v === false ? null : v === true ? "" : String(v));
 
+/** Whether a plain href's path can't be `loc` or a parent of it; lives here so client builds drop it. */
+export function plainHrefMisses(href: string, loc: string) {
+  if (!serverPlainPath!(href) || href[0] !== "/" || href[1] === "/" || href.endsWith("/"))
+    return false;
+  return href.length > loc.length || !loc.startsWith(href.toLowerCase());
+}
+
 /** Server link handler: marks anchors by the client's rule, resolved against `page`. */
 export function setupServerLinkClaims(
   router: RouterContext,
@@ -242,7 +249,12 @@ export function setupServerLinkClaims(
   const basePath = router.base.path();
   const origin = page.origin;
   const match = locationMatcher(router, basePath);
+  let pathname: string | undefined;
+  let loc = "";
   setLinkClaim(attrs => {
+    const locationPath = router.location.pathname;
+    if (locationPath !== pathname) loc = comparablePath((pathname = locationPath));
+    if (typeof attrs.href === "string" && plainHrefMisses(attrs.href, loc)) return "";
     const url = managedLinkUrl(
       {
         href: attr(attrs.href),
