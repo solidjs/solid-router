@@ -56,6 +56,9 @@ export function plainHref(href: string) {
   return { pathname, search: m[2] ? "?" + m[2] : "", comparable };
 }
 
+/** `plainHref` for server-only callers in other modules; `undefined` in client builds so they drop it. */
+export const serverPlainHref = isServer ? plainHref : undefined;
+
 /**
  * Whether a URL path (query and hash ignored) is the router's base path or under it, on a segment
  * boundary: base `/app` covers `/app`, `/app/` and `/app/x`, not `/apple`.

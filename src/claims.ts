@@ -1,7 +1,13 @@
 import { hasServerLinkState, isServer, registerElementClaim, setLinkClaim } from "@solidjs/web";
 import { createRenderEffect, getOwner, isHydrating, onCleanup, untrack } from "solid-js";
 import type { LinksPlugin, RouterContext } from "./types.js";
-import { comparablePath, isUnderBase, linkMatcher, plainHref, serverPlainPath } from "./utils.js";
+import {
+  comparablePath,
+  isUnderBase,
+  linkMatcher,
+  serverPlainHref,
+  serverPlainPath
+} from "./utils.js";
 
 /**
  * Claimed forms are handed to this slot instead of the claims importing the
@@ -199,7 +205,7 @@ function managedLinkUrl(
   if (a.rel && a.rel.split(/\s+/).includes("external")) return;
   // server pages resolve root-relative hrefs against `origin`, so plain ones skip `URL`
   let url: { pathname: string; search: string; comparable?: string } | undefined = isServer
-    ? plainHref(a.href)
+    ? serverPlainHref!(a.href)
     : undefined;
   if (!url) {
     let parsed;
