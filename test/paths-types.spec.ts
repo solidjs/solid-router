@@ -255,4 +255,15 @@ describe("Type checking the typed path proxy", () => {
     const _fsDetail: string = Fs.paths.posts(1)();
     const _fsEdit: string = Fs.paths.posts(1).edit();
   };
+
+  // many sibling routes, as in a flat file-system manifest, stay under the depth limit
+  () => {
+    type Pages<N extends number, A extends unknown[] = []> = A["length"] extends N
+      ? A
+      : Pages<N, [...A, { path: `/p${A["length"]}` }]>;
+    const Many = createRouter({ routes: [] as unknown as Pages<100> });
+    const _last: string = Many.paths.p99();
+    // @ts-expect-error no such route segment
+    Many.paths.p100;
+  };
 });

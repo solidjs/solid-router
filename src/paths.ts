@@ -131,12 +131,13 @@ type ChildPaths<C, PAcc extends Params> = [C] extends [undefined]
     : RouteContrib<RC, PAcc>
   : never;
 
-type TuplePaths<R extends readonly unknown[], PAcc extends Params> = R extends readonly [
+/** Tail-recursive, so a long list of siblings does not hit TS2589. */
+type TuplePaths<R extends readonly unknown[], PAcc extends Params, Acc = {}> = R extends readonly [
   infer H,
   ...infer T extends readonly unknown[]
 ]
-  ? RouteContrib<H, PAcc> & TuplePaths<T, PAcc>
-  : {};
+  ? TuplePaths<T, PAcc, Acc & RouteContrib<H, PAcc>>
+  : Acc;
 
 type PathLeaf<Sch extends SearchTypes, C, PAcc extends Params> = PathEnd<Sch, Flat<PAcc>> &
   ChildPaths<C, PAcc>;
