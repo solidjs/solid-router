@@ -90,7 +90,12 @@ export function setupLinkClaims(
     const location = router.location;
     const routing = plugin && plugin.track();
     const url = managedUrl(a);
-    const target = url && url.pathname + url.search;
+    // Include hash so hashHistory's parsePath can recover `/applications`
+    // from an href like `#/applications` (URL pathname alone is `/`). Same
+    // spelling the click handler feeds parsePath (#746).
+    const target =
+      url &&
+      router.parsePath(url.pathname + url.search + (("hash" in url && url.hash) || ""));
     // no per-anchor `end` opt-out like useLinkState has
     const { active, current } = match(target);
     const pending = !!routing && plugin!.pending(target);
@@ -257,7 +262,11 @@ export function setupServerLinkClaims(
       basePath
     );
     if (!url) return "";
-    const { active, current } = match(url.pathname + url.search, url.comparable);
+    // Same parsePath path as the client claims / click handler (#746).
+    const target = router.parsePath(
+      url.pathname + url.search + (("hash" in url && url.hash) || "")
+    );
+    const { active, current } = match(target, url.comparable);
     return current ? ' data-active aria-current="page"' : active ? " data-active" : "";
   });
 }

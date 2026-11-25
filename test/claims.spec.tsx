@@ -16,7 +16,7 @@ import {
 } from "solid-js";
 import { vi } from "vitest";
 import { setupLinkClaims } from "../src/claims.js";
-import { createRouter, memoryHistory, pendingLinks } from "../src/index.js";
+import { createRouter, hashHistory, memoryHistory, pendingLinks } from "../src/index.js";
 import type { LinkState, Navigator } from "../src/index.js";
 import { useLinkState, useNavigate } from "../src/index.js";
 import type { RouterContext } from "../src/types.js";
@@ -1160,6 +1160,107 @@ describe("link state parity: claimed anchors and useLinkState", () => {
       });
     } finally {
       cleanup();
+    }
+  });
+});
+
+describe("hashHistory link claims and useLinkState (#746)", () => {
+  const originalScrollTo = window.scrollTo;
+  beforeEach(() => {
+    window.scrollTo = vi.fn() as any;
+    window.history.replaceState(null, "", "/#/");
+  });
+  afterEach(() => {
+    window.history.replaceState(null, "", "/");
+  });
+  afterAll(() => {
+    window.scrollTo = originalScrollTo;
+  });
+
+  const routes = [
+    { path: "/", component: () => <div data-route="home" /> },
+    { path: "/applications", component: () => <div data-route="applications" /> }
+  ] as const;
+
+  test("only the current hash link gets aria-current / data-active", async () => {
+    const div = mount();
+    let navigate!: Navigator;
+    const Router = createRouter({ routes, history: hashHistory() });
+    const dispose = render(
+      () => (
+        <Router>
+          {props => {
+            navigate = useNavigate();
+            return (
+              <nav>
+                <a data-testid="home" href="#/">
+                  Home
+                </a>
+                <a data-testid="applications" href="#/applications">
+                  Applications
+                </a>
+                {props.children}
+              </nav>
+            );
+          }}
+        </Router>
+      ),
+      div
+    );
+    try {
+      await settle();
+      const home = div.querySelector('[data-testid="home"]')!;
+      const applications = div.querySelector('[data-testid="applications"]')!;
+
+      expect(home.getAttribute("aria-current")).toBe("page");
+      expect(home.hasAttribute("data-active")).toBe(true);
+      expect(applications.hasAttribute("aria-current")).toBe(false);
+      expect(applications.hasAttribute("data-active")).toBe(false);
+
+      navigate("/applications");
+      await settle();
+
+      expect(applications.getAttribute("aria-current")).toBe("page");
+      expect(applications.hasAttribute("data-active")).toBe(true);
+      expect(home.hasAttribute("aria-current")).toBe(false);
+      expect(home.hasAttribute("data-active")).toBe(false);
+    } finally {
+      dispose();
+      div.remove();
+    }
+  });
+
+  test("useLinkState understands display hash hrefs and paths nodes", async () => {
+    window.history.replaceState(null, "", "/#/applications");
+    const Router = createRouter({ routes, history: hashHistory() });
+    let hashHref!: LinkState;
+    let pathsNode!: LinkState;
+    const div = mount();
+    const dispose = render(
+      () => (
+        <Router>
+          {p => (
+            <>
+              {
+                ((hashHref = useLinkState(() => "#/applications")),
+                (pathsNode = useLinkState(() => Router.paths.applications)),
+                null)
+              }
+              {p.children}
+            </>
+          )}
+        </Router>
+      ),
+      div
+    );
+    try {
+      await settle();
+      expect(String(Router.paths.applications)).toBe("#/applications");
+      expect([hashHref.active(), hashHref.current()]).toEqual([true, true]);
+      expect([pathsNode.active(), pathsNode.current()]).toEqual([true, true]);
+    } finally {
+      dispose();
+      div.remove();
     }
   });
 });

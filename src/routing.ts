@@ -406,10 +406,15 @@ export const useLinkState = (
 ): LinkState => {
   const router = useRouter();
   const location = router.location;
-  // a paths node's brand is its logical path; toString is the display href
+  // a paths node's brand is its logical path; toString is the display href.
+  // Display strings under hashHistory start with `#` — map them back through
+  // parsePath the same way navigate() does, so `useLinkState("#/about")`
+  // matches location.pathname `/about` (#746).
   const to = useResolvedPath(() => {
     const h: any = href();
-    return h[HREF] || String(h);
+    let path: string = h[HREF] || String(h);
+    if (path[0] === "#") path = router.parsePath(path);
+    return path;
   });
   const base = router.base.path();
   const state = createMemo(() => linkMatcher(location, base, options.end)(to()));
