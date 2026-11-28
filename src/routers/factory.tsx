@@ -250,6 +250,15 @@ export interface RouterInstance<R extends readonly RouteDefinition[] = RouteDefi
 }
 
 /**
+ * The pathname of a location path. A path that starts with `//` is resolved
+ * against `mockBase` as a path, not as a protocol-relative URL with an empty
+ * host, which `new URL` rejects.
+ */
+function pathnameOfPath(path: string): string {
+  return new URL(path[0] === "/" ? mockBase + path : path, mockBase).pathname;
+}
+
+/**
  * What one location write is, for solid's observe tier: the parametrized
  * route it heads to, the params, where it came from, and — when the write is
  * the router chasing a redirect while the previous target is still pending —
@@ -278,7 +287,7 @@ function describeNavigation(
   };
   const pathname = () => {
     const t = to();
-    return t === undefined ? undefined : new URL(t, mockBase).pathname;
+    return t === undefined ? undefined : pathnameOfPath(t);
   };
   const ref: NavigationRef = {
     kind: "navigation",
@@ -336,7 +345,7 @@ function describeInitial(
   location: () => LocationChange
 ): NavigationRef {
   const to = () => untrack(location).value;
-  const pathname = () => new URL(to(), mockBase).pathname;
+  const pathname = () => pathnameOfPath(to());
   return {
     kind: "navigation",
     initial: true,
@@ -495,7 +504,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
     getRouteMatches(branches(), config.transformUrl ? config.transformUrl(pathname) : pathname);
   // a `paths` node carries its logical pathname under the Href brand
   const pathnameOf = (url: string | TypedPath) =>
-    typeof url === "string" ? new URL(url, mockBase).pathname : ((url as any)[HREF] as string);
+    typeof url === "string" ? pathnameOfPath(url) : ((url as any)[HREF] as string);
 
   function RouterComponent(props: RouterProps): JSX.Element {
     // One router per app: the session (location, history, delegation, link

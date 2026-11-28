@@ -122,6 +122,23 @@ describe("observe tier: navigations declared to attribution", () => {
     }
   });
 
+  test("an arrival on a path that starts with // is declared without throwing (#752)", () => {
+    const Router = createRouter({
+      routes: [{ path: "/", component: () => <div data-route="home">Home</div> }] as const,
+      history: memoryHistory("//")
+    });
+    const { cleanup } = mount(Router);
+    try {
+      const nav = last();
+      expect(nav.initial).toBe(true);
+      expect(nav.to).toBe("//");
+      expect(() => nav.name).not.toThrow();
+      expect(() => nav.params).not.toThrow();
+    } finally {
+      cleanup();
+    }
+  });
+
   test("the initial declaration is not a row in feedback().navigations", async () => {
     let navigate!: Navigator;
     const Router = createRouter({
