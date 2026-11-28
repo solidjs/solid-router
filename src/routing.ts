@@ -45,6 +45,7 @@ import type {
 } from "./types.js";
 import {
   mockBase,
+  locationURL,
   createMemoObject,
   extractSearchParams,
   invariant,
@@ -328,7 +329,7 @@ export function useSearchParams(
     // navigation lands on that navigation's target.
     navigate(
       headed => {
-        const url = new URL(headed.value[0] === "/" ? mockBase + headed.value : headed.value, mockBase);
+        const url = locationURL(headed.value);
         return url.pathname + mergeSearchString(url.search, params) + url.hash;
       },
       {
@@ -690,9 +691,7 @@ function createLocation(
     (prev = new URL(mockBase)) => {
       const path_ = path();
       try {
-        // anchor rooted paths against the origin explicitly - a path with
-        // doubled leading slashes would otherwise parse as protocol-relative
-        return new URL(path_[0] === "/" ? mockBase + path_ : path_, mockBase);
+        return locationURL(path_);
       } catch (err) {
         DEV && console.error(`Invalid path ${path_}`);
         return prev;
