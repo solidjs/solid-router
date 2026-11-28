@@ -14,6 +14,14 @@ const hasSchemeRegex = /^(?:[a-z0-9]+:)?\/\//i;
 const trimPathRegex = /^\/+|(\/)\/+$/g;
 export const mockBase = "http://sr";
 
+/**
+ * A location path as a URL on `mockBase`. A rooted path is appended to the
+ * origin, so one that starts with `//` stays a path instead of parsing as a
+ * protocol-relative URL (which `new URL` rejects when the host is empty).
+ */
+export const locationURL = (path: string) =>
+  new URL(path[0] === "/" ? mockBase + path : path, mockBase);
+
 export function normalizePath(path: string, omitSlash: boolean = false) {
   const s = path.replace(trimPathRegex, "$1");
   return s ? (omitSlash || /^[?#]/.test(s) ? s : "/" + s) : "";

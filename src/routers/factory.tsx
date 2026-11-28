@@ -56,7 +56,7 @@ import type {
   TypedPath,
   ValidFilters
 } from "../types.js";
-import { mockBase } from "../utils.js";
+import { locationURL, mockBase } from "../utils.js";
 import { Root, Routes } from "./components.jsx";
 import { browserHistory } from "./history.js";
 import type { RouterHistory } from "./history.js";
@@ -278,7 +278,7 @@ function describeNavigation(
   };
   const pathname = () => {
     const t = to();
-    return t === undefined ? undefined : new URL(t, mockBase).pathname;
+    return t === undefined ? undefined : locationURL(t).pathname;
   };
   const ref: NavigationRef = {
     kind: "navigation",
@@ -336,7 +336,7 @@ function describeInitial(
   location: () => LocationChange
 ): NavigationRef {
   const to = () => untrack(location).value;
-  const pathname = () => new URL(to(), mockBase).pathname;
+  const pathname = () => locationURL(to()).pathname;
   return {
     kind: "navigation",
     initial: true,
@@ -495,7 +495,7 @@ export function createRouter<const R extends readonly RouteDefinition[]>(
     getRouteMatches(branches(), config.transformUrl ? config.transformUrl(pathname) : pathname);
   // a `paths` node carries its logical pathname under the Href brand
   const pathnameOf = (url: string | TypedPath) =>
-    typeof url === "string" ? new URL(url, mockBase).pathname : ((url as any)[HREF] as string);
+    typeof url === "string" ? locationURL(url).pathname : ((url as any)[HREF] as string);
 
   function RouterComponent(props: RouterProps): JSX.Element {
     // One router per app: the session (location, history, delegation, link
